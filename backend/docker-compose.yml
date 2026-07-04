@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: lucide-react-db
+    environment:
+      POSTGRES_USER: lucide
+      POSTGRES_PASSWORD: lucide_dev_password
+      POSTGRES_DB: lucide_react_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=pt_BR.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lucide"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lucide-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: lucide-react-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lucide-network
+
+  # FastAPI Backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lucide-react-api
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://lucide:lucide_dev_password@postgres:5432/lucide_react_db
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-sk-ant-xxxxx}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-xxxxx}
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lucide-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  lucide-network:
+    driver: bridge
