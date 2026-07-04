@@ -1,0 +1,166 @@
+{
+  "server_id": "pubmed",
+  "name": "PubMed",
+  "description": "MEDLINE and PubMed Central academic research with 35M+ articles, medical and life sciences literature",
+  "version": "1.0.0",
+  "enabled": true,
+  "capabilities": [
+    "search_articles",
+    "get_metadata",
+    "related_articles",
+    "article_full_text",
+    "citation_metrics",
+    "mesh_indexing"
+  ],
+  "databases": [
+    "MEDLINE",
+    "PubMed Central",
+    "EMBASE"
+  ],
+  "search_fields": {
+    "keywords": "Free text search",
+    "title": "Search in article titles",
+    "author": "Search by author name",
+    "journal": "Search by journal name",
+    "year_from": "From publication year (inclusive)",
+    "year_to": "To publication year (inclusive)",
+    "publication_type": "Article type (research, review, meta-analysis, etc)",
+    "language": "Publication language",
+    "mesh_terms": "Medical Subject Headings",
+    "species": "Organism or species studied"
+  },
+  "publication_types": {
+    "research_article": "Original research studies",
+    "review": "Literature reviews",
+    "meta_analysis": "Meta-analyses combining multiple studies",
+    "systematic_review": "Systematic literature reviews",
+    "clinical_trial": "Clinical trials (RCT, observational)",
+    "case_report": "Case reports and case series",
+    "commentary": "Editorials and commentaries",
+    "editorial": "Journal editorials",
+    "letter": "Letters to editor",
+    "news": "News items"
+  },
+  "languages": [
+    "English",
+    "Portuguese",
+    "Spanish",
+    "French",
+    "German",
+    "Italian",
+    "Dutch",
+    "Chinese",
+    "Japanese"
+  ],
+  "filters": {
+    "human_studies": "Filter for human studies only",
+    "clinical_trials": "Include clinical trial results",
+    "free_full_text": "Include open access articles",
+    "review_articles": "Include review articles",
+    "recent_30days": "Articles from last 30 days"
+  },
+  "output_fields": [
+    "pmid",
+    "title",
+    "authors",
+    "journal",
+    "publication_date",
+    "abstract",
+    "keywords",
+    "mesh_terms",
+    "citation_count",
+    "cited_by_count",
+    "full_text_availability",
+    "doi",
+    "url"
+  ],
+  "citation_formats": {
+    "apa": "American Psychological Association style",
+    "mla": "Modern Language Association style",
+    "chicago": "Chicago Manual of Style",
+    "harvard": "Harvard style",
+    "vancouver": "Vancouver style",
+    "abnt": "Brazilian ABNT style",
+    "iso": "ISO 690 style"
+  },
+  "authentication": {
+    "type": "public_api",
+    "email_required": "true",
+    "endpoint": "https://www.ncbi.nlm.nih.gov/pmc/utils/webenv"
+  },
+  "rate_limiting": {
+    "requests_per_second": 3,
+    "max_results_per_query": 10000,
+    "timeout_seconds": 30,
+    "batch_size": 500
+  },
+  "response_format": {
+    "articles": [
+      {
+        "pmid": "12345678",
+        "title": "Article Title",
+        "authors": [
+          {
+            "name": "Author Name",
+            "affiliation": "Institution"
+          }
+        ],
+        "journal": "Journal Name",
+        "publication_date": "2024-01-15",
+        "year": 2024,
+        "volume": 42,
+        "issue": 3,
+        "pages": "123-145",
+        "abstract": "Background and objectives... Methods... Results... Conclusions...",
+        "keywords": ["keyword1", "keyword2"],
+        "mesh_terms": ["MESH Term 1", "MESH Term 2"],
+        "doi": "10.1234/example.doi",
+        "citations": 125,
+        "full_text_url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12345678/",
+        "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/12345678/"
+      }
+    ],
+    "metadata": {
+      "total_results": 542,
+      "returned_count": 10,
+      "query_time_ms": 456,
+      "search_id": "search_67890"
+    }
+  },
+  "example_searches": {
+    "medical_research": {
+      "query": "COVID-19 treatment efficacy",
+      "filters": ["human_studies", "clinical_trials"],
+      "year_from": 2020
+    },
+    "accounting_healthcare": {
+      "query": "healthcare financial management compliance",
+      "publication_type": "review"
+    },
+    "legal_medicine": {
+      "query": "medical malpractice liability",
+      "filters": ["research_article"]
+    },
+    "related_articles": {
+      "pmid": "12345678",
+      "limit": 20
+    }
+  },
+  "mesh_common_terms": {
+    "health_topic": "Health topics (e.g., 'Diabetes Mellitus', 'Hypertension')",
+    "treatment": "Treatment methods (e.g., 'Pharmacotherapy', 'Psychotherapy')",
+    "population": "Study populations (e.g., 'Humans', 'Aged', 'Children')",
+    "study_design": "Study designs (e.g., 'Randomized Controlled Trial', 'Cohort Studies')"
+  },
+  "special_features": {
+    "full_text_search": "Search in full article text when available",
+    "mesh_indexed_search": "Advanced search using Medical Subject Headings",
+    "related_articles_api": "Find articles related to a specific PMID",
+    "citation_analysis": "Track citations and impact metrics"
+  },
+  "performance": {
+    "average_response_time_ms": 800,
+    "max_response_time_ms": 5000,
+    "typical_results_per_query": 100
+  }
+}

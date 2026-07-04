@@ -1,0 +1,139 @@
+{
+  "server_id": "legal-data-hunter",
+  "name": "Legal Data Hunter",
+  "description": "Multi-jurisdictional legal research with 230+ jurisdictions, statutes, case law, doctrine, and comparative analysis",
+  "version": "1.0.0",
+  "enabled": true,
+  "capabilities": [
+    "search_statutes",
+    "search_case_law",
+    "search_doctrine",
+    "comparative_analysis",
+    "jurisdiction_research",
+    "petition_analysis",
+    "strategic_analysis"
+  ],
+  "jurisdictions": {
+    "south_america": ["BR", "AR", "CL", "CO", "PE", "VE", "BO", "PY", "UY"],
+    "north_america": ["US", "CA", "MX"],
+    "europe": ["PT", "ES", "FR", "DE", "IT", "GB", "NL", "BE", "AT", "CH", "SE", "DK", "NO", "FI", "PL"],
+    "eu_common": ["EU"]
+  },
+  "document_types": {
+    "statutes": {
+      "id": "statute",
+      "name": "Statutes & Legislation",
+      "description": "Federal, state, and municipal laws and regulations"
+    },
+    "case_law": {
+      "id": "case_law",
+      "name": "Case Law & Jurisprudence",
+      "description": "Court decisions, precedents, and judicial interpretations"
+    },
+    "regulation": {
+      "id": "regulation",
+      "name": "Regulations & Guidance",
+      "description": "Administrative regulations and official guidance documents"
+    },
+    "doctrine": {
+      "id": "doctrine",
+      "name": "Legal Doctrine",
+      "description": "Academic articles, legal commentaries, and scholarly analysis"
+    },
+    "comparative": {
+      "id": "comparative",
+      "name": "Comparative Analysis",
+      "description": "Cross-jurisdictional comparisons and analysis"
+    }
+  },
+  "search_fields": {
+    "keywords": "Free text search",
+    "jurisdiction": "Specific jurisdiction or jurisdictions",
+    "document_type": "Type of legal document",
+    "year_from": "Search from year (inclusive)",
+    "year_to": "Search to year (inclusive)",
+    "topic": "Legal topic or subject area",
+    "court": "Specific court (for case law)",
+    "judge": "Specific judge (for case law)",
+    "parties": "Names of parties involved"
+  },
+  "advanced_features": {
+    "petition_analysis": {
+      "id": "petition-analysis",
+      "name": "Petition Critical Analysis",
+      "description": "Analyze legal documents for strategic flaws, omissions, and procedural errors",
+      "inputs": ["document_file", "jurisdiction", "case_type"]
+    },
+    "strategic_blindage": {
+      "id": "strategic-blindage",
+      "name": "Strategic Blindage & Counter-Arguments",
+      "description": "Generate devil's advocate analysis, identify vulnerabilities, plan counter-strategies",
+      "inputs": ["legal_argument", "jurisdiction", "opposing_party_profile"]
+    },
+    "jurisdiction_comparison": {
+      "id": "jurisdiction-comparison",
+      "name": "Jurisdiction Comparison",
+      "description": "Compare legislation and jurisprudence across multiple jurisdictions",
+      "inputs": ["topic", "jurisdictions", "comparison_type"]
+    }
+  },
+  "authentication": {
+    "type": "api_key",
+    "header": "X-API-Key",
+    "envVar": "VITE_LEGAL_DATA_HUNTER_API_KEY",
+    "endpoint": "https://api.legaldatahunter.com"
+  },
+  "rate_limiting": {
+    "requests_per_second": 2,
+    "max_results_per_query": 100,
+    "timeout_seconds": 30
+  },
+  "response_format": {
+    "results": [
+      {
+        "id": "doc_id",
+        "title": "Document Title",
+        "jurisdiction": "BR",
+        "type": "statute",
+        "date": "2024-01-15",
+        "citation": "Law XX/2024",
+        "excerpt": "Relevant passage from document",
+        "url": "https://...",
+        "relevance_score": 0.95
+      }
+    ],
+    "metadata": {
+      "total_results": 42,
+      "query_time_ms": 234,
+      "search_id": "search_12345"
+    }
+  },
+  "example_searches": {
+    "legislation": {
+      "query": "IRPF tax regulations Brazil",
+      "jurisdiction": "BR",
+      "type": "statute"
+    },
+    "case_law": {
+      "query": "intellectual property dispute",
+      "jurisdiction": "US",
+      "type": "case_law"
+    },
+    "comparative": {
+      "query": "data privacy regulation",
+      "jurisdictions": ["BR", "EU", "US"],
+      "type": "comparative"
+    },
+    "petition_analysis": {
+      "document": "petition.pdf",
+      "jurisdiction": "BR",
+      "analyze_for": ["strategy_flaws", "missing_arguments", "opposing_defenses"]
+    }
+  },
+  "related_sources": {
+    "doctrinal": "Law review articles and academic commentary",
+    "legislative": "Official government legislation databases",
+    "judicial": "Official court decision repositories",
+    "regulatory": "Regulatory agency guidance documents"
+  }
+}

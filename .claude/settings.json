@@ -1,0 +1,97 @@
+{
+  "version": "1.0.0",
+  "name": "Lucide-react: Legal, Accounting & Academic Research Platform",
+  "description": "Plataforma integrada de pesquisa jurídica, contábil e acadêmica com Claude Code",
+  "codebaseLanguage": "TypeScript",
+  "framework": "React 19 + Vite",
+  "preferredModel": "claude-opus-4-1-20250805",
+  "mcp": {
+    "enabled": true,
+    "servers": [
+      "legal-data-hunter",
+      "pubmed",
+      "google-drive",
+      "gmail",
+      "slack"
+    ]
+  },
+  "skills": [
+    "legal-research",
+    "accounting-analysis",
+    "academic-search",
+    "code-review",
+    "verify",
+    "simplify"
+  ],
+  "plugins": [
+    "legal-plugins",
+    "accounting-plugins",
+    "academic-plugins"
+  ],
+  "permissions": {
+    "read": [
+      "src/**",
+      "docs/**",
+      "package.json",
+      "tsconfig*.json",
+      "vite.config.ts",
+      ".claude/**",
+      "README.md"
+    ],
+    "write": [
+      "src/**",
+      "docs/**",
+      ".claude/**"
+    ],
+    "execute": [
+      "npm run dev",
+      "npm run build",
+      "npm run lint",
+      "npm run preview"
+    ]
+  },
+  "hooks": {
+    "session-start": ".claude/hooks/session-start.sh"
+  },
+  "settings": {
+    "autoFormatOnSave": true,
+    "lintOnSave": true,
+    "typeCheckOnBuild": true,
+    "maxTokens": 8000,
+    "conversationContext": "full"
+  },
+  "development": {
+    "devServer": "http://localhost:5173",
+    "buildTool": "vite",
+    "bundler": "vite",
+    "packageManager": "npm"
+  },
+  "api": {
+    "legalDataHunter": {
+      "enabled": true,
+      "configFile": ".claude/mcp/legal-data-hunter.json",
+      "timeout": 30000,
+      "retries": 3
+    },
+    "pubmed": {
+      "enabled": true,
+      "configFile": ".claude/mcp/pubmed.json",
+      "timeout": 30000,
+      "retries": 2,
+      "rateLimit": "3req/sec"
+    },
+    "googleDrive": {
+      "enabled": true,
+      "configFile": ".claude/mcp/google-drive.json",
+      "timeout": 30000
+    },
+    "gmail": {
+      "enabled": false,
+      "timeout": 30000
+    },
+    "slack": {
+      "enabled": false,
+      "timeout": 10000
+    }
+  }
+}
