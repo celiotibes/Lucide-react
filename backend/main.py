@@ -54,7 +54,7 @@ app.add_middleware(
 # IMPORTS ROUTERS
 # ============================================================================
 
-from routes import processos, calculos, rag, multi_tier_llm
+from routes import processos, calculos, rag, multi_tier_llm, advanced_research
 
 # ============================================================================
 # ROUTES
@@ -65,6 +65,7 @@ app.include_router(processos.router)
 app.include_router(calculos.router)
 app.include_router(rag.router)
 app.include_router(multi_tier_llm.router)  # 4-Tier LLM Stack
+app.include_router(advanced_research.router)  # Advanced Research com RAG + 4-Tier
 
 @app.get("/")
 async def root():

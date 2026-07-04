@@ -7,11 +7,12 @@ import { useState, useCallback } from 'react'
 import { LegalResearch } from './LegalResearch'
 import { AcademicResearch } from './AcademicResearch'
 import { AccountingResearch } from './AccountingResearch'
+import { AdvancedLegalResearch } from './AdvancedLegalResearch'
 import useMultiTierLlm from '../../hooks/useMultiTierLlm'
 import './ResearchStyles.css'
 import './ResearchHub.css'
 
-type ActiveTab = 'legal' | 'academic' | 'accounting'
+type ActiveTab = 'legal' | 'advanced_legal' | 'academic' | 'accounting'
 
 interface ResearchHubProps {
   onResultSelect?: (result: string, source: string) => void
@@ -153,6 +154,12 @@ export function ResearchHub({ onResultSelect }: ResearchHubProps) {
           ⚖️ Pesquisa Jurídica
         </button>
         <button
+          className={`research-tab ${activeTab === 'advanced_legal' ? 'active' : ''}`}
+          onClick={() => handleTabChange('advanced_legal')}
+        >
+          🔬 Jurídica Avançada (RAG)
+        </button>
+        <button
           className={`research-tab ${activeTab === 'academic' ? 'active' : ''}`}
           onClick={() => handleTabChange('academic')}
         >
@@ -169,6 +176,9 @@ export function ResearchHub({ onResultSelect }: ResearchHubProps) {
       {/* Tab Content */}
       <div className="research-content">
         {activeTab === 'legal' && <LegalResearch onResultSelect={handleResultSelect} />}
+        {activeTab === 'advanced_legal' && (
+          <AdvancedLegalResearch onResultSelect={handleResultSelect} />
+        )}
         {activeTab === 'academic' && <AcademicResearch onResultSelect={handleResultSelect} />}
         {activeTab === 'accounting' && <AccountingResearch onResultSelect={handleResultSelect} />}
       </div>
