@@ -1,0 +1,445 @@
+/**
+ * Outcome Predictor Panel Styles
+ * Case success probability prediction UI
+ */
+
+.outcome-predictor-panel {
+  max-width: 1000px;
+  margin: 20px auto;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef7 100%);
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.predictor-header {
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 3px solid #1b3a57;
+  padding-bottom: 20px;
+}
+
+.predictor-header h2 {
+  margin: 0 0 10px 0;
+  color: #1b3a57;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.predictor-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Input Area */
+.predictor-inputs {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border-left: 4px solid #d4af37;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.predictor-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  margin-bottom: 15px;
+  box-sizing: border-box;
+  transition: all 0.3s;
+}
+
+.predictor-textarea:focus {
+  outline: none;
+  border-color: #1b3a57;
+  box-shadow: 0 0 8px rgba(27, 58, 87, 0.15);
+}
+
+.predictor-button {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #1b3a57 0%, #4a7ba7 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.predictor-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(27, 58, 87, 0.3);
+}
+
+.predictor-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Result Display */
+.prediction-result {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Success Probability Display */
+.success-probability {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  border-left: 4px solid #d4af37;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.probability-label {
+  color: #999;
+  font-size: 13px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 15px;
+  letter-spacing: 0.5px;
+}
+
+.probability-circle {
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56px;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.probability-high {
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+}
+
+.probability-medium {
+  background: linear-gradient(135deg, #ff9800 0%, #fb8c00 100%);
+}
+
+.probability-low {
+  background: linear-gradient(135deg, #f44336 0%, #e53935 100%);
+}
+
+.probability-text {
+  font-size: 16px;
+  color: #555;
+  margin-bottom: 20px;
+}
+
+.confidence-badge {
+  display: inline-block;
+  background: #f0f0f0;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+}
+
+/* Risk and Recommendation */
+.risk-recommendation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.risk-card,
+.recommendation-card {
+  background: #f5f7fa;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 3px solid #d4af37;
+}
+
+.card-label {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.card-value {
+  font-size: 16px;
+  color: #1b3a57;
+  font-weight: 600;
+}
+
+.risk-low {
+  border-left-color: #4caf50;
+  background: #e8f5e9;
+}
+
+.risk-medium {
+  border-left-color: #ff9800;
+  background: #fff3e0;
+}
+
+.risk-high {
+  border-left-color: #f44336;
+  background: #ffebee;
+}
+
+.recommendation-proceed {
+  border-left-color: #4caf50;
+  background: #e8f5e9;
+}
+
+.recommendation-cautious {
+  border-left-color: #ff9800;
+  background: #fff3e0;
+}
+
+.recommendation-reconsider {
+  border-left-color: #f44336;
+  background: #ffebee;
+}
+
+/* Strength Scores */
+.strength-scores {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #2196f3;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.scores-title {
+  margin: 0 0 15px 0;
+  color: #1b3a57;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.scores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.score-item {
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 3px solid #2196f3;
+}
+
+.score-name {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.score-bar {
+  background: #e0e0e0;
+  border-radius: 3px;
+  height: 8px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.score-fill {
+  background: linear-gradient(90deg, #2196f3 0%, #1976d2 100%);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.score-number {
+  font-size: 14px;
+  color: #1b3a57;
+  font-weight: 700;
+}
+
+/* Key Factors */
+.key-factors {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #9c27b0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.factors-title {
+  margin: 0 0 15px 0;
+  color: #1b3a57;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.factors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.factor-item {
+  background: #f9f9f9;
+  padding: 12px;
+  border-radius: 4px;
+  border-left: 3px solid #9c27b0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.factor-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.factor-content {
+  flex: 1;
+}
+
+.factor-name {
+  font-weight: 600;
+  color: #1b3a57;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.factor-description {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+}
+
+/* Improvements */
+.improvements-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #4caf50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.improvements-title {
+  margin: 0 0 15px 0;
+  color: #1b3a57;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.improvements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.improvement-item {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  border-left: 3px solid #4caf50;
+  font-size: 13px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.improvement-item:before {
+  content: '→';
+  color: #4caf50;
+  font-weight: 700;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .outcome-predictor-panel {
+    padding: 20px;
+    margin: 10px;
+  }
+
+  .predictor-header h2 {
+    font-size: 22px;
+  }
+
+  .probability-circle {
+    width: 140px;
+    height: 140px;
+    font-size: 42px;
+  }
+
+  .risk-recommendation {
+    grid-template-columns: 1fr;
+  }
+
+  .scores-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .outcome-predictor-panel {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  }
+
+  .predictor-header h2 {
+    color: #f4e4c1;
+  }
+
+  .predictor-inputs,
+  .success-probability,
+  .strength-scores,
+  .key-factors,
+  .improvements-section {
+    background: #2d2d2d;
+  }
+
+  .predictor-textarea {
+    background: #1a1a1a;
+    border-color: #444;
+    color: #f4e4c1;
+  }
+
+  .probability-text,
+  .card-label,
+  .factors-title,
+  .scores-title,
+  .improvements-title,
+  .factor-description,
+  .improvement-item {
+    color: #aaa;
+  }
+
+  .card-value,
+  .score-name,
+  .factor-name {
+    color: #f4e4c1;
+  }
+
+  .risk-card,
+  .recommendation-card,
+  .score-item,
+  .factor-item,
+  .improvement-item {
+    background: #1a1a1a;
+  }
+
+  .confidence-badge {
+    background: #1a1a1a;
+    color: #aaa;
+  }
+}
