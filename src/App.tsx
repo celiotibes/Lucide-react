@@ -1,12 +1,13 @@
 /**
  * Lucide-react: Plataforma de Pesquisa Jurídica e Editor de Petições
- * FASE 3A - Visual Law Editor com Integração TipTap e Análise de Jurimetria
+ * FASE 4.2 - Frontend Integration with 4-Tier LLM Stack + Research Hub
  */
 
 import { useState, useCallback } from 'react'
 import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
 import { FormularioCálculos } from './components/FormularioCálculos'
+import { ResearchHub } from './components/research/ResearchHub'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -15,7 +16,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [htmlAtual, setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'calculadores'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'calculadores' | 'pesquisa'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -34,12 +35,18 @@ function App() {
         </div>
         <div style={styles.headerTitulo}>
           <h1 style={styles.h1}>
-            {paginaAtiva === 'editor' ? 'Editor Visual de Petições Judiciais' : 'Calculadores Jurídicos'}
+            {paginaAtiva === 'editor'
+              ? 'Editor Visual de Petições Judiciais'
+              : paginaAtiva === 'calculadores'
+                ? 'Calculadores Jurídicos'
+                : 'Centro de Pesquisa 4-Tier LLM'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
               ? 'Plataforma integrada com análise de jurimetria e hermenêutica blindada'
-              : 'Cálculos especializados: Dano Material, Pensão Alimentícia e Dano Moral'}
+              : paginaAtiva === 'calculadores'
+                ? 'Cálculos especializados: Dano Material, Pensão Alimentícia e Dano Moral'
+                : 'Pesquisa inteligente com roteamento automático (Claude, Groq, Gemini, Ollama)'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -61,9 +68,18 @@ function App() {
           >
             🧮 Calculadores
           </button>
+          <button
+            onClick={() => setPaginaAtiva('pesquisa')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'pesquisa' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🔍 Pesquisa
+          </button>
         </div>
         <div style={styles.versao}>
-          FASE 4 - Backend
+          FASE 4.2 - Frontend LLM
         </div>
       </header>
 
@@ -98,6 +114,12 @@ function App() {
         {paginaAtiva === 'calculadores' && (
           <main style={styles.mainFullWidth}>
             <FormularioCálculos />
+          </main>
+        )}
+
+        {paginaAtiva === 'pesquisa' && (
+          <main style={styles.mainFullWidth}>
+            <ResearchHub />
           </main>
         )}
       </div>
