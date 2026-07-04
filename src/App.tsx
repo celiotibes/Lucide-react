@@ -11,6 +11,7 @@ import { FormularioCálculos } from './components/FormularioCálculos'
 import { ResearchHub } from './components/research/ResearchHub'
 import { LLMConfigPanel } from './components/llm/LLMConfigPanel'
 import { LLMTestPanel } from './components/llm/LLMTestPanel'
+import { RAGAnalysisPanel } from './components/rag/RAGAnalysisPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -19,7 +20,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [_tituloDocumento, _setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -48,7 +49,9 @@ function App() {
                     ? 'Centro de Pesquisa Jurídica'
                     : paginaAtiva === 'llm-config'
                       ? 'Configuração 4-Tier LLM'
-                      : 'Teste de Roteamento LLM'}
+                      : paginaAtiva === 'llm-test'
+                        ? 'Teste de Roteamento LLM'
+                        : 'Análise RAG de Petições'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
@@ -61,7 +64,9 @@ function App() {
                     ? 'Pesquisa jurídica com Legal Data Hunter e PubMed'
                     : paginaAtiva === 'llm-config'
                       ? 'Configure API keys para Claude, Groq, Gemini e Ollama'
-                      : 'Teste diferentes estratégias de roteamento LLM'}
+                      : paginaAtiva === 'llm-test'
+                        ? 'Teste diferentes estratégias de roteamento LLM'
+                        : 'Análise profunda de petições com busca de jurisprudência e detecção de conflitos'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -118,6 +123,15 @@ function App() {
             }}
           >
             🧪 LLM Test
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('rag-analysis')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'rag-analysis' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📊 RAG Analysis
           </button>
         </div>
         <div style={styles.versao}>
@@ -180,6 +194,12 @@ function App() {
         {paginaAtiva === 'llm-test' && (
           <main style={styles.mainFullWidth}>
             <LLMTestPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'rag-analysis' && (
+          <main style={styles.mainFullWidth}>
+            <RAGAnalysisPanel />
           </main>
         )}
       </div>
