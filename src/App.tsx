@@ -9,22 +9,24 @@ import { EditorWorkspace } from './components/editor/EditorWorkspace'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
 import { FormularioCálculos } from './components/FormularioCálculos'
 import { ResearchHub } from './components/research/ResearchHub'
+import { LLMConfigPanel } from './components/llm/LLMConfigPanel'
+import { LLMTestPanel } from './components/llm/LLMTestPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
 
 function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
-  const [htmlAtual, setHtmlAtual] = useState<string>('')
-  const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa'>('editor')
+  const [_htmlAtual, _setHtmlAtual] = useState<string>('')
+  const [_tituloDocumento, _setTituloDocumento] = useState('Nova Petição Judicial')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
   }, [])
 
   const atualizarHtml = useCallback((novoHtml: string) => {
-    setHtmlAtual(novoHtml)
+    _setHtmlAtual(novoHtml)
   }, [])
 
   return (
@@ -38,16 +40,28 @@ function App() {
           <h1 style={styles.h1}>
             {paginaAtiva === 'editor'
               ? 'Editor Visual de Petições Judiciais'
-              : paginaAtiva === 'calculadores'
-                ? 'Calculadores Jurídicos'
-                : 'Centro de Pesquisa 4-Tier LLM'}
+              : paginaAtiva === 'editor-novo'
+                ? 'Editor Sprint 5 - Gerenciamento Completo'
+                : paginaAtiva === 'calculadores'
+                  ? 'Calculadores Jurídicos'
+                  : paginaAtiva === 'pesquisa'
+                    ? 'Centro de Pesquisa Jurídica'
+                    : paginaAtiva === 'llm-config'
+                      ? 'Configuração 4-Tier LLM'
+                      : 'Teste de Roteamento LLM'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
               ? 'Plataforma integrada com análise de jurimetria e hermenêutica blindada'
-              : paginaAtiva === 'calculadores'
-                ? 'Cálculos especializados: Dano Material, Pensão Alimentícia e Dano Moral'
-                : 'Pesquisa inteligente com roteamento automático (Claude, Groq, Gemini, Ollama)'}
+              : paginaAtiva === 'editor-novo'
+                ? 'Edição completa com auto-save, export multi-formato, anexos inteligentes, ementa automática e versionamento'
+                : paginaAtiva === 'calculadores'
+                  ? 'Cálculos especializados: Dano Material, Pensão Alimentícia e Dano Moral'
+                  : paginaAtiva === 'pesquisa'
+                    ? 'Pesquisa jurídica com Legal Data Hunter e PubMed'
+                    : paginaAtiva === 'llm-config'
+                      ? 'Configure API keys para Claude, Groq, Gemini e Ollama'
+                      : 'Teste diferentes estratégias de roteamento LLM'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -86,6 +100,24 @@ function App() {
             }}
           >
             🔍 Pesquisa
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('llm-config')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'llm-config' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            ⚙️ LLM Config
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('llm-test')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'llm-test' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🧪 LLM Test
           </button>
         </div>
         <div style={styles.versao}>
@@ -136,6 +168,18 @@ function App() {
         {paginaAtiva === 'pesquisa' && (
           <main style={styles.mainFullWidth}>
             <ResearchHub />
+          </main>
+        )}
+
+        {paginaAtiva === 'llm-config' && (
+          <main style={styles.mainFullWidth}>
+            <LLMConfigPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'llm-test' && (
+          <main style={styles.mainFullWidth}>
+            <LLMTestPanel />
           </main>
         )}
       </div>
