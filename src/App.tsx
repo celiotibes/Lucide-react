@@ -14,6 +14,7 @@ import { LLMTestPanel } from './components/llm/LLMTestPanel'
 import { RAGAnalysisPanel } from './components/rag/RAGAnalysisPanel'
 import { PetitionTransformerPanel } from './components/petitionTransformer/PetitionTransformerPanel'
 import { JurisprudenceTimeline } from './components/timeline/JurisprudenceTimeline'
+import { StrategicAnalysisPanel } from './components/analysis/StrategicAnalysisPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -22,7 +23,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -57,7 +58,9 @@ function App() {
                           ? 'Análise RAG de Petições'
                           : paginaAtiva === 'petition-transformer'
                             ? 'Transformador de Petições Autônomo'
-                            : 'Evolução da Jurisprudência'}
+                            : paginaAtiva === 'timeline'
+                              ? 'Evolução da Jurisprudência'
+                              : 'Análise Estratégica & Blindagem'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
@@ -76,7 +79,9 @@ function App() {
                           ? 'Análise profunda de petições com busca de jurisprudência e detecção de conflitos'
                           : paginaAtiva === 'petition-transformer'
                             ? 'Upload automático com análise inteligente, aprimoramento com IA e exportação multi-formato'
-                            : 'Visualize como a jurisprudência evolui sobre temas específicos ao longo do tempo'}
+                            : paginaAtiva === 'timeline'
+                              ? 'Visualize como a jurisprudência evolui sobre temas específicos ao longo do tempo'
+                              : 'Detecção de fraquezas jurídicas e blindagem contra contra-argumentos'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -161,6 +166,15 @@ function App() {
           >
             📈 Timeline
           </button>
+          <button
+            onClick={() => setPaginaAtiva('strategic-analysis')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'strategic-analysis' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🛡️ Blindagem
+          </button>
         </div>
         <div style={styles.versao}>
           FASE 4.2 - Frontend LLM
@@ -240,6 +254,12 @@ function App() {
         {paginaAtiva === 'timeline' && (
           <main style={styles.mainFullWidth}>
             <JurisprudenceTimeline />
+          </main>
+        )}
+
+        {paginaAtiva === 'strategic-analysis' && (
+          <main style={styles.mainFullWidth}>
+            <StrategicAnalysisPanel />
           </main>
         )}
       </div>
