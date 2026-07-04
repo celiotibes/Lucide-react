@@ -13,6 +13,7 @@ import { LLMConfigPanel } from './components/llm/LLMConfigPanel'
 import { LLMTestPanel } from './components/llm/LLMTestPanel'
 import { RAGAnalysisPanel } from './components/rag/RAGAnalysisPanel'
 import { PetitionTransformerPanel } from './components/petitionTransformer/PetitionTransformerPanel'
+import { JurisprudenceTimeline } from './components/timeline/JurisprudenceTimeline'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -21,7 +22,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -54,7 +55,9 @@ function App() {
                         ? 'Teste de Roteamento LLM'
                         : paginaAtiva === 'rag-analysis'
                           ? 'Análise RAG de Petições'
-                          : 'Transformador de Petições Autônomo'}
+                          : paginaAtiva === 'petition-transformer'
+                            ? 'Transformador de Petições Autônomo'
+                            : 'Evolução da Jurisprudência'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
@@ -71,7 +74,9 @@ function App() {
                         ? 'Teste diferentes estratégias de roteamento LLM'
                         : paginaAtiva === 'rag-analysis'
                           ? 'Análise profunda de petições com busca de jurisprudência e detecção de conflitos'
-                          : 'Upload automático com análise inteligente, aprimoramento com IA e exportação multi-formato'}
+                          : paginaAtiva === 'petition-transformer'
+                            ? 'Upload automático com análise inteligente, aprimoramento com IA e exportação multi-formato'
+                            : 'Visualize como a jurisprudência evolui sobre temas específicos ao longo do tempo'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -147,6 +152,15 @@ function App() {
           >
             🚀 Transformador
           </button>
+          <button
+            onClick={() => setPaginaAtiva('timeline')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'timeline' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📈 Timeline
+          </button>
         </div>
         <div style={styles.versao}>
           FASE 4.2 - Frontend LLM
@@ -220,6 +234,12 @@ function App() {
         {paginaAtiva === 'petition-transformer' && (
           <main style={styles.mainFullWidth}>
             <PetitionTransformerPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'timeline' && (
+          <main style={styles.mainFullWidth}>
+            <JurisprudenceTimeline />
           </main>
         )}
       </div>
