@@ -1,121 +1,171 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+/**
+ * Lucide-react: Plataforma de Pesquisa Jurídica e Editor de Petições
+ * FASE 3A - Visual Law Editor com Integração TipTap e Análise de Jurimetria
+ */
+
+import { useState, useCallback } from 'react'
+import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
+import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
+import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
+import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [fatos, setFatos] = useState<FatoProva[]>([])
+  const [htmlAtual, setHtmlAtual] = useState<string>('')
+  const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
+
+  const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
+    setFatos(novosFatos)
+  }, [])
+
+  const atualizarHtml = useCallback((novoHtml: string) => {
+    setHtmlAtual(novoHtml)
+  }, [])
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div style={styles.app}>
+      {/* Cabeçalho principal */}
+      <header style={styles.header}>
+        <div style={styles.logo}>
+          ⚖️ Lucide-react
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
+        <div style={styles.headerTitulo}>
+          <h1 style={styles.h1}>Editor Visual de Petições Judiciais</h1>
+          <p style={styles.subtitulo}>Plataforma integrada com análise de jurimetria e hermenêutica blindada</p>
         </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+        <div style={styles.versao}>
+          FASE 3A - Visual Law
+        </div>
+      </header>
 
-      <div className="ticks"></div>
+      {/* Conteúdo principal - Layout com sidebar e editor */}
+      <div style={styles.layoutPrincipal}>
+        {/* Sidebar - Gerenciador de Fatos */}
+        <aside style={styles.sidebar}>
+          <GerenciadorFatos
+            fatos={fatos}
+            onAtualizarFatos={atualizarFatos}
+            expandido={true}
+          />
+        </aside>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {/* Editor - Conteúdo principal */}
+        <main style={styles.main}>
+          <EditorLegalVisual
+            titulo={tituloDocumento}
+            conteudoInicial=""
+            onMudar={atualizarHtml}
+            exibirMatriz={true}
+            exibirValidador={true}
+            modoVisualizacao="dualview"
+            fatos={fatos}
+          />
+        </main>
+      </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* Rodapé */}
+      <footer style={styles.footer}>
+        <p>
+          Lucide-react © 2024 • Plataforma de pesquisa jurídica integrada com Legal Data Hunter,
+          PubMed, Google Drive e análises avançadas de jurimetria
+        </p>
+        <p style={styles.footerSecundario}>
+          Tecnologias: React 19 + TypeScript + TipTap + Vite • Tribunais suportados: TJPR, TJSC,
+          TJMT, TJRO, TRF4, JFPR
+        </p>
+      </footer>
+    </div>
   )
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  app: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    backgroundColor: '#FAFAFA',
+    fontFamily: 'Arial, Helvetica, sans-serif',
+  },
+
+  header: {
+    backgroundColor: CORES_JUDICIAIS.azulPrincipal,
+    color: CORES_JUDICIAIS.brancoFundo,
+    padding: '16px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '24px',
+    borderBottom: `3px solid ${CORES_JUDICIAIS.vermelhoArgumento}`,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+  },
+
+  logo: {
+    fontSize: '20pt',
+    fontWeight: 'bold',
+    whiteSpace: 'nowrap',
+  },
+
+  headerTitulo: {
+    flex: 1,
+  },
+
+  h1: {
+    margin: '0 0 4px 0',
+    fontSize: '16pt',
+    fontWeight: 'bold',
+  },
+
+  subtitulo: {
+    margin: 0,
+    fontSize: '11pt',
+    opacity: 0.9,
+  },
+
+  versao: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: '4px 12px',
+    borderRadius: '12px',
+    fontSize: '10pt',
+    fontWeight: 'bold',
+    whiteSpace: 'nowrap',
+  },
+
+  layoutPrincipal: {
+    display: 'flex',
+    flex: 1,
+    overflow: 'hidden',
+    gap: '0',
+  },
+
+  sidebar: {
+    width: '320px',
+    borderRight: `2px solid ${CORES_JUDICIAIS.cinzaBorda}`,
+    overflowY: 'auto',
+    padding: '16px',
+    backgroundColor: CORES_JUDICIAIS.brancoFundo,
+  },
+
+  main: {
+    flex: 1,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+
+  footer: {
+    backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
+    color: CORES_JUDICIAIS.cinzaTextoSecundario,
+    padding: '12px 24px',
+    borderTop: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
+    fontSize: '10pt',
+    textAlign: 'center',
+  },
+
+  footerSecundario: {
+    margin: '4px 0 0 0',
+    fontSize: '9pt',
+    opacity: 0.8,
+  },
 }
 
 export default App
