@@ -7,14 +7,14 @@ import pytest
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 
-from services.calculador_dano_material import CalculadorDanoMaterial
-from services.calculador_pensao import (
+from backend.services.calculador_dano_material import CalculadorDanoMaterial
+from backend.services.calculador_pensao import (
     CalculadorPensaoAlimenticia,
     AnaliseCredor,
     AnaliseDevedor,
     SituacaoDevedor,
 )
-from services.calculador_dano_moral import CalculadorDanoMoral, TipoDanoMoral
+from backend.services.calculador_dano_moral import CalculadorDanoMoral, TipoDanoMoral
 
 
 class TestCalculadorDanoMaterial:
