@@ -12,6 +12,7 @@ import { ResearchHub } from './components/research/ResearchHub'
 import { LLMConfigPanel } from './components/llm/LLMConfigPanel'
 import { LLMTestPanel } from './components/llm/LLMTestPanel'
 import { RAGAnalysisPanel } from './components/rag/RAGAnalysisPanel'
+import { PetitionTransformerPanel } from './components/petitionTransformer/PetitionTransformerPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -20,7 +21,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [_tituloDocumento, _setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -51,7 +52,9 @@ function App() {
                       ? 'Configuração 4-Tier LLM'
                       : paginaAtiva === 'llm-test'
                         ? 'Teste de Roteamento LLM'
-                        : 'Análise RAG de Petições'}
+                        : paginaAtiva === 'rag-analysis'
+                          ? 'Análise RAG de Petições'
+                          : 'Transformador de Petições Autônomo'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
@@ -66,7 +69,9 @@ function App() {
                       ? 'Configure API keys para Claude, Groq, Gemini e Ollama'
                       : paginaAtiva === 'llm-test'
                         ? 'Teste diferentes estratégias de roteamento LLM'
-                        : 'Análise profunda de petições com busca de jurisprudência e detecção de conflitos'}
+                        : paginaAtiva === 'rag-analysis'
+                          ? 'Análise profunda de petições com busca de jurisprudência e detecção de conflitos'
+                          : 'Upload automático com análise inteligente, aprimoramento com IA e exportação multi-formato'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -132,6 +137,15 @@ function App() {
             }}
           >
             📊 RAG Analysis
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('petition-transformer')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'petition-transformer' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🚀 Transformador
           </button>
         </div>
         <div style={styles.versao}>
@@ -200,6 +214,12 @@ function App() {
         {paginaAtiva === 'rag-analysis' && (
           <main style={styles.mainFullWidth}>
             <RAGAnalysisPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'petition-transformer' && (
+          <main style={styles.mainFullWidth}>
+            <PetitionTransformerPanel />
           </main>
         )}
       </div>

@@ -1,0 +1,272 @@
+/**
+ * Transformation Progress Styles
+ */
+
+.transformation-progress {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  border-left: 5px solid #d4af37;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin: 20px 0;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.progress-header h3 {
+  margin: 0;
+  color: #1b3a57;
+  font-size: 18px;
+}
+
+.progress-percent {
+  font-size: 24px;
+  font-weight: 700;
+  color: #d4af37;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+/* Progress Bar */
+.progress-bar-container {
+  margin-bottom: 20px;
+}
+
+.progress-bar-background {
+  background: #f0f0f0;
+  border-radius: 8px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  background: linear-gradient(90deg, #1b3a57 0%, #4a7ba7 100%);
+  height: 100%;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(27, 58, 87, 0.4);
+}
+
+/* Progress Message */
+.progress-message {
+  background: #f5f7fa;
+  border-radius: 8px;
+  border-left: 3px solid #2196f3;
+  padding: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-message p {
+  margin: 0;
+  color: #1b3a57;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.time-remaining {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+}
+
+/* Steps Container */
+.steps-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-indicator {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  border: 2px solid #ddd;
+}
+
+.step.completed .step-indicator {
+  background: #4caf50;
+  color: white;
+  border-color: #4caf50;
+}
+
+.step.current .step-indicator {
+  background: #2196f3;
+  color: white;
+  border-color: #2196f3;
+  box-shadow: 0 0 12px rgba(33, 150, 243, 0.5);
+}
+
+.step.pending .step-indicator {
+  background: #f5f5f5;
+  color: #999;
+  border-color: #ddd;
+}
+
+.step-icon.loading {
+  display: inline-block;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.step-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.step.completed .step-label {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.step.current .step-label {
+  color: #2196f3;
+  font-weight: 600;
+}
+
+.step.pending .step-label {
+  color: #999;
+}
+
+/* Completion Message */
+.completion-message {
+  background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+  border: 2px solid #4caf50;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.success-message {
+  margin: 0;
+  color: #2e7d32;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .transformation-progress {
+    padding: 20px;
+  }
+
+  .progress-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .progress-header h3 {
+    font-size: 16px;
+  }
+
+  .progress-message {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .time-remaining {
+    width: 100%;
+    text-align: left;
+  }
+
+  .steps-container {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .step {
+    flex: 0 1 calc(50% - 6px);
+  }
+
+  .step-label {
+    font-size: 10px;
+  }
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .transformation-progress {
+    background: #2d2d2d;
+    border-left-color: #d4af37;
+  }
+
+  .progress-header h3 {
+    color: #f4e4c1;
+  }
+
+  .progress-bar-background {
+    background: #1a1a1a;
+  }
+
+  .progress-message {
+    background: #1a1a1a;
+    border-left-color: #2196f3;
+  }
+
+  .progress-message p {
+    color: #f4e4c1;
+  }
+
+  .time-remaining {
+    color: #777;
+  }
+
+  .step-indicator {
+    border-color: #444;
+    background: #1a1a1a;
+  }
+
+  .step.pending .step-indicator {
+    background: #1a1a1a;
+    color: #777;
+  }
+
+  .step-label {
+    color: #aaa;
+  }
+
+  .completion-message {
+    background: #1b3d1f;
+    border-color: #4caf50;
+  }
+
+  .success-message {
+    color: #81c784;
+  }
+}
