@@ -3,7 +3,8 @@
  * Cliente para integração com API de roteamento inteligente 4-Tier
  */
 
-import axios, { AxiosInstance } from 'axios'
+import axios from 'axios'
+import type { AxiosInstance } from 'axios'
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
@@ -11,7 +12,6 @@ import type {
   UsageStats,
   MultiTierHealth,
   AnalysisResult,
-  TaskType,
 } from '../types/multiTierLlm'
 
 export class MultiTierLlmClient {

@@ -5,7 +5,6 @@
 
 import { useState, useCallback } from 'react'
 import useMultiTierLlm from '../../hooks/useMultiTierLlm'
-import type { TaskType } from '../../types/multiTierLlm'
 import './ResearchStyles.css'
 
 interface LegalResearchProps {

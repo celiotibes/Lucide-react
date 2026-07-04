@@ -8,7 +8,6 @@ import { getMultiTierLlmClient } from '../services/multiTierLlmClient'
 import type {
   AnalyzeRequest,
   AnalysisResult,
-  TaskType,
   UsageStats,
   MultiTierConfig,
   MultiTierHealth,
