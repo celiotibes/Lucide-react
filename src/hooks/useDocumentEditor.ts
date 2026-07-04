@@ -15,16 +15,30 @@ export function useDocumentEditor() {
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Auto-save effect
+  // Auto-save effect (every 5 seconds when dirty)
   useEffect(() => {
     if (!isDirty || !document) return
 
     const timer = setTimeout(() => {
       saveDocument()
-    }, 5000) // Auto-save after 5 seconds
+    }, 5000)
 
     return () => clearTimeout(timer)
   }, [isDirty, content, document])
+
+  // Also save on window unload
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+        saveDocument()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDirty, content, document, saveDocument])
 
   const createNewDocument = useCallback((templateType: TemplateType, title: string) => {
 

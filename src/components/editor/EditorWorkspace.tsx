@@ -11,6 +11,7 @@ import { DocumentEditor } from './DocumentEditor'
 import { AttachmentPanel } from './AttachmentPanel'
 import { EmentaEditor } from './EmentaEditor'
 import { RevisionHistory } from './RevisionHistory'
+import { ExportDialog } from './ExportDialog'
 import './EditorStyles.css'
 
 export function EditorWorkspace() {
@@ -19,6 +20,7 @@ export function EditorWorkspace() {
   const [activeTab, setActiveTab] = useState<'editor' | 'attachments' | 'ementa' | 'revisions'>(
     'editor'
   )
+  const [showExportDialog, setShowExportDialog] = useState(false)
 
   const handleCreateDocument = (templateType: TemplateType) => {
     createNewDocument(templateType, `Novo ${templateType}`)
@@ -38,9 +40,13 @@ export function EditorWorkspace() {
         </div>
 
         <div className="editor-actions">
-          {isDirty && <span className="unsaved-indicator">● Não salvo</span>}
+          {isSaving && <span className="saving-indicator">⏳ Auto-salvando...</span>}
+          {!isDirty && !isSaving && <span className="saved-indicator">✓ Salvo</span>}
           <button onClick={saveDocument} disabled={!isDirty || isSaving} className="btn-save">
-            {isSaving ? '💾 Salvando...' : '💾 Salvar'}
+            {isSaving ? '💾 Salvando...' : isDirty ? '💾 Salvar Agora' : '✓ Salvo'}
+          </button>
+          <button onClick={() => setShowExportDialog(true)} className="btn-export">
+            📤 Exportar
           </button>
           <button onClick={() => createNewDocument(TemplateType.PETITION, 'Novo Documento')} className="btn-new">
             📄 Novo
@@ -101,6 +107,15 @@ export function EditorWorkspace() {
         <span>{content.split(/\s+/).length} palavras</span>
         <span>Última atualização: {document.updatedAt.toLocaleTimeString()}</span>
       </div>
+
+      {/* Export Dialog */}
+      {showExportDialog && document && (
+        <ExportDialog
+          document={document}
+          content={content}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
     </div>
   )
 }

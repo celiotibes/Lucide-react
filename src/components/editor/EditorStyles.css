@@ -92,6 +92,216 @@
   background: #f0f0f0;
 }
 
+.btn-export {
+  background: #2d8659;
+  color: white;
+}
+
+.btn-export:hover {
+  background: #1f5d3f;
+  transform: translateY(-2px);
+}
+
+.saving-indicator {
+  color: #ffc107;
+  font-weight: bold;
+  animation: pulse 1s infinite;
+}
+
+.saved-indicator {
+  color: #2d8659;
+  font-weight: 600;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ==================== EXPORT DIALOG ==================== */
+
+.export-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.export-dialog {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e8e5e0;
+}
+
+.dialog-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #1b3a57;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #a0a0a0;
+}
+
+.close-btn:hover {
+  color: #1b3a57;
+}
+
+.dialog-content {
+  padding: 20px;
+}
+
+.dialog-description {
+  margin: 0 0 20px 0;
+  color: #6b6b6b;
+  font-size: 14px;
+}
+
+.format-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.format-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid #e8e5e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.format-option:hover {
+  border-color: #d4af37;
+  background: #f8f7f4;
+}
+
+.format-option input[type='radio'] {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.format-option input[type='radio']:checked {
+  accent-color: #d4af37;
+}
+
+.option-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.option-label strong {
+  color: #1b3a57;
+  font-size: 14px;
+}
+
+.option-label small {
+  color: #a0a0a0;
+  font-size: 12px;
+}
+
+.format-details {
+  background: #f8f7f4;
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.details h4 {
+  margin: 0 0 8px 0;
+  color: #1b3a57;
+  font-size: 14px;
+}
+
+.details ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #6b6b6b;
+  font-size: 12px;
+}
+
+.details li {
+  margin: 4px 0;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #e8e5e0;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #d4af37;
+  color: #1b3a57;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #f8f7f4;
+}
+
+.btn-export {
+  padding: 10px 20px;
+  background: #d4af37;
+  color: #1b3a57;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-export:hover {
+  background: #e8c855;
+  transform: translateY(-2px);
+}
+
 /* Tab Navigation */
 .editor-tabs {
   display: flex;
