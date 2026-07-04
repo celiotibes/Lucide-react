@@ -1,6 +1,7 @@
 """
 Advanced Research Service
 Integrates 4-Tier LLM Stack with RAG for intelligent legal research
+With persistent storage via SQLAlchemy ORM
 """
 
 import logging
@@ -8,8 +9,10 @@ import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
+from sqlalchemy.orm import Session
 
 from services.multi_tier_router import MultiTierRouter, LLMTier
+from services.research_repository import ResearchRepository
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +97,10 @@ class AdvancedResearchService:
     Serviço de pesquisa avançada com suporte a:
     - RAG com jurisprudência
     - 4-Tier LLM routing
-    - Conversation history
+    - Conversation history (persistente no banco)
     - Citation management
     - Semantic search
+    - Database persistence com SQLAlchemy
     """
 
     def __init__(
@@ -105,16 +109,19 @@ class AdvancedResearchService:
         rag_chain: Optional[Any] = None,
         legal_embeddings: Optional[Any] = None,
         pinecone_client: Optional[Any] = None,
+        db_session: Optional[Session] = None,
     ):
         self.router = multi_tier_router or MultiTierRouter(cost_aware=True, fallback_enabled=True)
         self.rag_chain = rag_chain
         self.embeddings = legal_embeddings
         self.pinecone = pinecone_client
+        self.db_session = db_session
+        self.repository = ResearchRepository(db_session) if db_session else None
 
-        # Conversation history
+        # Conversation history (cache em memória para rápido acesso)
         self.history: Dict[str, List[SearchResult]] = {}
 
-        logger.info("🔬 AdvancedResearchService inicializado")
+        logger.info("🔬 AdvancedResearchService inicializado com persistência em banco")
 
     async def search(
         self,
@@ -188,11 +195,44 @@ class AdvancedResearchService:
                 is_fallback=result.get("fallback_used", False),
             )
 
-            # Guardar no histórico
+            # Guardar no histórico em memória
             if conversation_id:
                 if conversation_id not in self.history:
                     self.history[conversation_id] = []
                 self.history[conversation_id].append(search_result)
+
+            # Persiste no banco de dados se disponível
+            if self.repository and conversation_id:
+                try:
+                    # Criar/atualizar conversa
+                    db_conversation = self.repository.get_conversation(conversation_id)
+                    if not db_conversation:
+                        db_conversation = self.repository.create_conversation(conversation_id, mode=mode)
+
+                    # Criar query no banco
+                    self.repository.create_query(
+                        conversation_id=db_conversation.id,
+                        query_id=search_query.id,
+                        query_text=query,
+                        mode=mode.value,
+                        task_type=task_type,
+                        is_urgent=is_urgent,
+                        provider=result.get("provider", "unknown"),
+                        tier=result.get("tier", "unknown"),
+                        model=result.get("model", "unknown"),
+                        response_text=result.get("response", ""),
+                        tokens_used=result.get("tokens_used", 0),
+                        cost_usd=result.get("cost_usd", 0),
+                        latency_ms=latency_ms,
+                        confidence=result.get("confidence", 0),
+                        is_fallback=result.get("fallback_used", False),
+                        rag_mode_used=mode in [ResearchMode.RAG_ENHANCED, ResearchMode.HYBRID],
+                        sources=sources,
+                    )
+
+                    logger.info(f"💾 Pesquisa salva no banco: {search_query.id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao salvar no banco: {e}")
 
             logger.info(
                 f"✅ Pesquisa concluída ({search_result.provider}/"
@@ -300,8 +340,53 @@ class AdvancedResearchService:
         return query
 
     def get_conversation_history(self, conversation_id: str) -> List[SearchResult]:
-        """Obter histórico de conversa"""
-        return self.history.get(conversation_id, [])
+        """
+        Obter histórico de conversa
+        Primeiro tenta cache em memória, depois banco de dados
+        """
+        # Tentar cache em memória
+        if conversation_id in self.history:
+            return self.history[conversation_id]
+
+        # Tentar banco de dados
+        if self.repository:
+            try:
+                db_conversation = self.repository.get_conversation(conversation_id)
+                if db_conversation:
+                    db_queries = self.repository.get_conversation_queries(db_conversation.id)
+                    # Converter para SearchResult
+                    results = []
+                    for db_query in db_queries:
+                        search_query = SearchQuery(
+                            query=db_query.query_text,
+                            mode=ResearchMode(db_query.mode),
+                            task_type=db_query.task_type,
+                            is_urgent=db_query.is_urgent,
+                        )
+                        search_query.id = db_query.query_id
+                        search_query.created_at = db_query.created_at
+
+                        search_result = SearchResult(
+                            query=search_query,
+                            analysis=db_query.response_text or "",
+                            provider=db_query.provider,
+                            tier=db_query.tier,
+                            tokens_used=db_query.tokens_used,
+                            cost_usd=db_query.cost_usd,
+                            latency_ms=db_query.latency_ms,
+                            sources=db_query.sources_json or [],
+                            confidence=db_query.confidence,
+                            is_fallback=db_query.is_fallback,
+                        )
+                        results.append(search_result)
+
+                    # Cache em memória
+                    self.history[conversation_id] = results
+                    return results
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao buscar histórico no banco: {e}")
+
+        return []
 
     def get_statistics(self) -> Dict[str, Any]:
         """Obter estatísticas de uso"""
@@ -322,14 +407,39 @@ class AdvancedResearchService:
         }
 
     def clear_conversation(self, conversation_id: str) -> bool:
-        """Limpar histórico de conversa"""
+        """Limpar histórico de conversa (memória e banco)"""
+        # Limpar cache em memória
         if conversation_id in self.history:
             del self.history[conversation_id]
-            return True
-        return False
+
+        # Limpar no banco de dados
+        if self.repository:
+            try:
+                return self.repository.delete_conversation(conversation_id)
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao limpar conversa no banco: {e}")
+                return False
+
+        return True
 
     def clear_all_history(self) -> int:
-        """Limpar todo o histórico"""
+        """Limpar todo o histórico (memória e banco)"""
         count = sum(len(results) for results in self.history.values())
         self.history.clear()
+
+        # Limpar no banco de dados
+        if self.repository:
+            try:
+                # Arquivar todas as conversas
+                from database import SessionLocal
+                db = SessionLocal()
+                from sqlalchemy import update
+                from models.research import ResearchConversation
+                db.execute(update(ResearchConversation).values(is_archived=True))
+                db.commit()
+                db.close()
+                logger.info(f"🧹 Todos os históricos limpos ({count} resultados em memória)")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao limpar histórico no banco: {e}")
+
         return count
