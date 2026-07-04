@@ -54,7 +54,7 @@ app.add_middleware(
 # IMPORTS ROUTERS
 # ============================================================================
 
-from routes import processos
+from routes import processos, calculos
 
 # ============================================================================
 # ROUTES
@@ -62,6 +62,7 @@ from routes import processos
 
 # Incluir routers
 app.include_router(processos.router)
+app.include_router(calculos.router)
 
 @app.get("/")
 async def root():
