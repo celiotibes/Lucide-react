@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react'
 import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
+import { EditorWorkspace } from './components/editor/EditorWorkspace'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
 import { FormularioCálculos } from './components/FormularioCálculos'
 import { ResearchHub } from './components/research/ResearchHub'
@@ -16,7 +17,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [htmlAtual, setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'calculadores' | 'pesquisa'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -58,6 +59,15 @@ function App() {
             }}
           >
             📝 Editor
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('editor-novo')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'editor-novo' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            ✏️ Editor Sprint 5
           </button>
           <button
             onClick={() => setPaginaAtiva('calculadores')}
@@ -109,6 +119,12 @@ function App() {
               />
             </main>
           </>
+        )}
+
+        {paginaAtiva === 'editor-novo' && (
+          <main style={styles.mainFullWidth}>
+            <EditorWorkspace />
+          </main>
         )}
 
         {paginaAtiva === 'calculadores' && (
