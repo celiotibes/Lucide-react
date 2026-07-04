@@ -5,7 +5,6 @@
 
 import { useState } from 'react'
 import { useLLM } from '../../hooks/useLLM'
-import { RoutingStrategy } from '../../types/llm'
 import './LLMTestPanel.css'
 
 export function LLMTestPanel() {

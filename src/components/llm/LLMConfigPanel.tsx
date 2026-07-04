@@ -5,8 +5,7 @@
 
 import { useState } from 'react'
 import { llmRouter } from '../../services/llmRouter'
-import { LLMProvider, LLMModel, RoutingStrategy } from '../../types/llm'
-import type { LLMConfig, RoutingStrategy as RoutingStrategyType } from '../../types/llm'
+import type { LLMProvider, RoutingStrategy } from '../../types/llm'
 import './LLMConfigPanel.css'
 
 interface ConfigFormData {
@@ -22,8 +21,8 @@ export function LLMConfigPanel() {
     ollamaUrl: localStorage.getItem('llm_ollama_url') || 'http://localhost:11434',
   })
   const [saved, setSaved] = useState(false)
-  const [strategy, setStrategy] = useState<RoutingStrategyType>(
-    (localStorage.getItem('llm_strategy') as RoutingStrategyType) || 'balanced'
+  const [strategy, setStrategy] = useState<RoutingStrategy>(
+    (localStorage.getItem('llm_strategy') as RoutingStrategy) || 'balanced'
   )
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -33,7 +32,7 @@ export function LLMConfigPanel() {
   }
 
   const handleStrategyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newStrategy = e.target.value as RoutingStrategyType
+    const newStrategy = e.target.value as RoutingStrategy
     setStrategy(newStrategy)
     localStorage.setItem('llm_strategy', newStrategy)
     setSaved(true)

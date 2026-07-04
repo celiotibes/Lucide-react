@@ -5,7 +5,6 @@
 
 import { useState } from 'react'
 import { useRAG } from '../../hooks/useRAG'
-import { AnalysisType } from '../../types/rag'
 import './RAGAnalysisPanel.css'
 
 interface RAGAnalysisPanelProps {

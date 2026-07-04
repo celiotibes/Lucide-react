@@ -3,7 +3,6 @@
  * Shows step-by-step progress of petition transformation
  */
 
-import { TransformationStep } from '../../types/petitionTransformer'
 import type { TransformationProgress } from '../../types/petitionTransformer'
 import './TransformationProgress.css'
 
@@ -70,7 +69,6 @@ export function TransformationProgress({ progress, isComplete }: TransformationP
           const stepConfig = STEP_LABELS[step]
           const isCompleted = index < currentStepIndex || (index === currentStepIndex && isComplete)
           const isCurrent = index === currentStepIndex && !isComplete
-          const isPending = index > currentStepIndex
 
           return (
             <div

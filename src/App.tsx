@@ -20,7 +20,7 @@ import './App.css'
 function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
-  const [_tituloDocumento, _setTituloDocumento] = useState('Nova Petição Judicial')
+  const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {

@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { usePetitionTransformer } from '../../hooks/usePetitionTransformer'
 import { DocumentUpload } from './DocumentUpload'
 import { TransformationProgress } from './TransformationProgress'
-import { InputFormat, OutputFormat } from '../../types/petitionTransformer'
+import { InputFormat } from '../../types/petitionTransformer'
 import './PetitionTransformerPanel.css'
 
 export function PetitionTransformerPanel() {
