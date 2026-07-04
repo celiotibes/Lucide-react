@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react'
 import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
+import { FormularioCálculos } from './components/FormularioCálculos'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -14,6 +15,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [htmlAtual, setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'calculadores'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -31,37 +33,73 @@ function App() {
           ⚖️ Lucide-react
         </div>
         <div style={styles.headerTitulo}>
-          <h1 style={styles.h1}>Editor Visual de Petições Judiciais</h1>
-          <p style={styles.subtitulo}>Plataforma integrada com análise de jurimetria e hermenêutica blindada</p>
+          <h1 style={styles.h1}>
+            {paginaAtiva === 'editor' ? 'Editor Visual de Petições Judiciais' : 'Calculadores Jurídicos'}
+          </h1>
+          <p style={styles.subtitulo}>
+            {paginaAtiva === 'editor'
+              ? 'Plataforma integrada com análise de jurimetria e hermenêutica blindada'
+              : 'Cálculos especializados: Dano Material, Pensão Alimentícia e Dano Moral'}
+          </p>
+        </div>
+        <div style={styles.navButtons}>
+          <button
+            onClick={() => setPaginaAtiva('editor')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'editor' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📝 Editor
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('calculadores')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'calculadores' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🧮 Calculadores
+          </button>
         </div>
         <div style={styles.versao}>
-          FASE 3A - Visual Law
+          FASE 4 - Backend
         </div>
       </header>
 
-      {/* Conteúdo principal - Layout com sidebar e editor */}
+      {/* Conteúdo principal */}
       <div style={styles.layoutPrincipal}>
-        {/* Sidebar - Gerenciador de Fatos */}
-        <aside style={styles.sidebar}>
-          <GerenciadorFatos
-            fatos={fatos}
-            onAtualizarFatos={atualizarFatos}
-            expandido={true}
-          />
-        </aside>
+        {paginaAtiva === 'editor' && (
+          <>
+            {/* Sidebar - Gerenciador de Fatos */}
+            <aside style={styles.sidebar}>
+              <GerenciadorFatos
+                fatos={fatos}
+                onAtualizarFatos={atualizarFatos}
+                expandido={true}
+              />
+            </aside>
 
-        {/* Editor - Conteúdo principal */}
-        <main style={styles.main}>
-          <EditorLegalVisual
-            titulo={tituloDocumento}
-            conteudoInicial=""
-            onMudar={atualizarHtml}
-            exibirMatriz={true}
-            exibirValidador={true}
-            modoVisualizacao="dualview"
-            fatos={fatos}
-          />
-        </main>
+            {/* Editor - Conteúdo principal */}
+            <main style={styles.main}>
+              <EditorLegalVisual
+                titulo={tituloDocumento}
+                conteudoInicial=""
+                onMudar={atualizarHtml}
+                exibirMatriz={true}
+                exibirValidador={true}
+                modoVisualizacao="dualview"
+                fatos={fatos}
+              />
+            </main>
+          </>
+        )}
+
+        {paginaAtiva === 'calculadores' && (
+          <main style={styles.mainFullWidth}>
+            <FormularioCálculos />
+          </main>
+        )}
       </div>
 
       {/* Rodapé */}
@@ -121,6 +159,30 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.9,
   },
 
+  navButtons: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+  },
+
+  navButton: {
+    padding: '6px 12px',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: 'white',
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: '4px',
+    fontSize: '12pt',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+
+  navButtonAtivo: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    border: '1px solid white',
+    fontWeight: 'bold',
+  },
+
   versao: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     padding: '4px 12px',
@@ -150,6 +212,14 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
+  },
+
+  mainFullWidth: {
+    flex: 1,
+    overflow: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '20px',
   },
 
   footer: {
