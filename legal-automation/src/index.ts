@@ -21,6 +21,10 @@ import multiTribunalController from '@/api/controllers/multiTribunalController';
 import { templateController } from '@/api/controllers/templateController';
 import { ocrController } from '@/api/controllers/ocrController';
 import { automationController } from '@/api/controllers/automationController';
+import { projurisClientController } from '@/api/controllers/projurisClientController';
+import { projurisCaseController } from '@/api/controllers/projurisCaseController';
+import { projurisTaskController } from '@/api/controllers/projurisTaskController';
+import { projurisDashboardController } from '@/api/controllers/projurisDashboardController';
 
 const app: Express = express();
 
@@ -62,6 +66,12 @@ app.use('/api/v1/tribunals', multiTribunalController);
 app.use('/api/v1/templates', templateController);
 app.use('/api/v1/ocr', ocrController);
 app.use('/api/v1/automation', automationController);
+
+// Projuris Routes
+app.use('/api/v1/projuris/clients', verifyToken, projurisClientController);
+app.use('/api/v1/projuris/cases', verifyToken, projurisCaseController);
+app.use('/api/v1/projuris/tasks', verifyToken, projurisTaskController);
+app.use('/api/v1/projuris/dashboard', verifyToken, projurisDashboardController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
