@@ -9,6 +9,7 @@ import { DocumentManager } from './components/documents/DocumentManager'
 import { MobileNav } from './components/mobile/MobileNav'
 import { LoginRegister } from './components/auth/LoginRegister'
 import { useAuth } from './hooks/useAuth'
+import { AdvancedSearchDocuments } from './components/search/AdvancedSearchDocuments'
 import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
 import { EditorWorkspace } from './components/editor/EditorWorkspace'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
@@ -34,7 +35,7 @@ function App() {
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -78,7 +79,9 @@ function App() {
               ? '⚖️ Lucide-react'
               : paginaAtiva === 'documents'
                 ? '📄 Gerenciador de Documentos'
-                : paginaAtiva === 'editor'
+                : paginaAtiva === 'document-search'
+                  ? '🔍 Busca Avançada de Documentos'
+                  : paginaAtiva === 'editor'
                   ? 'Editor Visual de Petições Judiciais'
                   : paginaAtiva === 'editor-novo'
                     ? 'Editor Sprint 5 - Gerenciamento Completo'
@@ -109,7 +112,9 @@ function App() {
               ? 'Plataforma integrada de pesquisa jurídica, análise e edição de petições'
               : paginaAtiva === 'documents'
                 ? 'Crie, abra e organize seus documentos jurídicos com auto-save e versionamento'
-                : paginaAtiva === 'editor'
+                : paginaAtiva === 'document-search'
+                  ? 'Busca full-text com filtros avançados, ordenação e histórico de buscas'
+                  : paginaAtiva === 'editor'
                   ? 'Plataforma integrada com análise de jurimetria e hermenêutica blindada'
                   : paginaAtiva === 'editor-novo'
                     ? 'Edição completa com auto-save, export multi-formato, anexos inteligentes, ementa automática e versionamento'
@@ -154,6 +159,15 @@ function App() {
             }}
           >
             📄 Documentos
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('document-search')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'document-search' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🔍 Busca
           </button>
           <button
             onClick={() => setPaginaAtiva('editor')}
@@ -315,6 +329,18 @@ function App() {
                 console.log('Criando novo documento:', tipo)
                 setDocumentoAtual(null)
                 setPaginaAtiva(tipo)
+              }}
+            />
+          </main>
+        )}
+
+        {paginaAtiva === 'document-search' && (
+          <main style={styles.mainFullWidth}>
+            <AdvancedSearchDocuments
+              onSelecionarDocumento={(docId) => {
+                console.log('Abrindo documento:', docId)
+                setDocumentoAtual({ id: docId, tipo: 'editor-novo' })
+                setPaginaAtiva('editor-novo')
               }}
             />
           </main>
