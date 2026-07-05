@@ -62,6 +62,31 @@ export const config = {
   max_file_size: parseInt(process.env.MAX_FILE_SIZE || '52428800', 10),
   upload_dir: process.env.UPLOAD_DIR || './uploads',
 
+  // AI / LLM
+  ai_primary_model: process.env.AI_PRIMARY_MODEL || 'gemini',
+  ai_fallback_models: process.env.AI_FALLBACK_MODELS || 'ollama',
+  ai_offline_mode: process.env.AI_OFFLINE_MODE || 'true',
+  ai_cache_ttl: process.env.AI_CACHE_TTL || '604800',
+  ai_max_retries: parseInt(process.env.AI_MAX_RETRIES || '3', 10),
+  ai_timeout_ms: parseInt(process.env.AI_TIMEOUT_MS || '30000', 10),
+  ai_enable_rag: process.env.AI_ENABLE_RAG === 'true',
+
+  // Gemini
+  gemini_api_key: process.env.GEMINI_API_KEY,
+  gemini_model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+
+  // Grok
+  grok_api_key: process.env.GROK_API_KEY,
+  grok_model: process.env.GROK_MODEL || 'grok-4.1-fast',
+
+  // Ollama
+  ollama_base_url: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+  ollama_model: process.env.OLLAMA_MODEL || 'initium/law_model',
+
+  // OpenAI (opcional)
+  openai_api_key: process.env.OPENAI_API_KEY,
+  openai_model: process.env.OPENAI_MODEL || 'gpt-4-turbo',
+
   // Validators
   isDev: process.env.NODE_ENV === 'development',
   isProd: process.env.NODE_ENV === 'production',
