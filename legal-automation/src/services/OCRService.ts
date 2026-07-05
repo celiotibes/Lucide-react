@@ -3,6 +3,7 @@ import path from 'path';
 import { logger } from '@utils/logger';
 import { config } from '@utils/config';
 import { llmPool } from '@ai/llmPool';
+import { eventEmitterService } from './EventEmitterService';
 
 export type FileType = 'pdf' | 'image' | 'scan';
 
@@ -12,6 +13,7 @@ export interface OCRRequest {
   fileType: FileType;
   language?: string;
   returnStructure?: boolean;
+  userId?: string;
 }
 
 export interface Table {
@@ -78,10 +80,33 @@ export class OCRService {
     try {
       logger.info(`OCR: Iniciando extração para arquivo ${request.fileId}`);
 
+      if (request.userId) {
+        eventEmitterService.emitOCRProgress(request.userId, {
+          data: {
+            fileId: request.fileId,
+            status: 'processing',
+            progress: 10,
+            message: 'Iniciando processamento...',
+          },
+        });
+      }
+
       // Verificar cache
       const cached = this.getFromCache(request.fileId);
       if (cached) {
         logger.debug(`OCR: Cache hit para ${request.fileId}`);
+        if (request.userId) {
+          eventEmitterService.emitOCRProgress(request.userId, {
+            data: {
+              fileId: request.fileId,
+              status: 'completed',
+              progress: 100,
+              message: 'Extração concluída (cache)',
+              extractedText: cached.extractedText,
+              confidence: cached.confidence,
+            },
+          });
+        }
         return cached;
       }
 
@@ -93,6 +118,17 @@ export class OCRService {
       // Extrair baseado no tipo
       let extractedText = '';
       let confidence = 0.8;
+
+      if (request.userId) {
+        eventEmitterService.emitOCRProgress(request.userId, {
+          data: {
+            fileId: request.fileId,
+            status: 'processing',
+            progress: 30,
+            message: `Extraindo texto (${request.fileType})...`,
+          },
+        });
+      }
 
       switch (request.fileType) {
         case 'pdf':
@@ -109,6 +145,16 @@ export class OCRService {
       // Estruturar documento se solicitado
       let structuredData: DocumentStructure | undefined;
       if (request.returnStructure) {
+        if (request.userId) {
+          eventEmitterService.emitOCRProgress(request.userId, {
+            data: {
+              fileId: request.fileId,
+              status: 'processing',
+              progress: 70,
+              message: 'Estruturando documento...',
+            },
+          });
+        }
         structuredData = await this.structureDocument(extractedText, request.fileId);
       }
 
@@ -130,9 +176,34 @@ export class OCRService {
         `OCR: Extração concluída para ${request.fileId} em ${result.processingTime}ms (confiança: ${confidence})`,
       );
 
+      if (request.userId) {
+        eventEmitterService.emitOCRProgress(request.userId, {
+          data: {
+            fileId: request.fileId,
+            status: 'completed',
+            progress: 100,
+            message: 'Extração concluída',
+            extractedText: extractedText.substring(0, 500),
+            confidence,
+          },
+        });
+      }
+
       return result;
     } catch (error) {
       logger.error({ err: error }, `OCR: Erro ao extrair texto de ${request.fileId}`);
+
+      if (request.userId) {
+        eventEmitterService.emitOCRProgress(request.userId, {
+          data: {
+            fileId: request.fileId,
+            status: 'failed',
+            progress: 0,
+            message: 'Erro ao processar arquivo',
+            error: error instanceof Error ? error.message : 'Erro desconhecido',
+          },
+        });
+      }
 
       return {
         fileId: request.fileId,

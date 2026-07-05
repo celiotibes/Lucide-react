@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { logger } from '@utils/logger';
 import { config } from '@utils/config';
+import { eventEmitterService } from './EventEmitterService';
 
 export type TriggerType = 'document_uploaded' | 'process_updated' | 'deadline_approaching' | 'manual';
 export type ActionType = 'send_email' | 'create_petition' | 'update_process' | 'notify_user' | 'schedule_task';
@@ -183,6 +184,19 @@ export class AutomationService {
     try {
       logger.info(`Automação: Iniciando execução ${executionId} do fluxo ${workflowId}`);
 
+      eventEmitterService.emitWorkflowUpdate(userId, {
+        data: {
+          workflowId,
+          executionId,
+          status: 'running',
+          currentStep: 0,
+          totalSteps: 0,
+          stepName: 'Inicializando...',
+          progress: 5,
+          message: 'Iniciando execução do fluxo',
+        },
+      });
+
       const workflow = await this.getWorkflow(workflowId);
 
       if (!workflow) {
@@ -204,8 +218,24 @@ export class AutomationService {
       let stepsCompleted = 0;
       const errors: string[] = [];
 
-      for (const step of workflow.steps) {
+      for (let stepIndex = 0; stepIndex < workflow.steps.length; stepIndex++) {
+        const step = workflow.steps[stepIndex];
+        const progress = Math.floor((stepIndex / workflow.steps.length) * 90) + 5;
+
         try {
+          eventEmitterService.emitWorkflowUpdate(userId, {
+            data: {
+              workflowId,
+              executionId,
+              status: 'running',
+              currentStep: stepIndex + 1,
+              totalSteps: workflow.steps.length,
+              stepName: step.name,
+              progress,
+              message: `Executando: ${step.name}`,
+            },
+          });
+
           // Verificar condição
           if (step.condition && !this.evaluateCondition(step.condition, triggerData)) {
             logger.debug(`Automação: Condição não atendida para step ${step.id}`);
@@ -253,16 +283,31 @@ export class AutomationService {
         status: errors.length === 0 ? 'success' : errors.length < workflow.steps.length ? 'partial' : 'failed',
       });
 
+      const finalStatus = errors.length === 0 ? 'success' : errors.length < workflow.steps.length ? 'partial' : 'failed';
+
       const result: ExecutionResult = {
         workflowId,
         executionId,
-        status: errors.length === 0 ? 'success' : errors.length < workflow.steps.length ? 'partial' : 'failed',
+        status: finalStatus,
         stepsCompleted,
         totalSteps: workflow.steps.length,
         errors,
         executedAt: startTime,
         completedAt: new Date(),
       };
+
+      eventEmitterService.emitWorkflowUpdate(userId, {
+        data: {
+          workflowId,
+          executionId,
+          status: 'completed',
+          currentStep: workflow.steps.length,
+          totalSteps: workflow.steps.length,
+          stepName: 'Concluído',
+          progress: 100,
+          message: `Execução ${finalStatus}`,
+        },
+      });
 
       logger.info(
         `Automação: Execução ${executionId} concluída - ${result.status} (${stepsCompleted}/${workflow.steps.length})`,
@@ -271,6 +316,11 @@ export class AutomationService {
       return result;
     } catch (error) {
       logger.error({ err: error }, `Erro na execução do fluxo ${workflowId}`);
+
+      eventEmitterService.emitError(userId,
+        error instanceof Error ? error.message : 'Erro desconhecido na execução',
+        'WORKFLOW_EXECUTION_ERROR'
+      );
 
       throw error;
     }

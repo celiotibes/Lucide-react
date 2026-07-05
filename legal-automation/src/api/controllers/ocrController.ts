@@ -33,6 +33,7 @@ router.post('/upload', verifyToken, upload.single('file'), async (req: Request, 
       return res.status(400).json({ error: 'Arquivo é obrigatório' });
     }
 
+    const userId = (req as any).user?.userId;
     const fileType = req.body.fileType || this.detectFileType(req.file.mimetype);
 
     if (!['pdf', 'image', 'scan'].includes(fileType)) {
@@ -45,6 +46,7 @@ router.post('/upload', verifyToken, upload.single('file'), async (req: Request, 
       fileType: fileType as 'pdf' | 'image' | 'scan',
       language: req.body.language || 'pt-BR',
       returnStructure: req.body.returnStructure === 'true',
+      userId,
     };
 
     const result = await ocrService.extractText(ocrRequest);
@@ -70,6 +72,7 @@ router.post('/upload', verifyToken, upload.single('file'), async (req: Request, 
 router.post('/extract', verifyToken, async (req: Request, res: Response) => {
   try {
     const { filePath, fileType } = req.body;
+    const userId = (req as any).user?.userId;
 
     if (!filePath || !fileType) {
       return res.status(400).json({ error: 'filePath e fileType são obrigatórios' });
@@ -80,6 +83,7 @@ router.post('/extract', verifyToken, async (req: Request, res: Response) => {
       filePath,
       fileType,
       returnStructure: req.body.returnStructure || false,
+      userId,
     });
 
     res.json({

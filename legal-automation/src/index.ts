@@ -3,12 +3,14 @@ import 'express-async-errors';
 import helmet from 'helmet';
 import cors from 'cors';
 import multer from 'multer';
+import { createServer } from 'http';
 import { logger, httpLogger } from '@utils/logger';
 import { config, validateConfig } from '@utils/config';
 import { AppError, handleError } from '@utils/errors';
 import { projudiSoapClient } from '@projudi/soapClient';
 import { initDatabase, closeDatabase } from '@/database/connection';
 import { verifyToken } from '@middlewares/authMiddleware';
+import { webSocketManager } from '@services/WebSocketManager';
 
 // Controllers
 import authController from '@/api/controllers/authController';
@@ -115,24 +117,32 @@ async function startServer(): Promise<void> {
   try {
     await initializeServices();
 
-    const server = app.listen(config.port, () => {
+    const httpServer = createServer(app);
+
+    // Inicializar WebSocket
+    await webSocketManager.initialize(httpServer);
+
+    const server = httpServer.listen(config.port, () => {
       logger.info(
         `
 ╔══════════════════════════════════════════════╗
 ║  Legal Automation Tool - eProc & Projudi     ║
 ║  Servidor iniciado: http://localhost:${config.port}    ║
 ║  Ambiente: ${config.node_env.toUpperCase()}              ║
+║  WebSocket: ws://localhost:${config.port}               ║
 ╚══════════════════════════════════════════════╝
       `,
       );
 
       logger.info(`🔐 Auth: http://localhost:${config.port}/api/v1/auth/login`);
       logger.info(`💚 Health check: http://localhost:${config.port}/health`);
+      logger.info(`📡 WebSocket: ws://localhost:${config.port}?userId=USER_ID&token=TOKEN`);
     });
 
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       logger.info('SIGTERM recebido, encerrando gracefully...');
+      webSocketManager.shutdown();
       server.close(async () => {
         await closeDatabase();
         process.exit(0);
@@ -141,6 +151,7 @@ async function startServer(): Promise<void> {
 
     process.on('SIGINT', async () => {
       logger.info('SIGINT recebido, encerrando gracefully...');
+      webSocketManager.shutdown();
       server.close(async () => {
         await closeDatabase();
         process.exit(0);
