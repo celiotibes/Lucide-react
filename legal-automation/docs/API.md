@@ -522,3 +522,281 @@ Body:
   "active": true
 }
 ```
+
+---
+
+## FASE 1: Peticionamento Eletrônico Robusto (NEW)
+
+### Validar Conformidade de Petição
+
+```
+POST /petitions/:id/validate-conformance
+```
+
+Valida a petição contra as regras de conformidade do tribunal, verificando:
+- Estrutura (título, conteúdo obrigatório)
+- Formato (caracteres válidos, tamanho)
+- Requisitos específicos do tribunal
+- Prazos
+- Partes (autor e réu)
+- Anexos
+
+**Resposta (Sucesso - 200):**
+```json
+{
+  "status": "success",
+  "validation": {
+    "valid": true,
+    "score": 95,
+    "errors": [],
+    "warnings": [],
+    "details": [
+      {
+        "check": "title_required",
+        "status": "passed"
+      },
+      {
+        "check": "content_minimum_length",
+        "status": "passed"
+      }
+    ]
+  }
+}
+```
+
+**Resposta (Falha - 400):**
+```json
+{
+  "status": "success",
+  "validation": {
+    "valid": false,
+    "score": 45,
+    "errors": [
+      {
+        "code": "content_required",
+        "message": "Conteúdo da petição é obrigatório",
+        "field": "content",
+        "tribunal": "tjsc"
+      }
+    ],
+    "warnings": [],
+    "details": []
+  }
+}
+```
+
+### Formatar Petição para Tribunal
+
+```
+POST /petitions/:id/format
+```
+
+Converte a petição para o formato específico do tribunal:
+- TJSC: RTF com cabeçalho obrigatório
+- TJPR: XML estruturado
+- TJAL: PDF padrão
+- Outros: PDF com adaptação automática
+
+**Resposta (200):**
+```json
+{
+  "status": "success",
+  "formatted": {
+    "tribunal": "tjsc",
+    "contentType": "rtf",
+    "signatureFormat": "pades",
+    "attachmentCount": 2,
+    "metadata": {
+      "processNumber": "0000001-00.2024.1.00.0000",
+      "oabNumber": "123456/SP",
+      "causeValue": 50000,
+      "tribunal": "tjsc"
+    }
+  }
+}
+```
+
+### Enviar Petição com Retry Automático
+
+```
+POST /petitions/:id/submit
+```
+
+Pipeline completo de submissão:
+1. **Validação de conformidade** - Verifica regras do tribunal
+2. **Formatação** - Converte para formato específico
+3. **Assinatura digital** - Assina com certificado
+4. **Submissão com retry** - Envia com exponential backoff
+5. **Rastreamento** - Armazena protocolo e status
+
+**Body:**
+```json
+{
+  "certificatePassword": "senha-do-certificado"
+}
+```
+
+**Resposta (Sucesso - 200):**
+```json
+{
+  "status": "submitted",
+  "result": {
+    "success": true,
+    "protocolo": "2024011500001",
+    "error": null,
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "attempt": 1,
+    "retryable": false,
+    "validationScore": 95
+  }
+}
+```
+
+**Resposta (Falha mas recuperável - 500):**
+```json
+{
+  "status": "submission_failed",
+  "result": {
+    "success": false,
+    "protocolo": "",
+    "error": "Timeout após 30s",
+    "timestamp": "2024-01-15T10:30:05.000Z",
+    "attempt": 3,
+    "retryable": true,
+    "validationScore": 95
+  }
+}
+```
+
+**Resposta (Validação falhou - 400):**
+```json
+{
+  "status": "validation_failed",
+  "validation": {
+    "valid": false,
+    "errors": [
+      {
+        "code": "oab_number_required",
+        "message": "OAB é obrigatória para este tribunal",
+        "field": "oabNumber",
+        "tribunal": "tjsc"
+      }
+    ],
+    "warnings": [],
+    "score": 60
+  }
+}
+```
+
+### Obter Status de Submissão e Circuit Breaker
+
+```
+GET /petitions/:id/submission-status
+```
+
+Retorna o status da petição e informações de circuit breaker do tribunal.
+
+**Resposta (200):**
+```json
+{
+  "status": "success",
+  "petition": {
+    "id": "petition-123",
+    "status": "submitted",
+    "protocolo": "2024011500001",
+    "submittedAt": "2024-01-15T10:30:00.000Z",
+    "lastError": null,
+    "attempts": 1
+  },
+  "tribunal": "tjsc",
+  "circuitBreaker": {
+    "status": "closed",
+    "failureCount": 0,
+    "lastFailureTime": 0,
+    "successCount": 5,
+    "threshold": 5,
+    "timeout": 60000
+  }
+}
+```
+
+### Tribunal Support Matrix
+
+| Tribunal | Content Type | Signature | Max Attachments | Max Size |
+|----------|--------------|-----------|-----------------|----------|
+| TJSC | RTF | PAdES | 10 | 50MB |
+| TJPR | XML | XAdES | 15 | 100MB |
+| TJAL | PDF | PAdES | 8 | 25MB |
+| TJSP | PDF | PAdES | 10 | 50MB |
+| TJRS | PDF | PAdES | 10 | 50MB |
+| TJMG | PDF | PAdES | 12 | 60MB |
+| TRF4 | XML | XAdES | 10 | 50MB |
+| JFPR | PDF | PAdES | 10 | 50MB |
+| JFSC | PDF | PAdES | 10 | 50MB |
+
+### Validation Rules
+
+#### Obrigatório para todos os tribunais
+- `title` - Título da petição (min 1 caractere)
+- `content` - Conteúdo (min 100, max 1,000,000 caracteres)
+- `processNumber` - Formato CNJ: NNNNNNN-DD.AAAA.J.TT.OOOO
+- `subject` - Assunto da petição
+- `plaintiff` - Nome do autor
+- `defendant` - Nome do réu
+- `lawyerName` - Nome do advogado
+
+#### Obrigatório por tribunal
+| Tribunal | OAB | Cause Value | Priority |
+|----------|-----|-------------|----------|
+| TJSC | ✅ | ✅ | ❌ |
+| TJPR | ✅ | ✅ | ✅ |
+| TJAL | ❌ | ❌ | ❌ |
+| Outros | ✅ | ✅ | ❌ |
+
+### Circuit Breaker Behavior
+
+O sistema monitora a disponibilidade de cada tribunal usando circuit breaker:
+
+**Estados:**
+- `closed` - Tribunal disponível, requisições normais
+- `open` - Tribunal indisponível após 5 falhas consecutivas
+- `half-open` - Testando se tribunal recuperou após timeout de 60s
+
+**Comportamento:**
+1. Primeira falha → failureCount = 1
+2. Falha após timeout → failureCount = 2
+3. 5 falhas consecutivas → estado = "open"
+4. Após 60 segundos → estado = "half-open" (teste 1 requisição)
+5. Sucesso em half-open → estado = "closed", failureCount = 0
+
+### Error Codes
+
+#### Retriable Errors (auto-retry)
+- `timeout` - Timeout na requisição
+- `ECONNREFUSED` - Conexão recusada
+- `ECONNRESET` - Conexão resetada
+- `429` - Rate limit (será retentado)
+- `502` - Bad Gateway
+- `503` - Service Unavailable
+- `504` - Gateway Timeout
+
+#### Non-Retriable Errors (fail immediately)
+- `400` - Bad Request (validação)
+- `401` - Unauthorized
+- `403` - Forbidden
+- `404` - Not Found
+- `405` - Method Not Allowed
+
+### Retry Strategy
+
+Exponential backoff com jitter:
+```
+Tentativa 1: Imediato
+Tentativa 2: Aguarda 1s
+Tentativa 3: Aguarda 2s
+Tentativa 4: Aguarda 4s
+Tentativa 5: Aguarda 8s
+Tentativa 6: Aguarda 16s
+```
+
+Máximo: 5 tentativas, timeout de 30s por requisição
