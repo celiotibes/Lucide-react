@@ -1,0 +1,499 @@
+/* Import/Export Panel Styles */
+
+.import-export-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #FAFAFA;
+}
+
+/* Header */
+.import-export-header {
+  padding: 20px;
+  background: linear-gradient(135deg, #1b3a57 0%, #2c5aa0 100%);
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(27, 58, 87, 0.15);
+}
+
+.import-export-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.import-export-header p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.95;
+}
+
+/* Tabs */
+.import-export-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #E0E0E0;
+  background: white;
+  border-radius: 8px 8px 0 0;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 16px;
+  border: none;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  text-transform: none;
+}
+
+.tab-btn:hover {
+  background: #eeeeee;
+  color: #333;
+}
+
+.tab-btn.ativo {
+  background: white;
+  color: #2196f3;
+  border-bottom-color: #2196f3;
+}
+
+/* Export Section */
+.export-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.export-box {
+  padding: 16px;
+  background: white;
+  border: 1px solid #E0E0E0;
+  border-radius: 8px;
+}
+
+.export-box h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1b3a57;
+}
+
+.export-box > p:not(.info-text):not(.warning-text) {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.format-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.format-selector label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.format-selector select {
+  padding: 10px;
+  border: 1px solid #D0D0D0;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #333;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.format-selector select:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.format-selector select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Import Section */
+.import-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.import-box {
+  padding: 16px;
+  background: white;
+  border: 1px solid #E0E0E0;
+  border-radius: 8px;
+}
+
+.import-box h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1b3a57;
+}
+
+.import-box > p:not(.info-text):not(.warning-text) {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.file-input-wrapper {
+  margin-bottom: 12px;
+}
+
+.btn-selecionar-arquivo,
+.btn-exportar,
+.btn-backup,
+.btn-importar,
+.btn-restaurar {
+  padding: 12px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  text-align: center;
+}
+
+.btn-selecionar-arquivo {
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #D0D0D0;
+}
+
+.btn-selecionar-arquivo:hover:not(:disabled) {
+  background: #eeeeee;
+  border-color: #999;
+}
+
+.btn-exportar,
+.btn-importar,
+.btn-backup,
+.btn-restaurar {
+  background: #2196f3;
+  color: white;
+  margin-bottom: 12px;
+}
+
+.btn-exportar:hover:not(:disabled),
+.btn-importar:hover:not(:disabled),
+.btn-backup:hover:not(:disabled),
+.btn-restaurar:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.btn-exportar:disabled,
+.btn-importar:disabled,
+.btn-backup:disabled,
+.btn-restaurar:disabled,
+.btn-selecionar-arquivo:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.textarea-importacao {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid #D0D0D0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: #333;
+  resize: vertical;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+.textarea-importacao:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+/* Alerts */
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.alert-erro {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef5350;
+}
+
+.alert-sucesso {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #66bb6a;
+}
+
+/* Info and Warning Text */
+.info-text,
+.warning-text {
+  margin: 12px 0 0 0;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.info-text {
+  background: #e3f2fd;
+  color: #1565c0;
+  border-left: 3px solid #2196f3;
+}
+
+.warning-text {
+  background: #fff3e0;
+  color: #e65100;
+  border-left: 3px solid #ff9800;
+}
+
+/* Info Section */
+.import-export-info {
+  padding: 16px;
+  background: white;
+  border: 1px solid #E0E0E0;
+  border-radius: 8px;
+}
+
+.import-export-info h4 {
+  margin: 0 0 12px 0;
+  color: #1b3a57;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.import-export-info ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.import-export-info li {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.import-export-info li:last-child {
+  margin-bottom: 0;
+}
+
+/* Empty State */
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  background: white;
+  border: 1px dashed #D0D0D0;
+  border-radius: 8px;
+  color: #999;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .import-export-container {
+    background: #1a1a1a;
+  }
+
+  .import-export-tabs,
+  .export-box,
+  .import-box,
+  .import-export-info,
+  .empty-state {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .tab-btn {
+    background: #3a3a3a;
+    color: #aaa;
+    border-bottom-color: transparent;
+  }
+
+  .tab-btn:hover {
+    background: #4a4a4a;
+    color: #ddd;
+  }
+
+  .tab-btn.ativo {
+    background: #2a2a2a;
+    color: #64b5f6;
+    border-bottom-color: #64b5f6;
+  }
+
+  .export-box h3,
+  .import-box h3,
+  .import-export-info h4 {
+    color: #7fa3c8;
+  }
+
+  .export-box > p:not(.info-text):not(.warning-text),
+  .import-box > p:not(.info-text):not(.warning-text),
+  .import-export-info li {
+    color: #aaa;
+  }
+
+  .format-selector label {
+    color: #ddd;
+  }
+
+  .format-selector select {
+    background: #3a3a3a;
+    color: #e0e0e0;
+    border-color: #555;
+  }
+
+  .format-selector select:focus {
+    border-color: #64b5f6;
+    box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.1);
+  }
+
+  .btn-selecionar-arquivo {
+    background: #3a3a3a;
+    color: #aaa;
+    border-color: #555;
+  }
+
+  .btn-selecionar-arquivo:hover:not(:disabled) {
+    background: #4a4a4a;
+    border-color: #777;
+  }
+
+  .btn-exportar,
+  .btn-importar,
+  .btn-backup,
+  .btn-restaurar {
+    background: #2196f3;
+  }
+
+  .btn-exportar:hover:not(:disabled),
+  .btn-importar:hover:not(:disabled),
+  .btn-backup:hover:not(:disabled),
+  .btn-restaurar:hover:not(:disabled) {
+    background: #1976d2;
+  }
+
+  .textarea-importacao {
+    background: #3a3a3a;
+    color: #e0e0e0;
+    border-color: #555;
+  }
+
+  .textarea-importacao:focus {
+    border-color: #64b5f6;
+    box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.1);
+  }
+
+  .empty-state {
+    border-color: #555;
+    color: #666;
+  }
+
+  .info-text {
+    background: rgba(33, 150, 243, 0.1);
+    color: #64b5f6;
+    border-left-color: #64b5f6;
+  }
+
+  .warning-text {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ffb74d;
+    border-left-color: #ffb74d;
+  }
+
+  .alert-erro {
+    background: rgba(198, 40, 40, 0.2);
+    color: #ef5350;
+    border-color: #ef5350;
+  }
+
+  .alert-sucesso {
+    background: rgba(46, 125, 50, 0.2);
+    color: #66bb6a;
+    border-color: #66bb6a;
+  }
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  .import-export-container {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .import-export-tabs {
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    padding: 12px;
+    font-size: 12px;
+  }
+
+  .export-box,
+  .import-box,
+  .import-export-info {
+    padding: 12px;
+  }
+
+  .export-box h3,
+  .import-box h3,
+  .import-export-info h4 {
+    font-size: 14px;
+  }
+
+  .format-selector,
+  .file-input-wrapper {
+    margin-bottom: 12px;
+  }
+
+  .btn-selecionar-arquivo,
+  .btn-exportar,
+  .btn-backup,
+  .btn-importar,
+  .btn-restaurar {
+    padding: 10px;
+    font-size: 12px;
+    width: 100%;
+  }
+
+  .textarea-importacao {
+    min-height: 120px;
+    font-size: 12px;
+  }
+
+  .import-export-info li {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+}

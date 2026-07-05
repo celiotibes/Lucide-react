@@ -24,6 +24,7 @@ import { StrategicAnalysisPanel } from './components/analysis/StrategicAnalysisP
 import { OutcomePredictorPanel } from './components/prediction/OutcomePredictorPanel'
 import { TemplateMatchingPanel } from './components/templates/TemplateMatchingPanel'
 import { AdvancedSearchPanel } from './components/search/AdvancedSearchPanel'
+import { ImportExportPanel } from './components/documents/ImportExportPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -35,7 +36,7 @@ function App() {
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -105,7 +106,9 @@ function App() {
                                       ? 'Preditor de Resultado'
                                       : paginaAtiva === 'template-matching'
                                         ? 'Correspondência de Modelos Jurídicos'
-                                        : 'Busca Avançada Jurídica'}
+                                        : paginaAtiva === 'import-export'
+                                          ? '📤📥 Import/Export'
+                                          : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -138,7 +141,9 @@ function App() {
                                       ? 'Calcule a probabilidade de sucesso da sua petição com análise profunda'
                                       : paginaAtiva === 'template-matching'
                                         ? 'Encontre modelos jurídicos bem-sucedidos similares à sua petição'
-                                        : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                        : paginaAtiva === 'import-export'
+                                          ? 'Faça backup, compartilhe e restaure seus documentos'
+                                          : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -285,6 +290,15 @@ function App() {
             }}
           >
             🔎 Avançada
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('import-export')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'import-export' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📤📥 Import/Export
           </button>
         </div>
         <div style={styles.versao}>
@@ -448,6 +462,16 @@ function App() {
         {paginaAtiva === 'advanced-search' && (
           <main style={styles.mainFullWidth}>
             <AdvancedSearchPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'import-export' && (
+          <main style={styles.mainFullWidth}>
+            <ImportExportPanel
+              onImportSucesso={() => {
+                setPaginaAtiva('documents')
+              }}
+            />
           </main>
         )}
       </div>
