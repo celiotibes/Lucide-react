@@ -7,6 +7,13 @@ import { logger, httpLogger } from '@utils/logger';
 import { config, validateConfig } from '@utils/config';
 import { AppError, handleError } from '@utils/errors';
 import { projudiSoapClient } from '@projudi/soapClient';
+import { initDatabase, closeDatabase } from '@/database/connection';
+
+// Controllers
+import authController from '@/api/controllers/authController';
+import petitionController from '@/api/controllers/petitionController';
+import processController from '@/api/controllers/processController';
+import aiController from '@/api/controllers/aiController';
 
 const app: Express = express();
 
@@ -29,6 +36,15 @@ const upload = multer({
   limits: { fileSize: config.max_file_size },
 });
 
+// Middleware de autenticação (básico)
+function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    (req as any).user = { id: 'test-user-id' }; // Implementar verificação real
+  }
+  next();
+}
+
 // Health check
 app.get('/health', (req: Request, res: Response) => {
   res.json({
@@ -39,25 +55,11 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// API Routes (placeholders)
-app.get('/api/v1/processes/:number', async (req: Request, res: Response) => {
-  res.json({
-    message: 'Process lookup endpoint - To be implemented',
-    processNumber: req.params.number,
-  });
-});
-
-app.post('/api/v1/auth/2fa/challenge', async (req: Request, res: Response) => {
-  res.json({
-    message: '2FA challenge endpoint - To be implemented',
-  });
-});
-
-app.post('/api/v1/petitions', async (req: Request, res: Response) => {
-  res.json({
-    message: 'Submit petition endpoint - To be implemented',
-  });
-});
+// API Routes
+app.use('/api/v1/auth', authController);
+app.use('/api/v1/petitions', authMiddleware, petitionController);
+app.use('/api/v1/processes', authMiddleware, processController);
+app.use('/api/v1/ai', authMiddleware, aiController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
@@ -91,6 +93,10 @@ async function initializeServices(): Promise<void> {
   try {
     logger.info('Inicializando serviços...');
 
+    // Inicializar banco de dados
+    await initDatabase();
+    logger.info('✓ PostgreSQL conectado');
+
     // Inicialize Projudi SOAP client
     if (config.projudi_wsdl_url) {
       await projudiSoapClient.initialize();
@@ -109,7 +115,7 @@ async function startServer(): Promise<void> {
   try {
     await initializeServices();
 
-    app.listen(config.port, () => {
+    const server = app.listen(config.port, () => {
       logger.info(
         `
 ╔══════════════════════════════════════════════╗
@@ -120,25 +126,31 @@ async function startServer(): Promise<void> {
       `,
       );
 
-      logger.info(`📚 Documentação: http://localhost:${config.port}/docs`);
+      logger.info(`🔐 Auth: http://localhost:${config.port}/api/v1/auth/login`);
       logger.info(`💚 Health check: http://localhost:${config.port}/health`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', async () => {
+      logger.info('SIGTERM recebido, encerrando gracefully...');
+      server.close(async () => {
+        await closeDatabase();
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', async () => {
+      logger.info('SIGINT recebido, encerrando gracefully...');
+      server.close(async () => {
+        await closeDatabase();
+        process.exit(0);
+      });
     });
   } catch (error) {
     logger.error({ err: error }, 'Erro ao iniciar servidor');
     process.exit(1);
   }
 }
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM recebido, encerrando gracefully...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT recebido, encerrando gracefully...');
-  process.exit(0);
-});
 
 startServer();
 
