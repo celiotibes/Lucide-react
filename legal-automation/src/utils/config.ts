@@ -39,6 +39,20 @@ export const config = {
   just_api_url: process.env.JUST_API_URL || 'https://api.datajud.cnj.jus.br/api/v1',
   just_api_key: process.env.JUST_API_KEY,
 
+  // TJMT (Mato Grosso)
+  tjmt_api_url: process.env.TJMT_API_URL || 'https://eproc.tjmt.jus.br/api',
+  tjmt_login: process.env.TJMT_LOGIN,
+  tjmt_password: process.env.TJMT_PASSWORD,
+
+  // TJRO (Rondônia) - Hybrid eProc + PJe
+  tjro_eproc_api_url: process.env.TJRO_EPROC_API_URL || 'https://eproc.tjro.jus.br/api/v1',
+  tjro_pje_api_url: process.env.TJRO_PJE_API_URL || 'https://pje.tjro.jus.br/api',
+  tjro_login: process.env.TJRO_LOGIN,
+  tjro_password: process.env.TJRO_PASSWORD,
+
+  // TJPR Enhanced (Dual-mode: Projudi SOAP + eProc REST Beta)
+  tjpr_eproc_api_url: process.env.TJPR_EPROC_API_URL || 'https://eproc-beta.tjpr.jus.br/api/v1',
+
   // Certificado Digital
   cert_storage_path: process.env.CERT_STORAGE_PATH || './certs',
   cert_encryption_key: process.env.CERT_ENCRYPTION_KEY || 'default_encryption_key',

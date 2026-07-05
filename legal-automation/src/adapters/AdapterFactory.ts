@@ -5,6 +5,8 @@ import { TRF4Adapter } from './TRF4Adapter';
 import { JFPRAdapter } from './JFPRAdapter';
 import { TJPRAdapter } from './TJPRAdapter';
 import { JUSTAdapter } from './JUSTAdapter';
+import { TJMTAdapter } from './TJMTAdapter';
+import { TJROAdapter } from './TJROAdapter';
 
 export class AdapterFactory {
   private static adapters: Map<string, TribunalAdapter> = new Map();
@@ -16,6 +18,8 @@ export class AdapterFactory {
     this.register('jfpr', new JFPRAdapter());
     this.register('tjpr', new TJPRAdapter());
     this.register('just', new JUSTAdapter());
+    this.register('tjmt', new TJMTAdapter());
+    this.register('tjro', new TJROAdapter());
   }
 
   /**

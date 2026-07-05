@@ -4,4 +4,6 @@ export { TRF4Adapter, trf4Adapter } from './TRF4Adapter';
 export { JFPRAdapter, jfprAdapter } from './JFPRAdapter';
 export { TJPRAdapter, tjprAdapter } from './TJPRAdapter';
 export { JUSTAdapter, justAdapter } from './JUSTAdapter';
+export { TJMTAdapter, tjmtAdapter } from './TJMTAdapter';
+export { TJROAdapter, tjroAdapter } from './TJROAdapter';
 export { AdapterFactory } from './AdapterFactory';
