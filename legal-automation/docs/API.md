@@ -1543,3 +1543,318 @@ Os recursos de sincronização com Google Calendar estarão disponíveis em uma 
 | Data inválida | 400 | Use formato ISO 8601 |
 | Case não encontrado | 404 | Verifique case ID |
 | Autorização negada | 403 | Task de outro usuário |
+
+---
+
+## Phase 5: IA Triagem
+
+### AI Triage Endpoints
+
+#### Classificar Documento
+
+```
+POST /ai/triage/classify
+```
+
+Classifica automaticamente um documento enviado usando IA.
+
+**Body (multipart/form-data):**
+```
+- document: arquivo PDF/texto
+- caseId: ID do caso
+- documentType: 'pdf' | 'email' | 'text' (padrão: 'pdf')
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "documentId": "doc-001",
+    "classification": "sentenca",
+    "confidence": 0.92,
+    "extractedData": {
+      "processoNumero": "0000001-12.2024.5.04.3800",
+      "partes": ["Autor", "Réu"],
+      "tribunal": "TRF4",
+      "prazo": "2024-12-20",
+      "assunto": "Cível",
+      "juiz": "Desembargador Silva"
+    },
+    "createdAt": "2024-12-04T14:30:00.000Z"
+  },
+  "autoTaskCreated": true
+}
+```
+
+#### Analisar Jurimetria
+
+```
+GET /ai/triage/jurimetry/:caseId
+```
+
+Análise estatística de sucesso de casos similares.
+
+**Query Parameters:**
+- `period` (opcional): `30d`, `90d`, `1y` (padrão: `90d`)
+- `startDate`, `endDate` (opcional): datas em ISO 8601
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "periodo": {
+      "startDate": "2024-09-04",
+      "endDate": "2024-12-04"
+    },
+    "totalCasosAnalisados": 150,
+    "successRate": 68.5,
+    "casesByOutcome": {
+      "ganho": 102,
+      "perda": 48
+    },
+    "jurisprudenceMatches": 12,
+    "recentCasesAnalysis": [
+      {
+        "caseId": "case-001",
+        "outcome": "ganho",
+        "similarity": 0.92,
+        "tribunal": "TJSC"
+      }
+    ],
+    "recommendations": [
+      "Taxa de sucesso elevada. Prosseguir com confiança."
+    ]
+  }
+}
+```
+
+#### Obter Status de Triagem
+
+```
+GET /ai/triage/triage-status
+```
+
+Status de documentos classificados e pendentes.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "totalClassified": 250,
+    "totalPending": 12,
+    "classificationBreakdown": {
+      "sentenca": 85,
+      "recurso": 120,
+      "intimacao": 30,
+      "outro": 15
+    },
+    "averageConfidence": 0.87
+  }
+}
+```
+
+---
+
+## Phase 6: Diários Oficiais
+
+### Official Diary Endpoints
+
+#### Configurar Preferências de Alerta
+
+```
+POST /diaries/alert-preferences
+```
+
+Configura quais eventos monitorar nos diários oficiais.
+
+**Body:**
+```json
+{
+  "processNumbers": ["0000001-12.2024.5.04.3800"],
+  "partyNames": ["Empresa XYZ S.A.", "João Silva"],
+  "keywords": ["bancarrota", "liquidação"],
+  "states": ["SC", "SP", "PR"],
+  "emailNotification": true,
+  "smsNotification": false,
+  "pushNotification": true,
+  "slackNotification": false
+}
+```
+
+#### Obter Preferências de Alerta
+
+```
+GET /diaries/alert-preferences
+```
+
+Retorna as preferências configuradas.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "userId": "user-123",
+    "processNumbers": ["0000001-12.2024.5.04.3800"],
+    "partyNames": ["Empresa XYZ S.A."],
+    "keywords": ["bancarrota"],
+    "states": ["SC", "SP", "PR"],
+    "emailNotification": true,
+    "pushNotification": true
+  }
+}
+```
+
+#### Obter Alertas
+
+```
+GET /diaries/alerts
+```
+
+Lista de alertas sobre publicações em diários oficiais.
+
+**Query Parameters:**
+- `unread` (opcional): `true` para apenas não lidos (padrão: `false`)
+- `limit` (opcional): número de resultados (padrão: `50`)
+- `offset` (opcional): para paginação (padrão: `0`)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "alert-001",
+      "userId": "user-123",
+      "processNumber": "0000001-12.2024.5.04.3800",
+      "partyName": "Empresa XYZ S.A.",
+      "alertType": "processo",
+      "foundIn": "SC",
+      "foundDate": "2024-12-04T08:30:00.000Z",
+      "read": false,
+      "createdAt": "2024-12-04T08:35:00.000Z"
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 1
+  }
+}
+```
+
+#### Marcar Alerta como Lido
+
+```
+POST /diaries/alerts/:alertId/read
+```
+
+Marca um alerta específico como lido.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "message": "Alerta marcado como lido"
+}
+```
+
+#### Marcar Todos como Lidos
+
+```
+POST /diaries/alerts/mark-all-read
+```
+
+Marca todos os alertas do usuário como lidos.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "message": "Alertas marcados como lidos",
+  "markedCount": 12
+}
+```
+
+#### Buscar Diários
+
+```
+GET /diaries/search
+```
+
+Busca em todo o conteúdo dos diários oficiais.
+
+**Query Parameters:**
+- `query` (obrigatório): termo a buscar
+- `state` (opcional): filtrar por estado (ex: "SC")
+- `limit` (opcional): número de resultados (padrão: `20`)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "diary-001",
+      "state": "SC",
+      "title": "Diário Oficial de Santa Catarina",
+      "publishedDate": "2024-12-04",
+      "content": "...",
+      "source": "doe.sc.gov.br",
+      "processNumber": "0000001-12.2024.5.04.3800"
+    }
+  ],
+  "count": 1
+}
+```
+
+#### Obter Estatísticas
+
+```
+GET /diaries/stats
+```
+
+Estatísticas sobre cobertura de diários.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "totalEntries": 45000,
+    "entriesByState": {
+      "SC": 2500,
+      "SP": 8000,
+      "PR": 3200
+    },
+    "lastUpdate": "2024-12-04T18:00:00.000Z",
+    "scrapeFrequency": "3 horas"
+  }
+}
+```
+
+---
+
+### Official Diary Features
+
+**Cobertura:**
+- ✅ 27 estados do Brasil (all UFs)
+- ✅ Scraping automático a cada 3 horas
+- ✅ Indexação full-text em Português
+
+**Monitoramento:**
+- ✅ Por número de processo
+- ✅ Por nome de parte
+- ✅ Por palavras-chave customizadas
+- ✅ Filtragem por estado
+
+**Notificações:**
+- ✅ Email
+- ✅ SMS (Twilio)
+- ✅ Push notifications
+- ✅ Slack webhook
+
+---
