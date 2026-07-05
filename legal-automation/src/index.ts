@@ -16,6 +16,7 @@ import petitionController from '@/api/controllers/petitionController';
 import processController from '@/api/controllers/processController';
 import aiController from '@/api/controllers/aiController';
 import multiTribunalController from '@/api/controllers/multiTribunalController';
+import { templateController } from '@/api/controllers/templateController';
 
 const app: Express = express();
 
@@ -54,6 +55,7 @@ app.use('/api/v1/petitions', verifyToken, petitionController);
 app.use('/api/v1/processes', verifyToken, processController);
 app.use('/api/v1/ai', verifyToken, aiController);
 app.use('/api/v1/tribunals', multiTribunalController);
+app.use('/api/v1/templates', templateController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
