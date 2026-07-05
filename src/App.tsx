@@ -17,6 +17,7 @@ import { JurisprudenceTimeline } from './components/timeline/JurisprudenceTimeli
 import { StrategicAnalysisPanel } from './components/analysis/StrategicAnalysisPanel'
 import { OutcomePredictorPanel } from './components/prediction/OutcomePredictorPanel'
 import { TemplateMatchingPanel } from './components/templates/TemplateMatchingPanel'
+import { AdvancedSearchPanel } from './components/search/AdvancedSearchPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -25,7 +26,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -66,7 +67,9 @@ function App() {
                                 ? 'Análise Estratégica & Blindagem'
                                 : paginaAtiva === 'outcome-prediction'
                                   ? 'Preditor de Resultado'
-                                  : 'Correspondência de Modelos Jurídicos'}
+                                  : paginaAtiva === 'template-matching'
+                                    ? 'Correspondência de Modelos Jurídicos'
+                                    : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
@@ -91,7 +94,9 @@ function App() {
                                 ? 'Detecção de fraquezas jurídicas e blindagem contra contra-argumentos'
                                 : paginaAtiva === 'outcome-prediction'
                                   ? 'Calcule a probabilidade de sucesso da sua petição com análise profunda'
-                                  : 'Encontre modelos jurídicos bem-sucedidos similares à sua petição'}
+                                  : paginaAtiva === 'template-matching'
+                                    ? 'Encontre modelos jurídicos bem-sucedidos similares à sua petição'
+                                    : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -203,6 +208,15 @@ function App() {
           >
             📚 Modelos
           </button>
+          <button
+            onClick={() => setPaginaAtiva('advanced-search')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'advanced-search' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🔎 Avançada
+          </button>
         </div>
         <div style={styles.versao}>
           FASE 4.2 - Frontend LLM
@@ -300,6 +314,12 @@ function App() {
         {paginaAtiva === 'template-matching' && (
           <main style={styles.mainFullWidth}>
             <TemplateMatchingPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'advanced-search' && (
+          <main style={styles.mainFullWidth}>
+            <AdvancedSearchPanel />
           </main>
         )}
       </div>
