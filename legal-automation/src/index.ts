@@ -31,6 +31,8 @@ import { astreaTimeController } from '@/api/controllers/astreaTimeController';
 import { astreaAnalyticsController } from '@/api/controllers/astreaAnalyticsController';
 import dataEnrichmentController from '@/api/controllers/dataEnrichmentController';
 import analyticsController from '@/api/controllers/analyticsController';
+import kanbanController from '@/api/controllers/kanbanController';
+import timesheetController from '@/api/controllers/timesheetController';
 
 const app: Express = express();
 
@@ -90,6 +92,12 @@ app.use('/api/v1/data', verifyToken, dataEnrichmentController);
 
 // Analytics Routes (Phase 3: Business Intelligence)
 app.use('/api/v1/analytics', verifyToken, analyticsController);
+
+// Kanban Routes (Phase 4: Productivity & UX)
+app.use('/api/v1/kanban', verifyToken, kanbanController);
+
+// Timesheet Routes (Phase 4: Productivity & UX)
+app.use('/api/v1/timesheet', verifyToken, timesheetController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

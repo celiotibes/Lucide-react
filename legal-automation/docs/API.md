@@ -1147,3 +1147,399 @@ Os dados de análise são agregados a partir de múltiplas fontes:
 - Tendências de longo prazo podem levar até 5 segundos para calcular
 - Recomenda-se usar `granularity=monthly` para períodos > 1 ano
 - ML predictions são executados em tempo real sem cache
+
+---
+
+## Phase 4: Produtividade & UX (Kanban + Timesheet)
+
+### Kanban Board Endpoints
+
+#### Obter Kanban Board
+
+```
+GET /kanban/board
+```
+
+Retorna o Kanban board com todos as tarefas organizadas em colunas.
+
+**Query Parameters:**
+- `lawyerId` (opcional): Filtrar por advogado
+- `tribunal` (opcional): Filtrar por tribunal
+- `priority` (opcional): Filtrar por prioridade (low, medium, high, urgent)
+- `clientId` (opcional): Filtrar por cliente
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "userId": "user-123",
+    "columns": [
+      {
+        "id": "awaiting-docs",
+        "name": "Aguardando Documentos",
+        "order": 1
+      },
+      {
+        "id": "under-review",
+        "name": "Em Análise",
+        "order": 2
+      },
+      {
+        "id": "ready-to-file",
+        "name": "Pronto para Protocolo",
+        "order": 3
+      },
+      {
+        "id": "filed",
+        "name": "Protocolado",
+        "order": 4
+      },
+      {
+        "id": "completed",
+        "name": "Concluído",
+        "order": 5
+      }
+    ],
+    "tasks": [
+      {
+        "id": "task-001",
+        "caseId": "case-123",
+        "title": "Preparar peça processual",
+        "description": "Redigir contestação",
+        "columnId": "under-review",
+        "lawyerId": "lawyer-001",
+        "clientId": "client-001",
+        "priority": "high",
+        "dueDate": "2024-12-10T23:59:59.000Z",
+        "assignedTo": "lawyer-002",
+        "tags": ["urgente", "tjsc"],
+        "documentsNeeded": 3,
+        "documentsReceived": 1,
+        "tribunal": "TJSC",
+        "position": 0,
+        "createdAt": "2024-12-04T10:00:00.000Z",
+        "updatedAt": "2024-12-04T15:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+#### Criar Tarefa
+
+```
+POST /kanban/tasks
+```
+
+Cria uma nova tarefa no Kanban.
+
+**Body:**
+```json
+{
+  "caseId": "case-123",
+  "title": "Preparar peça processual",
+  "description": "Redigir contestação",
+  "columnId": "under-review",
+  "lawyerId": "lawyer-001",
+  "clientId": "client-001",
+  "priority": "high",
+  "dueDate": "2024-12-10T23:59:59.000Z",
+  "assignedTo": "lawyer-002",
+  "tags": ["urgente"],
+  "documentsNeeded": 3,
+  "tribunal": "TJSC"
+}
+```
+
+**Resposta:** Retorna a tarefa criada com ID
+
+#### Mover Tarefa
+
+```
+PUT /kanban/tasks/:taskId/move
+```
+
+Move uma tarefa para outra coluna.
+
+**Body:**
+```json
+{
+  "columnId": "ready-to-file",
+  "position": 2
+}
+```
+
+#### Atualizar Tarefa
+
+```
+PUT /kanban/tasks/:taskId
+```
+
+Atualiza detalhes de uma tarefa.
+
+**Body:**
+```json
+{
+  "title": "Novo título",
+  "priority": "urgent",
+  "documentsReceived": 2,
+  "dueDate": "2024-12-15T23:59:59.000Z"
+}
+```
+
+#### Deletar Tarefa
+
+```
+DELETE /kanban/tasks/:taskId
+```
+
+Remove uma tarefa do Kanban.
+
+---
+
+### Timesheet Endpoints
+
+#### Iniciar Timer
+
+```
+POST /timesheet/timer/start
+```
+
+Inicia um timer para rastreamento de horas em um caso.
+
+**Body:**
+```json
+{
+  "caseId": "case-123",
+  "description": "Análise de documentação",
+  "hourlyRate": 250.00,
+  "tags": ["pesquisa", "análise"]
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "entry-001",
+    "caseId": "case-123",
+    "lawyerId": "lawyer-001",
+    "description": "Análise de documentação",
+    "startTime": "2024-12-04T14:30:00.000Z",
+    "endTime": null,
+    "durationMinutes": 0,
+    "hourlyRate": 250.00,
+    "amount": 0,
+    "status": "running",
+    "tags": ["pesquisa", "análise"],
+    "createdAt": "2024-12-04T14:30:00.000Z",
+    "updatedAt": "2024-12-04T14:30:00.000Z"
+  }
+}
+```
+
+#### Parar Timer
+
+```
+POST /timesheet/timer/:entryId/stop
+```
+
+Para um timer em execução e calcula a duração.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "entry-001",
+    "caseId": "case-123",
+    "lawyerId": "lawyer-001",
+    "description": "Análise de documentação",
+    "startTime": "2024-12-04T14:30:00.000Z",
+    "endTime": "2024-12-04T15:45:00.000Z",
+    "durationMinutes": 75,
+    "hourlyRate": 250.00,
+    "amount": 312.50,
+    "status": "completed",
+    "tags": ["pesquisa", "análise"],
+    "createdAt": "2024-12-04T14:30:00.000Z",
+    "updatedAt": "2024-12-04T15:45:00.000Z"
+  }
+}
+```
+
+#### Obter Timer Ativo
+
+```
+GET /timesheet/timer/active
+```
+
+Retorna o timer ativo do advogado (se houver).
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "entry-001",
+    "caseId": "case-123",
+    "status": "running",
+    "startTime": "2024-12-04T14:30:00.000Z",
+    "durationMinutes": 15,
+    "hourlyRate": 250.00,
+    "amount": 62.50
+  }
+}
+```
+
+#### Obter Timesheet Diário
+
+```
+GET /timesheet/daily/:date
+```
+
+Retorna todas as entradas de timesheet de um dia.
+
+**Path Parameters:**
+- `date`: Data em formato ISO 8601 (ex: 2024-12-04)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "date": "2024-12-04T00:00:00.000Z",
+    "lawyerId": "lawyer-001",
+    "entries": [
+      {
+        "id": "entry-001",
+        "caseId": "case-123",
+        "description": "Análise de documentação",
+        "durationMinutes": 75,
+        "amount": 312.50
+      }
+    ],
+    "totalHours": 1.25,
+    "totalAmount": 312.50
+  }
+}
+```
+
+#### Obter Métricas de Timesheet
+
+```
+GET /timesheet/metrics
+```
+
+Retorna métricas agregadas de timesheet.
+
+**Query Parameters:**
+- `period` (opcional): Período em formato `<número><unidade>` (padrão: `30d`)
+  - Suportados: `d`, `w`, `m`, `y`
+- `startDate` (opcional): Data inicial em ISO 8601
+- `endDate` (opcional): Data final em ISO 8601
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "period": {
+      "startDate": "2024-11-04T00:00:00.000Z",
+      "endDate": "2024-12-04T23:59:59.999Z"
+    },
+    "lawyerId": "lawyer-001",
+    "totalHours": 160.5,
+    "totalAmount": 40125.00,
+    "entriesCount": 42,
+    "averageHourlyRate": 250.00,
+    "entriesByCase": [
+      {
+        "caseId": "case-123",
+        "caseTitle": "Caso vs. Empresa XYZ",
+        "hours": 45.5,
+        "amount": 11375.00
+      }
+    ],
+    "dailyProgress": [
+      {
+        "date": "2024-12-04T00:00:00.000Z",
+        "hours": 8.25,
+        "amount": 2062.50,
+        "target": 8,
+        "progress": 103
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Kanban Board Features
+
+**Colunas Padrão:**
+1. **Aguardando Documentos** - Aguardando envio de documentação do cliente
+2. **Em Análise** - Análise jurídica em andamento
+3. **Pronto para Protocolo** - Peça pronta, aguardando protocolo
+4. **Protocolado** - Já enviado para o tribunal
+5. **Concluído** - Caso encerrado
+
+**Prioridades Suportadas:**
+- `low` - Baixa
+- `medium` - Normal
+- `high` - Alta
+- `urgent` - Urgente
+
+**Recursos:**
+- ✅ Drag-and-drop entre colunas
+- ✅ Filtros por advogado, tribunal, prioridade, cliente
+- ✅ Rastreamento de documentos (necessários vs. recebidos)
+- ✅ Due dates com alertas
+- ✅ Tags customizáveis
+- ✅ Sincronização em tempo real via WebSocket
+- ✅ Atualização automática quando timer parado
+
+---
+
+### Timesheet Features
+
+**Recursos:**
+- ✅ Timer com start/stop
+- ✅ Cálculo automático de duração e valor
+- ✅ Rastreamento por caso e advogado
+- ✅ Métricas diárias e agregadas
+- ✅ Meta diária de 8 horas
+- ✅ Relatório de horas por caso
+- ✅ Integração com faturamento (Phase posterior)
+- ✅ Tags para categorização
+
+**Cálculo de Valor:**
+```
+valor = (duração_minutos / 60) × hourly_rate
+```
+
+---
+
+### Google Calendar Sync (Future)
+
+Os recursos de sincronização com Google Calendar estarão disponíveis em uma versão futura:
+- Sincronização 2-way com Google Calendar
+- Alertas de conflito de agendamento
+- Notificações de prazo próximo
+- Integração com disponibilidade
+
+---
+
+### Error Handling
+
+**Erros comuns:**
+
+| Erro | HTTP | Solução |
+|------|------|--------|
+| Timer já ativo | 400 | Parar timer anterior |
+| Data inválida | 400 | Use formato ISO 8601 |
+| Case não encontrado | 404 | Verifique case ID |
+| Autorização negada | 403 | Task de outro usuário |
