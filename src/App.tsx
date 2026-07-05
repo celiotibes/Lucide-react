@@ -33,6 +33,7 @@ import { NotificationContainer } from './components/notifications/NotificationCo
 import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard'
 import { ReportBuilder } from './components/reports/ReportBuilder'
 import { GoogleDriveSync } from './components/googleDrive/GoogleDriveSync'
+import { GmailIntegration } from './components/gmail/GmailIntegration'
 import { PWAPrompt } from './components/pwa/PWAPrompt'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
@@ -45,7 +46,7 @@ function App() {
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -131,7 +132,9 @@ function App() {
                                                       ? '📄 Gerador de Relatórios'
                                                       : paginaAtiva === 'google-drive'
                                                         ? '🔗 Google Drive Sync'
-                                                        : 'Busca Avançada Jurídica'}
+                                                        : paginaAtiva === 'gmail'
+                                                          ? '📧 Gmail Integration'
+                                                          : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -180,7 +183,9 @@ function App() {
                                                       ? 'Crie relatórios customizáveis em múltiplos formatos'
                                                       : paginaAtiva === 'google-drive'
                                                         ? 'Sincronize seus documentos na nuvem, faça backups e restaure dados'
-                                                        : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                                        : paginaAtiva === 'gmail'
+                                                          ? 'Integre suas mensagens de email e extraia referências jurídicas automaticamente'
+                                                          : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -400,6 +405,15 @@ function App() {
           >
             🔗 Google Drive
           </button>
+          <button
+            onClick={() => setPaginaAtiva('gmail')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'gmail' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📧 Gmail
+          </button>
         </div>
         <div style={styles.versao}>
           <span style={{ display: 'block', marginBottom: '4px' }}>FASE 4.2 - Frontend LLM</span>
@@ -618,6 +632,12 @@ function App() {
         {paginaAtiva === 'google-drive' && (
           <main style={styles.mainFullWidth}>
             <GoogleDriveSync />
+          </main>
+        )}
+
+        {paginaAtiva === 'gmail' && (
+          <main style={styles.mainFullWidth}>
+            <GmailIntegration />
           </main>
         )}
       </div>
