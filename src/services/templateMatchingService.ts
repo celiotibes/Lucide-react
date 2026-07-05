@@ -1,6 +1,7 @@
 /**
  * Serviço de Correspondência de Modelos
  * Encontra modelos jurídicos similares baseado em conteúdo da petição
+ * Suporta dados reais via Legal Data Hunter ou mock para desenvolvimento
  */
 
 import type {
@@ -10,18 +11,43 @@ import type {
   BuscaTemplateParams,
   BibliotecaModelos,
 } from '../types/templateMatching'
+import { obterLDH } from './legalDataHunterService'
+import type { JurisprudenciaResultado } from '../types/legalDataHunter'
 
 export class ServicoCorrespondenciaModelos {
   /**
-   * Buscar modelos correspondentes
+   * Buscar modelos correspondentes com suporte a dados reais via Legal Data Hunter
    */
   async buscarModelos(
     conteudoPeticao: string,
     parametrosBusca: BuscaTemplateParams
   ): Promise<ResultadoCorrespondencia[]> {
     try {
-      // Obter biblioteca de modelos
-      const modelos = await this.obterBibliotecaModelos(parametrosBusca)
+      let modelos: ModeloJuridico[] = []
+
+      // Tentar usar dados reais via Legal Data Hunter
+      const usarDadosReais = import.meta.env.VITE_LEGAL_DATA_HUNTER_API_KEY ? true : false
+
+      if (usarDadosReais) {
+        try {
+          const ldh = obterLDH()
+          const jurisprudencia = await ldh.buscarJurisprudencia({
+            texto: conteudoPeticao,
+            jurisdicoes: ['BR'],
+            areaJuridica: parametrosBusca.areaJuridica,
+            limite: 10,
+          })
+
+          modelos = jurisprudencia
+            .map((j) => this.converterJurisprudenciaParaModelo(j))
+            .filter((m) => m !== null) as ModeloJuridico[]
+        } catch (erroLDH) {
+          console.warn('Erro ao buscar dados reais, usando mock:', erroLDH)
+          modelos = await this.obterBibliotecaModelos(parametrosBusca)
+        }
+      } else {
+        modelos = await this.obterBibliotecaModelos(parametrosBusca)
+      }
 
       // Extrair palavras-chave da petição
       const palavrasChavePeticao = this.extrairPalavrasChave(conteudoPeticao)
@@ -41,6 +67,47 @@ export class ServicoCorrespondenciaModelos {
     } catch (erro) {
       console.error('Erro ao buscar modelos:', erro)
       throw new Error('Falha ao buscar modelos jurídicos')
+    }
+  }
+
+  /**
+   * Converter resultado de jurisprudência para modelo jurídico
+   */
+  private converterJurisprudenciaParaModelo(
+    jurisprudencia: JurisprudenciaResultado
+  ): ModeloJuridico | null {
+    if (!jurisprudencia.ementa) return null
+
+    return {
+      id: jurisprudencia.id,
+      titulo: jurisprudencia.ementa.substring(0, 100),
+      descricao: jurisprudencia.ementa,
+      areaJuridica: 'civil',
+      tribunal: jurisprudencia.tribunal,
+      resultado: jurisprudencia.resultado,
+      dataDecisao: jurisprudencia.dataDecisao,
+      argumentosPrincipais: jurisprudencia.fundamentosLegais.slice(0, 3),
+      estrutura: [
+        {
+          tipo: 'introducao',
+          conteudo: `Processo nº ${jurisprudencia.numeroProcesso}`,
+          palavrasChave: ['processo', 'jurisprudencia'],
+          importancia: 'alta',
+        },
+        {
+          tipo: 'argumentacao',
+          conteudo: jurisprudencia.ementa,
+          palavrasChave: jurisprudencia.fundamentosLegais,
+          importancia: 'alta',
+        },
+      ],
+      taxaSucesso: jurisprudencia.resultado === 'favoravel' ? 85 : 40,
+      citacoes: jurisprudencia.citacoes,
+      tags: [
+        jurisprudencia.resultado,
+        jurisprudencia.tribunal.toLowerCase(),
+        ...(jurisprudencia.fundamentosLegais || []),
+      ],
     }
   }
 
