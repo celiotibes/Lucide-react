@@ -38,6 +38,12 @@ import officialDiaryController from '@/api/controllers/officialDiaryController';
 import predictionController from '@/api/controllers/predictionController';
 import clientPortalController from '@/api/controllers/clientPortalController';
 import workflowController from '@/api/controllers/workflowController';
+import { backupController } from '@/api/controllers/backupController';
+import { digitalSignatureController } from '@/api/controllers/digitalSignatureController';
+import { mobileDashboardController } from '@/api/controllers/mobileDashboardController';
+import { paymentController } from '@/api/controllers/paymentController';
+import { reportingController } from '@/api/controllers/reportingController';
+import { tribunalPollingController } from '@/api/controllers/tribunalPollingController';
 
 const app: Express = express();
 
@@ -118,6 +124,24 @@ app.use('/api/v1/client-portal', verifyToken, clientPortalController);
 
 // Workflow Routes (Phase 9: Customizable Approval Workflows)
 app.use('/api/v1/workflows', verifyToken, workflowController);
+
+// Backup Routes
+app.use('/api/v1/backup', verifyToken, backupController);
+
+// Digital Signature Routes
+app.use('/api/v1/digital-signature', verifyToken, digitalSignatureController);
+
+// Mobile Dashboard Routes
+app.use('/api/v1/mobile/dashboard', verifyToken, mobileDashboardController);
+
+// Payment Routes
+app.use('/api/v1/payments', verifyToken, paymentController);
+
+// Reporting Routes
+app.use('/api/v1/reports', verifyToken, reportingController);
+
+// Tribunal Polling Routes
+app.use('/api/v1/tribunal-polling', verifyToken, tribunalPollingController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

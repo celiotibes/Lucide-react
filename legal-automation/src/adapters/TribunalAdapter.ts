@@ -1,4 +1,13 @@
-import { Process, Petition, Movement } from '@/types';
+import { Process, Petition } from '@/types';
+
+export type { Process };
+
+export interface Movement {
+  date: Date;
+  description: string;
+  status?: string;
+  complement?: string;
+}
 
 export interface TribunalAdapter {
   // Configuração
@@ -29,25 +38,6 @@ export interface SearchCriteria {
   endDate?: Date;
   status?: string;
   limit?: number;
-}
-
-export interface Process {
-  number: string;
-  cnj: string;
-  tribunal: string;
-  status: string;
-  plaintiff?: string;
-  defendant?: string;
-  subject?: string;
-  lastMovement?: Date;
-  openDate?: Date;
-}
-
-export interface Movement {
-  date: Date;
-  description: string;
-  status?: string;
-  complement?: string;
 }
 
 export interface ProtocolResponse {

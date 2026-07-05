@@ -1,4 +1,5 @@
-export { TribunalAdapter, SearchCriteria, Process, Movement, ProtocolResponse, PetitionStatus } from './TribunalAdapter';
+export { TribunalAdapter, SearchCriteria, Movement, ProtocolResponse, PetitionStatus } from './TribunalAdapter';
+export { Process } from '@/types';
 export { TJSCAdapter, tjscAdapter } from './TJSCAdapter';
 export { TRF4Adapter, trf4Adapter } from './TRF4Adapter';
 export { JFPRAdapter, jfprAdapter } from './JFPRAdapter';
