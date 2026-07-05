@@ -33,6 +33,7 @@ import dataEnrichmentController from '@/api/controllers/dataEnrichmentController
 import analyticsController from '@/api/controllers/analyticsController';
 import kanbanController from '@/api/controllers/kanbanController';
 import timesheetController from '@/api/controllers/timesheetController';
+import aiTriageController from '@/api/controllers/aiTriageController';
 
 const app: Express = express();
 
@@ -98,6 +99,9 @@ app.use('/api/v1/kanban', verifyToken, kanbanController);
 
 // Timesheet Routes (Phase 4: Productivity & UX)
 app.use('/api/v1/timesheet', verifyToken, timesheetController);
+
+// AI Triage Routes (Phase 5: Intelligence)
+app.use('/api/v1/ai/triage', verifyToken, aiTriageController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
