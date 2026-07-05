@@ -29,6 +29,7 @@ import { TemplateManager } from './components/templates/TemplateManager'
 import { DocumentSharingManager } from './components/sharing/DocumentSharingManager'
 import { PDFExportPanel } from './components/pdfExport/PDFExportPanel'
 import { AnnotationsPanel } from './components/annotations/AnnotationsPanel'
+import { NotificationContainer } from './components/notifications/NotificationContainer'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -571,6 +572,9 @@ function App() {
           TJMT, TJRO, TRF4, JFPR
         </p>
       </footer>
+
+      {/* Notificações Globais */}
+      <NotificationContainer />
     </div>
   )
 }
