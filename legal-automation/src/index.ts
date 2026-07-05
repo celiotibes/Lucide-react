@@ -29,6 +29,7 @@ import { astreaFinancialController } from '@/api/controllers/astreaFinancialCont
 import { astreaDeadlineController } from '@/api/controllers/astreaDeadlineController';
 import { astreaTimeController } from '@/api/controllers/astreaTimeController';
 import { astreaAnalyticsController } from '@/api/controllers/astreaAnalyticsController';
+import dataEnrichmentController from '@/api/controllers/dataEnrichmentController';
 
 const app: Express = express();
 
@@ -82,6 +83,9 @@ app.use('/api/v1/astrea', verifyToken, astreaFinancialController);
 app.use('/api/v1/astrea/deadlines', verifyToken, astreaDeadlineController);
 app.use('/api/v1/astrea/time-entries', verifyToken, astreaTimeController);
 app.use('/api/v1/astrea/analytics', verifyToken, astreaAnalyticsController);
+
+// Data Enrichment Routes (Phase 2: Infrastructure APIs)
+app.use('/api/v1/data', verifyToken, dataEnrichmentController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
