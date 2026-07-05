@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react'
-import { useDocumentEditor } from '../../hooks/useDocumentEditor'
+import { useDocumentIntegration } from '../../hooks/useDocumentIntegration'
 import { TemplateType } from '../../types/editor'
 import { TemplateSelector } from './TemplateSelector'
 import { DocumentEditor } from './DocumentEditor'
@@ -14,20 +14,31 @@ import { RevisionHistory } from './RevisionHistory'
 import { ExportDialog } from './ExportDialog'
 import './EditorStyles.css'
 
-export function EditorWorkspace() {
-  const { document, content, isDirty, isSaving, createNewDocument, updateContent, saveDocument } =
-    useDocumentEditor()
+interface EditorWorkspaceProps {
+  documentId?: string
+  tipoDocumento?: 'editor-novo' | 'editor' | 'analise' | 'transformacao'
+  onClose?: () => void
+}
+
+export function EditorWorkspace({ documentId, tipoDocumento = 'editor-novo', onClose }: EditorWorkspaceProps) {
+  const { document, content, isDirty, isSaving, criarNovoDocumento, atualizarConteudo, salvarDocumento } =
+    useDocumentIntegration({ documentId, tipoDocumento })
   const [activeTab, setActiveTab] = useState<'editor' | 'attachments' | 'ementa' | 'revisions'>(
     'editor'
   )
   const [showExportDialog, setShowExportDialog] = useState(false)
 
   const handleCreateDocument = (templateType: TemplateType) => {
-    createNewDocument(templateType, `Novo ${templateType}`)
+    criarNovoDocumento(`Novo ${templateType}`, 'civil')
   }
 
   if (!document) {
-    return <TemplateSelector onSelect={handleCreateDocument} />
+    return (
+      <TemplateSelector
+        onSelect={handleCreateDocument}
+        onClose={onClose}
+      />
+    )
   }
 
   return (
@@ -42,13 +53,13 @@ export function EditorWorkspace() {
         <div className="editor-actions">
           {isSaving && <span className="saving-indicator">⏳ Auto-salvando...</span>}
           {!isDirty && !isSaving && <span className="saved-indicator">✓ Salvo</span>}
-          <button onClick={saveDocument} disabled={!isDirty || isSaving} className="btn-save">
+          <button onClick={salvarDocumento} disabled={!isDirty || isSaving} className="btn-save">
             {isSaving ? '💾 Salvando...' : isDirty ? '💾 Salvar Agora' : '✓ Salvo'}
           </button>
           <button onClick={() => setShowExportDialog(true)} className="btn-export">
             📤 Exportar
           </button>
-          <button onClick={() => createNewDocument(TemplateType.PETITION, 'Novo Documento')} className="btn-new">
+          <button onClick={() => criarNovoDocumento('Novo Documento', 'civil')} className="btn-new">
             📄 Novo
           </button>
         </div>
@@ -85,7 +96,7 @@ export function EditorWorkspace() {
       {/* Content Area */}
       <div className="editor-content">
         {activeTab === 'editor' && (
-          <DocumentEditor content={content} onChange={updateContent} />
+          <DocumentEditor content={content} onChange={atualizarConteudo} />
         )}
 
         {activeTab === 'attachments' && document && (

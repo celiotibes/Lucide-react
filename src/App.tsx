@@ -28,6 +28,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
+  const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
   const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
@@ -270,10 +271,12 @@ function App() {
             <DocumentManager
               onAbrirDocumento={(docId) => {
                 console.log('Abrindo documento:', docId)
+                setDocumentoAtual({ id: docId, tipo: 'editor-novo' })
                 setPaginaAtiva('editor-novo')
               }}
               onCriarNovo={(tipo) => {
                 console.log('Criando novo documento:', tipo)
+                setDocumentoAtual(null)
                 setPaginaAtiva(tipo)
               }}
             />
@@ -308,7 +311,14 @@ function App() {
 
         {paginaAtiva === 'editor-novo' && (
           <main style={styles.mainFullWidth}>
-            <EditorWorkspace />
+            <EditorWorkspace
+              documentId={documentoAtual?.id}
+              tipoDocumento="editor-novo"
+              onClose={() => {
+                setDocumentoAtual(null)
+                setPaginaAtiva('documents')
+              }}
+            />
           </main>
         )}
 
