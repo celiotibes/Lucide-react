@@ -800,3 +800,350 @@ Tentativa 6: Aguarda 16s
 ```
 
 Máximo: 5 tentativas, timeout de 30s por requisição
+
+---
+
+## Phase 3: Business Intelligence Avançado
+
+### Analytics Endpoints
+
+#### Dashboard Metrics
+
+```
+GET /analytics/dashboard
+```
+
+Retorna métricas agregadas do dashboard para análise de performance geral.
+
+**Query Parameters:**
+- `period` (opcional): Período em formato `<número><unidade>` (padrão: `30d`)
+  - `d` - dias (ex: `30d`, `90d`)
+  - `w` - semanas (ex: `1w`, `4w`)
+  - `m` - meses (ex: `1m`, `3m`)
+  - `y` - anos (ex: `1y`)
+- `startDate` (opcional): Data inicial em ISO 8601
+- `endDate` (opcional): Data final em ISO 8601
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "period": {
+      "startDate": "2024-11-05T00:00:00.000Z",
+      "endDate": "2024-12-04T23:59:59.999Z"
+    },
+    "totalCases": 245,
+    "successRate": {
+      "value": 68.57,
+      "trend": 5.2
+    },
+    "avgTimeToResolution": {
+      "value": 32,
+      "trend": -2.1
+    },
+    "costPerCase": {
+      "value": 1250.50,
+      "trend": 3.7
+    },
+    "tribunalComparison": [
+      {
+        "tribunal": "TJSC",
+        "cases": 85,
+        "successRate": 72.94,
+        "avgTime": 28
+      },
+      {
+        "tribunal": "TJPR",
+        "cases": 160,
+        "successRate": 66.25,
+        "avgTime": 34
+      }
+    ],
+    "casesByStatus": {
+      "open": 120,
+      "closed": 125,
+      "pending": 0
+    },
+    "casesByType": {
+      "civil": 150,
+      "criminal": 60,
+      "labor": 35
+    },
+    "monthlyTrend": [
+      {
+        "month": "2024-11",
+        "cases": 245,
+        "successes": 168,
+        "rate": 68.57
+      }
+    ],
+    "generatedAt": "2024-12-04T10:30:00.000Z"
+  }
+}
+```
+
+#### Lawyer Performance
+
+```
+GET /analytics/lawyer-performance/:lawyerId
+```
+
+Analisa performance de um advogado específico.
+
+**Path Parameters:**
+- `lawyerId`: ID do advogado
+
+**Query Parameters:**
+- `period` (opcional): Período em formato `<número><unidade>` (padrão: `90d`)
+- `startDate` (opcional): Data inicial em ISO 8601
+- `endDate` (opcional): Data final em ISO 8601
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "lawyerId": "lawyer-123",
+    "period": {
+      "startDate": "2024-09-04T00:00:00.000Z",
+      "endDate": "2024-12-04T23:59:59.999Z"
+    },
+    "totalCases": 42,
+    "successRate": 78.57,
+    "avgTimeToResolution": 24,
+    "clientSatisfaction": 4.6,
+    "costPerCase": 980.00,
+    "ranking": 3,
+    "casesTimeline": [
+      {
+        "date": "2024-11-01T00:00:00.000Z",
+        "cases": 3,
+        "successes": 2
+      }
+    ]
+  }
+}
+```
+
+#### Predict Case Outcome
+
+```
+POST /analytics/predict-outcome
+```
+
+Prediz o resultado provável de um caso usando ML.
+
+**Body:**
+```json
+{
+  "caseId": "case-456"
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "caseId": "case-456",
+    "predictedOutcome": "ganho",
+    "confidence": 0.76,
+    "contributingFactors": {
+      "tribunalHistoricSuccessRate": 0.72,
+      "lawyerWinRate": 0.85,
+      "caseAgeFactor": 0.5
+    },
+    "generatedAt": "2024-12-04T10:30:00.000Z"
+  }
+}
+```
+
+#### Jurisprudence Insights
+
+```
+GET /analytics/jurisprudence-insights/:caseId
+```
+
+Análise de jurisprudência similar para um caso.
+
+**Path Parameters:**
+- `caseId`: ID do caso
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "outcome": "ganho",
+      "percentage": 68.5,
+      "count": 37,
+      "relatedCases": [
+        {
+          "numero": "0000001-12.2024.5.04.3800",
+          "outcome": "ganho",
+          "similarity": 0.92
+        }
+      ],
+      "recommendation": "Forte probabilidade de ganho (68.5%). Recomenda-se proceder com confiança."
+    },
+    {
+      "outcome": "perda",
+      "percentage": 31.5,
+      "count": 17,
+      "relatedCases": [],
+      "recommendation": "Probabilidade baixa de perda (31.5%). Recomenda-se análise cuidadosa."
+    }
+  ]
+}
+```
+
+#### Tribunal Comparison
+
+```
+GET /analytics/tribunal-comparison
+```
+
+Compara performance entre tribunais.
+
+**Query Parameters:**
+- `period` (opcional): Período em formato `<número><unidade>` (padrão: `90d`)
+- `startDate` (opcional): Data inicial em ISO 8601
+- `endDate` (opcional): Data final em ISO 8601
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "tribunal": "TJSC",
+      "cases": 85,
+      "successRate": 72.94,
+      "avgTime": 28
+    },
+    {
+      "tribunal": "TJPR",
+      "cases": 160,
+      "successRate": 66.25,
+      "avgTime": 34
+    }
+  ]
+}
+```
+
+#### Success Rate by Tribunal
+
+```
+GET /analytics/success-rate-by-tribunal
+```
+
+Taxa de sucesso agregada por tribunal.
+
+**Query Parameters:**
+- `period` (opcional): Período em formato `<número><unidade>` (padrão: `90d`)
+- `startDate` (opcional): Data inicial em ISO 8601
+- `endDate` (opcional): Data final em ISO 8601
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "tribunal": "TJSC",
+      "successRate": 72.94
+    },
+    {
+      "tribunal": "TJPR",
+      "successRate": 66.25
+    },
+    {
+      "tribunal": "TJAL",
+      "successRate": 58.33
+    }
+  ]
+}
+```
+
+#### Trends Analysis
+
+```
+GET /analytics/trends
+```
+
+Análise de tendências temporais com granularidade configurável.
+
+**Query Parameters:**
+- `period` (opcional): Período em formato `<número><unidade>` (padrão: `90d`)
+- `startDate` (opcional): Data inicial em ISO 8601
+- `endDate` (opcional): Data final em ISO 8601
+- `granularity` (opcional): Nível de detalhe (padrão: `daily`)
+  - `daily` - Um ponto de dados por dia
+  - `weekly` - Um ponto de dados por semana
+  - `monthly` - Um ponto de dados por mês
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "period": "2024-11-01",
+      "totalCases": 12,
+      "successfulCases": 8,
+      "successRate": 66.67,
+      "avgResolutionTime": 28
+    },
+    {
+      "period": "2024-11-02",
+      "totalCases": 10,
+      "successfulCases": 7,
+      "successRate": 70.0,
+      "avgResolutionTime": 32
+    }
+  ]
+}
+```
+
+### ML Prediction Model
+
+O modelo de predição utiliza uma abordagem weighted baseada em histórico:
+
+```
+confidence = (tribunal_rate * 0.4 + lawyer_rate * 0.4 + case_age_factor * 0.2)
+outcome = "ganho" if confidence > 0.5 else "perda"
+```
+
+**Pesos:**
+- `tribunalHistoricSuccessRate`: 40% - Taxa de sucesso histórica do tribunal
+- `lawyerWinRate`: 40% - Taxa de vitória do advogado
+- `caseAgeFactor`: 20% - Fator relacionado à idade do caso (0.6 para casos > 365 dias, 0.5 caso contrário)
+
+### Analytics Data Integration
+
+Os dados de análise são agregados a partir de múltiplas fontes:
+
+1. **Phase 1 Data** - Petições eletrônicas e submissões
+2. **Phase 2 Data** - Enriquecimento de processos via APIs
+3. **Database** - Histórico de casos e outcomes
+
+### Error Handling
+
+**Erros comuns:**
+
+| Erro | HTTP | Solução |
+|------|------|--------|
+| Período inválido | 400 | Use formato: 30d, 90d, 1y |
+| Data inválida | 400 | Use formato ISO 8601 |
+| Lawyer ID inválido | 400 | Verifique ID do advogado |
+| Case ID não encontrado | 404 | Verifique ID do caso |
+| Granularidade inválida | 400 | Use: daily, weekly, monthly |
+
+### Performance Considerations
+
+- Dashboard metrics são calculados sob demanda com caching implícito
+- Tendências de longo prazo podem levar até 5 segundos para calcular
+- Recomenda-se usar `granularity=monthly` para períodos > 1 ano
+- ML predictions são executados em tempo real sem cache

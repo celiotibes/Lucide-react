@@ -30,6 +30,7 @@ import { astreaDeadlineController } from '@/api/controllers/astreaDeadlineContro
 import { astreaTimeController } from '@/api/controllers/astreaTimeController';
 import { astreaAnalyticsController } from '@/api/controllers/astreaAnalyticsController';
 import dataEnrichmentController from '@/api/controllers/dataEnrichmentController';
+import analyticsController from '@/api/controllers/analyticsController';
 
 const app: Express = express();
 
@@ -86,6 +87,9 @@ app.use('/api/v1/astrea/analytics', verifyToken, astreaAnalyticsController);
 
 // Data Enrichment Routes (Phase 2: Infrastructure APIs)
 app.use('/api/v1/data', verifyToken, dataEnrichmentController);
+
+// Analytics Routes (Phase 3: Business Intelligence)
+app.use('/api/v1/analytics', verifyToken, analyticsController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
