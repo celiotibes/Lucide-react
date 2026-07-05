@@ -34,6 +34,7 @@ import analyticsController from '@/api/controllers/analyticsController';
 import kanbanController from '@/api/controllers/kanbanController';
 import timesheetController from '@/api/controllers/timesheetController';
 import aiTriageController from '@/api/controllers/aiTriageController';
+import officialDiaryController from '@/api/controllers/officialDiaryController';
 
 const app: Express = express();
 
@@ -102,6 +103,9 @@ app.use('/api/v1/timesheet', verifyToken, timesheetController);
 
 // AI Triage Routes (Phase 5: Intelligence)
 app.use('/api/v1/ai/triage', verifyToken, aiTriageController);
+
+// Official Diary Routes (Phase 6: Monitoring & Alerts)
+app.use('/api/v1/diaries', verifyToken, officialDiaryController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
