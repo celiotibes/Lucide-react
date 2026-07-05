@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react'
 import { Dashboard } from './components/dashboard/Dashboard'
+import { DocumentManager } from './components/documents/DocumentManager'
 import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
 import { EditorWorkspace } from './components/editor/EditorWorkspace'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
@@ -27,7 +28,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -48,60 +49,64 @@ function App() {
           <h1 style={styles.h1}>
             {paginaAtiva === 'dashboard'
               ? '⚖️ Lucide-react'
-              : paginaAtiva === 'editor'
-                ? 'Editor Visual de Petições Judiciais'
-                : paginaAtiva === 'editor-novo'
-                  ? 'Editor Sprint 5 - Gerenciamento Completo'
-                  : paginaAtiva === 'calculadores'
-                    ? 'Calculadores Jurídicos'
-                    : paginaAtiva === 'pesquisa'
-                      ? 'Centro de Pesquisa Jurídica'
-                      : paginaAtiva === 'llm-config'
-                        ? 'Configuração 4-Tier LLM'
-                        : paginaAtiva === 'llm-test'
-                          ? 'Teste de Roteamento LLM'
-                          : paginaAtiva === 'rag-analysis'
-                            ? 'Análise RAG de Petições'
-                            : paginaAtiva === 'petition-transformer'
-                              ? 'Transformador de Petições Autônomo'
-                              : paginaAtiva === 'timeline'
-                                ? 'Evolução da Jurisprudência'
-                                : paginaAtiva === 'strategic-analysis'
-                                  ? 'Análise Estratégica & Blindagem'
-                                  : paginaAtiva === 'outcome-prediction'
-                                    ? 'Preditor de Resultado'
-                                    : paginaAtiva === 'template-matching'
-                                      ? 'Correspondência de Modelos Jurídicos'
-                                      : 'Busca Avançada Jurídica'}
+              : paginaAtiva === 'documents'
+                ? '📄 Gerenciador de Documentos'
+                : paginaAtiva === 'editor'
+                  ? 'Editor Visual de Petições Judiciais'
+                  : paginaAtiva === 'editor-novo'
+                    ? 'Editor Sprint 5 - Gerenciamento Completo'
+                    : paginaAtiva === 'calculadores'
+                      ? 'Calculadores Jurídicos'
+                      : paginaAtiva === 'pesquisa'
+                        ? 'Centro de Pesquisa Jurídica'
+                        : paginaAtiva === 'llm-config'
+                          ? 'Configuração 4-Tier LLM'
+                          : paginaAtiva === 'llm-test'
+                            ? 'Teste de Roteamento LLM'
+                            : paginaAtiva === 'rag-analysis'
+                              ? 'Análise RAG de Petições'
+                              : paginaAtiva === 'petition-transformer'
+                                ? 'Transformador de Petições Autônomo'
+                                : paginaAtiva === 'timeline'
+                                  ? 'Evolução da Jurisprudência'
+                                  : paginaAtiva === 'strategic-analysis'
+                                    ? 'Análise Estratégica & Blindagem'
+                                    : paginaAtiva === 'outcome-prediction'
+                                      ? 'Preditor de Resultado'
+                                      : paginaAtiva === 'template-matching'
+                                        ? 'Correspondência de Modelos Jurídicos'
+                                        : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
               ? 'Plataforma integrada de pesquisa jurídica, análise e edição de petições'
-              : paginaAtiva === 'editor'
-                ? 'Plataforma integrada com análise de jurimetria e hermenêutica blindada'
-                : paginaAtiva === 'editor-novo'
-                  ? 'Edição completa com auto-save, export multi-formato, anexos inteligentes, ementa automática e versionamento'
-                  : paginaAtiva === 'calculadores'
-                    ? 'Cálculos especializados: Dano Material, Pensão Alimentícia e Dano Moral'
-                    : paginaAtiva === 'pesquisa'
-                      ? 'Pesquisa jurídica com Legal Data Hunter e PubMed'
-                      : paginaAtiva === 'llm-config'
-                        ? 'Configure API keys para Claude, Groq, Gemini e Ollama'
-                        : paginaAtiva === 'llm-test'
-                          ? 'Teste diferentes estratégias de roteamento LLM'
-                          : paginaAtiva === 'rag-analysis'
-                            ? 'Análise profunda de petições com busca de jurisprudência e detecção de conflitos'
-                            : paginaAtiva === 'petition-transformer'
-                              ? 'Upload automático com análise inteligente, aprimoramento com IA e exportação multi-formato'
-                              : paginaAtiva === 'timeline'
-                                ? 'Visualize como a jurisprudência evolui sobre temas específicos ao longo do tempo'
-                                : paginaAtiva === 'strategic-analysis'
-                                  ? 'Detecção de fraquezas jurídicas e blindagem contra contra-argumentos'
-                                  : paginaAtiva === 'outcome-prediction'
-                                    ? 'Calcule a probabilidade de sucesso da sua petição com análise profunda'
-                                    : paginaAtiva === 'template-matching'
-                                      ? 'Encontre modelos jurídicos bem-sucedidos similares à sua petição'
-                                      : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+              : paginaAtiva === 'documents'
+                ? 'Crie, abra e organize seus documentos jurídicos com auto-save e versionamento'
+                : paginaAtiva === 'editor'
+                  ? 'Plataforma integrada com análise de jurimetria e hermenêutica blindada'
+                  : paginaAtiva === 'editor-novo'
+                    ? 'Edição completa com auto-save, export multi-formato, anexos inteligentes, ementa automática e versionamento'
+                    : paginaAtiva === 'calculadores'
+                      ? 'Cálculos especializados: Dano Material, Pensão Alimentícia e Dano Moral'
+                      : paginaAtiva === 'pesquisa'
+                        ? 'Pesquisa jurídica com Legal Data Hunter e PubMed'
+                        : paginaAtiva === 'llm-config'
+                          ? 'Configure API keys para Claude, Groq, Gemini e Ollama'
+                          : paginaAtiva === 'llm-test'
+                            ? 'Teste diferentes estratégias de roteamento LLM'
+                            : paginaAtiva === 'rag-analysis'
+                              ? 'Análise profunda de petições com busca de jurisprudência e detecção de conflitos'
+                              : paginaAtiva === 'petition-transformer'
+                                ? 'Upload automático com análise inteligente, aprimoramento com IA e exportação multi-formato'
+                                : paginaAtiva === 'timeline'
+                                  ? 'Visualize como a jurisprudência evolui sobre temas específicos ao longo do tempo'
+                                  : paginaAtiva === 'strategic-analysis'
+                                    ? 'Detecção de fraquezas jurídicas e blindagem contra contra-argumentos'
+                                    : paginaAtiva === 'outcome-prediction'
+                                      ? 'Calcule a probabilidade de sucesso da sua petição com análise profunda'
+                                      : paginaAtiva === 'template-matching'
+                                        ? 'Encontre modelos jurídicos bem-sucedidos similares à sua petição'
+                                        : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -113,6 +118,15 @@ function App() {
             }}
           >
             🏠 Home
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('documents')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'documents' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📄 Documentos
           </button>
           <button
             onClick={() => setPaginaAtiva('editor')}
@@ -246,6 +260,21 @@ function App() {
               onAbrirDocumento={(docId) => {
                 console.log('Abrindo documento:', docId)
                 setPaginaAtiva('editor-novo')
+              }}
+            />
+          </main>
+        )}
+
+        {paginaAtiva === 'documents' && (
+          <main style={styles.mainFullWidth}>
+            <DocumentManager
+              onAbrirDocumento={(docId) => {
+                console.log('Abrindo documento:', docId)
+                setPaginaAtiva('editor-novo')
+              }}
+              onCriarNovo={(tipo) => {
+                console.log('Criando novo documento:', tipo)
+                setPaginaAtiva(tipo)
               }}
             />
           </main>
