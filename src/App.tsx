@@ -27,6 +27,7 @@ import { AdvancedSearchPanel } from './components/search/AdvancedSearchPanel'
 import { ImportExportPanel } from './components/documents/ImportExportPanel'
 import { TemplateManager } from './components/templates/TemplateManager'
 import { DocumentSharingManager } from './components/sharing/DocumentSharingManager'
+import { PDFExportPanel } from './components/pdfExport/PDFExportPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -38,7 +39,7 @@ function App() {
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -114,7 +115,9 @@ function App() {
                                             ? '📋 Templates de Documentos'
                                             : paginaAtiva === 'sharing'
                                               ? '🔗 Compartilhar Documentos'
-                                              : 'Busca Avançada Jurídica'}
+                                              : paginaAtiva === 'pdf-export'
+                                                ? '📄 PDF Export Avançado'
+                                                : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -153,7 +156,9 @@ function App() {
                                             ? 'Crie e gerencie templates reutilizáveis para seus documentos'
                                             : paginaAtiva === 'sharing'
                                               ? 'Compartilhe seus documentos por link ou email com controle de permissões'
-                                              : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                              : paginaAtiva === 'pdf-export'
+                                                ? 'Exporte documentos como PDF com múltiplas opções de customização'
+                                                : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -327,6 +332,15 @@ function App() {
             }}
           >
             🔗 Compartilhar
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('pdf-export')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'pdf-export' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📄 PDF Export
           </button>
         </div>
         <div style={styles.versao}>
@@ -512,6 +526,12 @@ function App() {
         {paginaAtiva === 'sharing' && (
           <main style={styles.mainFullWidth}>
             <DocumentSharingManager />
+          </main>
+        )}
+
+        {paginaAtiva === 'pdf-export' && (
+          <main style={styles.mainFullWidth}>
+            <PDFExportPanel />
           </main>
         )}
       </div>
