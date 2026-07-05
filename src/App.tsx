@@ -16,6 +16,7 @@ import { PetitionTransformerPanel } from './components/petitionTransformer/Petit
 import { JurisprudenceTimeline } from './components/timeline/JurisprudenceTimeline'
 import { StrategicAnalysisPanel } from './components/analysis/StrategicAnalysisPanel'
 import { OutcomePredictorPanel } from './components/prediction/OutcomePredictorPanel'
+import { TemplateMatchingPanel } from './components/templates/TemplateMatchingPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -24,7 +25,7 @@ function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
-  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction'>('editor')
+  const [paginaAtiva, setPaginaAtiva] = useState<'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching'>('editor')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -63,7 +64,9 @@ function App() {
                               ? 'Evolução da Jurisprudência'
                               : paginaAtiva === 'strategic-analysis'
                                 ? 'Análise Estratégica & Blindagem'
-                                : 'Preditor de Resultado'}
+                                : paginaAtiva === 'outcome-prediction'
+                                  ? 'Preditor de Resultado'
+                                  : 'Correspondência de Modelos Jurídicos'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'editor'
@@ -86,7 +89,9 @@ function App() {
                               ? 'Visualize como a jurisprudência evolui sobre temas específicos ao longo do tempo'
                               : paginaAtiva === 'strategic-analysis'
                                 ? 'Detecção de fraquezas jurídicas e blindagem contra contra-argumentos'
-                                : 'Calcule a probabilidade de sucesso da sua petição com análise profunda'}
+                                : paginaAtiva === 'outcome-prediction'
+                                  ? 'Calcule a probabilidade de sucesso da sua petição com análise profunda'
+                                  : 'Encontre modelos jurídicos bem-sucedidos similares à sua petição'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -189,6 +194,15 @@ function App() {
           >
             🔮 Predição
           </button>
+          <button
+            onClick={() => setPaginaAtiva('template-matching')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'template-matching' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📚 Modelos
+          </button>
         </div>
         <div style={styles.versao}>
           FASE 4.2 - Frontend LLM
@@ -280,6 +294,12 @@ function App() {
         {paginaAtiva === 'outcome-prediction' && (
           <main style={styles.mainFullWidth}>
             <OutcomePredictorPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'template-matching' && (
+          <main style={styles.mainFullWidth}>
+            <TemplateMatchingPanel />
           </main>
         )}
       </div>
