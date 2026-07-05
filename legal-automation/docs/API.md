@@ -1858,3 +1858,364 @@ Estatísticas sobre cobertura de diários.
 - ✅ Slack webhook
 
 ---
+
+---
+
+## Phase 7: Automatic Recommendations & Predictions
+
+### Prediction Endpoints
+
+#### Prever Resultado do Caso
+
+```
+POST /predictions/predict/outcome
+```
+
+Prediz o resultado esperado de um caso com base em dados históricos e análise de jurisprudência.
+
+**Body:**
+```json
+{
+  "caseId": "case-001",
+  "caseType": "civel",
+  "tribunal": "TJSP"
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "pred-001",
+    "userId": "user-123",
+    "caseId": "case-001",
+    "predictionType": "outcome",
+    "confidence": 0.85,
+    "predictedOutcome": "favorable",
+    "successProbability": 0.72,
+    "riskLevel": "low",
+    "predictionData": {
+      "baseSuccessRate": 0.65,
+      "similarCaseSuccessRate": 0.78,
+      "similarCasesCount": 15
+    },
+    "createdAt": "2024-12-04T14:30:00.000Z"
+  }
+}
+```
+
+#### Prever Prazo do Caso
+
+```
+POST /predictions/predict/deadline
+```
+
+Calcula o prazo estimado para resolução do caso.
+
+**Body:**
+```json
+{
+  "caseId": "case-001",
+  "caseType": "civel",
+  "tribunal": "TJSP",
+  "amount": 250000
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "pred-002",
+    "predictionType": "deadline",
+    "confidence": 0.80,
+    "predictedDeadline": "2025-06-10",
+    "riskLevel": "medium",
+    "predictionData": {
+      "baseDeadlineDays": 180,
+      "complexityFactor": 1.05,
+      "adjustedDeadlineDays": 189,
+      "stateCode": "SP"
+    }
+  }
+}
+```
+
+#### Calcular Taxa de Sucesso
+
+```
+POST /predictions/predict/success-rate
+```
+
+Calcula a probabilidade de sucesso com base em vários fatores.
+
+**Body:**
+```json
+{
+  "caseId": "case-001",
+  "caseType": "trabalhista",
+  "tribunal": "TJSC"
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "pred-003",
+    "predictionType": "success_rate",
+    "confidence": 0.88,
+    "successProbability": 0.71,
+    "riskLevel": "low",
+    "predictionData": {
+      "baseRate": 0.72,
+      "historicalSuccessRate": 0.68,
+      "userHistoricalRate": 0.75,
+      "weights": {
+        "caseType": 0.4,
+        "tribunal": 0.4,
+        "user": 0.2
+      }
+    }
+  }
+}
+```
+
+#### Obter Predições
+
+```
+GET /predictions/predictions
+```
+
+Retorna todas as predições de um caso ou usuário.
+
+**Query Parameters:**
+- `caseId` (opcional): Filtrar por ID do caso
+- `limit` (opcional): Limite de resultados (padrão: 20)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "pred-001",
+      "predictionType": "outcome",
+      "confidence": 0.85,
+      "successProbability": 0.72,
+      "riskLevel": "low"
+    }
+  ],
+  "count": 1
+}
+```
+
+### Recommendation Endpoints
+
+#### Gerar Recomendações
+
+```
+POST /predictions/recommendations/generate
+```
+
+Gera recomendações automáticas baseadas em predições.
+
+**Body:**
+```json
+{
+  "caseId": "case-001",
+  "caseType": "civel",
+  "tribunal": "TJSP",
+  "currentStatus": "under_review",
+  "daysUntilDeadline": 45
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "rec-001",
+      "caseId": "case-001",
+      "recommendationType": "high_risk_mitigation",
+      "priority": "urgent",
+      "actionText": "Fortalecer argumentação jurídica com jurisprudência recente",
+      "confidence": 0.85,
+      "basedOnPredictionId": "pred-001",
+      "accepted": false,
+      "implemented": false,
+      "createdAt": "2024-12-04T14:30:00.000Z"
+    }
+  ],
+  "count": 3
+}
+```
+
+#### Obter Recomendações
+
+```
+GET /predictions/recommendations
+```
+
+Retorna recomendações para o usuário.
+
+**Query Parameters:**
+- `caseId` (opcional): Filtrar por ID do caso
+- `implemented` (opcional): Filtrar por status (true/false)
+- `limit` (opcional): Limite de resultados (padrão: 50)
+- `offset` (opcional): Offset para paginação (padrão: 0)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "rec-001",
+      "recommendationType": "high_risk_mitigation",
+      "priority": "urgent",
+      "actionText": "Fortalecer argumentação jurídica",
+      "confidence": 0.85,
+      "accepted": false,
+      "implemented": false
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 5
+  }
+}
+```
+
+#### Aceitar Recomendação
+
+```
+POST /predictions/recommendations/:recommendationId/accept
+```
+
+Marca uma recomendação como aceita.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "rec-001",
+    "accepted": true
+  }
+}
+```
+
+#### Implementar Recomendação
+
+```
+POST /predictions/recommendations/:recommendationId/implement
+```
+
+Marca uma recomendação como implementada.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "rec-001",
+    "implemented": true,
+    "implementedAt": "2024-12-05T10:15:00.000Z"
+  }
+}
+```
+
+#### Enviar Feedback
+
+```
+POST /predictions/recommendations/:recommendationId/feedback
+```
+
+Submete feedback sobre a qualidade da recomendação.
+
+**Body:**
+```json
+{
+  "feedbackType": "helpful",
+  "rating": 5,
+  "comment": "Recomendação muito útil para o caso"
+}
+```
+
+Tipos válidos: `helpful`, `not_helpful`, `incorrect`, `already_done`
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "message": "Feedback enviado com sucesso"
+}
+```
+
+#### Obter Estatísticas
+
+```
+GET /predictions/recommendations/stats
+```
+
+Retorna estatísticas sobre recomendações.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "summary": {
+      "total_recommendations": 25,
+      "accepted_count": 18,
+      "implemented_count": 12
+    },
+    "byPriority": [
+      {
+        "priority": "urgent",
+        "total_recommendations": 5,
+        "accepted_count": 5,
+        "recommendation_type": "high_risk_mitigation"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Prediction & Recommendation Features
+
+**Tipos de Predição:**
+- ✅ Resultado do caso (favorable, uncertain, unfavorable)
+- ✅ Prazo estimado (com ajuste por tribunal e complexidade)
+- ✅ Taxa de sucesso (ponderada por tipo, tribunal e usuário)
+
+**Factores Considerados:**
+- ✅ Histórico de casos similares
+- ✅ Taxa de sucesso por tipo de caso
+- ✅ Taxa histórica por tribunal
+- ✅ Taxa de sucesso do usuário
+- ✅ Complexidade do caso
+
+**Tipos de Recomendação:**
+- ✅ `high_risk_mitigation`: Para casos de alto risco
+- ✅ `medium_risk_action`: Para casos com risco médio
+- ✅ `deadline_management`: Para prazos próximos
+- ✅ `offensive_strategy`: Para predições favoráveis
+- ✅ `precedent_leverage`: Quando casos similares tiveram sucesso
+
+**Otimizações:**
+- ✅ Cache de predições (24 horas)
+- ✅ Índices em predicções_table para performance
+- ✅ Paginação em recomendações
+- ✅ Limpeza automática de cache expirado
+
+---
