@@ -25,6 +25,10 @@ import { projurisClientController } from '@/api/controllers/projurisClientContro
 import { projurisCaseController } from '@/api/controllers/projurisCaseController';
 import { projurisTaskController } from '@/api/controllers/projurisTaskController';
 import { projurisDashboardController } from '@/api/controllers/projurisDashboardController';
+import { astreaFinancialController } from '@/api/controllers/astreaFinancialController';
+import { astreaDeadlineController } from '@/api/controllers/astreaDeadlineController';
+import { astreaTimeController } from '@/api/controllers/astreaTimeController';
+import { astreaAnalyticsController } from '@/api/controllers/astreaAnalyticsController';
 
 const app: Express = express();
 
@@ -72,6 +76,12 @@ app.use('/api/v1/projuris/clients', verifyToken, projurisClientController);
 app.use('/api/v1/projuris/cases', verifyToken, projurisCaseController);
 app.use('/api/v1/projuris/tasks', verifyToken, projurisTaskController);
 app.use('/api/v1/projuris/dashboard', verifyToken, projurisDashboardController);
+
+// Astrea Routes
+app.use('/api/v1/astrea', verifyToken, astreaFinancialController);
+app.use('/api/v1/astrea/deadlines', verifyToken, astreaDeadlineController);
+app.use('/api/v1/astrea/time-entries', verifyToken, astreaTimeController);
+app.use('/api/v1/astrea/analytics', verifyToken, astreaAnalyticsController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
