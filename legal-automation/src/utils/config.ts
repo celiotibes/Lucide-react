@@ -25,6 +25,20 @@ export const config = {
   eproc_api_url: process.env.EPROC_API_URL || 'https://eproc.tjsc.jus.br/api',
   eproc_2fa_timeout: parseInt(process.env.EPROC_2FA_TIMEOUT || '300', 10),
 
+  // TRF4
+  trf4_api_url: process.env.TRF4_API_URL || 'https://portal-eproc.trf4.jus.br/eprocV2/',
+  trf4_login: process.env.TRF4_LOGIN,
+  trf4_password: process.env.TRF4_PASSWORD,
+
+  // JFPR
+  jfpr_api_url: process.env.JFPR_API_URL || 'https://eproc.jfpr.jus.br/api',
+  jfpr_login: process.env.JFPR_LOGIN,
+  jfpr_password: process.env.JFPR_PASSWORD,
+
+  // JUST (PDPJ-Br)
+  just_api_url: process.env.JUST_API_URL || 'https://api.datajud.cnj.jus.br/api/v1',
+  just_api_key: process.env.JUST_API_KEY,
+
   // Certificado Digital
   cert_storage_path: process.env.CERT_STORAGE_PATH || './certs',
   cert_encryption_key: process.env.CERT_ENCRYPTION_KEY || 'default_encryption_key',

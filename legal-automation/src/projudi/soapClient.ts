@@ -92,7 +92,7 @@ export class ProjudiSoapClient {
     try {
       logger.debug(`Peticionando no processo: ${petition.numeroProcesso}`);
 
-      const result = await this.client.peticionar Async({
+      const result = await this.client.peticionarAsync({
         numeroProcesso: petition.numeroProcesso,
         tipoDocumento: petition.tipoDocumento,
         descricaoDocumento: petition.descricaoDocumento,
