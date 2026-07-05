@@ -32,6 +32,7 @@ import { AnnotationsPanel } from './components/annotations/AnnotationsPanel'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
 import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard'
 import { ReportBuilder } from './components/reports/ReportBuilder'
+import { PWAPrompt } from './components/pwa/PWAPrompt'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -615,6 +616,9 @@ function App() {
 
       {/* Notificações Globais */}
       <NotificationContainer />
+
+      {/* PWA Install & Update Prompts */}
+      <PWAPrompt />
     </div>
   )
 }
