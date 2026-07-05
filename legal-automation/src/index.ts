@@ -8,6 +8,7 @@ import { config, validateConfig } from '@utils/config';
 import { AppError, handleError } from '@utils/errors';
 import { projudiSoapClient } from '@projudi/soapClient';
 import { initDatabase, closeDatabase } from '@/database/connection';
+import { verifyToken } from '@middlewares/authMiddleware';
 
 // Controllers
 import authController from '@/api/controllers/authController';
@@ -36,15 +37,6 @@ const upload = multer({
   limits: { fileSize: config.max_file_size },
 });
 
-// Middleware de autenticação (básico)
-function authMiddleware(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    (req as any).user = { id: 'test-user-id' }; // Implementar verificação real
-  }
-  next();
-}
-
 // Health check
 app.get('/health', (req: Request, res: Response) => {
   res.json({
@@ -57,9 +49,9 @@ app.get('/health', (req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/v1/auth', authController);
-app.use('/api/v1/petitions', authMiddleware, petitionController);
-app.use('/api/v1/processes', authMiddleware, processController);
-app.use('/api/v1/ai', authMiddleware, aiController);
+app.use('/api/v1/petitions', verifyToken, petitionController);
+app.use('/api/v1/processes', verifyToken, processController);
+app.use('/api/v1/ai', verifyToken, aiController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

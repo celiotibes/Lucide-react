@@ -1,0 +1,683 @@
+{
+  "info": {
+    "name": "Legal Automation Tool API",
+    "description": "API para automação jurídica com suporte a petições, processos e IA",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"lawyer@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"firstName\": \"João\",\n  \"lastName\": \"Silva\",\n  \"oabNumber\": \"123456\",\n  \"oabState\": \"SP\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/register",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"lawyer@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "2FA Challenge",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"lawyer@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/2fa/challenge",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "2fa", "challenge"]
+            }
+          }
+        },
+        {
+          "name": "2FA Verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"challengeId\": \"{{challengeId}}\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/2fa/verify",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "2fa", "verify"]
+            }
+          }
+        },
+        {
+          "name": "Upload Certificate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "certificate",
+                  "type": "file",
+                  "src": "/path/to/certificate.pfx"
+                },
+                {
+                  "key": "password",
+                  "value": "certificate_password",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/certificate/upload",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "certificate", "upload"]
+            }
+          }
+        },
+        {
+          "name": "List Certificates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/certificates",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "certificates"]
+            }
+          }
+        },
+        {
+          "name": "Delete Certificate",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/certificates/{{fingerprint}}",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "certificates", "{{fingerprint}}"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/auth/logout",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Petitions",
+      "item": [
+        {
+          "name": "List Petitions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/petitions",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "petitions"]
+            }
+          }
+        },
+        {
+          "name": "Create Petition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"processNumber\": \"0000001-12.2023.8.26.0100\",\n  \"tribunal\": \"tjsc\",\n  \"title\": \"Petição Inicial\",\n  \"content\": \"Conteúdo da petição...\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/petitions",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "petitions"]
+            }
+          }
+        },
+        {
+          "name": "Generate Petition with AI",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": \"Caso de ação por dano moral\",\n  \"parties\": \"João Silva e Empresa XYZ\",\n  \"facts\": \"Descrição dos fatos do caso\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/petitions/{{petitionId}}/generate",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "petitions", "{{petitionId}}", "generate"]
+            }
+          }
+        },
+        {
+          "name": "Validate Petition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/petitions/{{petitionId}}/validate",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "petitions", "{{petitionId}}", "validate"]
+            }
+          }
+        },
+        {
+          "name": "Sign Petition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"certificateFingerprint\": \"{{fingerprint}}\",\n  \"certificatePassword\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/petitions/{{petitionId}}/sign",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "petitions", "{{petitionId}}", "sign"]
+            }
+          }
+        },
+        {
+          "name": "Submit Petition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/petitions/{{petitionId}}/submit",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "petitions", "{{petitionId}}", "submit"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Processes",
+      "item": [
+        {
+          "name": "Search Process by Number",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/processes/search/0000001-12.2023.8.26.0100",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "processes", "search", "0000001-12.2023.8.26.0100"]
+            }
+          }
+        },
+        {
+          "name": "Search Processes by Party",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/processes/search-party?partyName=João%20Silva&dateStart=2024-01-01",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "processes", "search-party"],
+              "query": [
+                {
+                  "key": "partyName",
+                  "value": "João Silva"
+                },
+                {
+                  "key": "dateStart",
+                  "value": "2024-01-01"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Processes by Subject",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/processes/search-subject?subject=indenização&tribunal=tjsc",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "processes", "search-subject"],
+              "query": [
+                {
+                  "key": "subject",
+                  "value": "indenização"
+                },
+                {
+                  "key": "tribunal",
+                  "value": "tjsc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Process Movements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/processes/0000001-12.2023.8.26.0100/movements",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "processes", "0000001-12.2023.8.26.0100", "movements"]
+            }
+          }
+        },
+        {
+          "name": "Analyze Movements",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/processes/0000001-12.2023.8.26.0100/analyze-movements",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "processes", "0000001-12.2023.8.26.0100", "analyze-movements"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Services",
+      "item": [
+        {
+          "name": "Generate Petition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"initial_petition\",\n  \"context\": \"Ação de indenização por dano moral\",\n  \"parties\": \"João Silva vs Empresa XYZ\",\n  \"facts\": \"Descrição dos fatos\",\n  \"arguments\": [\"Dano moral comprovado\", \"Conduta ilícita\"]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/ai/generate-petition",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "ai", "generate-petition"]
+            }
+          }
+        },
+        {
+          "name": "Validate Petition",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Conteúdo da petição a validar...\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/ai/validate-petition",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "ai", "validate-petition"]
+            }
+          }
+        },
+        {
+          "name": "Analyze Movements",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"movements\": [\n    \"Distribuição da ação\",\n    \"Citação do réu\",\n    \"Apresentação de resposta\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/ai/analyze-movements",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "ai", "analyze-movements"]
+            }
+          }
+        },
+        {
+          "name": "Extract Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Conteúdo do documento a extrair dados...\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/ai/extract-document",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "ai", "extract-document"]
+            }
+          }
+        },
+        {
+          "name": "Suggest Arguments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"caseType\": \"dano_moral\",\n  \"context\": \"Descrição do caso\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/ai/suggest-arguments",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "ai", "suggest-arguments"]
+            }
+          }
+        },
+        {
+          "name": "AI Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/ai/status",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "ai", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:3000/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "token",
+      "value": "your_jwt_token_here",
+      "type": "string"
+    },
+    {
+      "key": "fingerprint",
+      "value": "certificate_fingerprint_here",
+      "type": "string"
+    },
+    {
+      "key": "petitionId",
+      "value": "petition_uuid_here",
+      "type": "string"
+    },
+    {
+      "key": "challengeId",
+      "value": "challenge_id_here",
+      "type": "string"
+    }
+  ]
+}
