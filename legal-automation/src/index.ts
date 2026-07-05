@@ -37,6 +37,7 @@ import aiTriageController from '@/api/controllers/aiTriageController';
 import officialDiaryController from '@/api/controllers/officialDiaryController';
 import predictionController from '@/api/controllers/predictionController';
 import clientPortalController from '@/api/controllers/clientPortalController';
+import workflowController from '@/api/controllers/workflowController';
 
 const app: Express = express();
 
@@ -114,6 +115,9 @@ app.use('/api/v1/predictions', verifyToken, predictionController);
 
 // Client Portal Routes (Phase 8: Transparent Client Portal)
 app.use('/api/v1/client-portal', verifyToken, clientPortalController);
+
+// Workflow Routes (Phase 9: Customizable Approval Workflows)
+app.use('/api/v1/workflows', verifyToken, workflowController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

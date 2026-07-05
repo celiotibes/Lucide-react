@@ -2642,3 +2642,407 @@ PUT /client-portal/preferences
 - ✅ Idioma
 
 ---
+
+---
+
+## Phase 9: Customizable Approval Workflows
+
+### Workflow Templates
+
+#### Criar Modelo de Workflow
+
+```
+POST /workflows/templates
+```
+
+Cria um novo modelo de workflow customizável.
+
+**Body:**
+```json
+{
+  "name": "Revisão de Petição",
+  "triggerType": "document_submitted",
+  "description": "Workflow para revisão de petições antes de envio"
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "template-001",
+    "userId": "user-123",
+    "name": "Revisão de Petição",
+    "triggerType": "document_submitted",
+    "isActive": true,
+    "templateVersion": 1,
+    "createdAt": "2024-12-04T14:30:00.000Z"
+  }
+}
+```
+
+#### Obter Modelos do Usuário
+
+```
+GET /workflows/templates
+```
+
+Lista todos os modelos de workflow do usuário.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "template-001",
+      "name": "Revisão de Petição",
+      "triggerType": "document_submitted",
+      "isActive": true,
+      "templateVersion": 1
+    }
+  ],
+  "count": 3
+}
+```
+
+#### Obter Detalhes do Modelo
+
+```
+GET /workflows/templates/:templateId
+```
+
+Obtém modelo com todas as etapas.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "template": {
+      "id": "template-001",
+      "name": "Revisão de Petição",
+      "isActive": true
+    },
+    "steps": [
+      {
+        "id": "step-001",
+        "stepOrder": 1,
+        "stepType": "approval",
+        "title": "Revisão Jurídica",
+        "approverRole": "senior_lawyer"
+      }
+    ]
+  }
+}
+```
+
+#### Atualizar Modelo
+
+```
+PUT /workflows/templates/:templateId
+```
+
+**Body:**
+```json
+{
+  "name": "Revisão de Petição (Atualizado)",
+  "isActive": true
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "template-001",
+    "templateVersion": 2
+  }
+}
+```
+
+### Workflow Steps
+
+#### Adicionar Etapa
+
+```
+POST /workflows/templates/:templateId/steps
+```
+
+Adiciona uma etapa ao modelo.
+
+**Body:**
+```json
+{
+  "stepOrder": 1,
+  "stepType": "approval",
+  "title": "Revisão Jurídica",
+  "approverRole": "senior_lawyer",
+  "timeoutDays": 2,
+  "autoApproveOnTimeout": false,
+  "description": "Revisar argumentação jurídica",
+  "conditions": {
+    "caseAmount": { "min": 50000 }
+  },
+  "actions": {
+    "onApprove": "create_kanban_task"
+  }
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "step-001",
+    "stepOrder": 1,
+    "title": "Revisão Jurídica",
+    "createdAt": "2024-12-04T14:30:00.000Z"
+  }
+}
+```
+
+### Workflow Instances
+
+#### Iniciar Workflow
+
+```
+POST /workflows/instances
+```
+
+Inicia uma instância de workflow para um caso.
+
+**Body:**
+```json
+{
+  "templateId": "template-001",
+  "caseId": "case-001",
+  "metadata": {
+    "caseAmount": 250000,
+    "priority": "high"
+  }
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "instance-001",
+    "templateId": "template-001",
+    "caseId": "case-001",
+    "status": "pending",
+    "currentStepId": "step-001",
+    "startedAt": "2024-12-04T14:30:00.000Z"
+  }
+}
+```
+
+#### Obter Status do Workflow
+
+```
+GET /workflows/instances/:instanceId
+```
+
+Obtém status completo da instância.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "instance": {
+      "id": "instance-001",
+      "status": "pending",
+      "currentStepId": "step-001"
+    },
+    "approvals": [
+      {
+        "id": "approval-001",
+        "stepId": "step-001",
+        "approverId": "user-456",
+        "status": "pending"
+      }
+    ],
+    "auditLog": [
+      {
+        "action": "workflow_started",
+        "timestamp": "2024-12-04T14:30:00.000Z"
+      }
+    ],
+    "escalations": []
+  }
+}
+```
+
+### Approval Process
+
+#### Aprovar Etapa
+
+```
+POST /workflows/approvals/:approvalId/approve
+```
+
+Aprova uma etapa do workflow.
+
+**Body:**
+```json
+{
+  "instanceId": "instance-001",
+  "comment": "Argumentação jurídica adequada"
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "approval-001",
+    "status": "approved",
+    "decisionAt": "2024-12-05T10:00:00.000Z"
+  }
+}
+```
+
+#### Rejeitar Workflow
+
+```
+POST /workflows/instances/:instanceId/reject
+```
+
+Rejeita o workflow.
+
+**Body:**
+```json
+{
+  "rejectionReason": "Argumentação incompleta. Revisar documentação."
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "instance-001",
+    "status": "rejected",
+    "rejectedAt": "2024-12-05T10:00:00.000Z"
+  }
+}
+```
+
+#### Escalar Etapa
+
+```
+POST /workflows/instances/:instanceId/escalate
+```
+
+Escalona a etapa para um gestor.
+
+**Body:**
+```json
+{
+  "stepId": "step-001",
+  "escalatedToId": "manager-789",
+  "reason": "Falta de resposta do aprovador por 2 dias"
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "escalation-001",
+    "escalationLevel": 1,
+    "escalatedToId": "manager-789",
+    "escalatedAt": "2024-12-05T10:00:00.000Z"
+  }
+}
+```
+
+### Pending Approvals
+
+#### Obter Aprovações Pendentes
+
+```
+GET /workflows/approvals/pending
+```
+
+Lista todas as aprovações pendentes do usuário.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "approval-001",
+      "workflowInstanceId": "instance-001",
+      "stepId": "step-001",
+      "status": "pending",
+      "createdAt": "2024-12-04T14:30:00.000Z"
+    }
+  ],
+  "count": 5
+}
+```
+
+---
+
+### Workflow Features
+
+**Modelos & Templates:**
+- ✅ Criação de templates customizáveis
+- ✅ Múltiplas etapas sequenciais
+- ✅ Ativação/desativação de templates
+- ✅ Versionamento de templates
+
+**Tipos de Etapa:**
+- ✅ Aprovação por usuário específico
+- ✅ Aprovação por role
+- ✅ Notificações
+- ✅ Ações automáticas
+
+**Condições & Lógica:**
+- ✅ Roteamento condicional
+- ✅ Lógica AND/OR
+- ✅ Comparação de campos
+- ✅ Pulos de etapas
+
+**Aprovações:**
+- ✅ Múltiplos aprovadores por etapa
+- ✅ Comentários nas aprovações
+- ✅ Histórico de decisões
+- ✅ Rastreamento de prazos
+
+**Escalação:**
+- ✅ Escalação automática por timeout
+- ✅ Escalação manual
+- ✅ Múltiplos níveis de escalação
+- ✅ Notificação de escalação
+
+**Rejeição & Controle:**
+- ✅ Rejeição a qualquer momento
+- ✅ Motivo da rejeição
+- ✅ Parada do workflow
+- ✅ Logging de rejeição
+
+**Auditoria:**
+- ✅ Trilha de auditoria completa
+- ✅ Rastreamento de ações
+- ✅ Timestamps precisos
+- ✅ Identificação de ator
+
+**Notificações:**
+- ✅ Notificação de aprovação pendente
+- ✅ Alerta de timeout
+- ✅ Notificação de escalação
+- ✅ Confirmação de conclusão
+
+---
