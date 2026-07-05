@@ -8,6 +8,7 @@ import { servicoDocumento } from '../../services/documentService'
 import { RevisionHistoryPanel } from './RevisionHistoryPanel'
 import type { DocumentoSalvo } from '../../types/document'
 import './DocumentManager.css'
+import './DocumentManagerMobile.css'
 
 interface DocumentManagerProps {
   onAbrirDocumento: (docId: string) => void

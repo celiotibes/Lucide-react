@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react'
 import { Dashboard } from './components/dashboard/Dashboard'
 import { DocumentManager } from './components/documents/DocumentManager'
+import { MobileNav } from './components/mobile/MobileNav'
 import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
 import { EditorWorkspace } from './components/editor/EditorWorkspace'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
@@ -23,6 +24,7 @@ import { AdvancedSearchPanel } from './components/search/AdvancedSearchPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
+import './App.mobile.css'
 
 function App() {
   const [fatos, setFatos] = useState<FatoProva[]>([])
@@ -43,6 +45,11 @@ function App() {
     <div style={styles.app}>
       {/* Cabeçalho principal */}
       <header style={styles.header}>
+        <MobileNav
+          paginaAtiva={paginaAtiva}
+          onNavegar={(pagina) => setPaginaAtiva(pagina as any)}
+          versao="FASE 4.2 - Frontend LLM"
+        />
         <div style={styles.logo}>
           ⚖️ Lucide-react
         </div>

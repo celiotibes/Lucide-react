@@ -1,0 +1,114 @@
+/* App Mobile Optimizations */
+
+/* Header em mobile */
+@media (max-width: 767px) {
+  header {
+    flex-wrap: wrap !important;
+    padding: 8px 12px !important;
+    gap: 12px !important;
+  }
+
+  /* Logo visível mas reduzido */
+  .logo {
+    font-size: 16px !important;
+  }
+
+  /* Título e subtítulo stackados */
+  .headerTitulo {
+    order: 3;
+    width: 100%;
+  }
+
+  .headerTitulo h1 {
+    font-size: 14px !important;
+    margin: 0 !important;
+  }
+
+  .headerTitulo p {
+    font-size: 10px !important;
+    display: none;
+  }
+
+  /* Esconder botões de navegação em mobile (usar drawer) */
+  .navButtons {
+    display: none !important;
+  }
+
+  /* Esconder versão em mobile */
+  .versao {
+    display: none !important;
+  }
+
+  /* Layout principal em mobile */
+  .layoutPrincipal {
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+
+  /* Sidebar em mobile */
+  aside {
+    display: none !important;
+  }
+
+  /* Main content em full width */
+  main {
+    padding: 0 !important;
+  }
+
+  /* Footer */
+  footer {
+    padding: 8px 12px !important;
+    font-size: 9px !important;
+  }
+
+  footer p {
+    margin: 2px 0 !important;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  header {
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+
+  .logo {
+    font-size: 14px !important;
+  }
+
+  .headerTitulo h1 {
+    font-size: 13px !important;
+  }
+
+  .headerTitulo p {
+    font-size: 9px !important;
+  }
+}
+
+/* Tablet (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .navButtons {
+    gap: 4px !important;
+  }
+
+  .navButton {
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  header,
+  footer,
+  .navButtons,
+  aside {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}
