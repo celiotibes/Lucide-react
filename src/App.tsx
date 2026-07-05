@@ -30,6 +30,7 @@ import { DocumentSharingManager } from './components/sharing/DocumentSharingMana
 import { PDFExportPanel } from './components/pdfExport/PDFExportPanel'
 import { AnnotationsPanel } from './components/annotations/AnnotationsPanel'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
+import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -41,7 +42,7 @@ function App() {
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -121,7 +122,9 @@ function App() {
                                                 ? '📄 PDF Export Avançado'
                                                 : paginaAtiva === 'annotations'
                                                   ? '📝 Anotações e Comentários'
-                                                  : 'Busca Avançada Jurídica'}
+                                                  : paginaAtiva === 'analytics'
+                                                    ? '📊 Analytics Dashboard'
+                                                    : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -164,7 +167,9 @@ function App() {
                                                 ? 'Exporte documentos como PDF com múltiplas opções de customização'
                                                 : paginaAtiva === 'annotations'
                                                   ? 'Gerencie anotações, comentários e markups em seus documentos'
-                                                  : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                                  : paginaAtiva === 'analytics'
+                                                    ? 'Visualize estatísticas de uso, custos de IA e produtividade'
+                                                    : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -356,6 +361,15 @@ function App() {
             }}
           >
             📝 Anotações
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('analytics')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'analytics' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📊 Analytics
           </button>
         </div>
         <div style={styles.versao}>
@@ -557,6 +571,12 @@ function App() {
               nomeDocumento={tituloDocumento}
               autorAtual={usuario?.nome}
             />
+          </main>
+        )}
+
+        {paginaAtiva === 'analytics' && (
+          <main style={styles.mainFullWidth}>
+            <AnalyticsDashboard />
           </main>
         )}
       </div>
