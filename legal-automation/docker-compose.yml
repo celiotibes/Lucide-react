@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgresql://legaluser:legalpass@postgres:5432/legal_automation
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - CERT_ENCRYPTION_KEY=${CERT_ENCRYPTION_KEY:-dev-encryption-key}
+    volumes:
+      - ./src:/app/src
+      - ./certs:/app/certs
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    command: npm run dev
+    networks:
+      - legal-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=legaluser
+      - POSTGRES_PASSWORD=legalpass
+      - POSTGRES_DB=legal_automation
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legaluser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - legal-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - legal-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  legal-network:
+    driver: bridge
