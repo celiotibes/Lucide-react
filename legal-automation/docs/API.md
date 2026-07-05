@@ -2219,3 +2219,426 @@ Retorna estatísticas sobre recomendações.
 - ✅ Limpeza automática de cache expirado
 
 ---
+
+---
+
+## Phase 8: Transparent Client Portal
+
+### Case Access & Overview
+
+#### Obter Meus Casos
+
+```
+GET /client-portal/cases
+```
+
+Lista todos os casos aos quais o cliente tem acesso.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "case-001",
+      "case_number": "0000001-12.2024.5.04.3800",
+      "status": "under_review",
+      "created_at": "2024-09-01T10:00:00.000Z",
+      "lawyer_id": "lawyer-456",
+      "access_level": "view_only"
+    }
+  ],
+  "count": 3
+}
+```
+
+### Case Updates & Timeline
+
+#### Obter Atualizações do Caso
+
+```
+GET /client-portal/cases/:caseId/updates
+```
+
+Histórico de atualizações do caso visíveis ao cliente.
+
+**Query Parameters:**
+- `limit` (opcional): Limite de resultados (padrão: 50)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "upd-001",
+      "updateType": "status_change",
+      "title": "Caso movido para análise",
+      "description": "Petição enviada ao tribunal",
+      "createdBy": "lawyer-456",
+      "visibility": "client_visible",
+      "createdAt": "2024-12-04T14:30:00.000Z"
+    }
+  ],
+  "count": 5
+}
+```
+
+#### Obter Cronograma Completo
+
+```
+GET /client-portal/cases/:caseId/timeline
+```
+
+Cronograma unificado com atualizações, marcos e documentos.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "type": "update",
+      "id": "upd-001",
+      "description": "Petição enviada",
+      "created_at": "2024-12-04T14:30:00.000Z"
+    },
+    {
+      "type": "milestone",
+      "id": "mil-001",
+      "description": "Audiência agendada",
+      "created_at": "2024-12-15T00:00:00.000Z"
+    }
+  ],
+  "count": 12
+}
+```
+
+### Documents
+
+#### Obter Documentos Compartilhados
+
+```
+GET /client-portal/cases/:caseId/documents
+```
+
+Lista documentos acessíveis ao cliente.
+
+**Query Parameters:**
+- `limit` (opcional): Limite de resultados (padrão: 100)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "doc-001",
+      "documentName": "Petição Inicial.pdf",
+      "documentType": "petition",
+      "sharedAt": "2024-12-01T10:00:00.000Z",
+      "expiresAt": null,
+      "accessibleToClient": true
+    }
+  ],
+  "count": 8
+}
+```
+
+### Case Milestones
+
+#### Obter Marcos do Caso
+
+```
+GET /client-portal/cases/:caseId/milestones
+```
+
+Prazos e eventos importantes do caso.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "mil-001",
+      "milestoneType": "hearing",
+      "title": "Audiência Inicial",
+      "scheduledDate": "2024-12-15",
+      "completedDate": null,
+      "description": "Audiência de instrução",
+      "isCritical": true,
+      "createdAt": "2024-11-15T10:00:00.000Z"
+    }
+  ],
+  "count": 4
+}
+```
+
+### Messaging
+
+#### Obter Mensagens
+
+```
+GET /client-portal/cases/:caseId/messages
+```
+
+Histórico de comunicações sobre o caso.
+
+**Query Parameters:**
+- `limit` (opcional): Limite de resultados (padrão: 50)
+- `offset` (opcional): Offset para paginação (padrão: 0)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "msg-001",
+      "messageType": "status_update",
+      "subject": "Atualização do Caso",
+      "body": "Petição foi protocolar com sucesso",
+      "read": true,
+      "createdAt": "2024-12-04T14:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 15
+  }
+}
+```
+
+#### Enviar Mensagem
+
+```
+POST /client-portal/cases/:caseId/messages
+```
+
+Envia mensagem para o advogado.
+
+**Body:**
+```json
+{
+  "receiverId": "lawyer-456",
+  "messageType": "question",
+  "subject": "Dúvida sobre a petição",
+  "body": "Gostaria de esclarecer um ponto da petição",
+  "attachments": []
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "msg-002",
+    "senderId": "client-123",
+    "receiverId": "lawyer-456",
+    "createdAt": "2024-12-05T10:00:00.000Z"
+  }
+}
+```
+
+#### Marcar Mensagem como Lida
+
+```
+POST /client-portal/messages/:messageId/read
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "msg-001",
+    "read": true,
+    "readAt": "2024-12-05T10:15:00.000Z"
+  }
+}
+```
+
+#### Contar Mensagens Não Lidas
+
+```
+GET /client-portal/messages/unread/count
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "unreadCount": 3
+  }
+}
+```
+
+### Billing & Costs
+
+#### Obter Histórico de Cobrança
+
+```
+GET /client-portal/cases/:caseId/billing
+```
+
+Histórico de custos e cobrança do caso.
+
+**Query Parameters:**
+- `limit` (opcional): Limite de resultados (padrão: 100)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "history": [
+      {
+        "id": "bill-001",
+        "billingDate": "2024-12-01",
+        "description": "Análise de documentos",
+        "hours": 5,
+        "hourlyRate": 350,
+        "totalAmount": 1750,
+        "billingType": "hourly",
+        "status": "pending"
+      }
+    ],
+    "total": 5250
+  },
+  "count": 3
+}
+```
+
+### Case Status History
+
+#### Obter Histórico de Status
+
+```
+GET /client-portal/cases/:caseId/status-history
+```
+
+Histórico de mudanças de status do caso.
+
+**Query Parameters:**
+- `limit` (opcional): Limite de resultados (padrão: 50)
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "stat-001",
+      "statusType": "status",
+      "statusValue": "under_review",
+      "previousValue": "draft",
+      "changedAt": "2024-12-04T14:30:00.000Z",
+      "changedBy": "lawyer-456"
+    }
+  ],
+  "count": 5
+}
+```
+
+### Preferences
+
+#### Obter Preferências
+
+```
+GET /client-portal/preferences
+```
+
+Preferências do cliente para o portal.
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "pref-001",
+    "clientId": "client-123",
+    "notificationFrequency": "daily",
+    "digestEmailEnabled": true,
+    "receiveDocumentNotifications": true,
+    "receiveStatusUpdates": true,
+    "receiveBillingUpdates": true,
+    "themePreference": "light",
+    "language": "pt-BR"
+  }
+}
+```
+
+#### Atualizar Preferências
+
+```
+PUT /client-portal/preferences
+```
+
+**Body:**
+```json
+{
+  "notificationFrequency": "weekly",
+  "digestEmailEnabled": false,
+  "themePreference": "dark",
+  "language": "en"
+}
+```
+
+**Resposta:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "pref-001",
+    "notificationFrequency": "weekly",
+    "digestEmailEnabled": false,
+    "themePreference": "dark"
+  }
+}
+```
+
+---
+
+### Client Portal Features
+
+**Acesso a Casos:**
+- ✅ Lista de casos com acesso granular
+- ✅ Histórico completo de ações
+- ✅ Cronograma unificado
+- ✅ Controle de visibilidade
+
+**Documentos:**
+- ✅ Compartilhamento seguro
+- ✅ Versionamento
+- ✅ Expiração automática
+- ✅ Download com rastreamento
+
+**Comunicação:**
+- ✅ Mensagens bidirecionais
+- ✅ Suporte a anexos
+- ✅ Status de leitura
+- ✅ Notificações
+
+**Marcos e Prazos:**
+- ✅ Calendário de eventos
+- ✅ Alertas para prazos críticos
+- ✅ Rastreamento de progresso
+- ✅ Histórico de conclusão
+
+**Transparência Financeira:**
+- ✅ Histórico de cobrança
+- ✅ Total de custos
+- ✅ Detalhamento por serviço
+- ✅ Status de pagamento
+
+**Preferências:**
+- ✅ Frequência de notificações
+- ✅ Canais de notificação
+- ✅ Preferências visuais
+- ✅ Idioma
+
+---

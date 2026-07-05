@@ -36,6 +36,7 @@ import timesheetController from '@/api/controllers/timesheetController';
 import aiTriageController from '@/api/controllers/aiTriageController';
 import officialDiaryController from '@/api/controllers/officialDiaryController';
 import predictionController from '@/api/controllers/predictionController';
+import clientPortalController from '@/api/controllers/clientPortalController';
 
 const app: Express = express();
 
@@ -110,6 +111,9 @@ app.use('/api/v1/diaries', verifyToken, officialDiaryController);
 
 // Predictions & Recommendations Routes (Phase 7: Automatic Recommendations & Predictions)
 app.use('/api/v1/predictions', verifyToken, predictionController);
+
+// Client Portal Routes (Phase 8: Transparent Client Portal)
+app.use('/api/v1/client-portal', verifyToken, clientPortalController);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
