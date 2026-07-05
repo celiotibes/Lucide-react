@@ -69,7 +69,7 @@ router.get('/reports/:reportId/download', authenticateJWT, async (req, res) => {
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader(
       'Content-Disposition',
-      \`attachment; filename="relatorio-\${reportId}.pdf"\`,
+      `attachment; filename="relatorio-${reportId}.pdf"`,
     );
     res.send(fileBuffer);
   } catch (error) {

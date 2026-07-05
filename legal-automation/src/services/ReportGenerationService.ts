@@ -107,12 +107,12 @@ export class ReportGenerationService {
     filters?: any,
   ): Promise<CaseSummaryReport> {
     try {
-      let query = \`
+      let query = `
         SELECT * FROM cases
         WHERE created_by = ? OR assigned_to LIKE ?
-      \`;
+      `;
 
-      const params: any[] = [userId, \`%\${userId}%\`];
+      const params: any[] = [userId, `%${userId}%`];
 
       if (filters?.dateRange) {
         query += \` AND created_at >= ? AND created_at <= ?\`;
@@ -124,7 +124,7 @@ export class ReportGenerationService {
 
       if (filters?.status && filters.status.length > 0) {
         const statuses = filters.status.map(() => '?').join(',');
-        query += \` AND status IN (\${statuses})\`;
+        query += ` AND status IN (${statuses})`;
         params.push(...filters.status);
       }
 
@@ -237,15 +237,15 @@ export class ReportGenerationService {
     filters?: any,
   ): Promise<DeadlineReport> {
     try {
-      const stmt = db.prepare(\`
+      const stmt = db.prepare(`
         SELECT d.*, c.case_number
         FROM deadlines d
         JOIN cases c ON d.case_id = c.id
         WHERE c.created_by = ? OR c.assigned_to LIKE ?
         ORDER BY d.due_date ASC
-      \`);
+      `);
 
-      const deadlines = stmt.all(userId, \`%\${userId}%\`) as any[];
+      const deadlines = stmt.all(userId, `%${userId}%`) as any[];
 
       const now = new Date();
       const urgentDeadlines = deadlines.filter(
@@ -386,7 +386,7 @@ export class ReportGenerationService {
     try {
       const fileName = path.join(
         this.reportsDir,
-        \`\${crypto.randomUUID()}.\${this.getFileExtension(format)}\`,
+        `${crypto.randomUUID()}.${this.getFileExtension(format)}`,
       );
 
       switch (format) {
@@ -399,7 +399,7 @@ export class ReportGenerationService {
         case 'html':
           return await this.generateHTML(reportData, fileName, options);
         default:
-          throw new ReportGenerationError(\`Formato desconhecido: \${format}\`);
+          throw new ReportGenerationError(`Formato desconhecido: ${format}`);
       }
     } catch (error) {
       logger.error({ err: error }, 'Erro ao formatar e salvar relatório');
@@ -450,11 +450,11 @@ export class ReportGenerationService {
   }
 
   private generateHTMLContent(reportData: any, options?: any): string {
-    return \`
+    return `
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>\${reportData.title}</title>
+          <title>${reportData.title}</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             .header { text-align: center; margin-bottom: 30px; }
@@ -467,26 +467,26 @@ export class ReportGenerationService {
         </head>
         <body>
           <div class="header">
-            <div class="title">\${reportData.title}</div>
-            <p>Gerado em: \${new Date().toLocaleDateString('pt-BR')}</p>
+            <div class="title">${reportData.title}</div>
+            <p>Gerado em: ${new Date().toLocaleDateString('pt-BR')}</p>
           </div>
           <div class="summary">
             <h2>Resumo</h2>
-            <pre>\${JSON.stringify(reportData.summary, null, 2)}</pre>
+            <pre>${JSON.stringify(reportData.summary, null, 2)}</pre>
           </div>
         </body>
       </html>
-    \`;
+    `;
   }
 
   private convertToCSV(reportData: any): string {
-    let csv = \`\${reportData.title}\n\`;
-    csv += \`Gerado em: \${new Date().toLocaleDateString('pt-BR')}\n\n\`;
+    let csv = `${reportData.title}\n`;
+    csv += `Gerado em: ${new Date().toLocaleDateString('pt-BR')}\n\n`;
 
     if (reportData.summary) {
       csv += 'Resumo\n';
       Object.entries(reportData.summary).forEach(([key, value]) => {
-        csv += \`\${key},\${value}\n\`;
+        csv += `${key},${value}\n`;
       });
     }
 
@@ -510,11 +510,11 @@ export class ReportGenerationService {
 
   private storeReportMetadata(metadata: ReportMetadata): void {
     try {
-      const stmt = db.prepare(\`
+      const stmt = db.prepare(`
         INSERT INTO report_metadata
         (id, user_id, report_type, format, title, description, generated_at, file_path, file_size, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      \`);
+      `);
 
       stmt.run(
         metadata.id,
