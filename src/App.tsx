@@ -31,6 +31,7 @@ import { PDFExportPanel } from './components/pdfExport/PDFExportPanel'
 import { AnnotationsPanel } from './components/annotations/AnnotationsPanel'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
 import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard'
+import { ReportBuilder } from './components/reports/ReportBuilder'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import './App.css'
@@ -42,7 +43,7 @@ function App() {
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -124,7 +125,9 @@ function App() {
                                                   ? '📝 Anotações e Comentários'
                                                   : paginaAtiva === 'analytics'
                                                     ? '📊 Analytics Dashboard'
-                                                    : 'Busca Avançada Jurídica'}
+                                                    : paginaAtiva === 'reports'
+                                                      ? '📄 Gerador de Relatórios'
+                                                      : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -169,7 +172,9 @@ function App() {
                                                   ? 'Gerencie anotações, comentários e markups em seus documentos'
                                                   : paginaAtiva === 'analytics'
                                                     ? 'Visualize estatísticas de uso, custos de IA e produtividade'
-                                                    : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                                    : paginaAtiva === 'reports'
+                                                      ? 'Crie relatórios customizáveis em múltiplos formatos'
+                                                      : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -370,6 +375,15 @@ function App() {
             }}
           >
             📊 Analytics
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('reports')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'reports' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📄 Relatórios
           </button>
         </div>
         <div style={styles.versao}>
@@ -577,6 +591,12 @@ function App() {
         {paginaAtiva === 'analytics' && (
           <main style={styles.mainFullWidth}>
             <AnalyticsDashboard />
+          </main>
+        )}
+
+        {paginaAtiva === 'reports' && (
+          <main style={styles.mainFullWidth}>
+            <ReportBuilder />
           </main>
         )}
       </div>
