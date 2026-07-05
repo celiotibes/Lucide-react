@@ -115,7 +115,7 @@ export class ReportGenerationService {
       const params: any[] = [userId, `%${userId}%`];
 
       if (filters?.dateRange) {
-        query += \` AND created_at >= ? AND created_at <= ?\`;
+        query += ` AND created_at >= ? AND created_at <= ?`;
         params.push(
           filters.dateRange.from.toISOString(),
           filters.dateRange.to.toISOString(),

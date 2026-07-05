@@ -1,49 +1,31 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - PORT=3000
-      - DATABASE_URL=postgresql://legaluser:legalpass@postgres:5432/legal_automation
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
-      - CERT_ENCRYPTION_KEY=${CERT_ENCRYPTION_KEY:-dev-encryption-key}
-    volumes:
-      - ./src:/app/src
-      - ./certs:/app/certs
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-    depends_on:
-      - postgres
-      - redis
-    command: npm run dev
-    networks:
-      - legal-network
-
+  # Banco de dados PostgreSQL
   postgres:
     image: postgres:15-alpine
+    container_name: legal-automation-db
     environment:
-      - POSTGRES_USER=legaluser
-      - POSTGRES_PASSWORD=legalpass
-      - POSTGRES_DB=legal_automation
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_USER: legal_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure-password-change-me}
+      POSTGRES_DB: legal_automation
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=pt_BR.UTF-8"
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U legaluser"]
+      test: ["CMD-SHELL", "pg_isready -U legal_user -d legal_automation"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - legal-network
+      - legal-automation-net
 
+  # Cache Redis
   redis:
     image: redis:7-alpine
+    container_name: legal-automation-cache
     ports:
       - "6379:6379"
     volumes:
@@ -54,12 +36,63 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - legal-network
+      - legal-automation-net
+
+  # Aplicação Principal
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: legal-automation-app
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://legal_user:${DB_PASSWORD:-secure-password-change-me}@postgres:5432/legal_automation
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-32-chars-min}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - legal-automation-net
+    restart: unless-stopped
+
+  # Pgadmin para gerenciamento do banco (opcional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: legal-automation-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - legal-automation-net
+    profiles:
+      - dev
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
 
 networks:
-  legal-network:
+  legal-automation-net:
     driver: bridge
