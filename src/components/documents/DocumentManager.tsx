@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { servicoDocumento } from '../../services/documentService'
+import { RevisionHistoryPanel } from './RevisionHistoryPanel'
 import type { DocumentoSalvo } from '../../types/document'
 import './DocumentManager.css'
 
@@ -20,6 +21,7 @@ export function DocumentManager({ onAbrirDocumento, onCriarNovo }: DocumentManag
   const [filtroStatus, setFiltroStatus] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [documentoVisualizandoVersoes, setDocumentoVisualizandoVersoes] = useState<string | null>(null)
 
   useEffect(() => {
     carregarDocumentos()
@@ -253,6 +255,13 @@ export function DocumentManager({ onAbrirDocumento, onCriarNovo }: DocumentManag
                     ▶️
                   </button>
                   <button
+                    onClick={() => setDocumentoVisualizandoVersoes(doc.id)}
+                    className="btn-acao versoes"
+                    title="Ver histórico"
+                  >
+                    📚
+                  </button>
+                  <button
                     onClick={() => handleDuplicar(doc.id)}
                     className="btn-acao duplicar"
                     title="Duplicar"
@@ -293,6 +302,30 @@ export function DocumentManager({ onAbrirDocumento, onCriarNovo }: DocumentManag
               <span className="stat-label">{area}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal de Histórico de Versões */}
+      {documentoVisualizandoVersoes && (
+        <div className="revision-modal-overlay">
+          <div className="revision-modal-content">
+            <div className="revision-modal-header">
+              <h2>📚 Histórico de Versões</h2>
+              <button
+                className="revision-modal-close"
+                onClick={() => setDocumentoVisualizandoVersoes(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <RevisionHistoryPanel
+              documentId={documentoVisualizandoVersoes}
+              onRestoreVersion={() => {
+                carregarDocumentos()
+                setDocumentoVisualizandoVersoes(null)
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

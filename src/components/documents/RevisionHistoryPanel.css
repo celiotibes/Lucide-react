@@ -1,0 +1,507 @@
+/* Revision History Panel Styles */
+
+.revision-history-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #FAFAFA;
+  overflow: hidden;
+}
+
+.revision-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 20px;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Lista de Versões */
+.revision-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #E0E0E0;
+  padding: 16px;
+}
+
+.revision-list-header {
+  margin: 0 0 12px 0;
+}
+
+.revision-list-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1b3a57;
+}
+
+.revision-list-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #999;
+}
+
+.revision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.revision-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.revision-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.revision-list::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.revision-list::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.revision-item {
+  padding: 12px;
+  background: #f9f9f9;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.revision-item:hover {
+  background: #f0f0f0;
+  border-color: #d4af37;
+  transform: translateX(4px);
+}
+
+.revision-item.selecionado {
+  background: #e3f2fd;
+  border-color: #2196f3;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+}
+
+.revision-item.atual {
+  background: #f1f8e9;
+  border-color: #4caf50;
+}
+
+.revision-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.revision-numero {
+  font-weight: 700;
+  color: #1b3a57;
+  font-size: 14px;
+}
+
+.revision-badge-atual {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #4caf50;
+  color: white;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.revision-item-info {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.revision-data {
+  color: #999;
+}
+
+.revision-tamanho {
+  color: #999;
+  font-weight: 600;
+}
+
+.revision-descricao {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.revision-restore-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.revision-restore-btn:hover {
+  background: #1976d2;
+  transform: translateY(-2px);
+}
+
+/* Seção de Detalhes */
+.revision-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #E0E0E0;
+  padding: 16px;
+}
+
+.revision-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #E0E0E0;
+}
+
+.revision-detail-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1b3a57;
+}
+
+.revision-close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #999;
+  transition: all 0.2s ease;
+}
+
+.revision-close-btn:hover {
+  color: #1b3a57;
+}
+
+.revision-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #666;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-valor {
+  color: #1b3a57;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.revision-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid #E0E0E0;
+  border-bottom: 1px solid #E0E0E0;
+}
+
+.btn-restaurar {
+  flex: 1;
+  padding: 10px 12px;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-restaurar:hover {
+  background: #388e3c;
+  transform: translateY(-2px);
+}
+
+.btn-deletar {
+  flex: 1;
+  padding: 10px 12px;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-deletar:hover {
+  background: #d32f2f;
+  transform: translateY(-2px);
+}
+
+.revision-current-badge {
+  padding: 10px 12px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #4caf50;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.revision-content-preview {
+  padding: 12px;
+  background: #f9f9f9;
+  border: 1px solid #E0E0E0;
+  border-radius: 4px;
+}
+
+.revision-content-preview h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b3a57;
+}
+
+.content-text {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+  max-height: 150px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.revision-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid #E0E0E0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: #f9f9f9;
+  border-radius: 4px;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.stat-valor {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1b3a57;
+}
+
+/* Estados vazios */
+.revision-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  text-align: center;
+}
+
+.revision-placeholder p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.revision-loading,
+.revision-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  font-size: 13px;
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .revision-history-panel {
+    background: #1a1a1a;
+  }
+
+  .revision-list-section,
+  .revision-detail-section {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .revision-list-header h3 {
+    color: #7fa3c8;
+  }
+
+  .revision-list-subtitle {
+    color: #777;
+  }
+
+  .revision-item {
+    background: #3a3a3a;
+    border-color: #555;
+    color: #e0e0e0;
+  }
+
+  .revision-item:hover {
+    background: #4a4a4a;
+  }
+
+  .revision-item.selecionado {
+    background: rgba(33, 150, 243, 0.15);
+    border-color: #2196f3;
+  }
+
+  .revision-item.atual {
+    background: rgba(76, 175, 80, 0.15);
+    border-color: #4caf50;
+  }
+
+  .revision-numero {
+    color: #7fa3c8;
+  }
+
+  .revision-descricao,
+  .revision-data,
+  .revision-tamanho {
+    color: #aaa;
+  }
+
+  .revision-detail-header h3 {
+    color: #7fa3c8;
+  }
+
+  .revision-detail-header {
+    border-bottom-color: #555;
+  }
+
+  .info-row {
+    border-bottom-color: #444;
+  }
+
+  .info-label {
+    color: #aaa;
+  }
+
+  .info-valor {
+    color: #7fa3c8;
+  }
+
+  .revision-current-badge {
+    background: rgba(76, 175, 80, 0.15);
+    color: #81c784;
+    border-color: #4caf50;
+  }
+
+  .revision-content-preview {
+    background: #3a3a3a;
+    border-color: #555;
+  }
+
+  .revision-content-preview h4 {
+    color: #7fa3c8;
+  }
+
+  .content-text {
+    color: #aaa;
+  }
+
+  .stat {
+    background: #3a3a3a;
+    border-color: #555;
+  }
+
+  .stat-label {
+    color: #777;
+  }
+
+  .stat-valor {
+    color: #7fa3c8;
+  }
+
+  .revision-actions {
+    border-top-color: #555;
+    border-bottom-color: #555;
+  }
+
+  .revision-stats {
+    border-top-color: #555;
+  }
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  .revision-container {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .revision-list-section,
+  .revision-detail-section {
+    max-height: 50vh;
+  }
+
+  .revision-actions {
+    flex-direction: column;
+  }
+
+  .revision-stats {
+    grid-template-columns: 1fr;
+  }
+}
