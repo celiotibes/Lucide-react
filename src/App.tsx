@@ -3,10 +3,12 @@
  * FASE 4.2 - Frontend Integration with 4-Tier LLM Stack + Research Hub
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Dashboard } from './components/dashboard/Dashboard'
 import { DocumentManager } from './components/documents/DocumentManager'
 import { MobileNav } from './components/mobile/MobileNav'
+import { LoginRegister } from './components/auth/LoginRegister'
+import { useAuth } from './hooks/useAuth'
 import { EditorLegalVisual } from './components/editor/EditorLegalVisual'
 import { EditorWorkspace } from './components/editor/EditorWorkspace'
 import { GerenciadorFatos } from './components/editor/GerenciadorFatos'
@@ -27,6 +29,7 @@ import './App.css'
 import './App.mobile.css'
 
 function App() {
+  const { estaLogado, usuario, logout, carregando } = useAuth()
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
@@ -40,6 +43,22 @@ function App() {
   const atualizarHtml = useCallback((novoHtml: string) => {
     _setHtmlAtual(novoHtml)
   }, [])
+
+  // Mostrar tela de carregamento
+  if (carregando) {
+    return (
+      <div style={styles.app}>
+        <div style={styles.loadingScreen}>
+          <h2>⏳ Carregando...</h2>
+        </div>
+      </div>
+    )
+  }
+
+  // Mostrar tela de login se não estiver autenticado
+  if (!estaLogado) {
+    return <LoginRegister onLoginSuccess={() => window.location.reload()} />
+  }
 
   return (
     <div style={styles.app}>
@@ -255,7 +274,18 @@ function App() {
           </button>
         </div>
         <div style={styles.versao}>
-          FASE 4.2 - Frontend LLM
+          <span style={{ display: 'block', marginBottom: '4px' }}>FASE 4.2 - Frontend LLM</span>
+          {usuario && (
+            <div style={styles.usuarioInfo}>
+              <span style={{ fontSize: '10px', opacity: 0.9 }}>👤 {usuario.nome}</span>
+              <button
+                onClick={logout}
+                style={styles.btnLogout}
+              >
+                🚪 Sair
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -530,6 +560,32 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '9pt',
     opacity: 0.8,
   },
+
+  loadingScreen: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100vh',
+    color: '#666',
+  },
+
+  usuarioInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'flex-end',
+  },
+
+  btnLogout: {
+    background: 'rgba(255, 255, 255, 0.2)',
+    color: 'white',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    borderRadius: '4px',
+    fontSize: '9pt',
+    padding: '4px 8px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  } as React.CSSProperties,
 }
 
 export default App
