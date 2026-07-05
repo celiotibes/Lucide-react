@@ -1,111 +1,110 @@
 /**
- * Tipos de Busca Avançada
- * Interface para pesquisa jurídica multi-critério
+ * Tipos para sistema avançado de busca e filtros
  */
 
-export interface FiltrosBuscaAvancada {
-  consulta: string
+export type TipoFiltro = 'texto' | 'data' | 'select' | 'checkbox' | 'range'
+export type TipoDocumento = 'jurisprudencia' | 'legislacao' | 'doutrina' | 'artigo' | 'parecer' | 'peticao'
+export type NivelRelevancia = 'baixa' | 'media' | 'alta' | 'critica'
+export type StatusBusca = 'idle' | 'buscando' | 'concluida' | 'erro'
+
+export interface FiltroAvancado {
+  id: string
+  nome: string
+  tipo: TipoFiltro
+  campo: string
+  operador: 'contem' | 'nao-contem' | 'igual' | 'maior-que' | 'menor-que' | 'entre'
+  valor: string | number | string[] | [number, number]
+  ativo: boolean
+}
+
+export interface ConfiguracaoBusca {
+  ativaAutoCompletar: boolean
+  ativaSugestoesRelacionadas: boolean
+  ativaHistoricoBusca: boolean
+  ativaFavoritosBusca: boolean
+  tamanhoResultadosPorPagina: number
+  idiomas: string[]
   jurisdicoes: string[]
-  areas: string[]
-  tipos: string[]
-  dataInicio?: Date
-  dataFim?: Date
-  resultadoDesejado?: 'favoravel' | 'desfavoravel'
-  citacaoMinima?: number
-  ordenarPor: 'relevancia' | 'data' | 'citacoes'
-  pagina: number
-  limite: number
-}
-
-export interface OpcaoFiltro {
-  valor: string
-  label: string
-  descricao?: string
-  icone?: string
-}
-
-export interface GrupoFiltro {
-  nome: string
-  chave: string
-  opcoes: OpcaoFiltro[]
-  multiplo: boolean
-  expandido: boolean
-}
-
-export interface PresetBusca {
-  id: string
-  nome: string
-  descricao: string
-  filtros: FiltrosBuscaAvancada
-  criado: Date
-  modificado: Date
-  favorito: boolean
-  uso: number
-}
-
-export interface ResultadoBuscaUI {
-  id: string
-  titulo: string
-  tipo: 'jurisprudencia' | 'legislacao' | 'doutrina'
-  descricao: string
-  dataPublicacao: Date
-  jurisdicao: string
-  relevancia: number
-  citacoes: number
-  tags: string[]
-  preview: string
-  url: string
-  selecionado: boolean
-}
-
-export interface EstatsticasBuscaUI {
-  totalResultados: number
-  tempoResposta: number
-  filtrosAtivos: number
-  paginasDisponiveis: number
-  documentosPorTipo: Record<string, number>
-  documentosPorArea: Record<string, number>
-  documentosPorJurisdica: Record<string, number>
-  documentosPorAno: Record<string, number>
 }
 
 export interface HistoricoBusca {
   id: string
-  consulta: string
-  filtros: Partial<FiltrosBuscaAvancada>
-  dataRealizada: Date
-  resultados: number
-  tempo: number
+  query: string
+  filtros: FiltroAvancado[]
+  dataHora: Date
+  quantidadeResultados: number
+  tempoExecucao: number
+}
+
+export interface BuscaSalva {
+  id: string
+  nome: string
+  descricao: string
+  query: string
+  filtros: FiltroAvancado[]
+  dataCriacao: Date
+  dataUltimaExecucao?: Date
   favorito: boolean
+  quantidadeResultados?: number
 }
 
-export interface SugestoesAutocomplete {
-  sugestoes: string[]
-  termosRelacionados: string[]
-  jurisprudenciaRelacionada: string[]
+export interface ResultadoBuscaAvancada {
+  id: string
+  titulo: string
+  tipo: TipoDocumento
+  relevancia: NivelRelevancia
+  resumo: string
+  autor?: string
+  data: Date
+  fonte: string
+  url?: string
+  tags: string[]
+  destaque?: string
+  corpoCompleto?: string
 }
 
-export interface ExportacaoBusca {
-  formato: 'json' | 'csv' | 'pdf' | 'docx'
-  incluirPreview: boolean
-  incluirMetadata: boolean
-  somenteUm: boolean
-  intervalo?: {
-    inicio: number
-    fim: number
+export interface PaginacaoBusca {
+  paginaAtual: number
+  totalPaginas: number
+  quantidadeTotal: number
+  resultadosPorPagina: number
+  tempoExecucao: number
+}
+
+export interface ResultadoBuscaComPaginacao {
+  resultados: ResultadoBuscaAvancada[]
+  paginacao: PaginacaoBusca
+  status: StatusBusca
+  mensagem?: string
+  sugestoes?: {
+    buscarPor: string[]
+    documentosRelacionados: ResultadoBuscaAvancada[]
+    termosRelacionados: string[]
   }
 }
 
-export interface ConfiguracaoBuscaAvancada {
-  resultadosPorPagina: number[]
-  ordenacoesPadrao: string[]
-  jurisdicoesPadrao: string[]
-  areasPadrao: string[]
-  tiposPadrao: string[]
-  salvarHistorico: boolean
-  maxHistorico: number
-  maxPresets: number
-  timeoutBusca: number
-  mostrarPreview: boolean
-  previewLinhas: number
+export interface EstatisticasBusca {
+  totalBuscas: number
+  buscasAtualizadas: number
+  termosPopulares: { termo: string; frequencia: number }[]
+  tiposDocumentoMaisBuscados: { tipo: TipoDocumento; quantidade: number }[]
+  tempoBuscaMedio: number
+  taxaClique: number
+}
+
+export interface DefinicaoColuna {
+  id: string
+  titulo: string
+  campo: string
+  largura: string
+  visivelPorPadrao: boolean
+  ordenavel: boolean
+}
+
+export interface PreferenciaVisualizacao {
+  colunas: DefinicaoColuna[]
+  ordenarPor: string
+  direcaoOrdenacao: 'asc' | 'desc'
+  gruparPor?: string
+  exibirMiniaturas: boolean
 }

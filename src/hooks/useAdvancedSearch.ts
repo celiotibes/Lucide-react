@@ -1,112 +1,94 @@
-/**
- * Hook de Busca Avançada
- * Gerencia estado de busca e filtros
- */
+import { useState, useCallback } from 'react'
+import { servicoAdvancedSearch } from '../services/advancedSearchService'
+import type {
+  FiltroAvancado,
+  BuscaSalva,
+  ResultadoBuscaComPaginacao,
+  HistoricoBusca,
+  EstatisticasBusca,
+} from '../types/advancedSearch'
 
-import { useState, useCallback, useEffect } from 'react'
-import { servicoSearch } from '../services/searchService'
-import type { DocumentoSalvo } from '../types/document'
-import type { CritériosBusca, ResultadoBusca } from '../services/searchService'
-
-interface UseAdvancedSearchState {
-  resultado: ResultadoBusca | null
+interface UseAdvancedSearchReturn {
+  resultados: ResultadoBuscaComPaginacao | null
+  buscasSalvas: BuscaSalva[]
+  historicoBuscas: HistoricoBusca[]
+  estatisticas: EstatisticasBusca
   carregando: boolean
   erro: string | null
-  critérios: CritériosBusca
-  histórico: CritériosBusca[]
+  executarBusca: (query: string, filtros: FiltroAvancado[], pagina?: number) => Promise<void>
+  salvarBusca: (dados: Omit<BuscaSalva, 'id' | 'dataCriacao'>) => void
+  deletarBuscaSalva: (buscaId: string) => void
+  marcarFavorita: (buscaId: string, favorito: boolean) => void
+  limparHistorico: () => void
 }
 
-export function useAdvancedSearch() {
-  const [estado, setEstado] = useState<UseAdvancedSearchState>({
-    resultado: null,
-    carregando: false,
-    erro: null,
-    critérios: {},
-    histórico: [],
-  })
+export function useAdvancedSearch(): UseAdvancedSearchReturn {
+  const [resultados, setResultados] = useState<ResultadoBuscaComPaginacao | null>(null)
+  const [buscasSalvas, setBuscasSalvas] = useState<BuscaSalva[]>(
+    servicoAdvancedSearch.obterBuscasSalvas()
+  )
+  const [historicoBuscas, setHistoricoBuscas] = useState<HistoricoBusca[]>(
+    servicoAdvancedSearch.obterHistoricoBuscas()
+  )
+  const [estatisticas, setEstatisticas] = useState<EstatisticasBusca>(
+    servicoAdvancedSearch.obterEstatisticas()
+  )
+  const [carregando, setCarregando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
 
-  // Carregar histórico do localStorage
-  useEffect(() => {
-    try {
-      const historicoSalvo = localStorage.getItem('lucide_historico_busca')
-      if (historicoSalvo) {
-        setEstado(prev => ({
-          ...prev,
-          histórico: JSON.parse(historicoSalvo),
-        }))
+  const executarBusca = useCallback(
+    async (query: string, filtros: FiltroAvancado[], pagina: number = 1) => {
+      try {
+        setCarregando(true)
+        setErro(null)
+        const resultado = await servicoAdvancedSearch.executarBusca(query, filtros, pagina)
+        setResultados(resultado)
+        if (resultado.status === 'erro') {
+          setErro(resultado.mensagem || 'Erro ao executar busca')
+        }
+        setHistoricoBuscas(servicoAdvancedSearch.obterHistoricoBuscas())
+        setEstatisticas(servicoAdvancedSearch.obterEstatisticas())
+      } catch (e) {
+        const mensagem = e instanceof Error ? e.message : 'Erro ao executar busca'
+        setErro(mensagem)
+      } finally {
+        setCarregando(false)
       }
-    } catch (erro) {
-      console.error('Erro ao carregar histórico:', erro)
-    }
+    },
+    []
+  )
+
+  const salvarBusca = useCallback((dados: Omit<BuscaSalva, 'id' | 'dataCriacao'>) => {
+    servicoAdvancedSearch.salvarBusca(dados)
+    setBuscasSalvas(servicoAdvancedSearch.obterBuscasSalvas())
   }, [])
 
-  const buscar = useCallback((critérios: CritériosBusca) => {
-    setEstado(prev => ({
-      ...prev,
-      carregando: true,
-      erro: null,
-      critérios,
-    }))
-
-    try {
-      const resultado = servicoSearch.buscar(critérios)
-
-      // Adicionar ao histórico
-      const novoHistórico = [
-        critérios,
-        ...estado.histórico.filter(c => JSON.stringify(c) !== JSON.stringify(critérios)),
-      ].slice(0, 10)
-
-      localStorage.setItem('lucide_historico_busca', JSON.stringify(novoHistórico))
-
-      setEstado(prev => ({
-        ...prev,
-        resultado,
-        carregando: false,
-        histórico: novoHistórico,
-      }))
-    } catch (erro) {
-      const mensagem = erro instanceof Error ? erro.message : 'Erro ao buscar'
-      setEstado(prev => ({
-        ...prev,
-        carregando: false,
-        erro: mensagem,
-      }))
-    }
-  }, [estado.histórico])
-
-  const limpar = useCallback(() => {
-    setEstado(prev => ({
-      ...prev,
-      resultado: null,
-      critérios: {},
-      erro: null,
-    }))
+  const deletarBuscaSalva = useCallback((buscaId: string) => {
+    servicoAdvancedSearch.deletarBuscaSalva(buscaId)
+    setBuscasSalvas(servicoAdvancedSearch.obterBuscasSalvas())
   }, [])
 
-  const limparHistórico = useCallback(() => {
-    localStorage.removeItem('lucide_historico_busca')
-    setEstado(prev => ({
-      ...prev,
-      histórico: [],
-    }))
+  const marcarFavorita = useCallback((buscaId: string, favorito: boolean) => {
+    servicoAdvancedSearch.marcarBuscaFavorita(buscaId, favorito)
+    setBuscasSalvas(servicoAdvancedSearch.obterBuscasSalvas())
   }, [])
 
-  const restaurarBusca = useCallback((critérios: CritériosBusca) => {
-    buscar(critérios)
-  }, [buscar])
+  const limparHistorico = useCallback(() => {
+    servicoAdvancedSearch.limparHistorico()
+    setHistoricoBuscas([])
+  }, [])
 
   return {
-    documentos: estado.resultado?.documentos || [],
-    total: estado.resultado?.total || 0,
-    tempo: estado.resultado?.tempo || 0,
-    carregando: estado.carregando,
-    erro: estado.erro,
-    critérios: estado.critérios,
-    histórico: estado.histórico,
-    buscar,
-    limpar,
-    limparHistórico,
-    restaurarBusca,
+    resultados,
+    buscasSalvas,
+    historicoBuscas,
+    estatisticas,
+    carregando,
+    erro,
+    executarBusca,
+    salvarBusca,
+    deletarBuscaSalva,
+    marcarFavorita,
+    limparHistorico,
   }
 }

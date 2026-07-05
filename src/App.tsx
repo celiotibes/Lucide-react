@@ -23,7 +23,7 @@ import { JurisprudenceTimeline } from './components/timeline/JurisprudenceTimeli
 import { StrategicAnalysisPanel } from './components/analysis/StrategicAnalysisPanel'
 import { OutcomePredictorPanel } from './components/prediction/OutcomePredictorPanel'
 import { TemplateMatchingPanel } from './components/templates/TemplateMatchingPanel'
-import { AdvancedSearchPanel } from './components/search/AdvancedSearchPanel'
+omponents/search/AdvancedSearchPanel'/a import { AdvancedSearchUI } from './components/search/AdvancedSearchUI'
 import { ImportExportPanel } from './components/documents/ImportExportPanel'
 import { TemplateManager } from './components/templates/TemplateManager'
 import { DocumentSharingManager } from './components/sharing/DocumentSharingManager'
@@ -46,7 +46,7 @@ function App() {
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
   const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -133,6 +133,9 @@ function App() {
                                                       : paginaAtiva === 'google-drive'
                                                         ? '🔗 Google Drive Sync'
                                                         : paginaAtiva === 'gmail'
+                                                        : paginaAtiva === 'search-manager'
+                                                          ? '🔎 Gerenciador de Buscas'
+
                                                           ? '📧 Gmail Integration'
                                                           : 'Busca Avançada Jurídica'}
           </h1>
@@ -184,6 +187,9 @@ function App() {
                                                       : paginaAtiva === 'google-drive'
                                                         ? 'Sincronize seus documentos na nuvem, faça backups e restaure dados'
                                                         : paginaAtiva === 'gmail'
+                                                        : paginaAtiva === 'search-manager'
+                                                          ? '🔎 Gerenciador de Buscas'
+
                                                           ? 'Integre suas mensagens de email e extraia referências jurídicas automaticamente'
                                                           : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
@@ -325,10 +331,10 @@ function App() {
             📚 Modelos
           </button>
           <button
-            onClick={() => setPaginaAtiva('advanced-search')}
+            onClick={() => setPaginaAtiva('advanced-search' | 'search-manager')}
             style={{
               ...styles.navButton,
-              ...(paginaAtiva === 'advanced-search' ? styles.navButtonAtivo : {}),
+              ...(paginaAtiva === 'advanced-search' | 'search-manager' ? styles.navButtonAtivo : {}),
             }}
           >
             🔎 Avançada
@@ -410,9 +416,21 @@ function App() {
             style={{
               ...styles.navButton,
               ...(paginaAtiva === 'gmail' ? styles.navButtonAtivo : {}),
+                                                        : paginaAtiva === 'search-manager'
+                                                          ? '🔎 Gerenciador de Buscas'
+
             }}
           >
             📧 Gmail
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('search-manager')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'search-manager' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🔎 Buscas
           </button>
         </div>
         <div style={styles.versao}>
@@ -443,6 +461,12 @@ function App() {
               }}
             />
           </main>
+
+        {paginaAtiva === 'search-manager' && (
+          <main style={styles.mainFullWidth}>
+            <AdvancedSearchUI />
+          </main>
+        )}
         )}
 
         {paginaAtiva === 'documents' && (
@@ -573,7 +597,7 @@ function App() {
           </main>
         )}
 
-        {paginaAtiva === 'advanced-search' && (
+        {paginaAtiva === 'advanced-search' | 'search-manager' && (
           <main style={styles.mainFullWidth}>
             <AdvancedSearchPanel />
           </main>
@@ -636,9 +660,21 @@ function App() {
         )}
 
         {paginaAtiva === 'gmail' && (
+                                                          : paginaAtiva === 'search-manager'
+                                                            ? 'Gerencie suas buscas, histórico, favoritos e estatísticas'
+
+                                                        : paginaAtiva === 'search-manager'
+                                                          ? '🔎 Gerenciador de Buscas'
+
           <main style={styles.mainFullWidth}>
             <GmailIntegration />
           </main>
+
+        {paginaAtiva === 'search-manager' && (
+          <main style={styles.mainFullWidth}>
+            <AdvancedSearchUI />
+          </main>
+        )}
         )}
       </div>
 
