@@ -197,7 +197,7 @@ export class BackupService {
 
   async getBackupMetrics(): Promise<BackupMetrics> {
     try {
-      const jobs = this.getAllBackupJobs();
+      const jobs = await this.getAllBackupJobs();
 
       const successful = jobs.filter(j => j.status === 'completed').length;
       const failed = jobs.filter(j => j.status === 'failed').length;
@@ -469,20 +469,20 @@ export class BackupService {
     }
   }
 
-  private getBackupJob(jobId: string): BackupJob | null {
+  private async getBackupJob(jobId: string): Promise<BackupJob | null> {
     try {
-      const stmt = db.prepare('SELECT * FROM backup_jobs WHERE id = ?');
-      return stmt.get(jobId) as BackupJob | null;
+      const stmt = db.prepare('SELECT * FROM backup_jobs WHERE id = $1');
+      return (await stmt.get(jobId)) as BackupJob | null;
     } catch (error) {
       logger.error({ err: error }, 'Erro ao obter backup job');
       return null;
     }
   }
 
-  private getAllBackupJobs(): BackupJob[] {
+  private async getAllBackupJobs(): Promise<BackupJob[]> {
     try {
       const stmt = db.prepare('SELECT * FROM backup_jobs ORDER BY created_at DESC LIMIT 100');
-      return stmt.all() as BackupJob[];
+      return (await stmt.all()) as BackupJob[];
     } catch (error) {
       logger.error({ err: error }, 'Erro ao obter todos os backup jobs');
       return [];

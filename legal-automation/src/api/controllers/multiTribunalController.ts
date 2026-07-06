@@ -173,7 +173,7 @@ router.post('/:tribunal/petitions', verifyToken, async (req: Request, res: Respo
         title,
         content,
         subject,
-      },
+      } as any,
       certificateFingerprint || '',
       certificatePassword || '',
     );

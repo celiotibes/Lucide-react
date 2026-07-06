@@ -316,8 +316,8 @@ router.post('/:id/validate-conformance', async (req: Request, res: Response) => 
     // Store validation result
     await petitionRepository.update(id, {
       validation_score: validation.score,
-      validation_errors: JSON.stringify(validation.errors),
-      validation_warnings: JSON.stringify(validation.warnings),
+      validation_errors: JSON.stringify(validation.errors) as any,
+      validation_warnings: JSON.stringify(validation.warnings) as any,
       last_validation_at: new Date(),
     });
 
@@ -453,7 +453,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
     const userId = (req as any).user?.id || 'unknown';
     const signedDocument = await documentSignatureService.signDocument(userId, {
       content: formatted.content,
-      format: formatted.signatureFormat,
+      format: (formatted.signatureFormat || 'CMS') as any,
       certificatePassword: certificatePassword || '',
     });
 
@@ -461,7 +461,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
     logger.debug('Step 4: Enviando com retry automático');
     const result = await petitionSubmissionService.submitPetitionWithRetry(
       formatted,
-      signedDocument,
+      signedDocument as any,
       5, // max retries
     );
 
