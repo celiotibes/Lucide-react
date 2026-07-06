@@ -5,10 +5,13 @@ Princípio: cada fase termina com algo **rodando em produção**, não apenas "p
 ## Fase 0 — MVP Operacional (6-8 semanas)
 Objetivo: parar de operar cobrança manualmente.
 
-- M1 Cadastro: imóveis (todas as unidades já listadas: João Pottker, Milton Sullivan, Ana Maria Nunes, e as 6 unidades de Curitiba), residenciais, pessoas (locatários, fiadores, proprietários).
-- M2 Contratos: locação padrão com pró-rata, garantias (caução com atualização por poupança, fiador, seguro-fiança/incêndio com alerta de vigência), reajuste por índice com aprovação manual.
-- M3 Faturamento: emissão consolidada via Asaas (boleto/PIX), régua de cobrança D+5/D+15/D+30 com cálculo de juros/multa versionado e testado, webhook de baixa automática.
-- M4 Portal do inquilino: 2ª via, histórico de pagamento, dados de contrato, canal de contato.
+**Estado atual (ver `../app/`, `../server/`):** motor financeiro (juros/multa/pró-rata/split/energia/caução) implementado e testado; régua de cobrança liga o schema ao motor financeiro contra Postgres real; back-office em Next.js com telas de leitura de imóveis/contratos/faturas funcionando contra o banco. Ainda faltam: formulários de cadastro/edição (hoje só leitura), integração real com Asaas (emissão de boleto/PIX/webhook), e autenticação (portal do inquilino ainda não existe).
+
+- M1 Cadastro: imóveis (todas as unidades já listadas: João Pottker, Milton Sullivan, Ana Maria Nunes, e as 6 unidades de Curitiba), residenciais, pessoas (locatários, fiadores, proprietários). **Leitura pronta; formulários de escrita pendentes.**
+- M2 Contratos: locação padrão com pró-rata, garantias (caução com atualização por poupança, fiador, seguro-fiança/incêndio com alerta de vigência), reajuste por índice com aprovação manual. **Leitura pronta; cálculo de pró-rata/caução prontos como função testada; escrita e aprovação de reajuste pendentes.**
+- M3 Faturamento: emissão consolidada via Asaas (boleto/PIX), régua de cobrança D+5/D+15/D+30 com cálculo de juros/multa versionado e testado, webhook de baixa automática. **Régua de cobrança e cálculo prontos e testados contra banco real; integração com a API do Asaas (emissão/webhook) ainda não implementada.**
+- M4 Portal do inquilino: 2ª via, histórico de pagamento, dados de contrato, canal de contato. **Não iniciado — depende da decisão de autenticação (Supabase Auth com magic link, já tomada) ser conectada a um projeto Supabase real.**
+- Onboarding/autenticação (decisão tomada): Supabase Auth nativo com magic link por e-mail para todo usuário com portal (admin, economista, inquilino, investidor, prestador fixo) — sem sistema de convite customizado. Prestador eventual continua via magic link tokenizado por OS (M5), não por login.
 - M11 (versão simplificada, antecipada — ver `06-benchmark-mercado.md`): upload manual de OFX das contas principais e categorização assistida por centro de custo. Sem isso, a "prestação de contas" ao sócio é só receita sem despesa real conciliada, o que não atende ao requisito crítico de transparência financeira.
 - Pré-requisitos de segurança (gap analysis itens 15-19): backup configurado, ambiente de homologação separado de produção, RLS por papel desenhado desde o primeiro dia, log de auditoria nas tabelas financeiras/contratuais.
 - Temporada nesta fase: operação continua manual/direta pelas plataformas (Airbnb etc.); o sistema apenas registra o contrato de temporada como um tipo simplificado (sem régua de inadimplência, já que é pré-pago).

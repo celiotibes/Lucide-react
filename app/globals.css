@@ -1,0 +1,126 @@
+:root {
+  color-scheme: light;
+  --cor-fundo: #f7f7f5;
+  --cor-texto: #1c1c1a;
+  --cor-borda: #e2e2df;
+  --cor-primaria: #1f5f4f;
+  --cor-alerta: #b3261e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+a {
+  color: inherit;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.barra-lateral {
+  width: 220px;
+  flex-shrink: 0;
+  background: white;
+  border-right: 1px solid var(--cor-borda);
+  padding: 1.5rem 1rem;
+}
+
+.barra-lateral h1 {
+  font-size: 1.1rem;
+  margin: 0 0 1.5rem;
+  color: var(--cor-primaria);
+}
+
+.barra-lateral nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.barra-lateral nav a {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.barra-lateral nav a:hover {
+  background: var(--cor-fundo);
+}
+
+.conteudo {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1100px;
+}
+
+.conteudo h2 {
+  margin-top: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--cor-borda);
+  font-size: 0.9rem;
+}
+
+th {
+  background: var(--cor-fundo);
+  font-weight: 600;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #e8f0ee;
+  color: var(--cor-primaria);
+}
+
+.tag--atrasada {
+  background: #fbe9e7;
+  color: var(--cor-alerta);
+}
+
+.vazio {
+  padding: 2rem;
+  text-align: center;
+  color: #666;
+  background: white;
+  border: 1px dashed var(--cor-borda);
+  border-radius: 8px;
+}
+
+.erro-conexao {
+  padding: 1rem 1.25rem;
+  background: #fbe9e7;
+  border: 1px solid #f3c2bd;
+  border-radius: 8px;
+  color: var(--cor-alerta);
+}
