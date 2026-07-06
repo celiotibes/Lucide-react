@@ -1022,3 +1022,284 @@ $$ language plpgsql;
 create trigger trg_check_soma_percentual_imovel
   after insert or update on imovel_propriedade
   for each row execute function fn_check_soma_percentual_imovel();
+
+-- ============================================================================
+-- 18. RLS — COBERTURA COMPLETA (achado crítico da 2ª rodada de auditoria)
+-- ============================================================================
+-- Uma varredura sistemática (não mais tabela-por-tabela ad hoc) encontrou
+-- 39 das 49 tabelas do schema SEM RLS habilitado — incluindo `pessoas`.
+-- Testei concretamente: um inquilino autenticado, via papel `authenticated`
+-- (o mesmo usado pelo app real), conseguia rodar `select * from pessoas` e
+-- ler o CPF de TODOS os inquilinos, investidores e prestadores do sistema.
+-- Isso é uma violação grave de LGPD, não uma falha teórica. Esta seção
+-- fecha essa lacuna de forma sistemática, tabela por tabela, com uma
+-- segunda função auxiliar para reduzir repetição.
+
+create or replace function fn_minha_pessoa_id()
+returns uuid as $$
+  select pessoa_id from usuarios where id = auth.uid();
+$$ language sql stable security definer;
+
+-- ---- Identidade e papéis: a exposição mais crítica encontrada ----
+alter table pessoas enable row level security;
+create policy admin_full_access_pessoas on pessoas
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy pessoa_ve_proprio_cadastro on pessoas
+  for select using (id = fn_minha_pessoa_id());
+
+alter table usuarios enable row level security;
+create policy admin_full_access_usuarios on usuarios
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy usuario_ve_proprio_registro on usuarios
+  for select using (id = auth.uid());
+
+alter table pessoa_papeis enable row level security;
+create policy admin_full_access_pessoa_papeis on pessoa_papeis
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy pessoa_ve_proprios_papeis on pessoa_papeis
+  for select using (pessoa_id = fn_minha_pessoa_id());
+
+-- ---- Dados de contrato ligados a uma pessoa específica ----
+alter table contrato_partes enable row level security;
+create policy admin_full_access_contrato_partes on contrato_partes
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy pessoa_ve_propria_participacao_contrato on contrato_partes
+  for select using (pessoa_id = fn_minha_pessoa_id());
+
+alter table imovel_propriedade enable row level security;
+create policy admin_full_access_imovel_propriedade on imovel_propriedade
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy investidor_ve_propria_participacao on imovel_propriedade
+  for select using (proprietario_pessoa_id = fn_minha_pessoa_id());
+
+alter table reajustes_contrato enable row level security;
+create policy admin_full_access_reajustes on reajustes_contrato
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_reajustes_proprio_contrato on reajustes_contrato
+  for select using (
+    exists (select 1 from contrato_partes cp where cp.contrato_id = reajustes_contrato.contrato_id and cp.pessoa_id = fn_minha_pessoa_id())
+  );
+
+alter table notificacoes_preferencia_venda enable row level security;
+create policy admin_full_access_pref_venda on notificacoes_preferencia_venda
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_propria_pref_venda on notificacoes_preferencia_venda
+  for select using (
+    exists (select 1 from contrato_partes cp where cp.contrato_id = notificacoes_preferencia_venda.contrato_id and cp.pessoa_id = fn_minha_pessoa_id())
+  );
+
+alter table fatura_itens enable row level security;
+create policy admin_full_access_fatura_itens on fatura_itens
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_itens_propria_fatura on fatura_itens
+  for select using (
+    exists (
+      select 1 from faturas f
+      join contrato_partes cp on cp.contrato_id = f.contrato_id
+      where f.id = fatura_itens.fatura_id and cp.pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+
+-- ---- Vistorias e confissão de dívida: o inquilino assina/acompanha ----
+alter table vistorias enable row level security;
+create policy admin_full_access_vistorias on vistorias
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_propria_vistoria on vistorias
+  for select using (
+    exists (select 1 from contrato_partes cp where cp.contrato_id = vistorias.contrato_id and cp.pessoa_id = fn_minha_pessoa_id())
+  );
+
+alter table vistoria_fotos enable row level security;
+create policy admin_full_access_vistoria_fotos on vistoria_fotos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_fotos_propria_vistoria on vistoria_fotos
+  for select using (
+    exists (
+      select 1 from vistorias v
+      join contrato_partes cp on cp.contrato_id = v.contrato_id
+      where v.id = vistoria_fotos.vistoria_id and cp.pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+
+alter table confissoes_divida enable row level security;
+create policy admin_full_access_confissoes on confissoes_divida
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_propria_confissao on confissoes_divida
+  for select using (
+    exists (select 1 from contrato_partes cp where cp.contrato_id = confissoes_divida.contrato_id and cp.pessoa_id = fn_minha_pessoa_id())
+  );
+
+alter table assinaturas enable row level security;
+create policy admin_full_access_assinaturas on assinaturas
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy signatario_ve_propria_assinatura on assinaturas
+  for select using (signatario_pessoa_id = fn_minha_pessoa_id());
+
+alter table notificacoes_log enable row level security;
+create policy admin_full_access_notificacoes on notificacoes_log
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy pessoa_ve_propria_notificacao on notificacoes_log
+  for select using (pessoa_id = fn_minha_pessoa_id());
+
+-- ---- Prestadores: veem a própria folha, não a de outro prestador ----
+alter table lancamentos_prestador enable row level security;
+create policy admin_full_access_lancamentos on lancamentos_prestador
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy prestador_ve_proprios_lancamentos on lancamentos_prestador
+  for select using (prestador_id = fn_minha_pessoa_id());
+
+alter table deficit_retencao enable row level security;
+create policy admin_full_access_deficit on deficit_retencao
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy prestador_ve_proprio_deficit on deficit_retencao
+  for select using (prestador_id = fn_minha_pessoa_id());
+
+alter table folha_fechamento enable row level security;
+create policy admin_full_access_folha on folha_fechamento
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy prestador_ve_propria_folha on folha_fechamento
+  for select using (prestador_id = fn_minha_pessoa_id());
+
+alter table ordem_servico_custos enable row level security;
+create policy admin_full_access_os_custos on ordem_servico_custos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy prestador_ve_custos_propria_os on ordem_servico_custos
+  for select using (
+    exists (select 1 from ordens_servico os where os.id = ordem_servico_custos.ordem_servico_id and os.prestador_id = fn_minha_pessoa_id())
+  );
+
+-- ---- Investidor: NFS-e e splits que dizem respeito a ele ----
+alter table notas_fiscais_servico enable row level security;
+create policy admin_full_access_nfse on notas_fiscais_servico
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy investidor_ve_propria_nfse on notas_fiscais_servico
+  for select using (tomador_pessoa_id = fn_minha_pessoa_id());
+
+alter table split_pagamento enable row level security;
+create policy admin_full_access_split on split_pagamento
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy beneficiario_ve_proprio_split on split_pagamento
+  for select using (beneficiario_pessoa_id = fn_minha_pessoa_id());
+
+-- ---- Público (site/landing page, Módulo 12): captação e vitrine ----
+-- `leads`: qualquer visitante do site pode SUBMETER (INSERT), ninguém além
+-- do admin pode LER a lista de prospects — sem isso, a chave anônima
+-- (pública, embutida no frontend) exporia nome/contato/score de crédito de
+-- todo mundo que já preencheu o formulário.
+alter table leads enable row level security;
+create policy admin_full_access_leads on leads
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy publico_pode_cadastrar_lead on leads
+  for insert with check (true);
+
+-- `anuncios`: site público só vê o que está com status='publicado'
+alter table anuncios enable row level security;
+create policy admin_full_access_anuncios on anuncios
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy publico_ve_anuncios_publicados on anuncios
+  for select using (status = 'publicado');
+
+-- `imoveis`: site público só vê unidades disponíveis; inquilino/investidor
+-- veem as unidades ligadas a eles independente do status.
+alter table imoveis enable row level security;
+create policy admin_full_access_imoveis on imoveis
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy publico_ve_imoveis_disponiveis on imoveis
+  for select using (status = 'disponivel');
+create policy investidor_ve_proprios_imoveis on imoveis
+  for select using (
+    exists (select 1 from imovel_propriedade ip where ip.imovel_id = imoveis.id and ip.proprietario_pessoa_id = fn_minha_pessoa_id())
+  );
+create policy inquilino_ve_proprio_imovel on imoveis
+  for select using (
+    exists (
+      select 1 from contratos c
+      join contrato_partes cp on cp.contrato_id = c.id
+      where c.imovel_id = imoveis.id and cp.pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+-- Nota: esta política ainda expõe a linha inteira de `imoveis` (inclusive
+-- campos administrativos como franquia_energia_kwh) para o público quando
+-- status='disponivel'. Nenhum desses campos é sigiloso, mas o ideal na
+-- Fase 3 (M12) é servir a vitrine pública a partir de uma VIEW com apenas
+-- as colunas de marketing, não da tabela bruta — registrado como melhoria
+-- futura, não bloqueante para a Fase 0.
+
+-- ---- Tabelas de referência (baixa sensibilidade): leitura ampla, escrita só admin ----
+alter table cidades enable row level security;
+create policy admin_escreve_cidades on cidades for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy qualquer_um_le_cidades on cidades for select using (true);
+
+alter table residenciais enable row level security;
+create policy admin_escreve_residenciais on residenciais for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy qualquer_um_le_residenciais on residenciais for select using (true);
+
+alter table tarifas_energia enable row level security;
+create policy admin_escreve_tarifas on tarifas_energia for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy autenticado_le_tarifas on tarifas_energia for select using (auth.uid() is not null);
+
+alter table categorias_financeiras enable row level security;
+create policy admin_escreve_categorias on categorias_financeiras for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy autenticado_le_categorias on categorias_financeiras for select using (auth.uid() is not null);
+
+-- ---- Estritamente internas: só admin/economista, nenhuma outra política ----
+-- (tesouraria, passivos, ativos, jurídico, tokens de acesso, log de auditoria)
+alter table magic_links enable row level security;
+create policy admin_full_access_magic_links on magic_links
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+-- Nenhuma outra política: a validação de um magic link pelo prestador
+-- eventual acontece via rota de backend com service role (que sempre
+-- ignora RLS), nunca por consulta direta do cliente à tabela — do
+-- contrário, o token viraria enumerável.
+
+alter table fundos enable row level security;
+create policy admin_full_access_fundos on fundos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table fundo_movimentacoes enable row level security;
+create policy admin_full_access_fundo_mov on fundo_movimentacoes
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table contas_bancarias enable row level security;
+create policy admin_full_access_contas on contas_bancarias
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table transacoes_bancarias enable row level security;
+create policy admin_full_access_transacoes on transacoes_bancarias
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table ativos_comodato enable row level security;
+create policy admin_full_access_ativos on ativos_comodato
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table depreciacao_mensal enable row level security;
+create policy admin_full_access_depreciacao on depreciacao_mensal
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table dossies_inadimplencia enable row level security;
+create policy admin_full_access_dossies on dossies_inadimplencia
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table processos_judiciais enable row level security;
+create policy admin_full_access_processos on processos_judiciais
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table regua_cobranca_eventos enable row level security;
+create policy admin_full_access_regua on regua_cobranca_eventos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table reservas_temporada enable row level security;
+create policy admin_full_access_reservas on reservas_temporada
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table tributos_municipais enable row level security;
+create policy admin_full_access_tributos on tributos_municipais
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table audit_log enable row level security;
+create policy admin_le_audit_log on audit_log
+  for select using (fn_eh_admin_ou_economista());
+-- Sem política de insert/update/delete para nenhum papel do client: a
+-- única via de escrita é o trigger fn_audit_trigger, que roda como o dono
+-- do schema (bypassa RLS) — nem o admin deve conseguir editar o log pela
+-- API.

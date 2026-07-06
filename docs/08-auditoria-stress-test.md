@@ -1,5 +1,7 @@
 # Auditoria em Loop e Stress-Test — Resultados
 
+> **Atualização (2ª rodada completa):** uma varredura sistemática de todas as 49 tabelas encontrou 39 sem RLS habilitado — incluindo `pessoas`. Detalhe no final deste documento, seção "Rodada 3".
+
 Ciclo de auditoria automática: montei um ambiente que simula os papéis reais do Supabase (não só um superusuário do Postgres), estressei o schema com dados em volume e cenários adversos, encontrei bugs reais, corrigi, e retestei — repetindo até não sobrar nenhum problema conhecido. Este documento é o relatório desse ciclo, não uma reafirmação do que já foi dito nos docs anteriores.
 
 ## Metodologia
@@ -48,6 +50,31 @@ Retestei os 3 bugs originais (devem falhar agora) mais 3 cenários válidos (con
 ## Ciclo do código (`server/ai-gateway`)
 
 Adicionei 3 testes de contrato que não existiam: a flag `hardwareOllamaDisponivel` não pode vazar para tarefas onde não se aplica (testado — continua roteando para Gemini normalmente), toda decisão retornada tem um `motivo` não vazio (contrato de auditabilidade, testado para todas as tarefas permitidas), e o bloqueio de *credit scoring* vale mesmo se `hardwareOllamaDisponivel: true` for passado por engano (testado). Total: 12 testes, todos passando; `npm run build`, `npm run lint` e `tsc -p tsconfig.server.json` seguem limpos.
+
+## Rodada 3 — varredura sistemática de RLS em todas as tabelas (achado mais grave até aqui)
+
+As duas rodadas anteriores corrigiram RLS tabela por tabela, conforme cada bug aparecia num teste específico. Isso deixou uma lacuna óbvia em retrospecto: **nunca fiz um inventário de todas as tabelas do schema para conferir quais tinham RLS habilitado**. Fiz isso desta vez com uma query direta ao catálogo do Postgres (`pg_class.relrowsecurity`):
+
+```sql
+select relname, relrowsecurity from pg_class
+where relnamespace = 'public'::regnamespace and relkind = 'r';
+```
+
+Resultado: **39 das 49 tabelas não tinham RLS habilitado**, incluindo `pessoas`, `usuarios` e `pessoa_papeis` — exatamente as tabelas com o dado mais sensível do sistema (CPF, papel de acesso). Testei concretamente, não apenas inferi do catálogo: logado como um inquilino comum via papel `authenticated`, rodei `select nome, cpf_cnpj from pessoas` e o retorno trouxe **as quatro pessoas cadastradas no teste — inquilinos, investidor e admin, todo mundo**. Qualquer inquilino do sistema, com a arquitetura de antes desta correção, conseguiria ver o CPF de todos os outros inquilinos e investidores via um client autenticado comum (sem precisar de nenhuma credencial elevada). Isso é uma violação de LGPD real, não uma vulnerabilidade teórica — e é o achado mais grave de todo o processo de auditoria até aqui.
+
+### Correção
+Todas as 39 tabelas ganharam RLS + política, organizadas em 4 categorias:
+
+1. **Identidade e dado pessoal** (`pessoas`, `usuarios`, `pessoa_papeis`, `contrato_partes`, `imovel_propriedade`, `reajustes_contrato`, `notificacoes_preferencia_venda`, `fatura_itens`, `vistorias`, `vistoria_fotos`, `confissoes_divida`, `assinaturas`, `notificacoes_log`): admin/economista têm acesso total; cada pessoa (inquilino, investidor, prestador, signatário) enxerga só a própria linha ou linhas ligadas ao próprio contrato — usando uma nova função auxiliar `fn_minha_pessoa_id()` para não repetir o mesmo JOIN em toda política.
+2. **Prestadores** (`lancamentos_prestador`, `deficit_retencao`, `folha_fechamento`, `ordem_servico_custos`): admin total; prestador vê a própria folha/custos, não a de outro prestador.
+3. **Investidor** (`notas_fiscais_servico`, `split_pagamento`): admin total; investidor vê a NFS-e e o split que dizem respeito a ele.
+4. **Público / site institucional** (`leads`, `anuncios`, `imoveis`): `leads` aceita INSERT anônimo (formulário de contato) mas **nunca** SELECT anônimo — sem essa restrição, a chave pública do site exporia nome/contato/score de crédito de todo prospect que já preencheu o formulário; `anuncios` e `imoveis` só mostram ao público linhas com status publicado/disponível, testado concretamente (uma unidade "ocupada" e outra "disponível" cadastradas, o papel `anon` só recebeu a disponível de volta).
+5. **Referência** (`cidades`, `residenciais`, `tarifas_energia`, `categorias_financeiras`): leitura liberada para qualquer usuário autenticado (baixa sensibilidade), escrita só admin.
+6. **Estritamente internas** (`magic_links`, `fundos`, `fundo_movimentacoes`, `contas_bancarias`, `transacoes_bancarias`, `ativos_comodato`, `depreciacao_mensal`, `dossies_inadimplencia`, `processos_judiciais`, `regua_cobranca_eventos`, `reservas_temporada`, `tributos_municipais`): só admin/economista; nenhuma outra política.
+7. **`audit_log`**: admin pode ler; **ninguém pode escrever via API**, nem o admin — testado concretamente tentando um INSERT como admin autenticado, que falhou como esperado. A única via de escrita é o trigger `fn_audit_trigger`, que roda com privilégio de dono do schema e ignora RLS.
+
+### Verificação final
+Depois da correção: consulta ao catálogo confirma **49 de 49 tabelas com RLS habilitado**, e uma segunda consulta confirma que **nenhuma tabela com RLS habilitado ficou sem nenhuma política** (o que reproduziria o mesmo bug da rodada 1 — RLS ligado sem política bloqueia todo mundo, inclusive o admin). Reexecutei os testes críticos das rodadas 1 e 2 (admin vê contratos, inquilino vê o próprio contrato, CPC 25 bloqueia provisão indevida, aluguel negativo é rejeitado) e todos continuam passando sem regressão. Os 12 testes de `server/ai-gateway` também seguem passando — mudança isolada ao schema, sem efeito no código TypeScript.
 
 ## O que este ciclo não cobriu (limite honesto)
 
