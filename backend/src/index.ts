@@ -8,6 +8,7 @@ import { authMiddleware } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import authRoutes from "./routes/auth.js";
 import aiRoutes from "./routes/ai.js";
+import pricingRoutes from "./routes/pricing.js";
 import crypto from "crypto";
 
 dotenv.config();
@@ -30,6 +31,9 @@ app.use("/auth", authRoutes);
 
 // AI routes (protected)
 app.use("/api/ai", aiRoutes);
+
+// Pricing routes (protected)
+app.use("/api", pricingRoutes);
 
 // Protected API routes
 app.get("/api/properties", authMiddleware, async (req: Request, res: Response) => {
