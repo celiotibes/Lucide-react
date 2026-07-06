@@ -1,6 +1,7 @@
 import { logger } from '@utils/logger';
 import { llmPool, LLMOptions } from './llmPool';
 import { Petition, Process } from '@/types';
+import RobustJSONParser from './jsonParser';
 
 export interface GeneratePetitionOptions {
   processNumber: string;
@@ -83,23 +84,23 @@ Gere apenas o conteúdo da petição, sem explicações.`,
       const prompt = template.replace('{context}', contextStr);
 
       const response = await llmPool.call(prompt, {
+        taskType: 'generate',
+        complexity: 'high',
         temperature: 0.3,
         maxTokens: 3000,
         cacheKey: `petition:${options.processNumber}:${options.petitionType}`,
       });
 
-      // Converter para RTF
       const rtfContent = this.convertToRTF(response.content);
-
-      // Validar conteúdo gerado
       const warnings = this.validatePetitionContent(response.content);
+      const confidence = this.calculateConfidence(response.content, response.provider);
 
-      logger.info(`Petição gerada com confiança ${response.provider}`);
+      logger.info(`Petição gerada (${response.provider}) com confiança ${(confidence * 100).toFixed(0)}%`);
 
       return {
         rtfContent,
         plainText: response.content,
-        confidence: 0.85,
+        confidence,
         warnings,
         suggestedEdits: this.suggestEdits(response.content),
       };
@@ -136,6 +137,8 @@ Processo: ${processNumber}
 Forneça análise estruturada em JSON.`;
 
       const response = await llmPool.call(prompt, {
+        taskType: 'analyze',
+        complexity: 'medium',
         temperature: 0.2,
         maxTokens: 1000,
         cacheKey: `analysis:${processNumber}`,
@@ -149,7 +152,7 @@ Forneça análise estruturada em JSON.`;
         nextDeadline: analysis.nextDeadline ? new Date(analysis.nextDeadline) : undefined,
         riskLevel: (analysis.riskLevel as 'low' | 'medium' | 'high') || 'medium',
         recommendations: analysis.recommendations || [],
-        confidence: 0.8,
+        confidence: this.calculateConfidence(response.content, response.provider),
       };
     } catch (error) {
       logger.error({ err: error }, 'Erro ao analisar movimentações');
@@ -176,11 +179,15 @@ ${fileContent}
 Retorne APENAS o JSON, sem explicações.`;
 
       const response = await llmPool.call(prompt, {
+        taskType: 'extract',
+        complexity: 'high',
         temperature: 0.1,
         maxTokens: 2000,
       });
 
-      return this.parseExtractionJSON(response.content);
+      const result = this.parseExtractionJSON(response.content);
+      result.confidence = this.calculateConfidence(response.content, response.provider);
+      return result;
     } catch (error) {
       logger.error({ err: error }, 'Erro ao extrair documento');
       throw error;
@@ -213,6 +220,8 @@ ${content}
 Retorne APENAS o JSON.`;
 
       const response = await llmPool.call(prompt, {
+        taskType: 'analyze',
+        complexity: 'medium',
         temperature: 0.2,
         maxTokens: 1500,
       });
@@ -250,6 +259,8 @@ Processo: ${processNumber}
 Retorne como array JSON de strings.`;
 
       const response = await llmPool.call(prompt, {
+        taskType: 'analyze',
+        complexity: 'medium',
         temperature: 0.4,
         maxTokens: 1000,
       });
@@ -317,6 +328,55 @@ ${plainText.replace(/\n/g, '\\par\n')}
     return warnings;
   }
 
+  private calculateConfidence(content: string, provider: string): number {
+    let baseScore = 0.8;
+
+    // Pontuação base por provedor
+    if (provider.toLowerCase().includes('claude')) {
+      if (provider.toLowerCase().includes('sonnet')) {
+        baseScore = 0.95;
+      } else if (provider.toLowerCase().includes('haiku')) {
+        baseScore = 0.85;
+      } else {
+        baseScore = 0.90;
+      }
+    } else if (provider.toLowerCase().includes('gemini')) {
+      baseScore = 0.75;
+    } else if (provider.toLowerCase().includes('grok')) {
+      baseScore = 0.70;
+    } else if (provider.toLowerCase().includes('ollama')) {
+      baseScore = 0.60;
+    }
+
+    // Ajustes baseados no conteúdo
+    let contentScore = baseScore;
+
+    // Penalidade por conteúdo muito curto
+    if (content.length < 100) {
+      contentScore -= 0.15;
+    }
+
+    // Penalidade por falta de estrutura
+    const structureKeywords = ['portanto', 'considerando', 'fundamenta-se', 'conforme', 'artigo', 'parágrafo'];
+    const keywordMatch = structureKeywords.filter(kw => content.toLowerCase().includes(kw)).length;
+    if (keywordMatch === 0) {
+      contentScore -= 0.10;
+    }
+
+    // Bônus por presença de referências legais
+    if (content.match(/artigo\s+\d+/i) || content.match(/lei\s+\d+/i) || content.match(/inciso\s+[ivxlc]+/i)) {
+      contentScore += 0.05;
+    }
+
+    // Bônus por comprimento adequado
+    if (content.length > 1000) {
+      contentScore += 0.03;
+    }
+
+    // Garantir resultado entre 0 e 1
+    return Math.max(0, Math.min(1, contentScore));
+  }
+
   private suggestEdits(content: string): string[] {
     const suggestions: string[] = [];
 
@@ -336,53 +396,15 @@ ${plainText.replace(/\n/g, '\\par\n')}
   }
 
   private parseAnalysisJSON(content: string): any {
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-    } catch (e) {
-      logger.warn('Falha ao parsear JSON de análise');
-    }
-    return {};
+    return RobustJSONParser.parseAnalysis(content);
   }
 
   private parseExtractionJSON(content: string): DocumentExtractionResult {
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
-        return {
-          partes: data.partes || [],
-          pretensoes: data.pretensoes || [],
-          fundamentos: data.fundamentos || [],
-          prazos: data.prazos || [],
-          confidence: 0.8,
-        };
-      }
-    } catch (e) {
-      logger.warn('Falha ao extrair dados de documento');
-    }
-
-    return {
-      partes: [],
-      pretensoes: [],
-      fundamentos: [],
-      prazos: [],
-      confidence: 0,
-    };
+    return RobustJSONParser.parseExtraction(content) as DocumentExtractionResult;
   }
 
   private parseValidationJSON(content: string): any {
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-    } catch (e) {
-      logger.warn('Falha ao parsear validação');
-    }
-    return { isValid: false, score: 0, issues: [], warnings: [], suggestions: [] };
+    return RobustJSONParser.parseValidation(content);
   }
 }
 
