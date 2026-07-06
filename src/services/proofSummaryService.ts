@@ -412,7 +412,7 @@ export class ProofSummaryService {
    * Gera HTML para seção de resumo de prova em petição
    */
   static generateHtmlProofSummary(framework: ProofSummaryFramework): string {
-    let html = `
+    const html = `
     <section class="proof-summary-framework" style="margin: 30px 0; padding: 20px; border: 2px solid #1A3A52; background: #f9f9f9;">
       <h1 style="color: #1A3A52; margin-top: 0;">RESUMO ESTRATÉGICO DE PROVAS</h1>
 

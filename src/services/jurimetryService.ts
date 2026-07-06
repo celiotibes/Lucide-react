@@ -221,7 +221,7 @@ export class JurimetryService {
    * Gera HTML table com matriz jurimetria para petição
    */
   static generateHtmlMatrix(analysis: JurimetricAnalysis): string {
-    let html = `
+    const html = `
     <section class="jurimetry-analysis" style="margin: 20px 0; padding: 15px; border-left: 4px solid #1A3A52;">
       <h2 style="color: #1A3A52; margin-top: 0;">Análise de Força Probatória (Jurimetria)</h2>
 

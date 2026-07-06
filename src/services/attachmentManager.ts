@@ -25,9 +25,9 @@ export class AttachmentManager {
     this.validateFile(file)
 
     // 2. Comprimir se necessário (> 5MB)
-    let processedFile = file
+    const processedFile = file
     let compressed = false
-    let originalSize = file.size
+    const originalSize = file.size
 
     if (file.size > 5 * 1024 * 1024) {
       // Implementação simplificada - em produção usar library como pako
@@ -99,7 +99,7 @@ export class AttachmentManager {
     attachments: DocumentAttachment[],
     config: AttachmentOrganizationConfig
   ): DocumentAttachment[] {
-    let organized = [...attachments]
+    const organized = [...attachments]
 
     // 1. Agrupar por tipo se necessário
     if (config.groupByType) {
