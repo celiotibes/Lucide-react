@@ -35,6 +35,19 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   cada contrato.
 - **Depósitos caução**: correção monetária mês a mês (poupança/IGPM/IPCA) a partir
   da série cadastrada em `indices_economicos`.
+- **Financiamentos**: cronograma teórico SAC/Price gerado localmente e comparado
+  mês a mês com o que foi de fato lançado, sinalizando divergência de juros acima
+  de 5% (indício de anatocismo ou encargo não previsto em contrato).
+- **Auditoria forense**: duplicidade de lançamento, outliers estatísticos (z-score)
+  por categoria, lacunas em despesas recorrentes e teste da Lei de Benford — tudo
+  local, sem IA paga.
+- **Rateio de despesas coletivas**: qualquer transação pode ser dividida entre
+  vários imóveis por fração ideal, área ou partes iguais; o DRE por imóvel já
+  soma a fatia correspondente.
+- **Categorização com aprendizado**: ao categorizar uma transação manualmente, dá
+  para salvar o padrão como regra e aplicá-la de uma vez às pendências semelhantes.
+- **Laudo pericial**: exporta um PDF com DRE, inadimplência e achados de auditoria
+  do período — apoio à instrução, não uma peça jurídica pronta.
 - **Exportar/importar backup**: baixa ou restaura o banco inteiro como um arquivo
   `.sqlite`.
 
@@ -61,6 +74,20 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 - Os **índices econômicos** pré-carregados nos dados de demonstração são
   **ilustrativos** — substitua pelos valores reais do BACEN (poupança) e IBGE
   (IGP-M/IPCA) antes de usar o cálculo de caução para qualquer fim oficial.
+- **Lei de Benford**: só é um sinal confiável quando os valores testados cobrem
+  várias ordens de grandeza. Não aplique a categorias de valor fixo (aluguel,
+  financiamento) nem a um conjunto pequeno/estreito de valores — o próprio app
+  já restringe o teste a despesas variáveis, mas o resultado ainda exige leitura
+  crítica, não é veredito automático.
+- **Sem conciliação automática com o banco**: a importação é manual (upload de
+  arquivo). Integração via Open Finance Brasil exigiria registro como instituição
+  participante certificada (FAPI/mTLS) no ecossistema do Bacen — não é algo que
+  se pluga como biblioteca num app pessoal.
+- **Sem livro diário/razão em partida dobrada formal**: o app categoriza por plano
+  de contas e gera DRE gerencial, mas não produz o lançamento contábil
+  débito/crédito pareado que um sistema como Domínio/Alterdata exige para emitir
+  balanço oficial assinado por contador — para isso, exporte o backup e leve ao
+  seu contador formalizar.
 
 ## Estrutura
 
@@ -70,12 +97,17 @@ src/
   domain/
     types.ts             tipos espelhando o schema SQL
     parsers/             OFX, CSV, PDF (pdfjs-dist), OCR (tesseract.js), dispatcher
-    categorize/           regras determinísticas de categorização
+    categorize/           regras determinísticas + regras aprendidas de categorização
     reconcile/            conciliação contrato×transação, aging de inadimplência
     reports/              DRE e série mensal
     caucao/                correção monetária de depósito caução
+    financiamento/         cronograma SAC/Price e detector de anatocismo
+    auditoria/             duplicidade, outliers, lacunas, Lei de Benford
+    rateio/                divisão de despesas coletivas entre imóveis
+    laudo/                 geração do PDF do laudo pericial
     seed/                  gerador de dados simulados
-  components/            telas React (Dashboard, Importar, Transações, Contratos, Caução)
+  components/            telas React (Dashboard, Importar, Transações, Contratos,
+                          Caução, Financiamentos, Auditoria, Laudo)
 
 contabilidade-reconstituicao/   scaffold Python-espelho (schema.sql canônico, notas
                                 de arquitetura, roteamento de IA por custo) — ver seu

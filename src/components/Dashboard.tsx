@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
 import { useDb } from "../db/DbContext";
+import { consultar } from "../db/connection";
 import { gerarSerieMensal, gerarDre, resultadoLiquido } from "../domain/reports/dre";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia, agingPorFaixa } from "../domain/reconcile/inadimplencia";
+import type { Imovel } from "../domain/types";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -32,9 +34,14 @@ export function Dashboard() {
   const hoje = hojeIso();
   const dataInicio12m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 12)).toISOString().slice(0, 10);
   const dataInicio36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
+  const [imovelFiltroId, setImovelFiltroId] = useState<number | "">("");
 
+  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
   const serieMensal = useMemo(() => (db ? gerarSerieMensal(db, dataInicio36m, hoje) : []), [db, versao, dataInicio36m, hoje]);
-  const linhasDre12m = useMemo(() => (db ? gerarDre(db, dataInicio12m, hoje) : []), [db, versao, dataInicio12m, hoje]);
+  const linhasDre12m = useMemo(
+    () => (db ? gerarDre(db, dataInicio12m, hoje, imovelFiltroId === "" ? undefined : imovelFiltroId) : []),
+    [db, versao, dataInicio12m, hoje, imovelFiltroId],
+  );
 
   const statusInadimplencia = useMemo(() => {
     if (!db) return [];
@@ -61,7 +68,23 @@ export function Dashboard() {
 
   return (
     <div>
-      <h2 className="section-title">Visão geral — últimos 12 meses</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <h2 className="section-title">Visão geral — últimos 12 meses</h2>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          DRE por imóvel:
+          <select value={imovelFiltroId} onChange={(e) => setImovelFiltroId(e.target.value ? Number(e.target.value) : "")}>
+            <option value="">Portfólio inteiro</option>
+            {imoveis.map((i) => (
+              <option key={i.id} value={i.id}>{i.apelido}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {imovelFiltroId !== "" && (
+        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "-8px 0 16px" }}>
+          Inclui a fatia de despesas rateadas com este imóvel (condomínio coletivo, obras compartilhadas etc.).
+        </p>
+      )}
       <div className="kpi-grid">
         <div className="kpi-tile">
           <div className="label">Receita</div>

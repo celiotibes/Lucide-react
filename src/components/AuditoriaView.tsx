@@ -1,0 +1,151 @@
+import { useMemo } from "react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { CopyCheck, TrendingUp, CalendarX2 } from "lucide-react";
+import { useDb } from "../db/DbContext";
+import { consultar } from "../db/connection";
+import { detectarDuplicatas, detectarOutliers, detectarLacunasMensais, testeBenford } from "../domain/auditoria/auditoriaForense";
+
+function hojeIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function formatarMoeda(valor: number): string {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+const CATEGORIAS_VARIAVEIS = ["2.1.02", "2.1.03", "2.1.04"]; // manutenção, obra, prestadores — não aluguel/financiamento fixos
+
+export function AuditoriaView() {
+  const { db, versao } = useDb();
+  const hoje = hojeIso();
+  const dataInicio36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
+
+  const duplicatas = useMemo(() => (db ? detectarDuplicatas(db) : []), [db, versao]);
+  const outliers = useMemo(() => (db ? detectarOutliers(db, dataInicio36m, hoje) : []), [db, versao, dataInicio36m, hoje]);
+  const lacunas = useMemo(
+    () => (db ? detectarLacunasMensais(db, ["2.1.01", "2.1.05", "2.1.06"], dataInicio36m, hoje) : []),
+    [db, versao, dataInicio36m, hoje],
+  );
+
+  const valoresVariaveis = useMemo(() => {
+    if (!db) return [];
+    return consultar<{ valor: number }>(
+      db,
+      `SELECT valor FROM transacoes WHERE plano_conta_codigo IN (${CATEGORIAS_VARIAVEIS.map(() => "?").join(",")}) OR plano_conta_codigo IS NULL`,
+      CATEGORIAS_VARIAVEIS,
+    ).map((r) => r.valor);
+  }, [db, versao]);
+
+  const benford = useMemo(() => testeBenford(valoresVariaveis), [valoresVariaveis]);
+  const desvioBenfordMaximo = Math.max(0, ...benford.map((b) => Math.abs(b.frequenciaObservada - b.frequenciaEsperada)));
+
+  return (
+    <div>
+      <h2 className="section-title">Auditoria forense local</h2>
+      <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 20 }}>
+        Verificações estatísticas que rodam inteiramente no navegador, sem IA paga — o mesmo tipo de teste que
+        ferramentas de auditoria (IDEA/ACL) e perícia forense usam para achar padrão fora do esperado em centenas de
+        lançamentos: duplicidade, valor fora da curva da própria categoria, mês sem lançamento numa despesa recorrente
+        e aderência à Lei de Benford.
+      </p>
+
+      <div className="grid-2" style={{ marginBottom: 24 }}>
+        <div className="card">
+          <div className="section-title"><CopyCheck size={14} /> Possíveis duplicidades ({duplicatas.length})</div>
+          {duplicatas.length === 0 ? (
+            <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhum par de lançamentos idênticos (mesma conta, data, valor e descrição) encontrado.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Data</th><th>Descrição</th><th className="num">Valor</th><th className="num">Ocorrências</th></tr></thead>
+                <tbody>
+                  {duplicatas.map((d, i) => (
+                    <tr key={i}>
+                      <td>{d.data}</td>
+                      <td>{d.descricao_original}</td>
+                      <td className="num">{formatarMoeda(d.valor)}</td>
+                      <td className="num"><span className="pill critical">{d.ocorrencias}×</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="section-title"><CalendarX2 size={14} /> Lacunas em despesas recorrentes ({lacunas.length})</div>
+          {lacunas.length === 0 ? (
+            <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhum mês faltante em condomínio/IPTU ou financiamento dentro da janela de 36 meses.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
+              {lacunas.map((l, i) => (
+                <div key={i} style={{ fontSize: 13 }}>
+                  <strong>{l.imovelApelido}</strong> · {l.planoContaCodigo} — faltam: {l.mesesFaltantes.join(", ")}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="section-title"><TrendingUp size={14} /> Outliers estatísticos por categoria ({outliers.length})</div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 10 }}>
+          Lançamentos com valor a mais de 3 desvios-padrão da média da própria categoria (janela de 36 meses).
+        </p>
+        {outliers.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhum outlier encontrado nas categorias com volume suficiente para o teste.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th className="num">Valor</th><th className="num">Média da categoria</th><th className="num">Z-score</th></tr></thead>
+              <tbody>
+                {outliers.map((o) => (
+                  <tr key={o.transacaoId}>
+                    <td>{o.data}</td>
+                    <td>{o.descricao}</td>
+                    <td>{o.planoContaCodigo}</td>
+                    <td className="num">{formatarMoeda(o.valor)}</td>
+                    <td className="num">{formatarMoeda(o.mediaCategoria)}</td>
+                    <td className="num"><span className="pill warning">{o.zScore.toFixed(1)}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="section-title">Lei de Benford — despesas de valor variável</div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 10 }}>
+          Aplicado só a manutenção, obras, prestadores e lançamentos ainda sem categoria — <strong>nunca</strong> a
+          aluguel ou financiamento, cujo valor é fixado em contrato e não tem por que seguir a distribuição natural.
+          Desvio máximo observado: {(desvioBenfordMaximo * 100).toFixed(1)} pontos percentuais.
+        </p>
+        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 10 }}>
+          <strong>Leitura correta do teste:</strong> Benford só é um sinal confiável quando os valores cobrem várias
+          ordens de grandeza (dezenas a dezenas de milhares). Nos dados de demonstração as despesas variáveis ficam
+          todas numa faixa estreita — o desvio acima é esperado nesse caso e não indica nada de errado; com seus
+          documentos reais (recibos de R$ 15 a obras de R$ 20.000, por exemplo), o mesmo teste passa a ser útil.
+        </p>
+        {benford.length > 0 && (
+          <div style={{ width: "100%", height: 260, background: "var(--viz-surface)", borderRadius: 6 }}>
+            <ResponsiveContainer>
+              <BarChart data={benford.map((b) => ({ digito: `${b.digito}`, Observado: b.frequenciaObservada, Esperado: b.frequenciaEsperada }))}>
+                <CartesianGrid stroke="var(--viz-grid)" vertical={false} />
+                <XAxis dataKey="digito" tick={{ fontSize: 11.5, fill: "var(--viz-muted)" }} axisLine={{ stroke: "var(--viz-baseline)" }} tickLine={false} />
+                <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} tick={{ fontSize: 11, fill: "var(--viz-muted)" }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v) => `${(Number(v) * 100).toFixed(1)}%`} />
+                <Legend wrapperStyle={{ fontSize: 12.5 }} />
+                <Bar dataKey="Observado" fill="var(--viz-receita)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Esperado" fill="var(--viz-muted)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {benford.length === 0 && <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Dados insuficientes para o teste.</p>}
+      </div>
+    </div>
+  );
+}

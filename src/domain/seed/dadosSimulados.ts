@@ -1,5 +1,6 @@
 import type { Database } from "sql.js";
 import { executar } from "../../db/connection";
+import { gerarCronogramaSAC } from "../financiamento/amortizacao";
 
 // Gerador determinístico (sem dependência externa) — mesma seed sempre produz o mesmo dataset,
 // o que torna os testes e capturas de tela reprodutíveis.
@@ -109,16 +110,17 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
   ]);
   imoveis.push({ id: apto1, tipo: "apartamento", financiado: 1 }, { id: apto2, tipo: "apartamento", financiado: 1 });
 
-  // 4. Financiamentos
+  // 4. Financiamentos (taxas ilustrativas — o financiamento 1 é deliberadamente
+  // sobrecobrado nas transações abaixo, para popular o detector de anatocismo)
   executar(
     db,
-    "INSERT INTO financiamentos (id, imovel_id, instituicao, sistema, valor_contratado, data_contrato, parcelas_total) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [1, apto1, "Caixa Econômica Federal", "SAC", 320000, somarMeses(hoje, -84), 360],
+    "INSERT INTO financiamentos (id, imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [1, apto1, "Caixa Econômica Federal", "SAC", 320000, 0.75, somarMeses(hoje, -84), 360],
   );
   executar(
     db,
-    "INSERT INTO financiamentos (id, imovel_id, instituicao, sistema, valor_contratado, data_contrato, parcelas_total) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [2, apto2, "Banco do Brasil", "SAC", 410000, somarMeses(hoje, -60), 360],
+    "INSERT INTO financiamentos (id, imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [2, apto2, "Banco do Brasil", "SAC", 410000, 0.8, somarMeses(hoje, -60), 360],
   );
 
   // 5. Obras
@@ -299,14 +301,18 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
       mes = somarMeses(mes, 1);
     }
   }
-  for (const [, imovelId] of [[1, apto1], [2, apto2]] as const) {
-    let mes = dataInicioJanela;
-    let parcela = 1200;
-    while (mes <= hoje) {
-      inserirTransacao(escolher(contaIds), mes, -entre(600, 900), `TED FINANCIAMENTO IMOVEL ${imovelId} JUROS`, "2.1.05", imovelId, null, null);
-      inserirTransacao(escolher(contaIds), mes, -parcela, `TED FINANCIAMENTO IMOVEL ${imovelId} AMORTIZACAO`, "2.1.06", imovelId, null, null);
-      parcela *= 0.999;
-      mes = somarMeses(mes, 1);
+  // Financiamento 1 (apto1) é lançado com juros ~22% acima do cronograma SAC teórico
+  // de propósito — para o detector de anatocismo ter algo real para encontrar.
+  const financiamentosSeed = [
+    { imovelId: apto1, valorContratado: 320000, taxa: 0.75, parcelasTotal: 360, dataContrato: somarMeses(hoje, -84), fatorSobrecobranca: 1.22 },
+    { imovelId: apto2, valorContratado: 410000, taxa: 0.8, parcelasTotal: 360, dataContrato: somarMeses(hoje, -60), fatorSobrecobranca: 1.0 },
+  ];
+  for (const f of financiamentosSeed) {
+    const cronograma = gerarCronogramaSAC(f.valorContratado, f.taxa, f.parcelasTotal, f.dataContrato);
+    for (const parcela of cronograma) {
+      if (parcela.data < dataInicioJanela || parcela.data > hoje) continue;
+      inserirTransacao(escolher(contaIds), parcela.data, -(parcela.juros * f.fatorSobrecobranca), `TED FINANCIAMENTO IMOVEL ${f.imovelId} JUROS`, "2.1.05", f.imovelId, null, null);
+      inserirTransacao(escolher(contaIds), parcela.data, -parcela.amortizacao, `TED FINANCIAMENTO IMOVEL ${f.imovelId} AMORTIZACAO`, "2.1.06", f.imovelId, null, null);
     }
   }
   let mesPrestador = dataInicioJanela;
@@ -338,6 +344,13 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
       null, null, null, null,
     );
   }
+
+  // Anomalias propositais — provam que a auditoria forense (duplicatas/outliers) funciona de verdade.
+  const contaFixa = contaIds[0];
+  const dataDuplicata = somarMeses(hoje, -3);
+  inserirTransacao(contaFixa, dataDuplicata, -540, "PIX PORTARIA ED AURORA REFORCO", "2.1.04", 1, null, 2);
+  inserirTransacao(contaFixa, dataDuplicata, -540, "PIX PORTARIA ED AURORA REFORCO", "2.1.04", 1, null, 2);
+  inserirTransacao(contaFixa, somarMeses(hoje, -5), -8900, "PIX GESTAO AIRBNB TAXA EXTRAORDINARIA", "2.1.04", 1, null, 3);
 
   // 10. Cauções — algumas contratos residenciais recebem depósito caução
   let proximaCaucaoId = 1;

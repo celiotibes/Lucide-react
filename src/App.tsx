@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
@@ -9,8 +9,11 @@ import { ImportarView } from "./components/ImportarView";
 import { TransacoesView } from "./components/TransacoesView";
 import { ContratosInadimplenciaView } from "./components/ContratosInadimplenciaView";
 import { CaucaoView } from "./components/CaucaoView";
+import { FinanciamentosView } from "./components/FinanciamentosView";
+import { AuditoriaView } from "./components/AuditoriaView";
+import { LaudoView } from "./components/LaudoView";
 
-type Aba = "dashboard" | "importar" | "transacoes" | "contratos" | "caucao";
+type Aba = "dashboard" | "importar" | "transacoes" | "contratos" | "caucao" | "financiamentos" | "auditoria" | "laudo";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -18,6 +21,9 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "transacoes", rotulo: "Transações", icone: ListChecks },
   { id: "contratos", rotulo: "Contratos e inadimplência", icone: FileSignature },
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
+  { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
+  { id: "auditoria", rotulo: "Auditoria forense", icone: ShieldAlert },
+  { id: "laudo", rotulo: "Laudo pericial", icone: FileText },
 ];
 
 function Conteudo() {
@@ -124,6 +130,9 @@ function Conteudo() {
         {aba === "transacoes" && <TransacoesView />}
         {aba === "contratos" && <ContratosInadimplenciaView />}
         {aba === "caucao" && <CaucaoView />}
+        {aba === "financiamentos" && <FinanciamentosView />}
+        {aba === "auditoria" && <AuditoriaView />}
+        {aba === "laudo" && <LaudoView />}
       </main>
     </div>
   );

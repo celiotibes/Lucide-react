@@ -3,19 +3,39 @@ import { consultar } from "../../db/connection";
 import type { LinhaDre } from "../types";
 
 export function gerarDre(db: Database, dataInicio: string, dataFim: string, imovelId?: number): LinhaDre[] {
-  const filtroImovel = imovelId !== undefined ? "AND t.imovel_id = ?" : "";
-  const parametros: (string | number)[] = [dataInicio, dataFim];
-  if (imovelId !== undefined) parametros.push(imovelId);
+  // Sem filtro de imóvel: soma direta, cada transação conta uma única vez (rateada ou não).
+  if (imovelId === undefined) {
+    return consultar<LinhaDre>(
+      db,
+      `SELECT p.codigo, p.descricao, p.grupo, SUM(t.valor) AS total
+       FROM transacoes t
+       JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+       WHERE t.data BETWEEN ? AND ? AND p.grupo IN ('receita', 'despesa')
+       GROUP BY p.codigo, p.descricao, p.grupo
+       ORDER BY p.grupo, p.codigo`,
+      [dataInicio, dataFim],
+    );
+  }
 
+  // Com filtro de imóvel: soma transações diretas do imóvel + a fatia de transações
+  // rateadas entre vários imóveis (ex.: pintura do prédio, financiamento coletivo).
   return consultar<LinhaDre>(
     db,
-    `SELECT p.codigo, p.descricao, p.grupo, SUM(t.valor) AS total
-     FROM transacoes t
-     JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
-     WHERE t.data BETWEEN ? AND ? AND p.grupo IN ('receita', 'despesa') ${filtroImovel}
-     GROUP BY p.codigo, p.descricao, p.grupo
-     ORDER BY p.grupo, p.codigo`,
-    parametros,
+    `SELECT codigo, descricao, grupo, SUM(total) AS total FROM (
+       SELECT p.codigo AS codigo, p.descricao AS descricao, p.grupo AS grupo, t.valor AS total
+       FROM transacoes t
+       JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+       WHERE t.data BETWEEN ? AND ? AND p.grupo IN ('receita', 'despesa') AND t.imovel_id = ?
+       UNION ALL
+       SELECT p.codigo AS codigo, p.descricao AS descricao, p.grupo AS grupo, r.valor_rateado AS total
+       FROM rateios r
+       JOIN transacoes t ON t.id = r.transacao_id
+       JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+       WHERE t.data BETWEEN ? AND ? AND p.grupo IN ('receita', 'despesa') AND r.imovel_id = ?
+     )
+     GROUP BY codigo, descricao, grupo
+     ORDER BY grupo, codigo`,
+    [dataInicio, dataFim, imovelId, dataInicio, dataFim, imovelId],
   );
 }
 

@@ -30,6 +30,7 @@ CREATE TABLE financiamentos (
     instituicao     TEXT NOT NULL,
     sistema         TEXT NOT NULL CHECK (sistema IN ('SAC', 'PRICE', 'OUTRO')),
     valor_contratado REAL NOT NULL,
+    taxa_juros_mensal REAL NOT NULL DEFAULT 0.8,   -- percentual ao mês do contrato, ex: 0.8 (= 0,8% a.m.)
     data_contrato   DATE NOT NULL,
     parcelas_total  INTEGER NOT NULL,
     observacoes     TEXT
@@ -121,6 +122,15 @@ CREATE TABLE rateios (
     criterio        TEXT NOT NULL,                -- ex: "fracao_ideal", "area_m2", "por_unidade"
     percentual      REAL NOT NULL CHECK (percentual > 0 AND percentual <= 1),
     valor_rateado   REAL NOT NULL
+);
+
+-- Regras de categorização aprendidas a partir de categorizações manuais (ver
+-- src/domain/categorize/regrasAprendidas.ts no app web).
+CREATE TABLE regras_categorizacao (
+    id                  INTEGER PRIMARY KEY,
+    padrao              TEXT NOT NULL,             -- regex aplicado a descricao_original (case-insensitive)
+    plano_conta_codigo  TEXT NOT NULL REFERENCES plano_de_contas(codigo),
+    criado_em           DATE NOT NULL
 );
 
 CREATE INDEX idx_transacoes_data ON transacoes(data);
