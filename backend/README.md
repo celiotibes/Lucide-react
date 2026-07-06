@@ -68,7 +68,7 @@ npm run dev
 - Rate limit: 2 requests/second (Booking.com enforcement)
 - Exponential backoff retry logic
 
-**VRBO** (Scheduled)
+**VRBO** (✓ Implemented)
 - REST API client
 - Push-based availability updates
 - Webhook listener for reservations

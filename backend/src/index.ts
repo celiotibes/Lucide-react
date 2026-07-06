@@ -68,6 +68,33 @@ app.post(
   }
 );
 
+app.post(
+  "/webhooks/vrbo",
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const signature = req.headers["x-vrbo-signature"] as string;
+      const rawBody = JSON.stringify(req.body);
+
+      if (!verifyWebhookSignature(rawBody, signature)) {
+        return res.status(401).json({ error: "Invalid signature" });
+      }
+
+      const payload = req.body;
+      await syncQueue.add(
+        "vrbo-webhook",
+        { payload },
+        { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("VRBO webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  }
+);
+
 // Initialize Bull queue
 const syncQueue = new Queue("calendar-sync", {
   connection: redisClient,
@@ -94,6 +121,24 @@ const syncWorker = new Worker(
              VALUES ($1, $2, 'blocked', $3, 'booking')
              ON CONFLICT (property_id, slot_date) DO UPDATE SET status = 'blocked'`,
             [property_id, dateStr, booking_id]
+          );
+        }
+      }
+    } else if (job.name === "vrbo-webhook") {
+      const { payload } = job.data;
+      console.log("[Webhook] VRBO event received:", payload.eventType);
+
+      if (payload.eventType === "booking_confirmed") {
+        // Handle VRBO booking confirmed
+        const { propertyId, bookingId, checkIn, checkOut } = payload;
+
+        for (let d = new Date(checkIn); d < new Date(checkOut); d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split("T")[0];
+          await query(
+            `INSERT INTO calendar_slots (property_id, slot_date, status, booking_id, source)
+             VALUES ($1, $2, 'blocked', $3, 'vrbo')
+             ON CONFLICT (property_id, slot_date) DO UPDATE SET status = 'blocked'`,
+            [propertyId, dateStr, bookingId]
           );
         }
       }
