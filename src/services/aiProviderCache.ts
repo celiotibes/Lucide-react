@@ -74,7 +74,6 @@ const CACHE_ROI_CONFIG: Record<CaseOfUse, { enabled: boolean; ttlHours: number; 
 export class AIProviderCache {
   private cache = new Map<string, CacheEntry>()
   private storageKey = 'lucide_ai_provider_cache'
-  private metricsKey = 'lucide_ai_cache_metrics'
 
   constructor() {
     this.loadFromStorage()
@@ -194,7 +193,7 @@ export class AIProviderCache {
       totalCost += entry.cost * entry.hits
 
       // Inferir case of use da chave (formato: caseOfUse:hash)
-      const caseOfUse = Object.keys(metrics.hitsByCase).find((c) => entry.provider)
+      const caseOfUse = Object.keys(metrics.hitsByCase).find((_) => entry.provider)
       if (caseOfUse && caseOfUse in metrics.hitsByCase) {
         metrics.hitsByCase[caseOfUse as CaseOfUse] += entry.hits
         metrics.costSavedByCase[caseOfUse as CaseOfUse] += entry.cost * entry.hits
