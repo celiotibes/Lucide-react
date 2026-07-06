@@ -61,7 +61,33 @@ CREATE TABLE contratos_locacao (
     dia_vencimento  INTEGER,                     -- 1-31, nulo para airbnb
     data_inicio     DATE NOT NULL,
     data_fim        DATE,                        -- nulo = vigente
+    indice_reajuste TEXT CHECK (indice_reajuste IN ('igpm', 'ipca', 'nenhum')) DEFAULT 'igpm',
+    multa_percentual REAL NOT NULL DEFAULT 2.0,   -- multa por atraso, sobre o valor da parcela
+    juros_mensal_percentual REAL NOT NULL DEFAULT 1.0, -- juros de mora, pro-rata die
     observacoes     TEXT
+);
+
+-- Depósito caução (Lei do Inquilinato, art. 38 — limite de 3 meses de aluguel).
+CREATE TABLE caucoes (
+    id                  INTEGER PRIMARY KEY,
+    contrato_id         INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    valor_inicial       REAL NOT NULL,
+    data_deposito       DATE NOT NULL,
+    indice_correcao     TEXT NOT NULL CHECK (indice_correcao IN ('poupanca', 'igpm', 'ipca', 'nenhum')),
+    data_devolucao      DATE,                     -- nulo = ainda retida
+    valor_devolvido     REAL,
+    deducoes_descricao  TEXT,                     -- ex: "reparo de pintura", "aluguel em aberto"
+    deducoes_valor      REAL DEFAULT 0,
+    observacoes         TEXT
+);
+
+-- Série mensal de índices para correção monetária (caução, reajuste de aluguel).
+-- Popule com valores reais do BACEN/IBGE antes de calcular em produção.
+CREATE TABLE indices_economicos (
+    indice          TEXT NOT NULL CHECK (indice IN ('poupanca', 'igpm', 'ipca')),
+    mes_referencia  DATE NOT NULL,                -- primeiro dia do mês, ex: 2023-01-01
+    taxa_mensal     REAL NOT NULL,                -- percentual do mês, ex: 0.62 (= 0,62%)
+    PRIMARY KEY (indice, mes_referencia)
 );
 
 CREATE TABLE plano_de_contas (
@@ -100,3 +126,4 @@ CREATE TABLE rateios (
 CREATE INDEX idx_transacoes_data ON transacoes(data);
 CREATE INDEX idx_transacoes_imovel ON transacoes(imovel_id);
 CREATE INDEX idx_transacoes_contrato ON transacoes(contrato_id);
+CREATE INDEX idx_caucoes_contrato ON caucoes(contrato_id);

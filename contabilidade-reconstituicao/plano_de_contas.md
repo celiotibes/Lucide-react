@@ -21,6 +21,7 @@ código exige recategorizar.
 | 2.1.07  | Taxas de plataforma (Airbnb/imobiliária)| despesa      |
 | 2.1.08  | Inadimplência / perdas com locatário    | despesa      |
 | 9.0.01  | Transferência entre contas próprias     | transferencia|
+| 9.0.02  | Depósito caução recebido/devolvido      | transferencia|
 
 `pessoal` e `transferencia` ficam fora do DRE da atividade de locação
 (`src/reports/dre.py` só soma `receita` e `despesa`) — isso é o que separa

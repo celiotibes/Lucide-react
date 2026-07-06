@@ -1,0 +1,116 @@
+import { useMemo } from "react";
+import { useDb } from "../db/DbContext";
+import { consultar } from "../db/connection";
+import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
+import { calcularInadimplencia } from "../domain/reconcile/inadimplencia";
+import type { ContratoLocacao, Imovel } from "../domain/types";
+
+function hojeIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function formatarMoeda(valor: number): string {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export function ContratosInadimplenciaView() {
+  const { db, versao } = useDb();
+  const hoje = hojeIso();
+
+  const contratos = useMemo<ContratoLocacao[]>(() => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao ORDER BY id") : []), [db, versao]);
+  const imoveis = useMemo<Map<number, Imovel>>(
+    () => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])),
+    [db, versao],
+  );
+
+  const statusInadimplencia = useMemo(() => {
+    if (!db) return [];
+    const competencias = gerarCompetencias(db, hoje);
+    const excecoes = conciliar(db, competencias);
+    // "pago" aqui significa "ainda não venceu dentro do mês" — não é uma pendência real, então
+    // não entra na lista de competências em aberto (evita mostrar uma "inadimplência" com 0 dias de atraso).
+    return calcularInadimplencia(db, excecoes, hoje)
+      .filter((s) => s.diasAtraso > 0)
+      .sort((a, b) => b.diasAtraso - a.diasAtraso);
+  }, [db, versao, hoje]);
+
+  const contratosPorId = useMemo(() => new Map(contratos.map((c) => [c.id, c])), [contratos]);
+
+  return (
+    <div>
+      <h2 className="section-title">Contratos de locação ({contratos.length})</h2>
+      <div className="table-wrap" style={{ marginBottom: 28 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Imóvel</th>
+              <th>Locatário</th>
+              <th>Tipo</th>
+              <th className="num">Valor</th>
+              <th>Início</th>
+              <th>Fim</th>
+            </tr>
+          </thead>
+          <tbody>
+            {contratos.map((c) => (
+              <tr key={c.id}>
+                <td>{imoveis.get(c.imovel_id)?.apelido ?? c.imovel_id}</td>
+                <td>{c.locatario}</td>
+                <td>{c.tipo === "residencial_fixo" ? "Residencial" : "Airbnb"}</td>
+                <td className="num">{formatarMoeda(c.valor_referencia)}</td>
+                <td>{c.data_inicio}</td>
+                <td>{c.data_fim ?? "vigente"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="section-title">Competências em aberto (inadimplência)</h2>
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Imóvel</th>
+              <th>Locatário</th>
+              <th>Competência</th>
+              <th className="num">Valor</th>
+              <th className="num">Dias de atraso</th>
+              <th className="num">Multa</th>
+              <th className="num">Juros</th>
+              <th className="num">Total devido</th>
+              <th>Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {statusInadimplencia.map((s, indice) => {
+              const contrato = contratosPorId.get(s.competencia.contrato_id);
+              const pillClasse = s.situacao === "inadimplente" ? "critical" : s.situacao === "em_aberto" ? "warning" : "good";
+              return (
+                <tr key={indice}>
+                  <td>{imoveis.get(s.competencia.imovel_id)?.apelido ?? s.competencia.imovel_id}</td>
+                  <td>{contrato?.locatario}</td>
+                  <td>{s.competencia.mes_referencia.slice(0, 7)}</td>
+                  <td className="num">{formatarMoeda(s.competencia.valor_esperado)}</td>
+                  <td className="num">{s.diasAtraso}</td>
+                  <td className="num">{formatarMoeda(s.multa)}</td>
+                  <td className="num">{formatarMoeda(s.juros)}</td>
+                  <td className="num">{formatarMoeda(s.totalDevido)}</td>
+                  <td>
+                    <span className={`pill ${pillClasse}`}>{s.situacao.replace("_", " ")}</span>
+                  </td>
+                </tr>
+              );
+            })}
+            {statusInadimplencia.length === 0 && (
+              <tr>
+                <td colSpan={9} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                  Nenhuma competência em aberto encontrada.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

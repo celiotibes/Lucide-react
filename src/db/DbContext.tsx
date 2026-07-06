@@ -1,0 +1,47 @@
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import type { Database } from "sql.js";
+import { abrirBanco, salvarBanco, reiniciarBanco } from "./connection";
+
+interface DbContextValor {
+  db: Database | null;
+  carregando: boolean;
+  versao: number;
+  persistir: () => Promise<void>;
+  reiniciar: () => Promise<void>;
+}
+
+const DbContext = createContext<DbContextValor | null>(null);
+
+export function DbProvider({ children }: { children: ReactNode }) {
+  const [db, setDb] = useState<Database | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [versao, setVersao] = useState(0);
+
+  useEffect(() => {
+    abrirBanco()
+      .then(setDb)
+      .finally(() => setCarregando(false));
+  }, []);
+
+  const persistir = useCallback(async () => {
+    if (!db) return;
+    await salvarBanco(db);
+    setVersao((v) => v + 1);
+  }, [db]);
+
+  const reiniciar = useCallback(async () => {
+    setCarregando(true);
+    const novoDb = await reiniciarBanco();
+    setDb(novoDb);
+    setVersao((v) => v + 1);
+    setCarregando(false);
+  }, []);
+
+  return <DbContext.Provider value={{ db, carregando, versao, persistir, reiniciar }}>{children}</DbContext.Provider>;
+}
+
+export function useDb(): DbContextValor {
+  const contexto = useContext(DbContext);
+  if (!contexto) throw new Error("useDb precisa ser usado dentro de <DbProvider>");
+  return contexto;
+}

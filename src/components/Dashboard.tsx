@@ -1,0 +1,127 @@
+import { useMemo } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
+import { useDb } from "../db/DbContext";
+import { gerarSerieMensal, gerarDre, resultadoLiquido } from "../domain/reports/dre";
+import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
+import { calcularInadimplencia, agingPorFaixa } from "../domain/reconcile/inadimplencia";
+
+function hojeIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatarMoeda(valor: number): string {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+}
+
+function TooltipSerie({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="tooltip-viz">
+      <strong>{label}</strong>
+      {payload.map((entrada) => (
+        <div key={entrada.name} style={{ color: entrada.color }}>
+          {entrada.name}: {formatarMoeda(entrada.value)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Dashboard() {
+  const { db, versao } = useDb();
+  const hoje = hojeIso();
+  const dataInicio12m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 12)).toISOString().slice(0, 10);
+  const dataInicio36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
+
+  const serieMensal = useMemo(() => (db ? gerarSerieMensal(db, dataInicio36m, hoje) : []), [db, versao, dataInicio36m, hoje]);
+  const linhasDre12m = useMemo(() => (db ? gerarDre(db, dataInicio12m, hoje) : []), [db, versao, dataInicio12m, hoje]);
+
+  const statusInadimplencia = useMemo(() => {
+    if (!db) return [];
+    const competencias = gerarCompetencias(db, hoje);
+    const excecoes = conciliar(db, competencias);
+    return calcularInadimplencia(db, excecoes, hoje);
+  }, [db, versao, hoje]);
+
+  const aging = useMemo(() => agingPorFaixa(statusInadimplencia), [statusInadimplencia]);
+  const dadosAging = Object.entries(aging).map(([faixa, valores]) => ({ faixa, ...valores }));
+  const corPorFaixa = ["var(--viz-warning)", "var(--viz-serious)", "var(--viz-critical)"];
+
+  const receitaTotal = linhasDre12m.filter((l) => l.grupo === "receita").reduce((acc, l) => acc + l.total, 0);
+  const despesaTotal = linhasDre12m.filter((l) => l.grupo === "despesa").reduce((acc, l) => acc + l.total, 0);
+  const resultado = resultadoLiquido(linhasDre12m);
+  const totalEmAberto = statusInadimplencia.filter((s) => s.diasAtraso > 0).reduce((acc, s) => acc + s.totalDevido, 0);
+
+  const dadosSerie = serieMensal.map((linha) => ({
+    mes: linha.mes,
+    Receita: linha.receita,
+    Despesa: Math.abs(linha.despesa),
+    Resultado: linha.receita + linha.despesa,
+  }));
+
+  return (
+    <div>
+      <h2 className="section-title">Visão geral — últimos 12 meses</h2>
+      <div className="kpi-grid">
+        <div className="kpi-tile">
+          <div className="label">Receita</div>
+          <div className="value">{formatarMoeda(receitaTotal)}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="label">Despesa</div>
+          <div className="value">{formatarMoeda(Math.abs(despesaTotal))}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="label">Resultado líquido</div>
+          <div className={`value ${resultado >= 0 ? "good" : "critical"}`}>{formatarMoeda(resultado)}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="label">Em aberto (inadimplência)</div>
+          <div className={`value ${totalEmAberto > 0 ? "critical" : "good"}`}>{formatarMoeda(totalEmAberto)}</div>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="card">
+          <h2 className="section-title">Receita × despesa × resultado (36 meses)</h2>
+          <div style={{ width: "100%", height: 280, background: "var(--viz-surface)", borderRadius: 6 }}>
+            <ResponsiveContainer>
+              <LineChart data={dadosSerie} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="var(--viz-grid)" vertical={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "var(--viz-muted)" }} axisLine={{ stroke: "var(--viz-baseline)" }} tickLine={false} minTickGap={24} />
+                <YAxis tick={{ fontSize: 11, fill: "var(--viz-muted)" }} axisLine={false} tickLine={false} width={64} tickFormatter={(v) => formatarMoeda(v)} />
+                <Tooltip content={<TooltipSerie />} />
+                <Legend wrapperStyle={{ fontSize: 12.5 }} />
+                <Line type="monotone" dataKey="Receita" stroke="var(--viz-receita)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Despesa" stroke="var(--viz-despesa)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Resultado" stroke="var(--viz-resultado)" strokeWidth={2} dot={false} strokeDasharray="4 3" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="card">
+          <h2 className="section-title">Inadimplência por faixa de atraso</h2>
+          <div style={{ width: "100%", height: 280, background: "var(--viz-surface)", borderRadius: 6 }}>
+            <ResponsiveContainer>
+              <BarChart data={dadosAging} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="var(--viz-grid)" vertical={false} />
+                <XAxis dataKey="faixa" tick={{ fontSize: 11.5, fill: "var(--viz-muted)" }} axisLine={{ stroke: "var(--viz-baseline)" }} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "var(--viz-muted)" }} axisLine={false} tickLine={false} width={64} tickFormatter={(v) => formatarMoeda(v)} />
+                <Tooltip content={<TooltipSerie />} />
+                <Bar dataKey="total" name="Valor em aberto" radius={[4, 4, 0, 0]}>
+                  {dadosAging.map((entrada, indice) => (
+                    <Cell key={entrada.faixa} fill={corPorFaixa[indice]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {statusInadimplencia.filter((s) => s.diasAtraso > 0).length === 0 && (
+            <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 10 }}>Nenhuma competência em aberto — todos os contratos residenciais conciliados.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
