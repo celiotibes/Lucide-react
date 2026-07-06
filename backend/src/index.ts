@@ -9,7 +9,7 @@ import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import authRoutes from "./routes/auth.js";
 import aiRoutes from "./routes/ai.js";
 import pricingRoutes from "./routes/pricing.js";
-import crypto from "crypto";
+import { verifyWebhookSignature } from "./auth/crypto.js";
 
 dotenv.config();
 
@@ -56,8 +56,13 @@ app.post(
     try {
       const signature = req.headers["x-booking-signature"] as string;
       const rawBody = req.body.toString("utf-8");
+      const secret = process.env.BOOKING_WEBHOOK_SECRET || "booking-secret";
 
-      if (!verifyWebhookSignature(rawBody, signature)) {
+      if (!signature) {
+        return res.status(401).json({ error: "Missing signature header" });
+      }
+
+      if (!verifyWebhookSignature(rawBody, signature, secret)) {
         return res.status(401).json({ error: "Invalid signature" });
       }
 
@@ -78,17 +83,22 @@ app.post(
 
 app.post(
   "/webhooks/vrbo",
-  express.json(),
+  express.raw({ type: "application/json" }),
   async (req: Request, res: Response) => {
     try {
       const signature = req.headers["x-vrbo-signature"] as string;
-      const rawBody = JSON.stringify(req.body);
+      const rawBody = req.body.toString("utf-8");
+      const secret = process.env.VRBO_WEBHOOK_SECRET || "vrbo-secret";
 
-      if (!verifyWebhookSignature(rawBody, signature)) {
+      if (!signature) {
+        return res.status(401).json({ error: "Missing signature header" });
+      }
+
+      if (!verifyWebhookSignature(rawBody, signature, secret)) {
         return res.status(401).json({ error: "Invalid signature" });
       }
 
-      const payload = req.body;
+      const payload = JSON.parse(rawBody);
       await syncQueue.add(
         "vrbo-webhook",
         { payload },
@@ -164,20 +174,6 @@ syncWorker.on("completed", (job) => {
 syncWorker.on("failed", (job, err) => {
   console.error(`Job ${job?.id} failed:`, err.message);
 });
-
-function verifyWebhookSignature(payload: string, signature: string): boolean {
-  const secret = process.env.BOOKING_WEBHOOK_SECRET || "";
-  const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expected)
-    );
-  } catch {
-    return false;
-  }
-}
 
 // Error handling middleware
 app.use(
