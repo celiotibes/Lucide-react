@@ -197,4 +197,130 @@
   .savings-calc p {
     color: #e0e0e0;
   }
+
+  .cache-stats .stat-card .value {
+    color: #81c784;
+  }
+
+  .health-card {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .health-card h4 {
+    color: #42a5f5;
+  }
+
+  .health-card p {
+    color: #e0e0e0;
+  }
+
+  .health-card.status-healthy {
+    border-color: #81c784;
+  }
+
+  .health-card.status-degraded {
+    border-color: #ffb74d;
+  }
+
+  .health-card.status-unhealthy {
+    border-color: #e57373;
+  }
+
+  .health-card .errors {
+    color: #ff7043;
+  }
+
+  .alert-item {
+    background: #2a2a2a;
+    border-left-color: #ff7043;
+    color: #e0e0e0;
+  }
+}
+
+.cache-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.cache-stats .stat-card {
+  border-left-color: #4caf50;
+  background: #e8f5e9;
+}
+
+.cache-stats .stat-card .value {
+  color: #2e7d32;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.health-card {
+  padding: 1.5rem;
+  background: #f9f9f9;
+  border: 2px solid #bdbdbd;
+  border-radius: 8px;
+  border-left: 4px solid #666;
+}
+
+.health-card h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+}
+
+.health-card p {
+  margin: 0.5rem 0;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.health-card.status-healthy {
+  border-left-color: #4caf50;
+  background: #e8f5e9;
+}
+
+.health-card.status-healthy h4 {
+  color: #2e7d32;
+}
+
+.health-card.status-degraded {
+  border-left-color: #ff9800;
+  background: #fff3e0;
+}
+
+.health-card.status-degraded h4 {
+  color: #e65100;
+}
+
+.health-card.status-unhealthy {
+  border-left-color: #f44336;
+  background: #ffebee;
+}
+
+.health-card.status-unhealthy h4 {
+  color: #c62828;
+}
+
+.health-card .errors {
+  color: #d32f2f;
+  font-weight: 600;
+}
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alert-item {
+  padding: 1rem;
+  background: #fff3e0;
+  border-left: 4px solid #ff9800;
+  border-radius: 4px;
+  color: #e65100;
+  font-size: 0.95rem;
 }

@@ -1,16 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useAIProvider } from '../../hooks/useAIProvider'
+import { aiProviderCache } from '../../services/aiProviderCache'
+import { aiProviderMonitoring } from '../../services/aiProviderMonitoring'
 import './AIProviderStats.css'
 
 export function AIProviderStats() {
-  const { getStats } = useAIProvider()
+  const { getStats, getHealth } = useAIProvider()
   const [stats, setStats] = useState<any>(null)
+  const [cacheMetrics, setCacheMetrics] = useState<any>(null)
+  const [health, setHealth] = useState<any>(null)
+  const [recentAlerts, setRecentAlerts] = useState<string[]>([])
 
   useEffect(() => {
-    setStats(getStats())
-    const interval = setInterval(() => setStats(getStats()), 5000)
+    const updateAll = () => {
+      setStats(getStats())
+      setCacheMetrics(aiProviderCache.getMetrics())
+      setHealth(getHealth())
+      setRecentAlerts(aiProviderMonitoring.getRecentAlerts(5))
+    }
+
+    updateAll()
+    const interval = setInterval(updateAll, 5000)
     return () => clearInterval(interval)
-  }, [getStats])
+  }, [getStats, getHealth])
 
   if (!stats) return <div>Carregando...</div>
 
@@ -72,6 +84,60 @@ export function AIProviderStats() {
           </table>
         </div>
       </div>
+
+      {/* Cache Statistics */}
+      {cacheMetrics && (
+        <div className="section">
+          <h3>💾 Cache Intelligence</h3>
+          <div className="cache-stats">
+            <div className="stat-card">
+              <span className="label">Taxa de Acerto</span>
+              <span className="value">{cacheMetrics.hitRate.toFixed(1)}%</span>
+            </div>
+            <div className="stat-card">
+              <span className="label">Economias em Cache</span>
+              <span className="value">${cacheMetrics.totalSavings.toFixed(4)}</span>
+            </div>
+            <div className="stat-card">
+              <span className="label">Entradas em Cache</span>
+              <span className="value">{Object.keys(cacheMetrics.hitsByCase).reduce((sum, k) => sum + cacheMetrics.hitsByCase[k], 0)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Provider Health */}
+      {health && (
+        <div className="section">
+          <h3>🏥 Saúde dos Providers</h3>
+          <div className="health-grid">
+            {health.map((h: any) => (
+              <div key={h.provider} className={`health-card status-${h.status}`}>
+                <h4>{h.provider.toUpperCase()}</h4>
+                <p>Status: <strong>{h.status}</strong></p>
+                <p>Taxa de Sucesso: <strong>{(h.successRate * 100).toFixed(0)}%</strong></p>
+                <p>Qualidade Média: <strong>{h.avgQuality.toFixed(0)}/100</strong></p>
+                <p>Latência Média: <strong>{h.avgLatency.toFixed(0)}ms</strong></p>
+                {h.recentErrors > 0 && <p className="errors">⚠️ Erros Recentes: {h.recentErrors}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Alerts */}
+      {recentAlerts.length > 0 && (
+        <div className="section">
+          <h3>⚠️ Alertas Recentes</h3>
+          <div className="alerts-list">
+            {recentAlerts.map((alert, i) => (
+              <div key={i} className="alert-item">
+                {alert}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Savings Calculator */}
       <div className="section savings">

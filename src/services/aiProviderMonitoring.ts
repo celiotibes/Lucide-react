@@ -330,7 +330,15 @@ export class AIProviderMonitoring {
       }))
       localStorage.setItem(this.eventsKey, JSON.stringify(data))
     } catch (error) {
-      console.error('Failed to save monitoring events:', error)
+      if (error instanceof Error) {
+        if (error.name === 'QuotaExceededError') {
+          console.warn('⚠️ Monitoring storage quota exceeded - keeping recent events only')
+          this.events = this.events.slice(-500) // Keep only 500 events
+          this.saveEvents() // Retry save
+        } else if (error.name === 'SecurityError' || error.name === 'TypeError') {
+          console.warn('⚠️ localStorage unavailable - events will not persist')
+        }
+      }
     }
   }
 
@@ -347,7 +355,16 @@ export class AIProviderMonitoring {
         timestamp: new Date(e.timestamp),
       }))
     } catch (error) {
-      console.error('Failed to load monitoring events:', error)
+      if (error instanceof Error) {
+        if (error instanceof SyntaxError) {
+          console.warn('⚠️ Corrupted monitoring data - starting fresh')
+          this.events = []
+        } else if (error.name === 'SecurityError' || error.name === 'TypeError') {
+          console.warn('⚠️ localStorage unavailable - monitoring will not persist')
+        } else {
+          console.error('Failed to load monitoring events:', error)
+        }
+      }
     }
   }
 

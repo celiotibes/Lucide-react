@@ -235,7 +235,14 @@ export class AIProviderCache {
       const data = Array.from(this.cache.entries())
       localStorage.setItem(this.storageKey, JSON.stringify(data))
     } catch (error) {
-      console.error('Failed to save cache:', error)
+      if (error instanceof Error) {
+        if (error.name === 'QuotaExceededError') {
+          console.warn('⚠️ Cache storage quota exceeded - clearing oldest entries')
+          this.cleanup() // Clean expired entries to free space
+        } else if (error.name === 'SecurityError' || error.name === 'TypeError') {
+          console.warn('⚠️ localStorage unavailable (private mode?) - cache will not persist')
+        }
+      }
     }
   }
 
@@ -254,7 +261,16 @@ export class AIProviderCache {
 
       console.log(`📂 Loaded ${this.cache.size} cached entries from storage`)
     } catch (error) {
-      console.error('Failed to load cache:', error)
+      if (error instanceof Error) {
+        if (error instanceof SyntaxError) {
+          console.warn('⚠️ Corrupted cache data - starting fresh')
+          this.cache.clear()
+        } else if (error.name === 'SecurityError' || error.name === 'TypeError') {
+          console.warn('⚠️ localStorage unavailable - cache will not persist')
+        } else {
+          console.error('Failed to load cache:', error)
+        }
+      }
     }
   }
 
