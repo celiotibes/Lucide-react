@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { aiSelector, type CaseOfUse } from '../services/aiProviderSelector'
 import { aiProviderCache } from '../services/aiProviderCache'
 import { aiProviderMonitoring } from '../services/aiProviderMonitoring'
+import { aiProviderAutoTuning } from '../services/aiProviderAutoTuning'
 
 interface UseAIProviderReturn {
   response: string | null
@@ -44,7 +45,9 @@ export function useAIProvider(): UseAIProviderReturn {
       }
 
       // No cache hit - execute with fallback
+      const startTime = Date.now()
       const result = await aiSelector.executeWithFallback(caseOfUse, prompt)
+      const latency = Date.now() - startTime
 
       // Estimate quality (in production, would come from API)
       const estimatedQuality = Math.min(100, Math.max(0, 80 + Math.random() * 20))
@@ -57,6 +60,16 @@ export function useAIProvider(): UseAIProviderReturn {
       // Cache the result
       aiProviderCache.set(caseOfUse, prompt, result.response, result.provider, estimatedQuality, result.costUSD)
 
+      // Record performance for auto-tuning
+      aiProviderAutoTuning.recordPerformance(
+        result.provider,
+        caseOfUse,
+        estimatedQuality,
+        result.costUSD,
+        latency,
+        true
+      )
+
       // Record monitoring event
       aiProviderMonitoring.recordEvent({
         type: 'quality_degradation',
@@ -64,7 +77,7 @@ export function useAIProvider(): UseAIProviderReturn {
         provider: result.provider as any,
         caseOfUse,
         message: `Quality: ${estimatedQuality.toFixed(0)}/100`,
-        metadata: { quality: estimatedQuality, latency: 0 },
+        metadata: { quality: estimatedQuality, latency },
       })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Erro desconhecido'
