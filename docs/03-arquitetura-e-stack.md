@@ -18,20 +18,31 @@ Esta é a arquitetura adotada, com justificativa. Onde diverge da proposta anter
                  ┌───────────────────────┼───────────────────────┐
                  ▼                       ▼                       ▼
         ┌────────────────┐     ┌────────────────┐      ┌──────────────────┐
-        │   Supabase      │     │  Backend jobs   │      │   n8n (VPS)       │
+        │   Supabase      │     │  Backend jobs   │      │   n8n             │
         │ Postgres + RLS  │◄────┤  (funções       │◄─────┤ orquestração e    │
         │ Auth + Storage  │     │  versionadas:   │      │ notificações       │
         └────────────────┘     │  juros, multa,  │      │ (cron, webhooks,   │
                                 │  split, rateio) │      │  WhatsApp/e-mail)  │
-                                └────────────────┘      └──────────────────┘
-                                         │
+                                └───────┬────────┘      └──────────────────┘
+                                        │
+                                        ▼
+                          ┌──────────────────────────┐
+                          │   server/ai-gateway        │
+                          │  roteamento fixo por tarefa │
+                          │  (ver doc 07)               │
+                          └──────────────┬─────────────┘
                  ┌───────────────────────┼───────────────────────┐
                  ▼                       ▼                       ▼
-          ┌────────────┐         ┌─────────────┐        ┌────────────────┐
-          │   Asaas     │         │ Gemini Vision│        │ Autentique /    │
-          │ boleto/PIX  │         │ OCR medidor/ │        │ Clicksign        │
-          │ + split     │         │ nota fiscal  │        │ (assinatura)     │
-          └────────────┘         └─────────────┘        └────────────────┘
+          ┌────────────┐         ┌─────────────────┐        ┌────────────────┐
+          │   Asaas     │         │ Gemini Flash-Lite│        │ Claude Haiku /  │
+          │ boleto/PIX  │         │ (paga) — OCR      │        │ Sonnet — textos  │
+          │ + split     │         │ medidor/nota      │        │ jurídicos/SAC    │
+          └────────────┘         └─────────────────┘        └────────────────┘
+
+  Hospedagem: uma única VPS (Coolify) roda Next.js autohospedado + n8n —
+  ver "Hospedagem" abaixo. Assinatura eletrônica (Autentique) e Open
+  Finance (Fase 3+) chamados a partir dos backend jobs, omitidos do
+  diagrama por brevidade.
 ```
 
 ## Componentes e justificativa
@@ -49,7 +60,10 @@ Motivo de não usar Streamlit: ver auditoria, item 2. Streamlit continua sendo u
 ### Banco de dados / Auth / Storage: Supabase (Postgres)
 Mantido da proposta original — é a escolha correta. Postgres relacional é adequado à natureza fortemente transacional/contábil do domínio; RLS nativo resolve isolamento entre papéis (inquilino só vê o próprio contrato, investidor só vê os próprios imóveis); Storage guarda PDFs de contrato, fotos de vistoria e medidor.
 
-**Ressalva de custo:** Point-in-time recovery e backups automáticos diários robustos exigem plano pago do Supabase (Pro, ~US$25/mês) assim que houver dados reais de produção — não é opcional para um sistema que guarda contratos e financeiro. Ver doc 05.
+**Ressalva de custo:** backup diário automático exige plano pago do Supabase (Pro, ~US$25/mês) assim que houver dados reais de produção — não é opcional para um sistema que guarda contratos e financeiro. Point-in-Time Recovery é um add-on separado de US$100/mês; decisão registrada no doc 05/07 é **não contratar** por ora (backup diário + teste trimestral de restore é proporcional ao risco no seu porte).
+
+### Hospedagem: uma VPS única via Coolify, não Vercel
+O plano gratuito da Vercel é explicitamente não-comercial — inutilizável para uma operação que gera receita, o que forçaria o plano Pro (US$20/mês/usuário). Em vez disso, Next.js e n8n rodam **na mesma VPS** (Hetzner/Contabo, ~R$40-70/mês) via Coolify (open source, dá o mesmo fluxo de deploy via git da Vercel). Isso substitui dois itens de custo por um único servidor — decisão originada da pesquisa de preço do doc 07.
 
 ### Lógica de negócio crítica: código versionado, não n8n
 Cálculo de juros/multa *pro rata die*, split de pagamento, rateio de centro de custo, reajuste por índice — tudo isso vive em funções TypeScript testadas (rodando como funções serverless/edge ou num pequeno serviço Node), com testes automatizados. n8n orquestra (dispara no horário certo, chama a função, envia notificação) mas **não contém a fórmula**. Isso resolve o item 3/23 da auditoria: lógica financeira crítica precisa ser testável e ter histórico de versão (git), não viver dentro de um workflow visual.
@@ -60,8 +74,10 @@ Uso correto: cron diário de régua de cobrança (chama a função, não calcula
 ### Pagamentos: Asaas
 Mantido — API madura para boleto/PIX/split no mercado brasileiro, e webhooks confiáveis para conciliação em tempo real. Cobrança consolidada (aluguel + energia + taxa) por padrão, com detalhamento por item na fatura (transparência exigida pelo item 1 da auditoria sobre a taxa de 25% de energia).
 
-### OCR: Gemini Vision, com confirmação humana obrigatória
-Leitura de medidor e nota fiscal, sempre em estado `pendente_confirmacao` até um humano validar (auditoria item 7). Fallback de média dos últimos 3 meses quando não há leitura confiável.
+### IA: roteamento fixo por tarefa via `server/ai-gateway`, nunca camada gratuita com dado pessoal
+Substituído "usar Gemini Vision para tudo" por uma decisão explícita por tipo de tarefa (OCR de medidor/nota → Gemini Flash-Lite pago; textos jurídicos → Claude Sonnet; triagem de SAC → Gemini Flash-Lite pago; classificação de extrato histórico → Claude Haiku; *credit scoring* → nenhum modelo generativo, é estatística simples). Justificativa completa, preços verificados e o motivo de descartar Grok e Ollama como padrão (mas mantê-los documentados como opção condicional) estão no `07-selecao-de-ia-e-custos.md`. A câmera gratuita da API do Gemini nunca é usada com dado pessoal (LGPD — Google treina modelo com esse conteúdo na camada gratuita); a regra é reforçada em código, não só em documentação.
+
+Leitura de medidor e nota fiscal permanece sempre em estado `pendente_confirmacao` até um humano validar (auditoria item 7). Fallback de média dos últimos 3 meses quando não há leitura confiável.
 
 ### Assinatura eletrônica: Autentique (ou Clicksign) por tipo de documento
 Nível de assinatura escolhido por tipo de documento (contrato padrão vs termo de confissão de dívida) mediante validação jurídica pontual — não uma escolha única de engenharia (auditoria item 4).
