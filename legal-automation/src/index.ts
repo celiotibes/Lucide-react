@@ -38,12 +38,12 @@ import officialDiaryController from '@/api/controllers/officialDiaryController';
 import predictionController from '@/api/controllers/predictionController';
 import clientPortalController from '@/api/controllers/clientPortalController';
 import workflowController from '@/api/controllers/workflowController';
-import { backupController } from '@/api/controllers/backupController';
-import { digitalSignatureController } from '@/api/controllers/digitalSignatureController';
-import { mobileDashboardController } from '@/api/controllers/mobileDashboardController';
-import { paymentController } from '@/api/controllers/paymentController';
-import { reportingController } from '@/api/controllers/reportingController';
-import { tribunalPollingController } from '@/api/controllers/tribunalPollingController';
+import backupController from '@/api/controllers/backupController';
+import digitalSignatureController from '@/api/controllers/digitalSignatureController';
+import mobileDashboardController from '@/api/controllers/mobileDashboardController';
+import paymentController from '@/api/controllers/paymentController';
+import reportingController from '@/api/controllers/reportingController';
+import tribunalPollingController from '@/api/controllers/tribunalPollingController';
 
 const app: Express = express();
 

@@ -311,7 +311,7 @@ router.post('/:id/validate-conformance', async (req: Request, res: Response) => 
       parts: [],
     };
 
-    const validation = await petitionValidator.validatePetition(petitionObj, tribunal);
+    const validation = await petitionValidator.validatePetition(petitionObj as any, tribunal);
 
     // Store validation result
     await petitionRepository.update(id, {
@@ -369,7 +369,7 @@ router.post('/:id/format', async (req: Request, res: Response) => {
       parts: [],
     };
 
-    const formatted = await petitionFormatter.formatPetition(petitionObj, tribunal);
+    const formatted = await petitionFormatter.formatPetition(petitionObj as any, tribunal);
 
     logger.info(`Petição formatada para ${tribunal}`);
 
@@ -429,7 +429,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
       parts: [],
     };
 
-    const validation = await petitionValidator.validatePetition(petitionObj, tribunal);
+    const validation = await petitionValidator.validatePetition(petitionObj as any, tribunal);
     if (!validation.valid) {
       logger.warn(`Validação falhou para petição ${id}`);
       return res.status(400).json({
@@ -445,12 +445,13 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
 
     // Step 2: Format petition
     logger.debug('Step 2: Formatando petição');
-    const formatted = await petitionFormatter.formatPetition(petitionObj, tribunal);
+    const formatted = await petitionFormatter.formatPetition(petitionObj as any, tribunal);
 
     // Step 3: Sign document
     logger.debug('Step 3: Assinando documento');
     const documentSignatureService = new DocumentSignatureService();
-    const signedDocument = await documentSignatureService.signDocument({
+    const userId = (req as any).user?.id || 'unknown';
+    const signedDocument = await documentSignatureService.signDocument(userId, {
       content: formatted.content,
       format: formatted.signatureFormat,
       certificatePassword: certificatePassword || '',

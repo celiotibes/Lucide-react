@@ -96,16 +96,16 @@ export interface Document {
 }
 
 export interface Petition {
-  id: string;
-  userId: string;
+  id?: string;
+  userId?: string;
   processNumber: string;
   title: string;
   subject?: string;
-  type: 'initial' | 'intermediate' | 'final' | 'other';
+  type?: 'initial' | 'intermediate' | 'final' | 'other';
   content: string;
-  attachments: Document[];
+  attachments?: Document[];
   tribunal: 'projudi' | 'eproc';
-  status: 'draft' | 'validating' | 'validated' | 'signing' | 'signed' | 'pending' | 'submitted' | 'rejected' | 'error' | 'submission_failed';
+  status?: 'draft' | 'validating' | 'validated' | 'signing' | 'signed' | 'pending' | 'submitted' | 'rejected' | 'error' | 'submission_failed';
   submittedAt?: Date;
   result?: PetitionResult;
   oabNumber?: string;
@@ -117,14 +117,16 @@ export interface Petition {
   causeValue?: number;
   cause_value?: number;
   deadline?: Date;
-  validation_errors?: string[];
+  validation_errors?: string | string[];
+  validation_warnings?: string | string[];
+  last_validation_at?: Date;
   last_error?: string;
   submission_attempts?: number;
   signedDocument?: string | Buffer;
   originalPetition?: Petition;
   metadata?: any;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface PetitionResult {
