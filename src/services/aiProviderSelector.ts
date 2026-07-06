@@ -3,6 +3,8 @@
  * Rota requisições para o melhor modelo por caso de uso
  */
 
+import { buildOptimizedPrompt } from './aiProviderPrompts'
+
 export type AIProviderName = 'claude' | 'gemini' | 'grok' | 'ollama'
 export type CaseOfUse = 
   | 'legalAnalysis'
@@ -252,19 +254,20 @@ class AIProviderSelector {
   }
 
   /**
-   * Chamar provider específico (implementar para cada um)
+   * Chamar provider específico com prompt otimizado
    */
   private async callProvider(
     providerName: AIProviderName,
     caseOfUse: CaseOfUse,
     prompt: string
   ): Promise<{ text: string; tokens: number }> {
-    const provider = PROVIDER_MAP[caseOfUse]
+    // Build optimized prompt for this provider
+    const optimizedPrompt = buildOptimizedPrompt(providerName, caseOfUse, prompt)
 
     // Simular resposta (em prod, chamar APIs reais)
     return {
       text: `Resposta de ${providerName} para ${caseOfUse}`,
-      tokens: Math.ceil(prompt.length / 4), // Estimativa
+      tokens: Math.ceil(optimizedPrompt.length / 4), // Estimativa baseada no prompt otimizado
     }
   }
 
