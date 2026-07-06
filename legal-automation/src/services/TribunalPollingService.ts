@@ -506,7 +506,12 @@ export class TribunalPollingService {
   ): Promise<any> {
     try {
       const adapter = AdapterFactory.getAdapter(tribunalCode);
-      return await adapter.searchProcess(processNumber);
+      // Use getProcess if available, otherwise use searchProcesses
+      if (adapter.getProcess) {
+        return await adapter.getProcess(processNumber);
+      }
+      const results = await adapter.searchProcesses({ });
+      return results.find((p) => p.number === processNumber);
     } catch (error) {
       if (error instanceof Error && error.message.includes('não suportado')) {
         throw new TribunalUnavailableError(tribunalCode);

@@ -7,9 +7,6 @@ import { TJPRAdapter } from './TJPRAdapter';
 import { JUSTAdapter } from './JUSTAdapter';
 import { TJMTAdapter } from './TJMTAdapter';
 import { TJROAdapter } from './TJROAdapter';
-// TODO: Fix type definitions and re-enable PJe and eSAJ adapters
-// import { PJeAdapter } from './PJeAdapter';
-// import { eSAJAdapter } from './eSAJAdapter';
 
 export class AdapterFactory {
   private static adapters: Map<string, TribunalAdapter> = new Map();

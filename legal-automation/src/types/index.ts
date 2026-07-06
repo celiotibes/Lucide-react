@@ -52,9 +52,19 @@ export interface Process {
   status: string;
   subject: string;
   parties: Party[];
+  plaintiff?: string;
+  defendant?: string;
   lastUpdate: Date;
+  lastMovement?: Movement;
   filingDate: Date;
   decisionDate?: Date;
+}
+
+export interface Movement {
+  date: Date;
+  description: string;
+  status?: string;
+  complement?: string;
 }
 
 export interface Party {
@@ -89,6 +99,7 @@ export interface Petition {
   userId: string;
   processNumber: string;
   title: string;
+  subject?: string;
   type: 'initial' | 'intermediate' | 'final' | 'other';
   content: string;
   attachments: Document[];
@@ -96,6 +107,15 @@ export interface Petition {
   status: 'draft' | 'pending' | 'submitted' | 'rejected' | 'error';
   submittedAt?: Date;
   result?: PetitionResult;
+  oabNumber?: string;
+  oab_number?: string;
+  lawyerName?: string;
+  plaintiff?: string;
+  defendant?: string;
+  parts?: Party[];
+  causeValue?: number;
+  cause_value?: number;
+  deadline?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

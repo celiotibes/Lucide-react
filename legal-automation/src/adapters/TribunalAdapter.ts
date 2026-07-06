@@ -29,6 +29,13 @@ export interface TribunalAdapter {
 
   // Status
   isHealthy(): Promise<boolean>;
+
+  // Métodos opcionais para adapters específicos
+  initialize?(): Promise<void>;
+  searchProcess?(processNumber: string): Promise<Process>;
+  searchProcessByParty?(partyName: string, options?: any): Promise<Process[]>;
+  getProcessDeadlines?(processNumber: string): Promise<any[]>;
+  getHealthStatus?(): Promise<{ status: 'ok' | 'error'; message: string }>;
 }
 
 export interface SearchCriteria {

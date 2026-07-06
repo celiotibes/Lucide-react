@@ -86,3 +86,5 @@ class EventEmitterService extends EventEmitter {
 }
 
 export const eventEmitterService = new EventEmitterService();
+
+export default eventEmitterService;

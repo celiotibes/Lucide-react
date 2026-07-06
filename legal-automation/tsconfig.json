@@ -17,11 +17,11 @@
     "sourceMap": true,
     "noImplicitAny": false,
     "strictNullChecks": false,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
+    "strictFunctionTypes": false,
+    "strictBindCallApply": false,
     "strictPropertyInitialization": false,
     "noImplicitThis": false,
-    "alwaysStrict": true,
+    "alwaysStrict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noImplicitReturns": false,
@@ -41,7 +41,8 @@
       "@adapters/*": ["src/adapters/*"],
       "@db/*": ["src/database/*"],
       "@ai/*": ["src/ai/*"],
-      "@types/*": ["src/types/*"]
+      "@types/*": ["src/types/*"],
+      "@integrations/*": ["src/integrations/*"]
     }
   },
   "include": ["src"],

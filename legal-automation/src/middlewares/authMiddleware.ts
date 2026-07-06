@@ -11,6 +11,7 @@ interface JWTPayload {
   oabState: string;
   firstName: string;
   lastName: string;
+  role?: string;
   certificateFingerprint?: string;
 }
 

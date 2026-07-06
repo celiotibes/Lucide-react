@@ -79,3 +79,11 @@ export async function closeDatabase(): Promise<void> {
     logger.info('Pool PostgreSQL fechado');
   }
 }
+
+export function getPool(): Pool | null {
+  return pool;
+}
+
+export { pool };
+
+export default { initDatabase, getConnection, query, closeDatabase, getPool };
