@@ -16,12 +16,13 @@ O design técnico completo — auditoria de escopo, gap analysis, arquitetura, r
 ## Estrutura do repositório
 
 ```
-app/            Next.js App Router — telas do back-office (imóveis, contratos, faturas)
+app/            Next.js App Router — back-office: imóveis, contratos, faturas (leitura + cadastro)
 lib/            helpers de apresentação (formatação de moeda/data) — sem regra de negócio
 server/
   financeiro/   juros/multa, pró-rata, split de pagamento, rendimento de caução (funções puras testadas)
   energia/      faturamento de energia com franquia mínima (função pura testada)
   integracao/   liga o schema ao motor financeiro (régua de cobrança), testado contra Postgres real
+  asaas/        cliente de cobrança (boleto/PIX) e interpretador de webhook, testado com HTTP mockado
   ai-gateway/   seleção de provedor de IA por tarefa, com bloqueios de LGPD e de credit-scoring
 database/       schema.sql (DDL PostgreSQL/Supabase) + README de aplicação
 docs/           auditoria, arquitetura, roadmap, riscos/custos, benchmark de mercado
@@ -33,8 +34,8 @@ docs/           auditoria, arquitetura, roadmap, riscos/custos, benchmark de mer
 npm install
 cp .env.example .env.local   # preencha DATABASE_URL com um Postgres que já tenha database/schema.sql aplicado
 npm run dev                  # Next.js em modo desenvolvimento
-npm test                     # testes unitários (financeiro, energia, ai-gateway) — não precisam de banco
-npm run test:integration     # régua de cobrança contra Postgres real — precisa de DATABASE_URL
+npm test                     # testes unitários (financeiro, energia, asaas, ai-gateway) — não precisam de banco
+npm run test:integration     # régua de cobrança + cadastros contra Postgres real — precisa de DATABASE_URL
 npm run build                # build de produção
 ```
 
@@ -42,4 +43,4 @@ Sem `DATABASE_URL` configurada, as telas do back-office (`/imoveis`, `/contratos
 
 ## Estado atual (ver `docs/04-roadmap-fases.md` para o roadmap completo)
 
-Fase 0 em andamento: cadastro/contratos/faturas têm tela de leitura funcionando contra dados reais; ainda faltam formulários de escrita, autenticação (portal do inquilino/investidor) e a integração de cobrança com o Asaas.
+Fase 0 em andamento: cadastro de imóvel e contrato funcionam de ponta a ponta (formulário → transação no banco → lista atualizada), verificado com testes de integração e submissão real num navegador headless. O cliente Asaas está implementado e testado com HTTP mockado, mas **nunca foi executado contra o sandbox real do Asaas** (sem chave de API neste ambiente) — isso, e a autenticação do portal do inquilino/investidor (precisa de um projeto Supabase real), são os dois itens que só avançam com credenciais que só você pode gerar. 85 testes automatizados no total (70 unitários + 15 de integração), todos passando.

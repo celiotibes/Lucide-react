@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:integration": "vitest run server/integracao/reguaCobranca.integration.test.ts",
+    "test:integration": "vitest run integration.test.ts",
     "typecheck:server": "tsc -p tsconfig.server.json"
   },
   "dependencies": {

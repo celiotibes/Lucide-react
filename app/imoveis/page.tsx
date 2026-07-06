@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { obterPool } from '@/server/integracao/db';
 import { formatarData } from '@/lib/formatacao';
 
@@ -55,7 +56,12 @@ export default async function PaginaImoveis() {
 
   return (
     <>
-      <h2>Imóveis ({imoveis.length})</h2>
+      <div className="cabecalho-lista">
+        <h2>Imóveis ({imoveis.length})</h2>
+        <Link href="/imoveis/novo" className="botao-link">
+          + Novo imóvel
+        </Link>
+      </div>
       {imoveis.length === 0 ? (
         <p className="vazio">Nenhum imóvel cadastrado ainda.</p>
       ) : (

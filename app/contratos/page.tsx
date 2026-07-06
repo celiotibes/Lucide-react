@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { obterPool } from '@/server/integracao/db';
 import { formatarData, formatarMoeda } from '@/lib/formatacao';
 
@@ -63,7 +64,12 @@ export default async function PaginaContratos() {
 
   return (
     <>
-      <h2>Contratos ({contratos.length})</h2>
+      <div className="cabecalho-lista">
+        <h2>Contratos ({contratos.length})</h2>
+        <Link href="/contratos/novo" className="botao-link">
+          + Novo contrato
+        </Link>
+      </div>
       {contratos.length === 0 ? (
         <p className="vazio">Nenhum contrato cadastrado ainda.</p>
       ) : (
