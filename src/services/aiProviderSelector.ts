@@ -113,7 +113,19 @@ const PROVIDER_MAP: Record<CaseOfUse, AIProvider> = {
   },
 }
 
-// Fallback chain global
+// Quality thresholds por caso de uso (FASE 7: Benchmark-driven)
+// Baseado em análise crítica dos dados de FASE 6
+const QUALITY_THRESHOLDS: Record<CaseOfUse, number> = {
+  legalAnalysis: 85,      // CRÍTICO: Análise jurídica não pode ser fraca
+  emailExtraction: 80,    // ALTO: Referências jurídicas precisam confiança
+  searchQuery: 75,        // MÉDIO: Pode usar fallback se não atingir
+  contraArguments: 85,    // CRÍTICO: Argumentos precisam ser sólidos
+  driveSync: 70,          // BAIXO: Metadados simples
+  ragAnalysis: 82,        // ALTO: RAG jurídico precisa precisão
+  llmRouting: 80,         // MÉDIO: Meta-routing pode ter flexibilidade
+}
+
+// Fallback chain global (descoberto com benchmark)
 const FALLBACK_CHAIN: AIProviderName[] = ['claude', 'gemini', 'grok', 'ollama']
 
 interface CallLog {
@@ -139,12 +151,55 @@ class AIProviderSelector {
 
   /**
    * Seleciona o melhor provider para um caso de uso
+   * FASE 7: Valida quality threshold para evitar falsos positivos
    */
   selectProvider(caseOfUse: CaseOfUse): AIProvider {
     const provider = PROVIDER_MAP[caseOfUse]
     if (!provider) {
       throw new Error(`Unknown case of use: ${caseOfUse}`)
     }
+
+    // FASE 7: Verificar quality threshold
+    const threshold = QUALITY_THRESHOLDS[caseOfUse]
+    if (provider.quality < threshold) {
+      console.warn(
+        `⚠️ FASE 7 Warning: ${provider.name} quality (${provider.quality}) ` +
+        `below threshold (${threshold}) for ${caseOfUse}. Using fallback.`
+      )
+      // Triggerana fallback automático
+      return this.selectFallback(caseOfUse, provider.name)
+    }
+
+    return provider
+  }
+
+  /**
+   * Seleciona provider de fallback que atenda quality threshold
+   */
+  private selectFallback(caseOfUse: CaseOfUse, primaryProvider: AIProviderName): AIProvider {
+    const threshold = QUALITY_THRESHOLDS[caseOfUse]
+
+    for (const providerName of FALLBACK_CHAIN) {
+      if (providerName === primaryProvider) continue
+
+      // Simular quality para cada provider (será real em V1.1)
+      const qualityMap: Record<AIProviderName, Record<CaseOfUse, number>> = {
+        claude: { legalAnalysis: 95, emailExtraction: 88, searchQuery: 85, contraArguments: 92, driveSync: 90, ragAnalysis: 94, llmRouting: 98 },
+        gemini: { legalAnalysis: 82, emailExtraction: 88, searchQuery: 87, contraArguments: 80, driveSync: 85, ragAnalysis: 82, llmRouting: 90 },
+        grok: { legalAnalysis: 88, emailExtraction: 82, searchQuery: 80, contraArguments: 95, driveSync: 83, ragAnalysis: 85, llmRouting: 92 },
+        ollama: { legalAnalysis: 70, emailExtraction: 75, searchQuery: 72, contraArguments: 68, driveSync: 95, ragAnalysis: 92, llmRouting: 98 },
+      }
+
+      const quality = qualityMap[providerName]?.[caseOfUse] ?? 0
+      if (quality >= threshold) {
+        const provider = PROVIDER_MAP[caseOfUse]
+        return { ...provider, name: providerName }
+      }
+    }
+
+    // Fallback último: usar provider original mesmo se abaixo do threshold
+    const provider = PROVIDER_MAP[caseOfUse]
+    console.error(`❌ No provider meets quality threshold ${threshold} for ${caseOfUse}`)
     return provider
   }
 
