@@ -12,7 +12,8 @@
     "migrate": "tsx src/migrate.ts up",
     "migrate:down": "tsx src/migrate.ts down",
     "sync:booking": "tsx src/workers/booking-calendar-sync.ts",
-    "sync:vrbo": "tsx src/workers/vrbo-calendar-sync.ts"
+    "sync:vrbo": "tsx src/workers/vrbo-calendar-sync.ts",
+    "process:ai": "tsx src/workers/ai-task-processor.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

@@ -7,6 +7,7 @@ import { query, closePool } from "./db.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import authRoutes from "./routes/auth.js";
+import aiRoutes from "./routes/ai.js";
 import crypto from "crypto";
 
 dotenv.config();
@@ -26,6 +27,9 @@ app.get("/health", (_req: Request, res: Response) => {
 
 // Auth routes (public)
 app.use("/auth", authRoutes);
+
+// AI routes (protected)
+app.use("/api/ai", aiRoutes);
 
 // Protected API routes
 app.get("/api/properties", authMiddleware, async (req: Request, res: Response) => {
