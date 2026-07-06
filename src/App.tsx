@@ -38,6 +38,7 @@ import { GmailIntegration } from './components/gmail/GmailIntegration'
 import { PWAPrompt } from './components/pwa/PWAPrompt'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
+import { aiProviderCache } from './services/aiProviderCache'
 import './App.css'
 import './App.mobile.css'
 
@@ -56,6 +57,13 @@ function App() {
   const atualizarHtml = useCallback((novoHtml: string) => {
     _setHtmlAtual(novoHtml)
   }, [])
+
+  // Preaquecimento de cache na inicialização
+  useEffect(() => {
+    if (estaLogado) {
+      aiProviderCache.warmupCache()
+    }
+  }, [estaLogado])
 
   // Mostrar tela de carregamento
   if (carregando) {
