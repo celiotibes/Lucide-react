@@ -77,4 +77,36 @@ describe('selecionarProvedor', () => {
     // @ts-expect-error - testando entrada inválida deliberadamente
     expect(() => selecionarProvedor({ task: 'tarefa_inexistente', contemDadosPessoais: false })).toThrow();
   });
+
+  it('ignora hardwareOllamaDisponivel em tarefas onde essa flag não se aplica', () => {
+    // A flag só deveria ter efeito em classificacao_extrato_historico; para
+    // qualquer outra tarefa, marcá-la não pode desviar o roteamento para
+    // Ollama por engano.
+    const decisao = selecionarProvedor({
+      task: 'leitura_medidor_energia',
+      contemDadosPessoais: true,
+      hardwareOllamaDisponivel: true,
+    });
+    expect(decisao.primary.provider).toBe('gemini');
+  });
+
+  it('sempre retorna um motivo não vazio, para toda tarefa permitida (auditabilidade)', () => {
+    const tarefasPermitidas: Array<Parameters<typeof selecionarProvedor>[0]['task']> = [
+      'leitura_medidor_energia',
+      'ocr_nota_fiscal',
+      'redacao_documento_juridico',
+      'triagem_sac_whatsapp',
+      'classificacao_extrato_historico',
+    ];
+    for (const task of tarefasPermitidas) {
+      const decisao = selecionarProvedor({ task, contemDadosPessoais: false });
+      expect(decisao.motivo.length).toBeGreaterThan(20);
+    }
+  });
+
+  it('bloqueia credit scoring mesmo com hardware Ollama disponível (a flag não abre exceção)', () => {
+    expect(() =>
+      selecionarProvedor({ task: 'credit_scoring', contemDadosPessoais: false, hardwareOllamaDisponivel: true }),
+    ).toThrowError(/não pode ser roteada para IA generativa/);
+  });
 });

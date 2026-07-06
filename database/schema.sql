@@ -754,23 +754,61 @@ create trigger trg_audit_notas_fiscais_servico after insert or update or delete 
   for each row execute function fn_audit_trigger();
 
 -- ============================================================================
--- 16. ROW LEVEL SECURITY — exemplos por papel (adaptar conforme portais reais)
+-- 16. ROW LEVEL SECURITY
 -- ============================================================================
+-- Esta seção foi reescrita depois de um ciclo de stress-test que rodou cada
+-- tabela como o papel `authenticated` do Supabase (não como superusuário) e
+-- encontrou 5 bugs reais na primeira versão:
+--   1. `contratos` tinha RLS habilitado sem NENHUMA política -> admin
+--      ficava bloqueado de ver a própria carteira de contratos.
+--   2. Mesma causa bloqueava o inquilino de ver o próprio contrato.
+--   3. `investidor_ledger` só tinha política para o investidor dono da
+--      linha -> admin/economista não conseguiam auditar o ledger de
+--      ninguém via papel authenticated.
+--   4. `ordens_servico` só tinha política de SELECT -> o prestador não
+--      conseguia gravar check-in/check-out (UPDATE), quebrando o fluxo
+--      operacional inteiro do Módulo 5.
+--   5. Mesma tabela: admin não tinha política de SELECT própria.
+-- Regra geral daqui em diante: toda tabela com RLS habilitado tem uma
+-- política de bypass para admin/economista (via fn_eh_admin_ou_economista,
+-- para não repetir o mesmo EXISTS em cada policy) MAIS as políticas
+-- específicas de papel que o portal correspondente precisa.
+
+create or replace function fn_eh_admin_ou_economista()
+returns boolean as $$
+  select exists (
+    select 1 from usuarios u where u.id = auth.uid() and u.papel in ('admin','economista')
+  );
+$$ language sql stable security definer;
 
 alter table faturas enable row level security;
 alter table contratos enable row level security;
 alter table investidor_ledger enable row level security;
 alter table extratos_mensais_proprietario enable row level security;
+alter table extrato_mensal_itens enable row level security;
 alter table ordens_servico enable row level security;
 alter table documentos_gerados enable row level security;
+alter table garantias enable row level security;
+alter table leituras_energia enable row level security;
+alter table cobrancas_asaas enable row level security;
 
--- Admin/economista: acesso total (via policy permissiva checando papel)
-create policy admin_full_access_faturas on faturas
-  for all using (
-    exists (select 1 from usuarios u where u.id = auth.uid() and u.papel in ('admin','economista'))
+-- ---- contratos ----
+create policy admin_full_access_contratos on contratos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+create policy inquilino_ve_proprio_contrato on contratos
+  for select using (
+    exists (
+      select 1 from usuarios u
+      join contrato_partes cp on cp.pessoa_id = u.pessoa_id
+      where u.id = auth.uid() and u.papel = 'inquilino' and cp.contrato_id = contratos.id
+    )
   );
 
--- Inquilino: só enxerga faturas do próprio contrato
+-- ---- faturas ----
+create policy admin_full_access_faturas on faturas
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
 create policy inquilino_ve_proprias_faturas on faturas
   for select using (
     exists (
@@ -780,7 +818,50 @@ create policy inquilino_ve_proprias_faturas on faturas
     )
   );
 
--- Investidor: só enxerga o próprio ledger
+-- ---- cobrancas_asaas (status de boleto/PIX — mesmo escopo de faturas) ----
+create policy admin_full_access_cobrancas on cobrancas_asaas
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+create policy inquilino_ve_proprias_cobrancas on cobrancas_asaas
+  for select using (
+    exists (
+      select 1 from usuarios u
+      join contrato_partes cp on cp.pessoa_id = u.pessoa_id
+      join faturas f on f.contrato_id = cp.contrato_id
+      where u.id = auth.uid() and u.papel = 'inquilino' and f.id = cobrancas_asaas.fatura_id
+    )
+  );
+
+-- ---- garantias (caução/fiador/seguro — "Auditoria de Caução Exibida", gap 8-D) ----
+create policy admin_full_access_garantias on garantias
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+create policy inquilino_ve_proprias_garantias on garantias
+  for select using (
+    exists (
+      select 1 from usuarios u
+      join contrato_partes cp on cp.pessoa_id = u.pessoa_id
+      where u.id = auth.uid() and u.papel = 'inquilino' and cp.contrato_id = garantias.contrato_id
+    )
+  );
+
+-- ---- leituras_energia ("Dashboards de Consumo no Portal do Inquilino", gap 8-C) ----
+create policy admin_full_access_leituras on leituras_energia
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+create policy inquilino_ve_proprias_leituras on leituras_energia
+  for select using (
+    exists (
+      select 1 from usuarios u
+      join contrato_partes cp on cp.pessoa_id = u.pessoa_id
+      where u.id = auth.uid() and u.papel = 'inquilino' and cp.contrato_id = leituras_energia.contrato_id
+    )
+  );
+
+-- ---- investidor_ledger ----
+create policy admin_full_access_ledger on investidor_ledger
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
 create policy investidor_ve_proprio_ledger on investidor_ledger
   for select using (
     exists (
@@ -789,7 +870,10 @@ create policy investidor_ve_proprio_ledger on investidor_ledger
     )
   );
 
--- Investidor: só enxerga os próprios extratos mensais consolidados
+-- ---- extratos_mensais_proprietario ----
+create policy admin_full_access_extratos on extratos_mensais_proprietario
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
 create policy investidor_ve_proprio_extrato on extratos_mensais_proprietario
   for select using (
     exists (
@@ -798,7 +882,25 @@ create policy investidor_ve_proprio_extrato on extratos_mensais_proprietario
     )
   );
 
--- Prestador: só enxerga ordens de serviço alocadas a ele
+-- ---- extrato_mensal_itens (tabela filha — RLS NÃO herda da tabela pai,
+-- por isso precisa de política própria; esquecer isso é o mesmo tipo de
+-- bug encontrado no stress-test, só que numa tabela adicionada depois) ----
+create policy admin_full_access_extrato_itens on extrato_mensal_itens
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+create policy investidor_ve_proprios_itens_extrato on extrato_mensal_itens
+  for select using (
+    exists (
+      select 1 from usuarios u
+      join extratos_mensais_proprietario e on e.pessoa_id = u.pessoa_id
+      where u.id = auth.uid() and u.papel = 'investidor' and e.id = extrato_mensal_itens.extrato_id
+    )
+  );
+
+-- ---- ordens_servico ----
+create policy admin_full_access_os on ordens_servico
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
 create policy prestador_ve_proprias_os on ordens_servico
   for select using (
     exists (
@@ -807,11 +909,38 @@ create policy prestador_ve_proprias_os on ordens_servico
     )
   );
 
--- Documentos: cada pessoa só vê os próprios; admin/economista veem tudo
+-- Sem esta política, o prestador não consegue gravar check-in/check-out
+-- nem status (bug nº4 do stress-test). Restrito à própria OS; campos como
+-- imovel_id/prestador_id continuam protegidos por trigger de auditoria,
+-- e reatribuição de OS para outro prestador deve ser feita pelo admin.
+create policy prestador_atualiza_propria_os on ordens_servico
+  for update using (
+    exists (
+      select 1 from usuarios u
+      where u.id = auth.uid() and u.papel = 'prestador' and u.pessoa_id = ordens_servico.prestador_id
+    )
+  ) with check (
+    exists (
+      select 1 from usuarios u
+      where u.id = auth.uid() and u.papel = 'prestador' and u.pessoa_id = ordens_servico.prestador_id
+    )
+  );
+
+-- Inquilino que abriu o chamado acompanha o próprio protocolo (não pode alterar)
+create policy inquilino_ve_propria_os on ordens_servico
+  for select using (
+    exists (
+      select 1 from usuarios u
+      where u.id = auth.uid() and u.papel = 'inquilino' and u.pessoa_id = ordens_servico.aberto_por_pessoa_id
+    )
+  );
+
+-- ---- documentos_gerados ----
+create policy admin_full_access_documentos on documentos_gerados
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
 create policy pessoa_ve_proprios_documentos on documentos_gerados
   for select using (
-    exists (select 1 from usuarios u where u.id = auth.uid() and u.papel in ('admin','economista'))
-    or
     exists (
       select 1 from usuarios u
       where u.id = auth.uid() and u.pessoa_id = documentos_gerados.pessoa_id
@@ -821,3 +950,75 @@ create policy pessoa_ve_proprios_documentos on documentos_gerados
 -- Nota: a validação pública de documento (QR code -> hash) deve usar uma
 -- rota específica com service role / função RPC que expõe apenas
 -- tipo + validade + hash, nunca a linha completa da tabela.
+
+-- ============================================================================
+-- 17. HARDENING: CONSTRAINTS DE INTEGRIDADE (achadas via stress-test)
+-- ============================================================================
+-- O schema aceitava aluguel negativo, contrato com data_fim anterior à
+-- data_inicio e um imóvel com 350% de propriedade somada — nenhum erro,
+-- silenciosamente. Comandos abaixo fecham essas lacunas. Aplicados como
+-- ALTER separado (em vez de reescrever cada CREATE TABLE) para deixar
+-- explícito, no próprio arquivo, o que foi corrigido depois do stress-test.
+
+-- Datas: fim não pode vir antes do início
+alter table contratos
+  add constraint chk_contrato_datas check (data_fim is null or data_fim > data_inicio);
+alter table garantias
+  add constraint chk_garantia_datas check (data_vencimento_apolice is null or data_inicio is null or data_vencimento_apolice > data_inicio);
+alter table ativos_comodato
+  add constraint chk_ativo_vida_util check (vida_util_meses > 0);
+
+-- Valores monetários que nunca fazem sentido negativos ou zero
+alter table contratos add constraint chk_valor_aluguel_positivo check (valor_aluguel > 0);
+alter table faturas add constraint chk_fatura_valores_nao_negativos
+  check (valor_bruto >= 0 and valor_liquido >= 0);
+alter table garantias add constraint chk_garantia_valor_nao_negativo check (valor is null or valor >= 0);
+alter table split_pagamento add constraint chk_split_valor_nao_negativo check (valor >= 0);
+alter table lancamentos_prestador add constraint chk_lancamento_valores_nao_negativos
+  check (valor_base >= 0 and km >= 0 and adicional_pct >= 0);
+alter table ativos_comodato add constraint chk_ativo_valor_aquisicao_positivo check (valor_aquisicao > 0);
+alter table ativos_comodato add constraint chk_ativo_valor_residual_coerente
+  check (valor_residual >= 0 and valor_residual <= valor_aquisicao);
+alter table depreciacao_mensal add constraint chk_depreciacao_nao_negativa check (valor_depreciado_mes >= 0);
+-- investidor_ledger.valor é sempre a magnitude; a direção (crédito/débito) vem de `tipo`
+alter table investidor_ledger add constraint chk_ledger_valor_positivo check (valor > 0);
+alter table extratos_mensais_proprietario add constraint chk_extrato_receita_deducoes_nao_negativas
+  check (receita_bruta >= 0 and total_deducoes >= 0);
+alter table notas_fiscais_servico add constraint chk_nfse_valor_positivo check (valor_servico > 0);
+alter table ordem_servico_custos add constraint chk_os_custo_nao_negativo check (valor >= 0);
+alter table tributos_municipais add constraint chk_tributo_valor_positivo check (valor > 0);
+alter table confissoes_divida add constraint chk_confissao_valor_positivo check (valor_principal > 0);
+
+-- Percentuais de propriedade e taxa de administração são frações de 1, não podem ultrapassar 100%
+alter table imovel_propriedade add constraint chk_percentual_fracao check (percentual > 0 and percentual <= 1);
+alter table imovel_propriedade add constraint chk_taxa_administracao_fracao
+  check (taxa_administracao_pct >= 0 and taxa_administracao_pct < 1);
+
+-- Nota deliberada: `transacoes_bancarias.valor` e `fatura_itens.valor` NÃO
+-- ganharam check de sinal — o primeiro usa negativo para representar débito
+-- (documentado no comentário da coluna) e o segundo pode conter um item de
+-- crédito/desconto negativo dentro de uma fatura consolidada.
+
+-- Soma de imovel_propriedade.percentual por imóvel não pode ultrapassar 100%
+-- somada entre todos os sócios ativos (data_fim is null). Constraint de
+-- checagem entre linhas exige trigger, não um CHECK simples de coluna.
+create or replace function fn_check_soma_percentual_imovel()
+returns trigger as $$
+declare
+  soma numeric(6,4);
+begin
+  select coalesce(sum(percentual), 0) into soma
+  from imovel_propriedade
+  where imovel_id = new.imovel_id and data_fim is null;
+
+  if soma > 1.0001 then -- tolerância de arredondamento
+    raise exception 'Soma de percentual de propriedade do imóvel % excede 100%% (soma atual: %)',
+      new.imovel_id, soma;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger trg_check_soma_percentual_imovel
+  after insert or update on imovel_propriedade
+  for each row execute function fn_check_soma_percentual_imovel();

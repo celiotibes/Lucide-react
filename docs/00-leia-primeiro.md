@@ -13,8 +13,9 @@ O material de origem foi uma sequência de 8 rodadas de conversa com um assisten
 5. **`05-riscos-e-custos.md`** — estimativa de custo mensal real (não "tudo grátis") e matriz de risco/mitigação.
 6. **`06-benchmark-mercado.md`** — o que foi incorporado (e o que foi deliberadamente descartado) a partir da análise de Superlógica, Imoview, Imobzi, Rentila, Apresenta.me, Vista e Alude.
 7. **`07-selecao-de-ia-e-custos.md`** — qual provedor de IA (Gemini, Claude, Ollama, Grok) usar em cada tarefa do sistema, com preços verificados por pesquisa e o achado de que o custo de IA é irrelevante frente ao resto do orçamento; inclui a correção de dois erros de estimativa de custo (PITR do Supabase, plano gratuito da Vercel).
-8. **`../database/schema.sql`** — o schema relacional completo (PostgreSQL/Supabase), pronto para ser aplicado em ambiente de homologação. Validado rodando em Postgres real (não só lido) — ver `../database/README.md`.
-9. **`../server/ai-gateway/`** — código real (TypeScript + testes) que implementa as regras do doc 07: bloqueio de camada gratuita de IA com dado pessoal, bloqueio de *credit scoring* via LLM, roteamento fixo por tarefa. Rodar com `npm test`.
+8. **`08-auditoria-stress-test.md`** — o ciclo de auditoria que simulou os papéis reais do Supabase (não superusuário) e achou 9 bugs reais no schema (RLS bloqueando o próprio admin, prestador sem conseguir gravar check-in, valores negativos aceitos, soma de propriedade societária podendo passar de 100%) — todos corrigidos e reverificados.
+9. **`../database/schema.sql`** — o schema relacional completo (PostgreSQL/Supabase), pronto para ser aplicado em ambiente de homologação. Validado rodando em Postgres real com simulação de RLS por papel (não só lido, não só como superusuário) — ver `../database/README.md` e doc 08.
+10. **`../server/ai-gateway/`** — código real (TypeScript + testes) que implementa as regras do doc 07: bloqueio de camada gratuita de IA com dado pessoal, bloqueio de *credit scoring* via LLM, roteamento fixo por tarefa. Rodar com `npm test`.
 
 ## Resumo executivo
 
