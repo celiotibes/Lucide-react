@@ -9,6 +9,7 @@ Objetivo: parar de operar cobrança manualmente.
 - M2 Contratos: locação padrão com pró-rata, garantias (caução com atualização por poupança, fiador, seguro-fiança/incêndio com alerta de vigência), reajuste por índice com aprovação manual.
 - M3 Faturamento: emissão consolidada via Asaas (boleto/PIX), régua de cobrança D+5/D+15/D+30 com cálculo de juros/multa versionado e testado, webhook de baixa automática.
 - M4 Portal do inquilino: 2ª via, histórico de pagamento, dados de contrato, canal de contato.
+- M11 (versão simplificada, antecipada — ver `06-benchmark-mercado.md`): upload manual de OFX das contas principais e categorização assistida por centro de custo. Sem isso, a "prestação de contas" ao sócio é só receita sem despesa real conciliada, o que não atende ao requisito crítico de transparência financeira.
 - Pré-requisitos de segurança (gap analysis itens 15-19): backup configurado, ambiente de homologação separado de produção, RLS por papel desenhado desde o primeiro dia, log de auditoria nas tabelas financeiras/contratuais.
 - Temporada nesta fase: operação continua manual/direta pelas plataformas (Airbnb etc.); o sistema apenas registra o contrato de temporada como um tipo simplificado (sem régua de inadimplência, já que é pré-pago).
 
@@ -23,14 +24,14 @@ Objetivo: parar de operar cobrança manualmente.
 
 ## Fase 2 — Patrimônio e Transparência (4-6 semanas)
 - M8 Patrimônio/Comodato: cadastro de ativos com QR code, depreciação linear mensal (CPC 27), alerta de fim de vida útil.
-- M9 Portal do investidor: ledger de conta corrente (não cap table automático), extrato de repasse com dedução detalhada (custos + taxa de administração quando aplicável), painel de vacância.
+- M9 Portal do investidor: ledger de conta corrente (não cap table automático), **extrato mensal automático em PDF** disparado por WhatsApp/e-mail com dedução detalhada (custos + taxa de administração quando aplicável) — padrão de mercado (Imobzi, ver `06-benchmark-mercado.md`), não apenas ledger consultável sob demanda; emissão de NFS-e sobre taxa de administração/honorários quando aplicável; painel de vacância.
 - M10 Documentos: geração de declarações (residência, quitação) com hash SHA-256 + QR de validação pública; vistoria via PWA (fotos com marca d'água de data/hora/GPS, checklist, assinatura em tela, geração automática de chamado de manutenção quando aplicável).
 
 **Critério de saída:** proprietário de imóvel de terceiro (Ana Maria Nunes, Apto 509B) acompanha o próprio extrato sem pedir planilha por e-mail.
 
 ## Fase 3 — Consolidação Financeira e Comercial (6-8 semanas)
-- M11 Tesouraria: importação de OFX das 6 instituições (manual nesta fase), categorização assistida, DRE em regime de competência e de caixa lado a lado, projeção de fluxo de caixa 30/60/90 dias.
-- M12 Comercial: landing page pública (SSR/SEO), funil de leads (kanban), publicação automática de disponibilidade quando aviso prévio é lançado.
+- M11 Tesouraria: extensão da conciliação simplificada da Fase 0 para as 6 instituições, DRE em regime de competência e de caixa lado a lado, projeção de fluxo de caixa 30/60/90 dias.
+- M12 Comercial: landing page pública (SSR/SEO), funil de leads (kanban), publicação automática de disponibilidade quando aviso prévio é lançado — incluindo **feed para portais de locação padrão** (ZAP Imóveis, VivaReal, OLX), não só Airbnb/temporada (gap identificado via benchmark com Vista Office, ver `06-benchmark-mercado.md`).
 - M13 Temporada avançado: sincronização de calendário entre canais (evitar overbooking), SLA de turnover de limpeza, registro de chargeback/disputa.
 - M14 Jurídico: dossiê de inadimplência, fluxo específico de ação de despejo (não campo genérico), provisão de contingência apenas quando probabilidade jurídica = "provável" (CPC 25).
 

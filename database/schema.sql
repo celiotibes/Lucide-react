@@ -529,6 +529,53 @@ create table investidor_ledger (
 
 create index idx_investidor_ledger_pessoa on investidor_ledger(pessoa_id, data desc);
 
+-- Extrato mensal do proprietário/investidor: agregado pré-calculado, não só
+-- o ledger cru. Benchmark de mercado (Imobzi "Extrato do Proprietário" —
+-- docs/06-benchmark-mercado.md): a prestação de contas precisa ser um
+-- documento pronto, disparado proativamente por WhatsApp/e-mail, não algo
+-- que o sócio precise montar sozinho consultando o ledger.
+create table extratos_mensais_proprietario (
+  id uuid primary key default gen_random_uuid(),
+  pessoa_id uuid not null references pessoas(id),
+  imovel_id uuid references imoveis(id),         -- null = extrato consolidado da carteira do sócio
+  competencia date not null,
+  receita_bruta numeric(14,2) not null,
+  total_deducoes numeric(14,2) not null,
+  valor_repassado numeric(14,2) not null,
+  documento_id uuid references documentos_gerados(id),
+  enviado_em timestamptz,
+  canal_envio text check (canal_envio in ('whatsapp','email', null)),
+  criado_em timestamptz not null default now(),
+  unique (pessoa_id, imovel_id, competencia)
+);
+
+-- Detalhamento item a item do extrato (receita de aluguel, IPTU, manutenção,
+-- taxa de administração etc.) — mesma lógica de transparência de fatura_itens.
+create table extrato_mensal_itens (
+  id uuid primary key default gen_random_uuid(),
+  extrato_id uuid not null references extratos_mensais_proprietario(id) on delete cascade,
+  descricao text not null,
+  tipo text not null check (tipo in ('receita','despesa')),
+  valor numeric(14,2) not null
+);
+
+-- Nota Fiscal de Serviço (NFS-e) da própria CRMT sobre receita de
+-- administração/honorários. Lacuna identificada via benchmark com o Imoview
+-- (docs/06-benchmark-mercado.md): cobrar terceiros por gestão é prestação de
+-- serviço sujeita a NFS-e municipal — não estava modelado antes.
+create table notas_fiscais_servico (
+  id uuid primary key default gen_random_uuid(),
+  tipo text not null check (tipo in ('taxa_administracao', 'honorarios_corporativos', 'outros')),
+  tomador_pessoa_id uuid references pessoas(id),   -- investidor/sócio que paga a taxa
+  referencia_fatura_id uuid references faturas(id),
+  competencia date not null,
+  valor_servico numeric(14,2) not null,
+  municipio text not null,
+  numero_nfse text,
+  status text not null default 'pendente' check (status in ('pendente','emitida','cancelada')),
+  emitida_em timestamptz
+);
+
 -- ============================================================================
 -- 11. JURÍDICO
 -- ============================================================================
@@ -589,10 +636,13 @@ create table leads (
   criado_em timestamptz not null default now()
 );
 
+-- 'zap'/'vivareal'/'olx' cobrem locação padrão vaga (benchmark Vista Office —
+-- docs/06-benchmark-mercado.md); 'airbnb'/'booking' cobrem temporada.
 create table anuncios (
   id uuid primary key default gen_random_uuid(),
   imovel_id uuid not null references imoveis(id),
-  plataforma text not null check (plataforma in ('airbnb','booking','landing_page','outro')),
+  plataforma text not null check (plataforma in
+    ('airbnb','booking','landing_page','zap','vivareal','olx','outro')),
   status text not null default 'rascunho' check (status in ('rascunho','publicado','pausado')),
   link text,
   publicado_em timestamptz
@@ -700,6 +750,8 @@ create trigger trg_audit_investidor_ledger after insert or update or delete on i
   for each row execute function fn_audit_trigger();
 create trigger trg_audit_processos_judiciais after insert or update or delete on processos_judiciais
   for each row execute function fn_audit_trigger();
+create trigger trg_audit_notas_fiscais_servico after insert or update or delete on notas_fiscais_servico
+  for each row execute function fn_audit_trigger();
 
 -- ============================================================================
 -- 16. ROW LEVEL SECURITY — exemplos por papel (adaptar conforme portais reais)
@@ -708,6 +760,7 @@ create trigger trg_audit_processos_judiciais after insert or update or delete on
 alter table faturas enable row level security;
 alter table contratos enable row level security;
 alter table investidor_ledger enable row level security;
+alter table extratos_mensais_proprietario enable row level security;
 alter table ordens_servico enable row level security;
 alter table documentos_gerados enable row level security;
 
@@ -733,6 +786,15 @@ create policy investidor_ve_proprio_ledger on investidor_ledger
     exists (
       select 1 from usuarios u
       where u.id = auth.uid() and u.papel = 'investidor' and u.pessoa_id = investidor_ledger.pessoa_id
+    )
+  );
+
+-- Investidor: só enxerga os próprios extratos mensais consolidados
+create policy investidor_ve_proprio_extrato on extratos_mensais_proprietario
+  for select using (
+    exists (
+      select 1 from usuarios u
+      where u.id = auth.uid() and u.papel = 'investidor' and u.pessoa_id = extratos_mensais_proprietario.pessoa_id
     )
   );
 

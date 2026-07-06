@@ -11,7 +11,8 @@ O material de origem foi uma sequência de 8 rodadas de conversa com um assisten
 3. **`03-arquitetura-e-stack.md`** — a stack técnica final e por quê (substitui Streamlit por Next.js único; mantém Supabase e Asaas; trata n8n como orquestrador, não motor financeiro).
 4. **`04-roadmap-fases.md`** — o que entregar em cada fase, com critério objetivo de saída de cada uma.
 5. **`05-riscos-e-custos.md`** — estimativa de custo mensal real (não "tudo grátis") e matriz de risco/mitigação.
-6. **`../database/schema.sql`** — o schema relacional completo (PostgreSQL/Supabase), pronto para ser aplicado em ambiente de homologação.
+6. **`06-benchmark-mercado.md`** — o que foi incorporado (e o que foi deliberadamente descartado) a partir da análise de Superlógica, Imoview, Imobzi, Rentila, Apresenta.me, Vista e Alude.
+7. **`../database/schema.sql`** — o schema relacional completo (PostgreSQL/Supabase), pronto para ser aplicado em ambiente de homologação. Validado rodando em Postgres real (não só lido) — ver `../database/README.md`.
 
 ## Resumo executivo
 
