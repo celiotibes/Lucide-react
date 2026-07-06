@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { query } from "../db.js";
 import { hashPassword, verifyPassword, generateToken, verifyToken } from "../auth/crypto.js";
 import { authMiddleware } from "../middleware/auth.js";
+import Logger from "../logger.js";
 
 const router = Router();
 
@@ -41,7 +42,7 @@ router.post("/signup", async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
-    console.error("Signup error:", error);
+    Logger.error("Auth", "Signup error", error as Error);
     res.status(500).json({ error: "Failed to create account" });
   }
 });
@@ -80,7 +81,7 @@ router.post("/login", async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
-    console.error("Login error:", error);
+    Logger.error("Auth", "Login error", error as Error);
     res.status(500).json({ error: "Login failed" });
   }
 });
@@ -99,7 +100,7 @@ router.get("/me", authMiddleware, async (req: Request, res: Response) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error("Me error:", error);
+    Logger.error("Auth", "Failed to fetch user", error as Error);
     res.status(500).json({ error: "Failed to fetch user" });
   }
 });

@@ -10,11 +10,32 @@ import authRoutes from "./routes/auth.js";
 import aiRoutes from "./routes/ai.js";
 import pricingRoutes from "./routes/pricing.js";
 import { verifyWebhookSignature } from "./auth/crypto.js";
+import Logger from "./logger.js";
 
 dotenv.config();
 
 const app: Express = express();
 const PORT = parseInt(process.env.PORT || "3000");
+
+// Request logging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const start = Date.now();
+  const originalJson = res.json;
+
+  res.json = function (data: any) {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    Logger.info("HTTP", `${req.method} ${req.path}`, {
+      status,
+      duration: `${duration}ms`,
+      method: req.method,
+      path: req.path,
+    });
+    return originalJson.call(this, data);
+  };
+
+  next();
+});
 
 // Middleware
 app.use(express.json({ limit: "50mb" }));
@@ -59,7 +80,7 @@ app.post(
       const secret = process.env.BOOKING_WEBHOOK_SECRET;
 
       if (!secret) {
-        console.error("BOOKING_WEBHOOK_SECRET environment variable not set");
+        Logger.error("Webhook", "BOOKING_WEBHOOK_SECRET environment variable not set");
         return res.status(500).json({ error: "Webhook secret not configured" });
       }
 
@@ -80,7 +101,7 @@ app.post(
 
       res.json({ success: true });
     } catch (error) {
-      console.error("Webhook error:", error);
+      Logger.error("Webhook", "Booking.com webhook processing failed", error as Error);
       res.status(500).json({ error: "Webhook processing failed" });
     }
   }
@@ -96,7 +117,7 @@ app.post(
       const secret = process.env.VRBO_WEBHOOK_SECRET;
 
       if (!secret) {
-        console.error("VRBO_WEBHOOK_SECRET environment variable not set");
+        Logger.error("Webhook", "VRBO_WEBHOOK_SECRET environment variable not set");
         return res.status(500).json({ error: "Webhook secret not configured" });
       }
 
@@ -117,7 +138,7 @@ app.post(
 
       res.json({ success: true });
     } catch (error) {
-      console.error("VRBO webhook error:", error);
+      Logger.error("Webhook", "VRBO webhook processing failed", error as Error);
       res.status(500).json({ error: "Webhook processing failed" });
     }
   }
@@ -132,11 +153,11 @@ const syncQueue = new Queue("calendar-sync", {
 const syncWorker = new Worker(
   "calendar-sync",
   async (job) => {
-    console.log(`Processing job ${job.name}:`, job.data);
+    Logger.info("Queue", `Processing job ${job.name}`, { data: job.data });
 
     if (job.name === "booking-webhook") {
       const { payload } = job.data;
-      console.log("[Webhook] Booking.com event received:", payload.event);
+      Logger.info("Webhook", "Booking.com event received", { event: payload.event });
 
       if (payload.event === "booking_confirmed") {
         // Handle booking confirmed event
@@ -154,7 +175,7 @@ const syncWorker = new Worker(
       }
     } else if (job.name === "vrbo-webhook") {
       const { payload } = job.data;
-      console.log("[Webhook] VRBO event received:", payload.eventType);
+      Logger.info("Webhook", "VRBO event received", { eventType: payload.eventType });
 
       if (payload.eventType === "booking_confirmed") {
         // Handle VRBO booking confirmed
@@ -178,11 +199,11 @@ const syncWorker = new Worker(
 );
 
 syncWorker.on("completed", (job) => {
-  console.log(`Job ${job.id} completed`);
+  Logger.info("Queue", `Job ${job.id} completed`);
 });
 
 syncWorker.on("failed", (job, err) => {
-  console.error(`Job ${job?.id} failed:`, err.message);
+  Logger.error("Queue", `Job ${job?.id} failed`, err.message);
 });
 
 // Error handling middleware
@@ -193,7 +214,7 @@ app.use(
     res: Response,
     _next: NextFunction
   ) => {
-    console.error("Error:", error);
+    Logger.error("Error", "Unhandled error in request", error);
     res.status(500).json({
       error: error.message || "Internal server error",
     });
@@ -202,7 +223,7 @@ app.use(
 
 // Graceful shutdown
 process.on("SIGINT", async () => {
-  console.log("Shutting down gracefully...");
+  Logger.info("Server", "Shutting down gracefully...");
   await syncQueue.close();
   await syncWorker.close();
   await closePool();
@@ -213,13 +234,13 @@ process.on("SIGINT", async () => {
 async function start(): Promise<void> {
   try {
     await connectRedis();
-    console.log("✓ Connected to Redis");
+    Logger.info("Server", "✓ Connected to Redis");
 
     app.listen(PORT, () => {
-      console.log(`✓ Server running on port ${PORT}`);
+      Logger.info("Server", `✓ Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start server:", error);
+    Logger.error("Server", "Failed to start server", error as Error);
     process.exit(1);
   }
 }

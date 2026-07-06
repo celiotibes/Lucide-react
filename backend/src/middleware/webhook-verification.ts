@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyWebhookSignature } from "../auth/crypto";
+import Logger from "../logger";
 
 export interface WebhookRequest extends Request {
   rawBody?: Buffer;
@@ -26,7 +27,7 @@ export function webhookVerification(otaName: "booking" | "vrbo") {
           : process.env.VRBO_WEBHOOK_SECRET;
 
       if (!secret) {
-        console.error(`${otaName} webhook secret not configured`);
+        Logger.error("Webhook", `${otaName} webhook secret not configured`);
         return res.status(500).json({ error: "Webhook secret not configured" });
       }
 
@@ -39,10 +40,7 @@ export function webhookVerification(otaName: "booking" | "vrbo") {
 
       next();
     } catch (error) {
-      console.error(
-        `${otaName} webhook verification error:`,
-        error instanceof Error ? error.message : error
-      );
+      Logger.error("Webhook", `${otaName} webhook verification error`, error as Error);
       res.status(500).json({ error: "Webhook verification failed" });
     }
   };

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { client as redisClient } from "../redis.js";
+import Logger from "../logger.js";
 
 interface RateLimitConfig {
   windowMs: number;
@@ -36,7 +37,7 @@ export async function rateLimitMiddleware(
 
     next();
   } catch (error) {
-    console.error("Rate limit error:", error);
+    Logger.error("RateLimit", "Rate limit error", error as Error);
     next();
   }
 }
