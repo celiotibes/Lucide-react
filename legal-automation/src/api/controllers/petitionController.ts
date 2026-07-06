@@ -8,6 +8,7 @@ import { petitionValidator } from '@services/PetitionValidatorService';
 import { petitionFormatter } from '@services/PetitionFormatterService';
 import { petitionSubmissionService } from '@services/PetitionSubmissionService';
 import { DocumentSignatureService } from '@services/DocumentSignatureService';
+import { petitionCacheService } from '@services/PetitionCacheService';
 
 const router = Router();
 
@@ -63,6 +64,34 @@ router.post('/:id/generate', async (req: Request, res: Response) => {
       throw new AppError(404, 'Petição não encontrada');
     }
 
+    // Verificar cache primeiro
+    const cached = petitionCacheService.get(
+      petition.process_number,
+      petition.type
+    );
+    if (cached) {
+      logger.info(`Usandoetição em cache: ${id}`);
+
+      // Atualizar DB com resultado em cache
+      await petitionRepository.update(id, {
+        content: cached.plainText,
+        rtf_content: cached.rtfContent,
+        ai_provider: 'cache',
+        confidence_score: cached.confidence,
+      });
+
+      return res.json({
+        status: 'success',
+        cached: true,
+        petition: {
+          id,
+          content: cached.plainText,
+          confidence: cached.confidence,
+          warnings: cached.warnings,
+        },
+      });
+    }
+
     await petitionRepository.updateStatus(id, 'validating');
 
     const generated = await aiService.generatePetition({
@@ -71,17 +100,27 @@ router.post('/:id/generate', async (req: Request, res: Response) => {
       context,
     });
 
+    // Cachear se confiança alta
+    const cached_result = petitionCacheService.set(
+      petition.process_number,
+      petition.type,
+      generated
+    );
+
     await petitionRepository.update(id, {
       content: generated.plainText,
       rtf_content: generated.rtfContent,
-      ai_provider: 'gemini',
+      ai_provider: 'claude',
       confidence_score: generated.confidence,
     });
 
-    logger.info(`Petição gerada com IA: ${id}`);
+    logger.info(
+      `Petição gerada com IA: ${id} (cache: ${cached_result ? 'SIM' : 'NÃO'})`
+    );
 
     res.json({
       status: 'success',
+      cached: false,
       petition: {
         id,
         content: generated.plainText,
