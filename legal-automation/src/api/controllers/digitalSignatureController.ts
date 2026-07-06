@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import CertificateService from '@services/CertificateService';
 import DocumentSignatureService from '@services/DocumentSignatureService';
-import { authenticateJWT } from '@middleware/auth';
+import { authenticateJWT } from '@middlewares/authMiddleware';
 import { logger } from '@utils/logger';
 
 const router = Router();

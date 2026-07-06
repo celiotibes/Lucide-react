@@ -1,5 +1,5 @@
 import { logger } from '@utils/logger';
-import { Petition } from 'index';
+import { Petition } from '@types/index';
 
 export interface ValidationRule {
   name: string;

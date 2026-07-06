@@ -21,7 +21,7 @@ import {
   SignatureVerificationError,
   ExpiredCertificateError,
   TimestampError,
-} from 'digitalSignature';
+} from '@/types/digitalSignature';
 
 export class DocumentSignatureService {
   private signatureDir = path.join(config.dataDir || './data', 'signatures');

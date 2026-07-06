@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
 import BackupService from '@services/BackupService';
-import { authenticateJWT } from '@middleware/auth';
+import { authenticateJWT } from '@middlewares/authMiddleware';
 import { logger } from '@utils/logger';
 
 const router = Router();

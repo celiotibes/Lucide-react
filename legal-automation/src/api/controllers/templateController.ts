@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { logger } from '@utils/logger';
 import { verifyToken } from '@middlewares/authMiddleware';
 import { templateManager } from '@services/TemplateManager';
-import { TemplateCustomizationRequest, TemplateFilter } from 'template';
+import { TemplateCustomizationRequest, TemplateFilter } from '@/types/template';
 
 const router = Router();
 

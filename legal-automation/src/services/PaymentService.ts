@@ -14,7 +14,7 @@ import {
   PaymentProcessingError,
   WebhookVerificationError,
   RefundError,
-} from 'payments';
+} from '@/types/payments';
 
 export class PaymentService {
   async processPayment(request: PaymentRequest): Promise<PaymentTransaction> {

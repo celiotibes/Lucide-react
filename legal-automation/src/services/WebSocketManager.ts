@@ -6,7 +6,7 @@ import {
   WebSocketMessage,
   AnyWebSocketEvent,
   WebSocketConnection,
-} from 'websocket';
+} from '@/types/websocket';
 
 interface ClientConnection {
   userId: string;

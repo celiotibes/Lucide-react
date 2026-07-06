@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { logger } from '@utils/logger';
 import { verifyToken } from '@middlewares/authMiddleware';
 import { projurisService } from '@services/ProjurisService';
-import { CreateCaseTaskRequest, UpdateCaseTaskRequest } from 'projuris';
+import { CreateCaseTaskRequest, UpdateCaseTaskRequest } from '@/types/projuris';
 
 const router = Router();
 

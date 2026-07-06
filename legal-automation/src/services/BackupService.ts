@@ -16,7 +16,7 @@ import {
   BackupExecutionError,
   RestoreExecutionError,
   VerificationError,
-} from 'backup';
+} from '@/types/backup';
 
 export class BackupService {
   private backupDir = path.join(process.env.DATA_DIR || './data', 'backups');

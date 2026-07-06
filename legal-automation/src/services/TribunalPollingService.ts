@@ -16,7 +16,7 @@ import {
   SyncTimeoutError,
   SyncRateLimitError,
   TribunalUnavailableError,
-} from 'tribunalSync';
+} from '@/types/tribunalSync';
 import crypto from 'crypto';
 
 export class TribunalPollingService {
@@ -161,7 +161,7 @@ export class TribunalPollingService {
     try {
       const timer = this.activePolls.get(configurationId);
       if (timer) {
-        clearInterval(timer);
+        clearInterval(timer as NodeJS.Timeout);
         this.activePolls.delete(configurationId);
         logger.info(`Polling parado para ${configurationId}`);
       }
@@ -355,7 +355,7 @@ export class TribunalPollingService {
       const syncTime = Date.now() - startTime;
 
       logger.info(
-        `✓ Sync concluído para ${config.processNumber}: ${Object.values(changes).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0)} mudanças (${syncTime}ms)`,
+        `✓ Sync concluído para ${config.processNumber}: ${Object.values(changes).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0)} mudanças (${syncTime}ms)`,
       );
 
       return {
@@ -458,7 +458,7 @@ export class TribunalPollingService {
   async destroyAll(): Promise<void> {
     try {
       for (const [configId, timer] of this.activePolls) {
-        clearInterval(timer);
+        clearInterval(timer as NodeJS.Timeout);
         logger.info(`Polling parado para ${configId}`);
       }
       this.activePolls.clear();

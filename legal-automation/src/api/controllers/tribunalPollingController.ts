@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
 import TribunalPollingService from '@services/TribunalPollingService';
-import { authenticateJWT } from '@middleware/auth';
+import { authenticateJWT } from '@middlewares/authMiddleware';
 import { logger } from '@utils/logger';
 
 const router = Router();

@@ -11,7 +11,7 @@ import {
   ValidationResult,
   TemplateSuggestion,
   CaseContext,
-} from 'template';
+} from '@/types/template';
 
 export class TemplateManager {
   private pool: Pool;

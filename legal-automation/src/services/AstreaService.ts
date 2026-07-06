@@ -17,7 +17,7 @@ import {
   UpdateDeadlineRequest,
   CreateTimeEntryRequest,
   CreateCaseCostRequest,
-} from 'astrea';
+} from '@/types/astrea';
 
 export class AstreaService {
   private pool: Pool;
