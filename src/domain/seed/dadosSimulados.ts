@@ -227,6 +227,35 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
     );
   }
 
+  // Contrato "kitnet estudantil" — modelo com múltiplos locatários solidários,
+  // valor único decomposto (aluguel efetivo x rateio de custeio) e encargos em
+  // duas faixas, espelhando um contrato real de locação compartilhada.
+  const imovelEstudantilId = 11;
+  executar(
+    db,
+    "INSERT INTO imoveis (id, apelido, tipo, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, 0)",
+    [imovelEstudantilId, "Kitnet 16 - Residencial Estudantil", "kitnet", "Servidão Exemplo, 25", 0.1, 26],
+  );
+  const contratoEstudantilId = proximoContratoId++;
+  executar(
+    db,
+    `INSERT INTO contratos_locacao
+     (id, imovel_id, locatario, tipo, valor_referencia, dia_vencimento, data_inicio, data_fim, indice_reajuste,
+      percentual_aluguel_efetivo, multa_percentual, multa_ate_dias, multa_percentual_substitutiva,
+      juros_mensal_percentual, indice_correcao_mora, honorarios_percentual, dias_gatilho_judicial)
+     VALUES (?, ?, ?, 'residencial_fixo', ?, 10, ?, NULL, 'ipca', 55, 2.0, 5, 10.0, 1.0, 'ipca', 20.0, 40)`,
+    [contratoEstudantilId, imovelEstudantilId, "Locatário Principal (exemplo)", 2490, somarMeses(hoje, -4)],
+  );
+  const partesEstudantil = [
+    { nome: "Locatário Principal (exemplo)", papel: "locatario" },
+    { nome: "Locatário Secundário (exemplo)", papel: "locatario" },
+    { nome: "Responsável Financeiro 1 (exemplo)", papel: "responsavel_solidario" },
+    { nome: "Responsável Financeiro 2 (exemplo)", papel: "responsavel_solidario" },
+  ] as const;
+  for (const parte of partesEstudantil) {
+    executar(db, "INSERT INTO contrato_locatarios (contrato_id, nome, papel) VALUES (?, ?, ?)", [contratoEstudantilId, parte.nome, parte.papel]);
+  }
+
   // 8. Índices econômicos simulados (ilustrativos — substituir pelos valores reais do BACEN/IBGE)
   let mesIndice = somarMeses(dataInicioJanela, -2);
   let contadorMes = 0;
@@ -291,6 +320,19 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
       }
       mes = somarMeses(mes, 1);
     }
+  }
+
+  // Pagamentos do contrato "kitnet estudantil": mês -4 e -3 em dia, mês -2 pago com
+  // ~45 dias de atraso (dispara a multa substitutiva de 10% e os honorários, já que
+  // dias_gatilho_judicial=40 nesse contrato), meses -1 e atual ficam em aberto de
+  // propósito para popular a tela de inadimplência com um caso multi-locatário real.
+  inserirTransacao(escolher(contaIds), `${somarMeses(hoje, -4).slice(0, 8)}10`, 2490, "PIX RECEBIDO LOCATARIO PRINCIPAL EXEMPLO", "1.1.01", imovelEstudantilId, contratoEstudantilId, null);
+  inserirTransacao(escolher(contaIds), `${somarMeses(hoje, -3).slice(0, 8)}10`, 2490, "PIX RECEBIDO LOCATARIO PRINCIPAL EXEMPLO", "1.1.01", imovelEstudantilId, contratoEstudantilId, null);
+  inserirTransacao(escolher(contaIds), somarDias(`${somarMeses(hoje, -2).slice(0, 8)}10`, 45), 2490, "PIX RECEBIDO LOCATARIO PRINCIPAL EXEMPLO (ATRASADO)", "1.1.01", imovelEstudantilId, contratoEstudantilId, null);
+  for (let m = 4; m >= 1; m--) {
+    const mes = somarMeses(hoje, -m);
+    inserirTransacao(escolher(contaIds), mes, -entre(220, 320), "BOLETO CONDOMINIO KITNET 16 RESIDENCIAL ESTUDANTIL", "2.1.01", imovelEstudantilId, null, null);
+    inserirTransacao(escolher(contaIds), mes, -entre(80, 150), "PIX PRESTADOR LIMPEZA AREAS COMUNS KITNET 16", "2.1.04", imovelEstudantilId, null, 1);
   }
 
   // despesas recorrentes: condomínio/IPTU por imóvel, financiamento, prestadores

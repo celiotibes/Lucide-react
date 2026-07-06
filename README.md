@@ -48,6 +48,19 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   para salvar o padrão como regra e aplicá-la de uma vez às pendências semelhantes.
 - **Laudo pericial**: exporta um PDF com DRE, inadimplência e achados de auditoria
   do período — apoio à instrução, não uma peça jurídica pronta.
+- **Múltiplos locatários e responsáveis solidários**: um contrato pode ter vários
+  nomes vinculados (comum em locação estudantil/compartilhada), todos exibidos
+  junto ao contrato.
+- **Renda tributável (Carnê-Leão)**: separa, mês a mês, o que é Aluguel Efetivo
+  (base do IRPF) do que é reembolso de rateio de custeio coletivo — para contratos
+  de "valor único mensal" que decompõem o valor cobrado em duas naturezas
+  jurídicas distintas.
+- **DSS (Demonstrativo Semestral Simplificado)**: arrecadação do rateio × gasto
+  real em custeio coletivo por contrato/imóvel — o relatório que esse tipo de
+  contrato costuma obrigar o locador a enviar ao locatário periodicamente.
+- **Livro razão e balancete**: cada transação é derivada em duas pernas
+  (débito/crédito) na hora, sem tabela nova — dá o balancete de verificação por
+  conta que um contador usa como ponto de partida para fechar um balanço formal.
 - **Exportar/importar backup**: baixa ou restaura o banco inteiro como um arquivo
   `.sqlite`.
 
@@ -80,14 +93,22 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   já restringe o teste a despesas variáveis, mas o resultado ainda exige leitura
   crítica, não é veredito automático.
 - **Sem conciliação automática com o banco**: a importação é manual (upload de
-  arquivo). Integração via Open Finance Brasil exigiria registro como instituição
-  participante certificada (FAPI/mTLS) no ecossistema do Bacen — não é algo que
-  se pluga como biblioteca num app pessoal.
-- **Sem livro diário/razão em partida dobrada formal**: o app categoriza por plano
-  de contas e gera DRE gerencial, mas não produz o lançamento contábil
-  débito/crédito pareado que um sistema como Domínio/Alterdata exige para emitir
-  balanço oficial assinado por contador — para isso, exporte o backup e leve ao
-  seu contador formalizar.
+  arquivo). Registro direto como instituição participante do Open Finance Brasil
+  exigiria certificação FAPI/mTLS pelo Bacen — inviável para um app pessoal. O
+  caminho realista é um agregador certificado (Pluggy, Belvo) como intermediário:
+  ele já tem a certificação, expõe uma API REST simples, e você só paga por conta
+  conectada — mas isso tira a garantia de "tudo local", já que seus extratos
+  passariam pelo servidor do agregador. Não implementado até decidir esse trade-off.
+- **Livro razão é derivado, não oficial**: `src/domain/contabilidade/livroRazao.ts`
+  deriva débito/crédito de cada transação na hora (sem tabela nova, sempre
+  consistente com as transações), suficiente como balancete de verificação para
+  um contador formalizar — mas não substitui o livro diário registrado/autenticado
+  que a legislação exige de uma empresa de fato.
+- **Decomposição aluguel × rateio** (`percentual_aluguel_efetivo`) assume que o
+  próprio contrato já define o percentual fixo de cada parte — não há apuração
+  automática de superávit/déficit ano a ano como alguns contratos preveem
+  (mecanismo de balanceamento anual); o DSS mostra o saldo do período, mas o
+  ajuste dos percentuais na renovação ainda é manual.
 
 ## Estrutura
 
@@ -98,16 +119,19 @@ src/
     types.ts             tipos espelhando o schema SQL
     parsers/             OFX, CSV, PDF (pdfjs-dist), OCR (tesseract.js), dispatcher
     categorize/           regras determinísticas + regras aprendidas de categorização
+    contratos/             locatários/responsáveis solidários por contrato
     reconcile/            conciliação contrato×transação, aging de inadimplência
-    reports/              DRE e série mensal
+    reports/              DRE, série mensal, renda tributável (Carnê-Leão), DSS
     caucao/                correção monetária de depósito caução
     financiamento/         cronograma SAC/Price e detector de anatocismo
     auditoria/             duplicidade, outliers, lacunas, Lei de Benford
     rateio/                divisão de despesas coletivas entre imóveis
+    contabilidade/          livro razão / balancete (partida dobrada derivada)
     laudo/                 geração do PDF do laudo pericial
     seed/                  gerador de dados simulados
   components/            telas React (Dashboard, Importar, Transações, Contratos,
-                          Caução, Financiamentos, Auditoria, Laudo)
+                          Caução, Financiamentos, Renda Tributável, Livro Razão,
+                          Auditoria, Laudo)
 
 contabilidade-reconstituicao/   scaffold Python-espelho (schema.sql canônico, notas
                                 de arquitetura, roteamento de IA por custo) — ver seu

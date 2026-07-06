@@ -3,6 +3,7 @@ import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia } from "../domain/reconcile/inadimplencia";
+import { listarPartes } from "../domain/contratos/locatarios";
 import type { ContratoLocacao, Imovel } from "../domain/types";
 
 function hojeIso(): string {
@@ -20,6 +21,10 @@ export function ContratosInadimplenciaView() {
   const imoveis = useMemo<Map<number, Imovel>>(
     () => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])),
     [db, versao],
+  );
+  const partesPorContrato = useMemo(
+    () => new Map(contratos.map((c) => [c.id, db ? listarPartes(db, c.id) : []])),
+    [db, versao, contratos],
   );
 
   const statusInadimplencia = useMemo(() => {
@@ -44,6 +49,7 @@ export function ContratosInadimplenciaView() {
             <tr>
               <th>Imóvel</th>
               <th>Locatário</th>
+              <th>Partes solidárias</th>
               <th>Tipo</th>
               <th className="num">Valor</th>
               <th>Início</th>
@@ -51,21 +57,36 @@ export function ContratosInadimplenciaView() {
             </tr>
           </thead>
           <tbody>
-            {contratos.map((c) => (
-              <tr key={c.id}>
-                <td>{imoveis.get(c.imovel_id)?.apelido ?? c.imovel_id}</td>
-                <td>{c.locatario}</td>
-                <td>{c.tipo === "residencial_fixo" ? "Residencial" : "Airbnb"}</td>
-                <td className="num">{formatarMoeda(c.valor_referencia)}</td>
-                <td>{c.data_inicio}</td>
-                <td>{c.data_fim ?? "vigente"}</td>
-              </tr>
-            ))}
+            {contratos.map((c) => {
+              const partes = (partesPorContrato.get(c.id) ?? []).filter((p) => p.papel === "responsavel_solidario");
+              const coLocatarios = (partesPorContrato.get(c.id) ?? []).filter((p) => p.papel === "locatario");
+              return (
+                <tr key={c.id}>
+                  <td>{imoveis.get(c.imovel_id)?.apelido ?? c.imovel_id}</td>
+                  <td>
+                    {c.locatario}
+                    {coLocatarios.length > 0 && (
+                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>+ {coLocatarios.map((p) => p.nome).join(", ")}</div>
+                    )}
+                  </td>
+                  <td style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{partes.length > 0 ? partes.map((p) => p.nome).join(", ") : "—"}</td>
+                  <td>{c.tipo === "residencial_fixo" ? "Residencial" : "Airbnb"}</td>
+                  <td className="num">{formatarMoeda(c.valor_referencia)}</td>
+                  <td>{c.data_inicio}</td>
+                  <td>{c.data_fim ?? "vigente"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       <h2 className="section-title">Competências em aberto (inadimplência)</h2>
+      <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12, maxWidth: "68ch" }}>
+        Multa em duas faixas (inicial até o prazo do contrato, substituída — não somada — depois disso), juros
+        pro-rata die, correção monetária pelo índice contratado e honorários advocatícios quando o atraso ultrapassa
+        o gatilho de execução judicial definido em cada contrato.
+      </p>
       <div className="table-wrap">
         <table className="data-table">
           <thead>
@@ -77,6 +98,8 @@ export function ContratosInadimplenciaView() {
               <th className="num">Dias de atraso</th>
               <th className="num">Multa</th>
               <th className="num">Juros</th>
+              <th className="num">Correção</th>
+              <th className="num">Honorários</th>
               <th className="num">Total devido</th>
               <th>Situação</th>
             </tr>
@@ -94,6 +117,8 @@ export function ContratosInadimplenciaView() {
                   <td className="num">{s.diasAtraso}</td>
                   <td className="num">{formatarMoeda(s.multa)}</td>
                   <td className="num">{formatarMoeda(s.juros)}</td>
+                  <td className="num">{formatarMoeda(s.correcaoMonetaria)}</td>
+                  <td className="num">{s.honorarios > 0 ? formatarMoeda(s.honorarios) : "—"}</td>
                   <td className="num">{formatarMoeda(s.totalDevido)}</td>
                   <td>
                     <span className={`pill ${pillClasse}`}>{s.situacao.replace("_", " ")}</span>
@@ -103,7 +128,7 @@ export function ContratosInadimplenciaView() {
             })}
             {statusInadimplencia.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                <td colSpan={11} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                   Nenhuma competência em aberto encontrada.
                 </td>
               </tr>

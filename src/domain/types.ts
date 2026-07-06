@@ -39,9 +39,27 @@ export interface ContratoLocacao {
   data_inicio: string;
   data_fim?: string;
   indice_reajuste: IndiceReajuste;
+  percentual_aluguel_efetivo: number;
   multa_percentual: number;
+  multa_ate_dias: number;
+  multa_percentual_substitutiva: number;
   juros_mensal_percentual: number;
+  indice_correcao_mora: IndiceReajuste;
+  honorarios_percentual: number;
+  dias_gatilho_judicial: number;
   observacoes?: string;
+}
+
+export type PapelLocatario = "locatario" | "responsavel_solidario";
+
+export interface ContratoLocatario {
+  id: number;
+  contrato_id: number;
+  nome: string;
+  cpf?: string;
+  papel: PapelLocatario;
+  telefone?: string;
+  email?: string;
 }
 
 export interface Caucao {
@@ -99,6 +117,8 @@ export interface StatusInadimplencia {
   diasAtraso: number;
   multa: number;
   juros: number;
+  correcaoMonetaria: number;
+  honorarios: number;
   totalDevido: number;
   situacao: "pago" | "em_aberto" | "inadimplente";
 }

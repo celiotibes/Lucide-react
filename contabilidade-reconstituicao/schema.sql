@@ -56,16 +56,44 @@ CREATE TABLE prestadores (
 CREATE TABLE contratos_locacao (
     id              INTEGER PRIMARY KEY,
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
-    locatario       TEXT NOT NULL,
+    locatario       TEXT NOT NULL,               -- locatário principal; demais partes em contrato_locatarios
     tipo            TEXT NOT NULL CHECK (tipo IN ('residencial_fixo', 'airbnb_temporada')),
     valor_referencia REAL NOT NULL,
     dia_vencimento  INTEGER,                     -- 1-31, nulo para airbnb
     data_inicio     DATE NOT NULL,
     data_fim        DATE,                        -- nulo = vigente
     indice_reajuste TEXT CHECK (indice_reajuste IN ('igpm', 'ipca', 'nenhum')) DEFAULT 'igpm',
-    multa_percentual REAL NOT NULL DEFAULT 2.0,   -- multa por atraso, sobre o valor da parcela
-    juros_mensal_percentual REAL NOT NULL DEFAULT 1.0, -- juros de mora, pro-rata die
+
+    -- Decomposição do "valor único mensal": percentual que é de fato Aluguel Efetivo
+    -- (base tributável do Carnê-Leão) vs. reembolso de rateio de custeio coletivo
+    -- (trânsito contábil, não tributável). 100 = contrato simples, sem rateio embutido.
+    percentual_aluguel_efetivo REAL NOT NULL DEFAULT 100,
+
+    -- Encargos por inadimplemento em duas faixas (padrão real de contrato de locação
+    -- estudantil/residencial): multa_percentual até `multa_ate_dias`, substituída
+    -- (não somada) por multa_percentual_substitutiva a partir daí.
+    multa_percentual REAL NOT NULL DEFAULT 2.0,          -- multa inicial (até multa_ate_dias)
+    multa_ate_dias INTEGER NOT NULL DEFAULT 5,
+    multa_percentual_substitutiva REAL NOT NULL DEFAULT 10.0,
+    juros_mensal_percentual REAL NOT NULL DEFAULT 1.0,   -- juros de mora, pro-rata die
+    indice_correcao_mora TEXT CHECK (indice_correcao_mora IN ('igpm', 'ipca', 'nenhum')) DEFAULT 'ipca',
+    honorarios_percentual REAL NOT NULL DEFAULT 0,       -- sobre o débito consolidado, se for a juízo
+    dias_gatilho_judicial INTEGER NOT NULL DEFAULT 9999, -- dias de atraso a partir do qual honorários incidem
+
     observacoes     TEXT
+);
+
+-- Locatários e responsáveis financeiros solidários adicionais além do locatário
+-- principal — comum em locação estudantil/compartilhada com múltiplos nomes no
+-- mesmo contrato e responsabilidade solidária integral (art. 275 do Código Civil).
+CREATE TABLE contrato_locatarios (
+    id              INTEGER PRIMARY KEY,
+    contrato_id     INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    nome            TEXT NOT NULL,
+    cpf             TEXT,
+    papel           TEXT NOT NULL CHECK (papel IN ('locatario', 'responsavel_solidario')),
+    telefone        TEXT,
+    email           TEXT
 );
 
 -- Depósito caução (Lei do Inquilinato, art. 38 — limite de 3 meses de aluguel).
@@ -137,3 +165,4 @@ CREATE INDEX idx_transacoes_data ON transacoes(data);
 CREATE INDEX idx_transacoes_imovel ON transacoes(imovel_id);
 CREATE INDEX idx_transacoes_contrato ON transacoes(contrato_id);
 CREATE INDEX idx_caucoes_contrato ON caucoes(contrato_id);
+CREATE INDEX idx_contrato_locatarios_contrato ON contrato_locatarios(contrato_id);
