@@ -1,5 +1,5 @@
 import { logger } from '@utils/logger';
-import { Petition } from '@types/index';
+import { Petition } from '@/types';
 
 export interface TribunalFormat {
   contentType: 'rtf' | 'pdf' | 'xml' | 'json' | 'text';

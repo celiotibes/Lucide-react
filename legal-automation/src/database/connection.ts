@@ -91,13 +91,13 @@ export function prepare(sql: string) {
       if (!pool) throw new Error('Pool não inicializado');
       return pool.query(convertPlaceholders(sql), params);
     },
-    get: (param: any) => {
+    get: (...params: any[]) => {
       if (!pool) throw new Error('Pool não inicializado');
-      return pool.query(convertPlaceholders(sql), [param]).then((res: any) => res.rows[0]);
+      return pool.query(convertPlaceholders(sql), params).then((res: any) => res.rows[0]);
     },
-    all: (param: any) => {
+    all: (...params: any[]) => {
       if (!pool) throw new Error('Pool não inicializado');
-      return pool.query(convertPlaceholders(sql), [param]).then((res: any) => res.rows);
+      return pool.query(convertPlaceholders(sql), params.length > 0 ? params : []).then((res: any) => res.rows);
     },
   };
 }

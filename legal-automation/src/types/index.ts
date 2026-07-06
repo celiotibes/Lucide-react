@@ -57,6 +57,7 @@ export interface Process {
   lastUpdate: Date;
   lastMovement?: Movement;
   filingDate: Date;
+  openDate?: Date;
   decisionDate?: Date;
 }
 
@@ -104,7 +105,7 @@ export interface Petition {
   content: string;
   attachments: Document[];
   tribunal: 'projudi' | 'eproc';
-  status: 'draft' | 'pending' | 'submitted' | 'rejected' | 'error';
+  status: 'draft' | 'validating' | 'validated' | 'signing' | 'signed' | 'pending' | 'submitted' | 'rejected' | 'error' | 'submission_failed';
   submittedAt?: Date;
   result?: PetitionResult;
   oabNumber?: string;
@@ -116,6 +117,12 @@ export interface Petition {
   causeValue?: number;
   cause_value?: number;
   deadline?: Date;
+  validation_errors?: string[];
+  last_error?: string;
+  submission_attempts?: number;
+  signedDocument?: string | Buffer;
+  originalPetition?: Petition;
+  metadata?: any;
   createdAt: Date;
   updatedAt: Date;
 }

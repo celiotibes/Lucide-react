@@ -109,3 +109,6 @@ export const requireRole = (roles: string[]) => {
     next();
   };
 };
+
+// Alias for backwards compatibility
+export const authenticateJWT = verifyToken;

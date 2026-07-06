@@ -89,6 +89,8 @@ export const config = {
   // File Upload
   max_file_size: parseInt(process.env.MAX_FILE_SIZE || '52428800', 10),
   upload_dir: process.env.UPLOAD_DIR || './uploads',
+  dataDir: process.env.DATA_DIR || './data',
+  timestampAuthorityUrl: process.env.TIMESTAMP_AUTHORITY_URL || 'http://timestamp.digicert.com',
 
   // AI / LLM
   ai_primary_model: process.env.AI_PRIMARY_MODEL || 'gemini',
@@ -114,6 +116,14 @@ export const config = {
   // OpenAI (opcional)
   openai_api_key: process.env.OPENAI_API_KEY,
   openai_model: process.env.OPENAI_MODEL || 'gpt-4-turbo',
+
+  // Integration APIs
+  codilo_api_url: process.env.CODILO_API_URL,
+  codilo_api_key: process.env.CODILO_API_KEY,
+  judit_api_url: process.env.JUDIT_API_URL,
+  judit_api_key: process.env.JUDIT_API_KEY,
+  jusbrasil_api_url: process.env.JUSBRASIL_API_URL,
+  jusbrasil_api_key: process.env.JUSBRASIL_API_KEY,
 
   // Validators
   isDev: process.env.NODE_ENV === 'development',

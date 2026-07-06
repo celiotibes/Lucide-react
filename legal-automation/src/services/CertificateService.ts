@@ -21,7 +21,7 @@ export class CertificateService {
     config.dataDir || './data',
     'certificates',
   );
-  private masterKey = config.encryptionKey || 'default-insecure-key';
+  private masterKey = config.cert_encryption_key || 'default-insecure-key';
 
   constructor() {
     if (!fs.existsSync(this.certificateDir)) {
@@ -220,16 +220,16 @@ export class CertificateService {
         userId
           ? `
           SELECT * FROM certificates
-          WHERE id = ? AND user_id = ?
+          WHERE id = $1 AND user_id = $2
         `
           : `
           SELECT * FROM certificates
-          WHERE id = ?
+          WHERE id = $1
         `,
       );
 
       const params = userId ? [certificateId, userId] : [certificateId];
-      const result = stmt.get(...params) as any;
+      const result = await stmt.get(...params);
 
       if (!result) {
         return null;
@@ -246,12 +246,12 @@ export class CertificateService {
     try {
       const stmt = db.prepare(`
         SELECT * FROM certificates
-        WHERE user_id = ?
+        WHERE user_id = $1
         ORDER BY uploaded_at DESC
       `);
 
-      const results = stmt.all(userId) as any[];
-      return results.map((row) => this.rowToCertificate(row));
+      const results = await stmt.all(userId);
+      return (results || []).map((row: any) => this.rowToCertificate(row));
     } catch (error) {
       logger.error({ err: error }, `Erro ao recuperar certificados do usuário ${userId}`);
       throw error;
@@ -264,10 +264,10 @@ export class CertificateService {
     try {
       const stmt = db.prepare(`
         SELECT * FROM certificates
-        WHERE thumbprint = ?
+        WHERE thumbprint = $1
       `);
 
-      const result = stmt.get(thumbprint) as any;
+      const result = await stmt.get(thumbprint);
       return result ? this.rowToCertificate(result) : null;
     } catch (error) {
       logger.error({ err: error }, 'Erro ao buscar certificado por thumbprint');
@@ -289,7 +289,7 @@ export class CertificateService {
         ORDER BY valid_until ASC
       `);
 
-      const certificates = stmt.all() as any[];
+      const certificates = await stmt.all();
 
       for (const cert of certificates) {
         const expiresAt = new Date(cert.valid_until);

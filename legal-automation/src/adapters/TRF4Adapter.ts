@@ -185,11 +185,15 @@ export class TRF4Adapter implements TribunalAdapter {
       number: data.numeroProcesso || data.number,
       cnj: data.CNJ || data.cnj || '',
       tribunal: 'TRF4',
+      forum: data.forum || 'TRF4',
       status: data.status || 'Ativo',
+      subject: data.assunto || data.subject,
+      parties: data.partes || [],
       plaintiff: data.partes?.[0]?.nome || data.plaintiff,
       defendant: data.partes?.[1]?.nome || data.defendant,
-      subject: data.assunto || data.subject,
+      lastUpdate: data.dataAtualizacao ? new Date(data.dataAtualizacao) : new Date(),
       lastMovement: data.dataAtualizacao || data.lastMovement,
+      filingDate: data.dataProtocolo ? new Date(data.dataProtocolo) : new Date(),
       openDate: data.dataAbertura || data.openDate,
     };
   }

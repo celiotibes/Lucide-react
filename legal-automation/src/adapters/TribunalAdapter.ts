@@ -49,9 +49,14 @@ export interface SearchCriteria {
 
 export interface ProtocolResponse {
   protocolo: string;
+  numero_protocolo?: string;
   dataProtocolo: Date;
   sucesso: boolean;
+  success?: boolean;
+  status?: string;
   mensagem?: string;
+  message?: string;
+  error?: string;
   erros?: string[];
 }
 
