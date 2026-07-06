@@ -7,6 +7,8 @@ import { TJPRAdapter } from './TJPRAdapter';
 import { JUSTAdapter } from './JUSTAdapter';
 import { TJMTAdapter } from './TJMTAdapter';
 import { TJROAdapter } from './TJROAdapter';
+import { PJeAdapter } from './PJeAdapter';
+import { eSAJAdapter } from './eSAJAdapter';
 
 export class AdapterFactory {
   private static adapters: Map<string, TribunalAdapter> = new Map();
@@ -21,31 +23,30 @@ export class AdapterFactory {
     this.register('tjmt', new TJMTAdapter());
     this.register('tjro', new TJROAdapter());
 
-    // TODO: Enable PJe and eSAJ adapters after fixing type definitions
     // Register PJe adapters for multiple tribunals
-    // const pjeConfig: PJeConfig = {
-    //   code: 'pje',
-    //   name: 'PJe - Plataforma de Processo Eletrônico',
-    //   apiUrl: process.env.PJE_API_URL || 'https://pje.cnj.jus.br/api',
-    //   tokenUrl: process.env.PJE_TOKEN_URL || 'https://pje.cnj.jus.br/auth/oauth2/token',
-    //   clientId: process.env.PJE_CLIENT_ID || '',
-    //   clientSecret: process.env.PJE_CLIENT_SECRET || '',
-    //   systemId: 'tjal',
-    // };
-    //
-    // const esajConfig: eSAJConfig = {
-    //   code: 'esaj',
-    //   name: 'eSAJ - Tribunal de Justiça',
-    //   apiUrl: process.env.ESAJ_API_URL || 'https://esaj.tjsp.jus.br/webservices',
-    //   courtSystem: process.env.ESAJ_COURT_SYSTEM || 'TJSP',
-    // };
-    //
-    // this.register('pje-tjal', new PJeAdapter(pjeConfig));
-    // this.register('pje-tjpi', new PJeAdapter({ ...pjeConfig, systemId: 'tjpi' }));
-    // this.register('pje-tjma', new PJeAdapter({ ...pjeConfig, systemId: 'tjma' }));
-    // this.register('esaj-tjsp', new eSAJAdapter(esajConfig));
-    // this.register('esaj-tjrs', new eSAJAdapter({ ...esajConfig, courtSystem: 'TJRS' }));
-    // this.register('esaj-tjmg', new eSAJAdapter({ ...esajConfig, courtSystem: 'TJMG' }));
+    const pjeConfig = {
+      code: 'pje',
+      name: 'PJe - Plataforma de Processo Eletrônico',
+      apiUrl: process.env.PJE_API_URL || 'https://pje.cnj.jus.br/api',
+      tokenUrl: process.env.PJE_TOKEN_URL || 'https://pje.cnj.jus.br/auth/oauth2/token',
+      clientId: process.env.PJE_CLIENT_ID || '',
+      clientSecret: process.env.PJE_CLIENT_SECRET || '',
+      systemId: 'tjal',
+    };
+
+    const esajConfig = {
+      code: 'esaj',
+      name: 'eSAJ - Tribunal de Justiça',
+      apiUrl: process.env.ESAJ_API_URL || 'https://esaj.tjsp.jus.br/webservices',
+      courtSystem: process.env.ESAJ_COURT_SYSTEM || 'TJSP',
+    };
+
+    this.register('pje-tjal', new PJeAdapter(pjeConfig));
+    this.register('pje-tjpi', new PJeAdapter({ ...pjeConfig, systemId: 'tjpi' }));
+    this.register('pje-tjma', new PJeAdapter({ ...pjeConfig, systemId: 'tjma' }));
+    this.register('esaj-tjsp', new eSAJAdapter(esajConfig));
+    this.register('esaj-tjrs', new eSAJAdapter({ ...esajConfig, courtSystem: 'TJRS' }));
+    this.register('esaj-tjmg', new eSAJAdapter({ ...esajConfig, courtSystem: 'TJMG' }));
   }
 
   /**
