@@ -44,7 +44,7 @@ interface CostEntry {
 // ============================================================================
 // ROTEADOR INTELIGENTE DE COMPLEXIDADE
 // ============================================================================
-class ComplexityRouter {
+export class ComplexityRouter {
   determineModel(options: LLMOptions, prompt: string): LLMProvider {
     const taskType = options.taskType || 'analyze';
     const complexity = this.estimateComplexity(prompt);
@@ -91,7 +91,7 @@ class ComplexityRouter {
 // ============================================================================
 // TRACKER DE CUSTOS
 // ============================================================================
-class CostTracker {
+export class CostTracker {
   private costs: CostEntry[] = [];
   private monthlyBudget = 500;
 
