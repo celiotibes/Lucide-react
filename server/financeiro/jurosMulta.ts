@@ -68,9 +68,19 @@ export function calcularJurosMulta(input: CalculoJurosMultaInput): ResultadoJuro
   };
 }
 
+// Trunca ambas as datas para o dia de calendário UTC antes de calcular a
+// diferença. Sem isso, uma `dataReferencia` com hora do dia real (o caso
+// normal quando um job roda a qualquer hora, não à meia-noite exata) faz
+// `Math.round` estourar para o dia seguinte assim que passa do meio-dia —
+// um contrato vencido há 3 dias virava "4 dias de atraso" se o job rodasse
+// à tarde. Bug encontrado pelo teste de integração real
+// (reguaCobranca.integration.test.ts), que usa `new Date()` (hora real) em
+// vez das datas de meia-noite idealizadas dos testes unitários originais.
 function diffEmDiasCorridos(depois: Date, antes: Date): number {
   const MS_POR_DIA = 1000 * 60 * 60 * 24;
-  return Math.round((depois.getTime() - antes.getTime()) / MS_POR_DIA);
+  const depoisDiaUTC = Date.UTC(depois.getUTCFullYear(), depois.getUTCMonth(), depois.getUTCDate());
+  const antesDiaUTC = Date.UTC(antes.getUTCFullYear(), antes.getUTCMonth(), antes.getUTCDate());
+  return Math.round((depoisDiaUTC - antesDiaUTC) / MS_POR_DIA);
 }
 
 function arredondar(valor: number): number {

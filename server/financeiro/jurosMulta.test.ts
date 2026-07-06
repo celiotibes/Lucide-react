@@ -74,6 +74,30 @@ describe('calcularJurosMulta', () => {
     expect(resultado.valorAtualizado).toBe(1000);
   });
 
+  it('regressão: dataReferencia com hora do dia real não infla diasAtraso (bug achado via teste de integração)', () => {
+    // Vencimento à meia-noite UTC de 3 dias atrás, mas dataReferencia no
+    // fim da tarde (18h) — antes da correção, Math.round(3.75) virava 4.
+    const vencimento = data(2026, 7, 1);
+    const referenciaComHora = new Date(Date.UTC(2026, 6, 4, 18, 30, 0));
+    const resultado = calcularJurosMulta({
+      valorOriginal: 1000,
+      dataVencimento: vencimento,
+      dataReferencia: referenciaComHora,
+    });
+    expect(resultado.diasAtraso).toBe(3);
+  });
+
+  it('regressão: mesma checagem também não deve arredondar para baixo demais com hora antes do meio-dia', () => {
+    const vencimento = data(2026, 7, 1);
+    const referenciaComHora = new Date(Date.UTC(2026, 6, 4, 2, 0, 0));
+    const resultado = calcularJurosMulta({
+      valorOriginal: 1000,
+      dataVencimento: vencimento,
+      dataReferencia: referenciaComHora,
+    });
+    expect(resultado.diasAtraso).toBe(3);
+  });
+
   it('rejeita valorOriginal zero ou negativo', () => {
     expect(() =>
       calcularJurosMulta({ valorOriginal: 0, dataVencimento: data(2026, 7, 1), dataReferencia: data(2026, 7, 2) }),
