@@ -5,7 +5,7 @@ import {
   WorkflowUpdateEvent,
   PetitionStatusEvent,
   NotificationEvent,
-} from '@types/websocket';
+} from 'websocket';
 import { webSocketManager } from './WebSocketManager';
 
 class EventEmitterService extends EventEmitter {

@@ -13,7 +13,7 @@ import {
   MobileFilterOptions,
   CaseListResponse,
   MobileNotification,
-} from 'mobileDashboard';
+} from '@types/mobileDashboard';
 import crypto from 'crypto';
 
 export class MobileDashboardService {

@@ -7,16 +7,27 @@ export interface PetitionModel {
   content: string;
   rtf_content?: string;
   tribunal: 'projudi' | 'eproc';
-  status: 'draft' | 'validating' | 'validated' | 'signing' | 'signed' | 'submitted' | 'rejected' | 'error';
+  status: 'draft' | 'validating' | 'validated' | 'signing' | 'signed' | 'submitted' | 'rejected' | 'error' | 'submission_failed';
   ai_provider?: string;
   confidence_score?: number;
   validation_score?: number;
   validation_issues?: string[];
+  validation_errors?: string[];
   signed_at?: Date;
   signature_hash?: string;
   protocol_number?: string;
   submitted_at?: Date;
   error_message?: string;
+  last_error?: string;
+  submission_attempts?: number;
+  oab_number?: string;
+  lawyer_name?: string;
+  plaintiff?: string;
+  defendant?: string;
+  cause_value?: number;
+  deadline?: Date;
+  subject?: string;
+  attachments?: any[];
   created_at: Date;
   updated_at: Date;
 }
@@ -41,6 +52,13 @@ CREATE TABLE IF NOT EXISTS petitions (
   protocol_number VARCHAR(50),
   submitted_at TIMESTAMP,
   error_message TEXT,
+  oab_number VARCHAR(20),
+  lawyer_name VARCHAR(255),
+  plaintiff VARCHAR(255),
+  defendant VARCHAR(255),
+  cause_value NUMERIC(15,2),
+  deadline TIMESTAMP,
+  subject TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { logger } from '@utils/logger';
 import { verifyToken } from '@middlewares/authMiddleware';
 import { astreaService } from '@services/AstreaService';
-import { CreateTimeEntryRequest } from '@types/astrea';
+import { CreateTimeEntryRequest } from 'astrea';
 
 const router = Router();
 

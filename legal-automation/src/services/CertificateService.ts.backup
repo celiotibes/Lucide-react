@@ -14,7 +14,7 @@ import {
   ExpiredCertificateError,
   CertificateError,
   CertificateExpirationWarning,
-} from 'digitalSignature';
+} from '@types/digitalSignature';
 
 export class CertificateService {
   private certificateDir = path.join(

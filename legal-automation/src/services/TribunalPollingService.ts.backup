@@ -16,7 +16,7 @@ import {
   SyncTimeoutError,
   SyncRateLimitError,
   TribunalUnavailableError,
-} from 'tribunalSync';
+} from '@types/tribunalSync';
 import crypto from 'crypto';
 
 export class TribunalPollingService {
@@ -82,24 +82,25 @@ export class TribunalPollingService {
       };
 
       // Store in database
-      await db.query(
-        `INSERT INTO tribunal_sync_configurations
+      const stmt = db.prepare(`
+        INSERT INTO tribunal_sync_configurations
         (id, case_id, tribunal_code, process_number, enabled, interval,
          max_retries, retry_delay, notifications, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [
-          config.id,
-          config.caseId,
-          config.tribunalCode,
-          config.processNumber,
-          config.enabled ? 1 : 0,
-          config.interval,
-          config.maxRetries,
-          config.retryDelay,
-          JSON.stringify(config.notifications),
-          config.createdAt.toISOString(),
-          config.updatedAt.toISOString(),
-        ],
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        config.id,
+        config.caseId,
+        config.tribunalCode,
+        config.processNumber,
+        config.enabled ? 1 : 0,
+        config.interval,
+        config.maxRetries,
+        config.retryDelay,
+        JSON.stringify(config.notifications),
+        config.createdAt.toISOString(),
+        config.updatedAt.toISOString(),
       );
 
       // Schedule first sync
@@ -391,8 +392,8 @@ export class TribunalPollingService {
    */
   async getSyncStatistics(configurationId: string): Promise<SyncStatistics> {
     try {
-      const res = await db.query(
-        `SELECT
+      const stmt = db.prepare(`
+        SELECT
           COUNT(*) as total_syncs,
           SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_syncs,
           SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_syncs,
@@ -402,11 +403,10 @@ export class TribunalPollingService {
           SUM(documents_count) as total_documents,
           SUM(deadlines_count) as total_deadlines
         FROM tribunal_sync_results
-        WHERE configuration_id = $1`,
-        [configurationId],
-      );
+        WHERE configuration_id = ?
+      `);
 
-      const result = res.rows[0] as any;
+      const result = stmt.get(configurationId) as any;
 
       if (!result) {
         return {
@@ -473,13 +473,12 @@ export class TribunalPollingService {
     configurationId: string,
   ): Promise<SyncConfiguration | null> {
     try {
-      const res = await db.query(
-        `SELECT * FROM tribunal_sync_configurations
-        WHERE id = $1`,
-        [configurationId],
-      );
+      const stmt = db.prepare(`
+        SELECT * FROM tribunal_sync_configurations
+        WHERE id = ?
+      `);
 
-      const result = res.rows[0] as any;
+      const result = stmt.get(configurationId) as any;
       if (!result) return null;
 
       return {
@@ -525,15 +524,14 @@ export class TribunalPollingService {
     processNumber: string,
   ): Promise<ProcessMovementSnapshot | null> {
     try {
-      const res = await db.query(
-        `SELECT * FROM process_movement_snapshots
-        WHERE process_number = $1
+      const stmt = db.prepare(`
+        SELECT * FROM process_movement_snapshots
+        WHERE process_number = ?
         ORDER BY snapshot_time DESC
-        LIMIT 1`,
-        [processNumber],
-      );
+        LIMIT 1
+      `);
 
-      const result = res.rows[0] as any;
+      const result = stmt.get(processNumber) as any;
       if (!result) return null;
 
       return {
@@ -608,17 +606,18 @@ export class TribunalPollingService {
         .update(JSON.stringify(movements))
         .digest('hex');
 
-      await db.query(
-        `INSERT INTO process_movement_snapshots
+      const stmt = db.prepare(`
+        INSERT INTO process_movement_snapshots
         (id, process_number, movements, hash, snapshot_time)
-        VALUES ($1, $2, $3, $4, $5)`,
-        [
-          crypto.randomUUID(),
-          processNumber,
-          JSON.stringify(movements),
-          hash,
-          new Date().toISOString(),
-        ],
+        VALUES (?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        crypto.randomUUID(),
+        processNumber,
+        JSON.stringify(movements),
+        hash,
+        new Date().toISOString(),
       );
     } catch (error) {
       logger.error({ err: error }, 'Erro ao armazenar snapshot');
@@ -627,12 +626,13 @@ export class TribunalPollingService {
 
   private async updateProcessStatus(caseId: string, status: string): Promise<void> {
     try {
-      await db.query(
-        `UPDATE cases
-        SET status = $1, updated_at = $2
-        WHERE id = $3`,
-        [status, new Date().toISOString(), caseId],
-      );
+      const stmt = db.prepare(`
+        UPDATE cases
+        SET status = ?, updated_at = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(status, new Date().toISOString(), caseId);
     } catch (error) {
       logger.error({ err: error }, 'Erro ao atualizar status do processo');
     }
@@ -701,14 +701,13 @@ export class TribunalPollingService {
 
   private async getRecentMovements(processNumber: string): Promise<any[]> {
     try {
-      const res = await db.query(
-        `SELECT * FROM process_movements
-        WHERE process_number = $1
-        AND date > now() - interval '7 days'`,
-        [processNumber],
-      );
+      const stmt = db.prepare(`
+        SELECT * FROM process_movements
+        WHERE process_number = ?
+        AND date > datetime('now', '-7 days')
+      `);
 
-      return res.rows as any[];
+      return stmt.all(processNumber) as any[];
     } catch {
       return [];
     }
@@ -716,15 +715,14 @@ export class TribunalPollingService {
 
   private async getUpcomingDeadlines(caseId: string): Promise<any[]> {
     try {
-      const res = await db.query(
-        `SELECT *, EXTRACT(DAY FROM due_date - now())::INTEGER as days_until
+      const stmt = db.prepare(`
+        SELECT *, CAST((julianday(due_date) - julianday('now')) AS INTEGER) as days_until
         FROM deadlines
-        WHERE case_id = $1
-        AND due_date > now()`,
-        [caseId],
-      );
+        WHERE case_id = ?
+        AND due_date > datetime('now')
+      `);
 
-      return res.rows as any[];
+      return stmt.all(caseId) as any[];
     } catch {
       return [];
     }
@@ -746,18 +744,19 @@ export class TribunalPollingService {
     retryCount: number,
   ): Promise<void> {
     try {
-      await db.query(
-        `INSERT INTO tribunal_sync_errors
+      const stmt = db.prepare(`
+        INSERT INTO tribunal_sync_errors
         (id, configuration_id, error_code, error_message, retry_count, timestamp)
-        VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          crypto.randomUUID(),
-          configurationId,
-          'SYNC_ERROR',
-          errorMessage,
-          retryCount,
-          new Date().toISOString(),
-        ],
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        crypto.randomUUID(),
+        configurationId,
+        'SYNC_ERROR',
+        errorMessage,
+        retryCount,
+        new Date().toISOString(),
       );
     } catch (error) {
       logger.error({ err: error }, 'Erro ao armazenar erro de sync');

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { logger } from '@utils/logger';
 import { verifyToken } from '@middlewares/authMiddleware';
 import { astreaService } from '@services/AstreaService';
-import { CreateInvoiceRequest, UpdateInvoiceRequest, CreateCaseCostRequest } from '@types/astrea';
+import { CreateInvoiceRequest, UpdateInvoiceRequest, CreateCaseCostRequest } from 'astrea';
 
 const router = Router();
 

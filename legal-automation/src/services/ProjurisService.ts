@@ -17,7 +17,7 @@ import {
   UpdateCaseRequest,
   CreateCaseTaskRequest,
   UpdateCaseTaskRequest,
-} from '@types/projuris';
+} from 'projuris';
 import { eventEmitterService } from './EventEmitterService';
 
 export class ProjurisService {

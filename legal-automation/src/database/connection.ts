@@ -84,6 +84,30 @@ export function getPool(): Pool | null {
   return pool;
 }
 
+// SQLite compatibility wrapper
+export function prepare(sql: string) {
+  return {
+    run: (...params: any[]) => {
+      if (!pool) throw new Error('Pool não inicializado');
+      return pool.query(convertPlaceholders(sql), params);
+    },
+    get: (param: any) => {
+      if (!pool) throw new Error('Pool não inicializado');
+      return pool.query(convertPlaceholders(sql), [param]).then((res: any) => res.rows[0]);
+    },
+    all: (param: any) => {
+      if (!pool) throw new Error('Pool não inicializado');
+      return pool.query(convertPlaceholders(sql), [param]).then((res: any) => res.rows);
+    },
+  };
+}
+
+// Converter placeholders SQLite (?) para PostgreSQL ($1, $2, ...)
+function convertPlaceholders(sql: string): string {
+  let paramIndex = 1;
+  return sql.replace(/\?/g, () => `$${paramIndex++}`);
+}
+
 export { pool };
 
-export default { initDatabase, getConnection, query, closeDatabase, getPool };
+export default { initDatabase, getConnection, query, closeDatabase, getPool, prepare };

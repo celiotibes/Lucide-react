@@ -14,7 +14,7 @@ import {
   PerformanceMetricsReport,
   TimeTrackingReport,
   ReportGenerationError,
-} from 'reporting';
+} from '@types/reporting';
 
 export class ReportGenerationService {
   private reportsDir = path.join(process.env.DATA_DIR || './data', 'reports');
