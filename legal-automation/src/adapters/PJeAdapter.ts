@@ -110,7 +110,7 @@ export class PJeAdapter implements TribunalAdapter {
           params: {
             nmParte: criteria.partyName,
             perPage: criteria.limit || 50,
-            page: criteria.offset || 0,
+            page: 0,
           },
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
@@ -255,7 +255,6 @@ export class PJeAdapter implements TribunalAdapter {
     return this.searchProcesses({
       partyName,
       limit: options?.limit || 50,
-      offset: options?.offset || 0,
     });
   }
 

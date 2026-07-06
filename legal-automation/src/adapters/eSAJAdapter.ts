@@ -110,7 +110,7 @@ export class eSAJAdapter implements TribunalAdapter {
           nmParte: criteria.partyName,
           sgTribunal: this.config.courtSystem,
           maxRegistros: criteria.limit || 50,
-          inicioRegistro: criteria.offset || 0,
+          inicioRegistro: 0,
         });
 
         return (response.data.processos || []).map((p: any) =>
@@ -154,7 +154,7 @@ export class eSAJAdapter implements TribunalAdapter {
     try {
       const cleanNumber = petition.processNumber.replace(/\D/g, '');
 
-      const payload = {
+      const payload: any = {
         cdProcesso: cleanNumber,
         sgTribunal: this.config.courtSystem,
         dsDocumento: petition.content,
@@ -246,7 +246,6 @@ export class eSAJAdapter implements TribunalAdapter {
     return this.searchProcesses({
       partyName,
       limit: options?.limit || 50,
-      offset: options?.offset || 0,
     });
   }
 
