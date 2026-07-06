@@ -93,13 +93,18 @@ export const config = {
   timestampAuthorityUrl: process.env.TIMESTAMP_AUTHORITY_URL || 'http://timestamp.digicert.com',
 
   // AI / LLM
-  ai_primary_model: process.env.AI_PRIMARY_MODEL || 'gemini',
-  ai_fallback_models: process.env.AI_FALLBACK_MODELS || 'ollama',
+  ai_primary_model: process.env.AI_PRIMARY_MODEL || 'claude',
+  ai_fallback_models: process.env.AI_FALLBACK_MODELS || 'gemini,grok,ollama',
   ai_offline_mode: process.env.AI_OFFLINE_MODE || 'true',
   ai_cache_ttl: process.env.AI_CACHE_TTL || '604800',
   ai_max_retries: parseInt(process.env.AI_MAX_RETRIES || '3', 10),
   ai_timeout_ms: parseInt(process.env.AI_TIMEOUT_MS || '30000', 10),
   ai_enable_rag: process.env.AI_ENABLE_RAG === 'true',
+
+  // Claude (Anthropic)
+  claude_api_key: process.env.CLAUDE_API_KEY,
+  claude_model: process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20241022',
+  claude_model_haiku: process.env.CLAUDE_MODEL_HAIKU || 'claude-3-5-haiku-20241022',
 
   // Gemini
   gemini_api_key: process.env.GEMINI_API_KEY,
