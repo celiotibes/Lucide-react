@@ -74,9 +74,12 @@ const CACHE_ROI_CONFIG: Record<CaseOfUse, { enabled: boolean; ttlHours: number; 
 export class AIProviderCache {
   private cache = new Map<string, CacheEntry>()
   private storageKey = 'lucide_ai_provider_cache'
+  private statsKey = 'lucide_ai_cache_stats'
+  private stats = { hits: 0, misses: 0 }
 
   constructor() {
     this.loadFromStorage()
+    this.loadStats()
   }
 
   /**
@@ -99,13 +102,19 @@ export class AIProviderCache {
     const key = this.getCacheKey(caseOfUse, prompt)
     const entry = this.cache.get(key)
 
-    if (!entry) return null
+    if (!entry) {
+      this.stats.misses++
+      this.saveStats()
+      return null
+    }
 
     // Verificar se ainda está válido (TTL)
     const ageMs = Date.now() - entry.timestamp
     if (ageMs > entry.ttlMs) {
       this.cache.delete(key) // Expirou
       console.log(`⏰ Cache expired for ${key}`)
+      this.stats.misses++
+      this.saveStats()
       return null
     }
 
@@ -113,12 +122,16 @@ export class AIProviderCache {
     if (entry.quality < 80) {
       this.cache.delete(key)
       console.warn(`⚠️ Cache quality degraded (${entry.quality}/100) - invalidated`)
+      this.stats.misses++
+      this.saveStats()
       return null
     }
 
-    // Hit! Atualizar counter
+    // Hit! Atualizar counters
     entry.hits++
+    this.stats.hits++
     this.saveToStorage()
+    this.saveStats()
     return entry
   }
 
@@ -271,6 +284,43 @@ export class AIProviderCache {
           console.error('Failed to load cache:', error)
         }
       }
+    }
+  }
+
+  /**
+   * Salvar estatísticas de hit/miss
+   */
+  private saveStats(): void {
+    try {
+      localStorage.setItem(this.statsKey, JSON.stringify(this.stats))
+    } catch (error) {
+      // Silent fail for stats (not critical)
+    }
+  }
+
+  /**
+   * Carregar estatísticas de hit/miss
+   */
+  private loadStats(): void {
+    try {
+      const data = localStorage.getItem(this.statsKey)
+      if (data) {
+        this.stats = JSON.parse(data)
+      }
+    } catch (error) {
+      // Silent fail for stats (not critical)
+    }
+  }
+
+  /**
+   * Obter estatísticas de hit/miss
+   */
+  getHitMissStats(): { hits: number; misses: number; hitRate: number } {
+    const total = this.stats.hits + this.stats.misses
+    return {
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      hitRate: total > 0 ? (this.stats.hits / total) * 100 : 0,
     }
   }
 

@@ -8,6 +8,7 @@ export function AIProviderStats() {
   const { getStats, getHealth } = useAIProvider()
   const [stats, setStats] = useState<any>(null)
   const [cacheMetrics, setCacheMetrics] = useState<any>(null)
+  const [hitMissStats, setHitMissStats] = useState<any>(null)
   const [health, setHealth] = useState<any>(null)
   const [recentAlerts, setRecentAlerts] = useState<string[]>([])
 
@@ -15,6 +16,7 @@ export function AIProviderStats() {
     const updateAll = () => {
       setStats(getStats())
       setCacheMetrics(aiProviderCache.getMetrics())
+      setHitMissStats(aiProviderCache.getHitMissStats())
       setHealth(getHealth())
       setRecentAlerts(aiProviderMonitoring.getRecentAlerts(5))
     }
@@ -86,13 +88,17 @@ export function AIProviderStats() {
       </div>
 
       {/* Cache Statistics */}
-      {cacheMetrics && (
+      {cacheMetrics && hitMissStats && (
         <div className="section">
           <h3>💾 Cache Intelligence</h3>
           <div className="cache-stats">
             <div className="stat-card">
               <span className="label">Taxa de Acerto</span>
-              <span className="value">{cacheMetrics.hitRate.toFixed(1)}%</span>
+              <span className="value">{hitMissStats.hitRate.toFixed(1)}%</span>
+            </div>
+            <div className="stat-card">
+              <span className="label">Hits / Misses</span>
+              <span className="value">{hitMissStats.hits} / {hitMissStats.misses}</span>
             </div>
             <div className="stat-card">
               <span className="label">Economias em Cache</span>
