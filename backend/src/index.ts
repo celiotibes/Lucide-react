@@ -56,7 +56,12 @@ app.post(
     try {
       const signature = req.headers["x-booking-signature"] as string;
       const rawBody = req.body.toString("utf-8");
-      const secret = process.env.BOOKING_WEBHOOK_SECRET || "booking-secret";
+      const secret = process.env.BOOKING_WEBHOOK_SECRET;
+
+      if (!secret) {
+        console.error("BOOKING_WEBHOOK_SECRET environment variable not set");
+        return res.status(500).json({ error: "Webhook secret not configured" });
+      }
 
       if (!signature) {
         return res.status(401).json({ error: "Missing signature header" });
@@ -88,7 +93,12 @@ app.post(
     try {
       const signature = req.headers["x-vrbo-signature"] as string;
       const rawBody = req.body.toString("utf-8");
-      const secret = process.env.VRBO_WEBHOOK_SECRET || "vrbo-secret";
+      const secret = process.env.VRBO_WEBHOOK_SECRET;
+
+      if (!secret) {
+        console.error("VRBO_WEBHOOK_SECRET environment variable not set");
+        return res.status(500).json({ error: "Webhook secret not configured" });
+      }
 
       if (!signature) {
         return res.status(401).json({ error: "Missing signature header" });

@@ -22,8 +22,13 @@ export function webhookVerification(otaName: "booking" | "vrbo") {
       // Get the appropriate webhook secret
       const secret =
         otaName === "booking"
-          ? process.env.BOOKING_WEBHOOK_SECRET || "booking-secret"
-          : process.env.VRBO_WEBHOOK_SECRET || "vrbo-secret";
+          ? process.env.BOOKING_WEBHOOK_SECRET
+          : process.env.VRBO_WEBHOOK_SECRET;
+
+      if (!secret) {
+        console.error(`${otaName} webhook secret not configured`);
+        return res.status(500).json({ error: "Webhook secret not configured" });
+      }
 
       // Verify the signature
       const isValid = verifyWebhookSignature(rawBody, signature, secret);
