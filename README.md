@@ -1,73 +1,23 @@
-# React + TypeScript + Vite
+# CRMT Gestão Imobiliária — Sistema de Gestão
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Projeto de sistema de gestão imobiliária para locação por contrato (Lei do Inquilinato) e locação por temporada, com portfólio em Curitiba e Florianópolis.
 
-Currently, two official plugins are available:
+O design técnico completo — auditoria de escopo, gap analysis, arquitetura, roadmap faseado, riscos/custos e o schema relacional do banco de dados — está em [`docs/00-leia-primeiro.md`](docs/00-leia-primeiro.md) e [`database/schema.sql`](database/schema.sql).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Este repositório ainda está no estágio de scaffold do template Vite + React + TypeScript; a implementação segue o roadmap descrito em `docs/04-roadmap-fases.md`, começando pela Fase 0 (cadastro, contratos, faturamento via Asaas, régua de cobrança e portal do inquilino).
 
-## React Compiler
+## Stack (ver `docs/03-arquitetura-e-stack.md`)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Frontend/Backend: Next.js (TypeScript)
+- Banco de dados / Auth / Storage: Supabase (PostgreSQL)
+- Pagamentos: Asaas (boleto, PIX, split)
+- Orquestração/notificações: n8n
+- OCR (medidores, notas fiscais): Gemini Vision API, sempre com confirmação humana
+- Assinatura eletrônica: Autentique/Clicksign
 
-## Expanding the ESLint configuration
+## Desenvolvimento do scaffold atual
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+npm install
+npm run dev
 ```
