@@ -1,0 +1,5 @@
+padrao_regex,plano_conta_codigo,contrato_id,imovel_id,prestador_id
+PIX RECEBIDO.*MARIA,1.1.01,1,1,
+BOLETO CONDOMINIO ED AURORA,2.1.01,,1,
+TED.*CAIXA ECONOMICA.*FINANC,2.1.05,,1,
+AIRBNB PAYOUTS,1.2.01,,,
