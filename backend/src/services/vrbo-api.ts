@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import Logger from "../logger.js";
 
 interface VrboProperty {
   propertyId: string;
@@ -51,7 +52,9 @@ class VrboApiClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 429) {
-          console.error("[VRBO] Rate limit exceeded");
+          Logger.error("Rate limit exceeded", error, {
+            context: "VrboApiClient",
+          });
         }
         throw error;
       }
@@ -86,7 +89,9 @@ class VrboApiClient {
       const response = await this.client.get("/v1/properties");
       return response.data.properties || [];
     } catch (error) {
-      console.error("[VRBO] Failed to fetch properties:", error);
+      Logger.error("Failed to fetch properties", error, {
+        context: "VrboApiClient",
+      });
       throw error;
     }
   }
@@ -126,10 +131,10 @@ class VrboApiClient {
 
       return availability;
     } catch (error) {
-      console.error(
-        `[VRBO] Failed to fetch availability for ${propertyId}:`,
-        error
-      );
+      Logger.error("Failed to fetch availability", error, {
+        context: "VrboApiClient",
+        propertyId,
+      });
       throw error;
     }
   }
@@ -158,10 +163,10 @@ class VrboApiClient {
 
       return true;
     } catch (error) {
-      console.error(
-        `[VRBO] Failed to update availability for ${propertyId}:`,
-        error
-      );
+      Logger.error("Failed to update availability", error, {
+        context: "VrboApiClient",
+        propertyId,
+      });
       throw error;
     }
   }
@@ -186,10 +191,10 @@ class VrboApiClient {
 
       return true;
     } catch (error) {
-      console.error(
-        `[VRBO] Failed to block dates for ${propertyId}:`,
-        error
-      );
+      Logger.error("Failed to block dates", error, {
+        context: "VrboApiClient",
+        propertyId,
+      });
       throw error;
     }
   }
@@ -214,10 +219,10 @@ class VrboApiClient {
 
       return response.data.bookings || [];
     } catch (error) {
-      console.error(
-        `[VRBO] Failed to fetch bookings for ${propertyId}:`,
-        error
-      );
+      Logger.error("Failed to fetch bookings", error, {
+        context: "VrboApiClient",
+        propertyId,
+      });
       throw error;
     }
   }
@@ -229,10 +234,10 @@ class VrboApiClient {
       await this.client.put(`/v1/bookings/${bookingId}/confirm`);
       return true;
     } catch (error) {
-      console.error(
-        `[VRBO] Failed to confirm booking ${bookingId}:`,
-        error
-      );
+      Logger.error("Failed to confirm booking", error, {
+        context: "VrboApiClient",
+        bookingId,
+      });
       throw error;
     }
   }
@@ -244,7 +249,10 @@ class VrboApiClient {
       await this.client.put(`/v1/bookings/${bookingId}/cancel`);
       return true;
     } catch (error) {
-      console.error(`[VRBO] Failed to cancel booking ${bookingId}:`, error);
+      Logger.error("Failed to cancel booking", error, {
+        context: "VrboApiClient",
+        bookingId,
+      });
       throw error;
     }
   }

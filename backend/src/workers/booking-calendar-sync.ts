@@ -1,6 +1,7 @@
 import { createBookingClient } from "../services/booking-xmlrpc.js";
 import { query } from "../db.js";
 import crypto from "crypto";
+import Logger from "../logger.js";
 
 interface SyncResult {
   propertyId: string;
@@ -38,9 +39,11 @@ async function syncPropertyCalendar(
   };
 
   try {
-    console.log(
-      `[Booking] Syncing calendar for property ${externalPropertyId}...`
-    );
+    Logger.info("Syncing calendar for property", {
+      context: "BookingCalendarSync",
+      propertyId,
+      externalPropertyId,
+    });
 
     const availability = await client.getAvailability(
       parseInt(externalPropertyId),
@@ -89,7 +92,11 @@ async function syncPropertyCalendar(
       [propertyId, result.totalDays, result.conflicts]
     );
 
-    console.log(`✓ Successfully synced ${result.totalDays} days for ${propertyId}`);
+    Logger.info("Successfully synced calendar days", {
+      context: "BookingCalendarSync",
+      propertyId,
+      totalDays: result.totalDays,
+    });
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
 
@@ -106,7 +113,9 @@ async function syncPropertyCalendar(
 }
 
 async function syncAllProperties(): Promise<void> {
-  console.log("[Booking] Starting calendar sync for all properties...");
+  Logger.info("Starting calendar sync for all properties", {
+    context: "BookingCalendarSync",
+  });
 
   // Get all properties with Booking.com enabled
   const result = await query(`
@@ -119,7 +128,7 @@ async function syncAllProperties(): Promise<void> {
   const properties = result.rows;
 
   if (properties.length === 0) {
-    console.log("[Booking] No properties to sync");
+    Logger.info("No properties to sync", { context: "BookingCalendarSync" });
     return;
   }
 
@@ -151,10 +160,15 @@ async function syncAllProperties(): Promise<void> {
     totalConflicts: syncResults.reduce((sum, r) => sum + r.conflicts, 0),
   };
 
-  console.log("[Booking] Sync Summary:", summary);
+  Logger.info("Calendar sync completed", {
+    context: "BookingCalendarSync",
+    data: summary,
+  });
 }
 
 syncAllProperties().catch((error) => {
-  console.error("[Booking] Fatal error:", error);
+  Logger.error("Fatal error in calendar sync", error, {
+    context: "BookingCalendarSync",
+  });
   process.exit(1);
 });

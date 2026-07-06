@@ -1,6 +1,7 @@
 import { createVrboClient } from "../services/vrbo-api.js";
 import { query } from "../db.js";
 import crypto from "crypto";
+import Logger from "../logger.js";
 
 interface SyncResult {
   propertyId: string;
@@ -36,9 +37,11 @@ async function syncPropertyAvailability(
   };
 
   try {
-    console.log(
-      `[VRBO] Syncing availability for property ${externalPropertyId}...`
-    );
+    Logger.info("Syncing availability for property", {
+      context: "VrboCalendarSync",
+      propertyId,
+      externalPropertyId,
+    });
 
     const availability = await client.getAvailability(
       externalPropertyId,
@@ -77,9 +80,11 @@ async function syncPropertyAvailability(
     }
 
     // Sync bookings
-    console.log(
-      `[VRBO] Syncing bookings for property ${externalPropertyId}...`
-    );
+    Logger.info("Syncing bookings for property", {
+      context: "VrboCalendarSync",
+      propertyId,
+      externalPropertyId,
+    });
 
     const bookings = await client.getBookings(
       externalPropertyId,
@@ -109,9 +114,10 @@ async function syncPropertyAvailability(
       );
 
       if (otaListing.rows.length === 0) {
-        console.warn(
-          `[VRBO] No VRBO listing found for property ${propertyId}`
-        );
+        Logger.warn("No VRBO listing found for property", {
+          context: "VrboCalendarSync",
+          propertyId,
+        });
         continue;
       }
 
@@ -146,9 +152,12 @@ async function syncPropertyAvailability(
       [propertyId, result.availabilitySynced + result.bookingsSynced, result.conflicts]
     );
 
-    console.log(
-      `✓ Successfully synced ${result.availabilitySynced} availability and ${result.bookingsSynced} bookings for ${propertyId}`
-    );
+    Logger.info("Successfully synced availability and bookings", {
+      context: "VrboCalendarSync",
+      propertyId,
+      availabilitySynced: result.availabilitySynced,
+      bookingsSynced: result.bookingsSynced,
+    });
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
 
@@ -158,7 +167,10 @@ async function syncPropertyAvailability(
       [propertyId, result.error]
     );
 
-    console.error(`✗ Failed to sync property ${propertyId}:`, result.error);
+    Logger.error("Failed to sync property", result, {
+      context: "VrboCalendarSync",
+      propertyId,
+    });
   }
 
   return result;
@@ -171,9 +183,11 @@ async function pushPropertyAvailability(
   const client = createVrboClient();
 
   try {
-    console.log(
-      `[VRBO] Pushing availability for property ${externalPropertyId}...`
-    );
+    Logger.info("Pushing availability for property", {
+      context: "VrboCalendarSync",
+      propertyId,
+      externalPropertyId,
+    });
 
     // Get current calendar slots for this property
     const slots = await query(
@@ -195,19 +209,26 @@ async function pushPropertyAvailability(
 
     await client.updateAvailability(externalPropertyId, updates);
 
-    console.log(
-      `✓ Successfully pushed ${updates.length} availability slots for ${propertyId}`
-    );
+    Logger.info("Successfully pushed availability slots", {
+      context: "VrboCalendarSync",
+      propertyId,
+      slotsUpdated: updates.length,
+    });
 
     return true;
   } catch (error) {
-    console.error(`✗ Failed to push availability for ${propertyId}:`, error);
+    Logger.error("Failed to push availability for property", error, {
+      context: "VrboCalendarSync",
+      propertyId,
+    });
     return false;
   }
 }
 
 async function syncAllProperties(): Promise<void> {
-  console.log("[VRBO] Starting calendar sync for all properties...");
+  Logger.info("Starting calendar sync for all properties", {
+    context: "VrboCalendarSync",
+  });
 
   const result = await query(`
     SELECT p.id, ol.external_property_id
@@ -219,7 +240,7 @@ async function syncAllProperties(): Promise<void> {
   const properties = result.rows;
 
   if (properties.length === 0) {
-    console.log("[VRBO] No properties to sync");
+    Logger.info("No properties to sync", { context: "VrboCalendarSync" });
     return;
   }
 
@@ -256,10 +277,15 @@ async function syncAllProperties(): Promise<void> {
     totalBookingsSynced: syncResults.reduce((sum, r) => sum + r.bookingsSynced, 0),
   };
 
-  console.log("[VRBO] Sync Summary:", summary);
+  Logger.info("Sync completed", {
+    context: "VrboCalendarSync",
+    data: summary,
+  });
 }
 
 syncAllProperties().catch((error) => {
-  console.error("[VRBO] Fatal error:", error);
+  Logger.error("Fatal error in calendar sync", error, {
+    context: "VrboCalendarSync",
+  });
   process.exit(1);
 });

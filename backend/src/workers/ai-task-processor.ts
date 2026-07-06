@@ -1,5 +1,6 @@
 import { createGeminiClient } from "../services/gemini-ai.js";
 import { query } from "../db.js";
+import Logger from "../logger.js";
 
 interface AiTaskInput {
   inquiryId?: string;
@@ -24,7 +25,11 @@ async function processInquiryTask(
       throw new Error("Missing required fields: inquiryId, message");
     }
 
-    console.log(`[AI] Processing inquiry categorization for task ${taskId}`);
+    Logger.info("Processing inquiry categorization", {
+      context: "AiTaskProcessor",
+      taskId,
+      inquiryId,
+    });
 
     // Step 1: Categorize inquiry
     const category = await client.categorizeInquiry(message);
@@ -64,7 +69,10 @@ async function processInquiryTask(
       );
     }
 
-    console.log(`✓ Completed inquiry task ${taskId}`);
+    Logger.info("Completed inquiry task", {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     await query(
@@ -72,7 +80,10 @@ async function processInquiryTask(
        WHERE id = $2`,
       [errorMsg, taskId]
     );
-    console.error(`✗ Failed inquiry task ${taskId}:`, errorMsg);
+    Logger.error("Failed inquiry task", new Error(errorMsg), {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   }
 }
 
@@ -89,7 +100,11 @@ async function processDamageAnalysisTask(
       throw new Error("Missing required fields: bookingId, message");
     }
 
-    console.log(`[AI] Processing damage analysis for task ${taskId}`);
+    Logger.info("Processing damage analysis", {
+      context: "AiTaskProcessor",
+      taskId,
+      bookingId,
+    });
 
     const analysis = await client.analyzeDamageReport(message, estimatedCost);
 
@@ -107,7 +122,10 @@ async function processDamageAnalysisTask(
       [output, taskId]
     );
 
-    console.log(`✓ Completed damage analysis task ${taskId}`);
+    Logger.info("Completed damage analysis task", {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     await query(
@@ -115,7 +133,10 @@ async function processDamageAnalysisTask(
        WHERE id = $2`,
       [errorMsg, taskId]
     );
-    console.error(`✗ Failed damage analysis task ${taskId}:`, errorMsg);
+    Logger.error("Failed damage analysis task", new Error(errorMsg), {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   }
 }
 
@@ -132,7 +153,12 @@ async function processCheckinMessageTask(
       throw new Error("Missing required fields: propertyId, propertyName");
     }
 
-    console.log(`[AI] Generating check-in message for task ${taskId}`);
+    Logger.info("Generating check-in message", {
+      context: "AiTaskProcessor",
+      taskId,
+      propertyId,
+      propertyName,
+    });
 
     const message = await client.generateCheckinMessage(propertyName);
 
@@ -148,7 +174,10 @@ async function processCheckinMessageTask(
       [output, taskId]
     );
 
-    console.log(`✓ Generated check-in message for task ${taskId}`);
+    Logger.info("Generated check-in message", {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     await query(
@@ -156,7 +185,10 @@ async function processCheckinMessageTask(
        WHERE id = $2`,
       [errorMsg, taskId]
     );
-    console.error(`✗ Failed check-in message task ${taskId}:`, errorMsg);
+    Logger.error("Failed check-in message task", new Error(errorMsg), {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   }
 }
 
@@ -173,7 +205,12 @@ async function processCheckoutMessageTask(
       throw new Error("Missing required fields: propertyId, propertyName");
     }
 
-    console.log(`[AI] Generating check-out message for task ${taskId}`);
+    Logger.info("Generating check-out message", {
+      context: "AiTaskProcessor",
+      taskId,
+      propertyId,
+      propertyName,
+    });
 
     const message = await client.generateCheckoutMessage(propertyName);
 
@@ -189,7 +226,10 @@ async function processCheckoutMessageTask(
       [output, taskId]
     );
 
-    console.log(`✓ Generated check-out message for task ${taskId}`);
+    Logger.info("Generated check-out message", {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     await query(
@@ -197,12 +237,17 @@ async function processCheckoutMessageTask(
        WHERE id = $2`,
       [errorMsg, taskId]
     );
-    console.error(`✗ Failed check-out message task ${taskId}:`, errorMsg);
+    Logger.error("Failed check-out message task", new Error(errorMsg), {
+      context: "AiTaskProcessor",
+      taskId,
+    });
   }
 }
 
 async function processAiTasks(): Promise<void> {
-  console.log("[AI] Processing pending AI tasks...");
+  Logger.info("Processing pending AI tasks", {
+    context: "AiTaskProcessor",
+  });
 
   const result = await query(
     `SELECT id, task_type, input, property_id FROM ai_tasks
@@ -214,7 +259,7 @@ async function processAiTasks(): Promise<void> {
   const tasks = result.rows;
 
   if (tasks.length === 0) {
-    console.log("[AI] No pending tasks");
+    Logger.info("No pending tasks", { context: "AiTaskProcessor" });
     return;
   }
 
@@ -235,17 +280,26 @@ async function processAiTasks(): Promise<void> {
         await processCheckoutMessageTask(task.id, input);
         break;
       default:
-        console.warn(`Unknown task type: ${task.task_type}`);
+        Logger.warn("Unknown task type", {
+          context: "AiTaskProcessor",
+          taskId: task.id,
+          taskType: task.task_type,
+        });
     }
 
     // Rate limiting: 1 request per second to stay within free tier
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  console.log(`[AI] Processed ${tasks.length} tasks`);
+  Logger.info("AI tasks processing completed", {
+    context: "AiTaskProcessor",
+    tasksProcessed: tasks.length,
+  });
 }
 
 processAiTasks().catch((error) => {
-  console.error("[AI] Fatal error:", error);
+  Logger.error("Fatal error in AI task processing", error, {
+    context: "AiTaskProcessor",
+  });
   process.exit(1);
 });

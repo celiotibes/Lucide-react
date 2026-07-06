@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import Logger from "../logger.js";
 
 interface GeminiRequest {
   contents: Array<{
@@ -58,7 +59,9 @@ class GeminiAiClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 429) {
-          console.warn("[Gemini] Rate limit exceeded - switching to fallback");
+          Logger.warn("Rate limit exceeded - switching to fallback", {
+            context: "GeminiAiClient",
+          });
           this.freeQuotaExceeded = true;
         }
         throw error;
@@ -136,7 +139,9 @@ Respond in JSON format:
         reasoning: parsed.reasoning || "",
       };
     } catch (error) {
-      console.error("[Gemini] Categorization failed:", error);
+      Logger.error("Inquiry categorization failed", error, {
+        context: "GeminiAiClient",
+      });
       return {
         category: "other",
         confidence: 0,
@@ -172,7 +177,9 @@ Generate a response in this JSON format:
         tone: parsed.tone || "friendly",
       };
     } catch (error) {
-      console.error("[Gemini] Reply generation failed:", error);
+      Logger.error("Reply generation failed", error, {
+        context: "GeminiAiClient",
+      });
       return {
         subject: "Response to Your Inquiry",
         body: "Thank you for reaching out. We appreciate your interest and will respond shortly.",
@@ -208,7 +215,9 @@ Respond in JSON format:
         recommendedAction: parsed.recommendedAction || "repair",
       };
     } catch (error) {
-      console.error("[Gemini] Damage analysis failed:", error);
+      Logger.error("Damage analysis failed", error, {
+        context: "GeminiAiClient",
+      });
       return {
         damageSeverity: "minor",
         estimatedCost: 0,
@@ -235,7 +244,9 @@ Generate only the message text, no JSON.`;
     try {
       return await this.callGemini(prompt);
     } catch (error) {
-      console.error("[Gemini] Checkout message generation failed:", error);
+      Logger.error("Checkout message generation failed", error, {
+        context: "GeminiAiClient",
+      });
       return `Thank you for staying at ${propertyName}! We hope you enjoyed your time with us. Please ensure checkout is completed by 11:00 AM. If you have any questions, please don't hesitate to contact us.`;
     }
   }
@@ -257,7 +268,9 @@ Generate only the message text, no JSON.`;
     try {
       return await this.callGemini(prompt);
     } catch (error) {
-      console.error("[Gemini] Check-in message generation failed:", error);
+      Logger.error("Check-in message generation failed", error, {
+        context: "GeminiAiClient",
+      });
       return `Welcome to ${propertyName}! We're excited to have you stay with us. Your check-in code will be sent via text/email shortly. If you need any assistance, please reach out immediately.`;
     }
   }
