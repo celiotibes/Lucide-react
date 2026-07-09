@@ -40,6 +40,7 @@ import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import { aiProviderCache } from './services/aiProviderCache'
 import { useAIProviderAlerts } from './hooks/useAIProviderAlerts'
+import { useBudgetAlerts } from './hooks/useBudgetAlerts'
 import './App.css'
 import './App.mobile.css'
 
@@ -52,6 +53,9 @@ function App() {
 
   // FASE 7.4: Toast notifications para alertas do AI Provider
   useAIProviderAlerts()
+
+  // FASE 8: Budget tracking e alertas de custo
+  useBudgetAlerts()
   const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {

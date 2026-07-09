@@ -3,6 +3,7 @@ import { aiSelector, type CaseOfUse } from '../services/aiProviderSelector'
 import { aiProviderCache } from '../services/aiProviderCache'
 import { aiProviderMonitoring } from '../services/aiProviderMonitoring'
 import { aiProviderAutoTuning } from '../services/aiProviderAutoTuning'
+import { budgetTracking } from '../services/budgetTracking'
 
 interface UseAIProviderReturn {
   response: string | null
@@ -69,6 +70,9 @@ export function useAIProvider(): UseAIProviderReturn {
         latency,
         true
       )
+
+      // Record cost for budget tracking (FASE 8)
+      budgetTracking.recordCost(result.provider, caseOfUse, result.costUSD)
 
       // Record monitoring event
       aiProviderMonitoring.recordEvent({
