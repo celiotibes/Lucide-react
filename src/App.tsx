@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
@@ -15,10 +15,11 @@ import { LaudoView } from "./components/LaudoView";
 import { RendaTributavelView } from "./components/RendaTributavelView";
 import { LivroRazaoView } from "./components/LivroRazaoView";
 import { ReajustesRescisaoView } from "./components/ReajustesRescisaoView";
+import { IndicesEconomicosView } from "./components/IndicesEconomicosView";
 
 type Aba =
   | "dashboard" | "importar" | "transacoes" | "contratos" | "caucao"
-  | "financiamentos" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes";
+  | "financiamentos" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -28,6 +29,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "reajustes", rotulo: "Reajustes e rescisão", icone: TrendingUp },
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
+  { id: "indices", rotulo: "Índices econômicos", icone: LineChart },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
   { id: "auditoria", rotulo: "Auditoria forense", icone: ShieldAlert },
@@ -140,6 +142,7 @@ function Conteudo() {
         {aba === "reajustes" && <ReajustesRescisaoView />}
         {aba === "caucao" && <CaucaoView />}
         {aba === "financiamentos" && <FinanciamentosView />}
+        {aba === "indices" && <IndicesEconomicosView />}
         {aba === "renda" && <RendaTributavelView />}
         {aba === "razao" && <LivroRazaoView />}
         {aba === "auditoria" && <AuditoriaView />}
