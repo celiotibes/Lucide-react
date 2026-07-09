@@ -67,6 +67,11 @@ Cláusula Nona: "diante da impossibilidade física e técnica de individualizaç
 
 **Não implementado nesta rodada**: o cálculo de rateio de excedente hídrico entre as unidades (equivalente ao `calcularFaturaEnergia.ts`, mas para água) — a estrutura de dados está pronta, a função de cálculo ainda não existe.
 
+### Confirmação: energia é por medidor individual, com tarifa por bandeira
+Você confirmou explicitamente: "a energia é cobrada dos moradores por medidor individual nos imóveis. A leitura segue a cobrança de valor de kWh, bandeiras verde, amarela e vermelha 1 e 2." Isso bate exatamente com o que `tarifas_energia.bandeira` já modelava desde a primeira versão do schema (`'verde','amarela','vermelha_1','vermelha_2'`) — nenhuma mudança de schema foi necessária aqui.
+
+O que **faltava** era o elo entre a leitura confirmada e a fatura de verdade — só existia a função pura de cálculo (`calcularFaturaEnergia.ts`), sem nada lendo `leituras_energia` do banco e gerando a fatura. Implementado agora: `server/integracao/faturarEnergia.ts` busca a leitura anterior confirmada do mesmo imóvel, resolve a tarifa vigente pela distribuidora (nova coluna `cidades.distribuidora_energia` — Curitiba/COPEL, Florianópolis/CELESC), e grava a fatura `tipo = 'energia'` com os itens discriminados. Testado com 6 cenários contra Postgres real: cálculo correto, franquia mínima respeitada, e três casos de dado insuficiente (sem leitura anterior, sem tarifa cadastrada, sem contrato vinculado) que **pulam a leitura em vez de faturar errado** — consistente com a regra já estabelecida de que leitura nunca é fonte de verdade sozinha.
+
 ## Sexto achado: responsável financeiro solidário não é fiador
 
 O contrato tem 2 locatários (estudantes) e 2 "Responsáveis Financeiros Solidários" (pais/mães) — uma figura jurídica distinta de fiador (responsabilidade solidária do art. 275 do Código Civil, não fiança da Lei 8.245/91). O schema só tinha `locatario_principal`, `locatario_adicional` e `fiador` em `contrato_partes.papel`. **Adicionado `responsavel_solidario`.**
@@ -85,7 +90,10 @@ Isso não está em nenhum contrato analisado até aqui — é uma informação n
 - É uma cobrança adicional direta aos locatários (um "aluguel de infraestrutura solar"), **ou**
 - É uma mistura das duas (parte abate custo operacional, parte vira receita adicional repassada)?
 
-Preciso que você descreva o mecanismo real (mesmo que informalmente) antes de eu implementar o cálculo — errar essa fórmula tem o mesmo risco que o erro de pró-rata que acabei de corrigir, só que sem um contrato real para eu conferir contra.
+Preciso que você descreva o mecanismo real (mesmo que informalmente) antes de eu implementar o cálculo — errar essa fórmula tem o mesmo risco que o erro de pró-rata que acabei de corrigir, só que sem um contrato real para eu conferir contra. **Ainda em aberto** — sua última mensagem esclareceu o mecanismo de energia por medidor individual (achado acima), mas não especificou o mecanismo de monetização da geração solar especificamente.
+
+### Curitiba é diferente de Florianópolis — confirmado
+Você confirmou: "os contratos de Curitiba são diferentes, com realidade diferente. Florianópolis são mais homogêneos." Isso reforça (não muda) uma decisão de design já tomada: `contrato_politica_cobranca` e a estrutura de rateio (`percentual_aluguel_efetivo`, `categorias_rateio_coletivo`) são **por contrato**, não uma regra fixa do sistema — exatamente para acomodar essa heterogeneidade sem exigir uma segunda modelagem separada para Curitiba. Minha leitura provável (a confirmar com um contrato real de Curitiba, quando disponível): unidades de Curitiba são apartamentos/salas individuais (não kitnets em residencial compartilhado como João Pottker), então provavelmente **não usam o modelo de "valor único mensal" com rateio de custeio coletivo** — seriam contratos de aluguel mais tradicionais, com `percentual_aluguel_efetivo` nulo (100% aluguel, sem parcela de rateio) e sem as 8 sub-rubricas de área comum, que só fazem sentido onde há infraestrutura compartilhada entre várias unidades. O schema já suporta essa diferença sem alteração (os campos de rateio são opcionais/nulos por contrato) — só falta um contrato real de Curitiba para confirmar isso da mesma forma que confirmei o de Florianópolis.
 
 ## O que fica deliberadamente fora desta rodada (documentado, não esquecido)
 

@@ -26,10 +26,15 @@ create table cidades (
   id uuid primary key default gen_random_uuid(),
   nome text not null,
   uf text not null,
+  -- Distribuidora de energia local — resolve automaticamente qual linha de
+  -- tarifas_energia usar por cidade (server/integracao/faturarEnergia.ts).
+  distribuidora_energia text,
   unique (nome, uf)
 );
 
-insert into cidades (nome, uf) values ('Curitiba', 'PR'), ('Florianópolis', 'SC');
+insert into cidades (nome, uf, distribuidora_energia) values
+  ('Curitiba', 'PR', 'COPEL'),
+  ('Florianópolis', 'SC', 'CELESC');
 
 create table residenciais (
   id uuid primary key default gen_random_uuid(),
