@@ -1627,18 +1627,28 @@ alter table garantias add column finalidade text check (finalidade in ('locacao'
 -- ---- 20.3 Componentes mensais além do aluguel-base ----
 -- Modelo distinto do "rateio de custeio coletivo" (Módulo 19, Florianópolis
 -- — granular, com natureza fiscal, para até 9 rubricas de área comum
--- compartilhada entre muitas unidades). Aqui é mais simples: um punhado de
--- itens somados ao aluguel-base (`contratos.valor_aluguel`), confirmados
--- nos três contratos de Curitiba:
---   - Comodato de bens móveis: às vezes % do aluguel (Life Space, 15%
---     "já incluído"), às vezes valor fixo à parte (Apto 503, R$350).
---   - Vaga de garagem: valor fixo (Life Space, R$200) ou % do valor total
---     do contrato (Sala Comercial, 10%).
---   - IPTU, condomínio, taxa de coleta de lixo, taxa de bombeiros:
---     repassados ao locatário no boleto consolidado — presentes nos TRÊS
---     contratos de Curitiba, AUSENTES no contrato de Florianópolis (onde
---     IPTU é despesa exclusiva do locador, dedutível do IRPF). Confirma
---     que essa é uma diferença real de operação entre as duas cidades, não
+-- compartilhada entre muitas unidades). Aqui são itens que descrevem o
+-- boleto de Curitiba, confirmados nos três contratos, MAS a relação com
+-- `contratos.valor_aluguel` depende da `natureza` de cada item — não é
+-- sempre soma:
+--   - `valor_fixo`: item À PARTE, SOMADO ao aluguel-base (Apto 503:
+--     comodato R$350 fixo; total do boleto R$1.300 aluguel + R$350
+--     comodato = R$1.650, confirmado batendo o subtotal do contrato).
+--   - `percentual_do_aluguel`: item **JÁ EMBUTIDO** no aluguel-base — é só
+--     um DETALHAMENTO/DECOMPOSIÇÃO do mesmo total, NÃO uma soma. Life
+--     Space: comodato "15% do aluguel, **já incluído**". Sala Comercial:
+--     "o valor locatício mensal é composto em seu valor em 10% [vaga] e
+--     90% [aluguel]" — 10%+90% descrevem o mesmo total contratual, não
+--     duas parcelas somadas. Corrigido aqui após um primeiro rascunho
+--     equivocado ter tratado percentual como aditivo (o que teria feito
+--     `gerarFaturaMensal` cobrar em dobro nesses dois contratos).
+--   - `repassado_variavel`: IPTU, condomínio, taxa de lixo, taxa de
+--     bombeiros — repassados ao locatário no boleto consolidado, valor
+--     mês a mês vindo de fonte externa (guia do condomínio/carnê do
+--     IPTU), SOMADO ao aluguel-base. Presentes nos TRÊS contratos de
+--     Curitiba, AUSENTES no contrato de Florianópolis (onde IPTU é
+--     despesa exclusiva do locador, dedutível do IRPF). Confirma que essa
+--     é uma diferença real de operação entre as duas cidades, não
 --     suposição.
 create table contrato_componentes_mensais (
   id uuid primary key default gen_random_uuid(),
@@ -1678,3 +1688,61 @@ create policy inquilino_ve_componentes_do_proprio_contrato on contrato_component
 -- independente do quantitativo de dias do mês em curso" — Apto 503;
 -- "com base em um mês comercial de 30 dias" — implícito nos demais). A
 -- correção já feita vale para os quatro contratos analisados até aqui.
+
+-- ============================================================================
+-- 21. GERADOR DE FATURA MENSAL — valor mês a mês dos componentes repassados
+-- ============================================================================
+-- `contrato_componentes_mensais.natureza = 'repassado_variavel'` (IPTU,
+-- condomínio, taxa de lixo/bombeiros) não tem valor fixo: o valor real só é
+-- conhecido mês a mês, vindo de fonte externa (guia do condomínio, carnê do
+-- IPTU). Sem uma tabela para guardar esse valor por competência, o gerador
+-- de fatura mensal (server/integracao/gerarFaturaMensal.ts) não teria como
+-- ser autocontido — precisaria receber o valor por parâmetro toda vez, fora
+-- do banco. Cada linha aqui é um valor já confirmado (lançado manualmente
+-- ou via integração futura com o boleto do condomínio) para um componente e
+-- um mês; sem linha para o mês, o gerador pula o contrato em vez de
+-- inventar o valor (mesmo princípio de `faturarEnergia.ts`: dado
+-- insuficiente é pulado, nunca faturado errado).
+create table contrato_componente_valores_mensais (
+  id uuid primary key default gen_random_uuid(),
+  componente_id uuid not null references contrato_componentes_mensais(id) on delete cascade,
+  competencia date not null,           -- sempre dia 1 do mês de referência
+  valor numeric(14,2) not null check (valor >= 0),
+  criado_em timestamptz not null default now(),
+  unique (componente_id, competencia)
+);
+
+create or replace function fn_check_componente_valor_mensal_natureza()
+returns trigger as $$
+declare
+  v_natureza text;
+begin
+  select natureza into v_natureza from contrato_componentes_mensais where id = new.componente_id;
+
+  if v_natureza is distinct from 'repassado_variavel' then
+    raise exception 'Componente % não é repassado_variavel (natureza atual: %) — só componentes repassados têm valor mês a mês',
+      new.componente_id, v_natureza;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger trg_check_componente_valor_mensal_natureza
+  before insert or update on contrato_componente_valores_mensais
+  for each row execute function fn_check_componente_valor_mensal_natureza();
+
+create trigger trg_audit_componente_valores_mensais
+  after insert or update or delete on contrato_componente_valores_mensais
+  for each row execute function fn_audit_trigger();
+
+alter table contrato_componente_valores_mensais enable row level security;
+create policy admin_full_access_componente_valores_mensais on contrato_componente_valores_mensais
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_valores_do_proprio_contrato on contrato_componente_valores_mensais
+  for select using (
+    exists (
+      select 1 from contrato_componentes_mensais cm
+      join contrato_partes cp on cp.contrato_id = cm.contrato_id
+      where cm.id = contrato_componente_valores_mensais.componente_id and cp.pessoa_id = fn_minha_pessoa_id()
+    )
+  );

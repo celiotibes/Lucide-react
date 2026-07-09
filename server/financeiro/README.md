@@ -6,7 +6,10 @@ Funções puras (sem I/O, sem chamada de rede/banco) que implementam os cálculo
 Multa moratória de 10% (evento único) + juros de 2% a.m. *pro rata die* + honorários extrajudiciais de 20% a partir de 30 dias de atraso. `permiteAcordo` suspende tudo (fatura em renegociação). Os parâmetros (`MULTA_PCT`, `JUROS_PCT_AM`, `HONORARIOS_PCT`, `DIAS_GATILHO_HONORARIOS`) são exportados como constantes nomeadas, não *magic numbers* — os mesmos valores já usados como default na tabela `confissoes_divida` do schema.
 
 ## `prorata.ts`
-Regra de pró-rata do primeiro mês (contrato até dia 15 → ciclo do mês corrente; a partir do dia 16 → ciclo desloca para vencimento no dia 10 do mês seguinte). **Contém uma decisão de default ainda não confirmada por contador**: usa dias corridos de calendário para o rateio, não uma divisão fixa por 30 — está documentado no topo do arquivo e em `docs/01-auditoria-critica.md` (item 1) como pergunta que o material de origem nunca respondeu de forma conclusiva. Não coloque em produção sem validar esse ponto com quem assina a contabilidade.
+Regra de pró-rata do primeiro mês de contrato: base fixa de 30 dias ("mês comercial"), não dias corridos de calendário — corrigido e confirmado por 4 contratos reais independentes (`docs/10-auditoria-contrato-real.md`, `docs/11-auditoria-contratos-curitiba.md`). Vencimento da primeira fatura sempre no dia `contratos.dia_vencimento` do mês seguinte ao de início, mesmo quando esse dia ainda não tinha passado no mês de início. Consumida por `server/integracao/gerarFaturaMensal.ts`.
+
+## `valorMensalContrato.ts`
+Valor mensal total de um contrato a partir do aluguel-base + `contrato_componentes_mensais` (docs/11). Três naturezas, três regras: `valor_fixo` soma ao total; `percentual_do_aluguel` **não soma** — é só um detalhamento do mesmo aluguel-base (achado tardio: um primeiro rascunho tratou isso como aditivo, o que teria cobrado em dobro contratos como o da Life Space Estação 509B); `repassado_variavel` soma somente quando o valor do mês é informado, senão é reportado em `faltantes` sem estimar nem ignorar. Ver `docs/12-gerador-fatura-mensal.md`.
 
 ## `splitPagamento.ts`
 Divide um valor entre beneficiários por percentual sem nunca perder ou criar centavos por arredondamento — o bug clássico de dividir R$100 em três partes de 33,33% e a soma dar R$99,99. Usa aritmética inteira em centavos com o método dos maiores restos, mais uma reconciliação final que garante a invariante crítica (soma dos splits = valor total) mesmo sob erro residual de ponto flutuante na validação dos percentuais.
@@ -25,8 +28,8 @@ Franquia mínima (30 ou 50 kWh conforme a data do contrato), taxa administrativa
 npm test
 ```
 
-48 testes no total (Fase atual do projeto). Destaque para o teste de `splitPagamento`: 300 combinações aleatórias (com seed fixa, reproduzível) de 2 a 7 beneficiários e valores até R$10.000,00, verificando que a soma dos centavos distribuídos bate exatamente com o total em todas as iterações — é o tipo de bug que só aparece sob volume, não em 2-3 exemplos manuais.
+Destaque para o teste de `splitPagamento`: 300 combinações aleatórias (com seed fixa, reproduzível) de 2 a 7 beneficiários e valores até R$10.000,00, verificando que a soma dos centavos distribuídos bate exatamente com o total em todas as iterações — é o tipo de bug que só aparece sob volume, não em 2-3 exemplos manuais.
 
-## O que falta antes de usar em produção
+## Integração
 
-Estas são funções puras — não persistem nada, não chamam o Asaas, não gravam `fatura_itens`/`split_pagamento`/`leituras_energia`. A integração (ler uma fatura ou leitura do Supabase, calcular, gravar o resultado, disparar o webhook) é trabalho da Fase 0/1 (M3/M7) e ainda não existe neste repositório.
+Estas são funções puras — não persistem nada sozinhas. `server/integracao/` liga cada uma ao banco: `gerarFaturaMensal.ts` usa `prorata.ts` + `valorMensalContrato.ts`; `reguaCobranca.ts` usa `jurosMulta.ts`; `faturarEnergia.ts` usa `../energia/calcularFaturaEnergia.ts`. `splitPagamento.ts` e `rendimentoCaucao.ts` ainda não têm um chamador de integração no repositório.
