@@ -37,8 +37,15 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 - **Contratos e inadimplência**: lista de contratos de locação e competências em
   aberto com dias de atraso, multa e juros de mora calculados pelas cláusulas de
   cada contrato.
+- **Reajustes e rescisão**: histórico de reajuste por contrato (1ª renovação por
+  percentual fixo pré-acordado, renovações seguintes pela variação acumulada do
+  índice contratado desde o último reajuste) e calculadora de multa rescisória
+  proporcional por quebra antecipada do prazo determinado (art. 4º, Lei 8.245/91).
 - **Depósitos caução**: correção monetária mês a mês (poupança/IGPM/IPCA) a partir
   da série cadastrada em `indices_economicos`.
+- **Índices econômicos**: busca IGP-M, IPCA e poupança direto da API pública do
+  Banco Central (SGS), rodando no navegador — sem passar por nenhum backend deste
+  projeto — com lançamento manual como fallback se a busca falhar.
 - **Financiamentos**: cronograma teórico SAC/Price gerado localmente e comparado
   mês a mês com o que foi de fato lançado, sinalizando divergência de juros acima
   de 5% (indício de anatocismo ou encargo não previsto em contrato).
@@ -89,8 +96,14 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   Claude para exceções/laudo), mas nenhuma chave de API está configurada — a
   categorização hoje é 100% por regra determinística + revisão manual.
 - Os **índices econômicos** pré-carregados nos dados de demonstração são
-  **ilustrativos** — substitua pelos valores reais do BACEN (poupança) e IBGE
-  (IGP-M/IPCA) antes de usar o cálculo de caução para qualquer fim oficial.
+  **ilustrativos**. A aba "Índices econômicos" busca os valores reais do BACEN
+  (IGP-M, IPCA, poupança) e sobrescreve os simulados — use-a antes de fechar
+  qualquer cálculo de reajuste, mora ou caução para fim oficial. Os códigos de
+  série (`SERIES_BACEN` em `src/domain/indices/bacenSgs.ts`) não puderam ser
+  validados contra uma resposta real neste ambiente de desenvolvimento (a
+  política de rede do sandbox bloqueia `api.bcb.gov.br`) — confira os
+  primeiros valores buscados contra o que você já sabe do período antes de
+  confiar neles para fins periciais.
 - **Lei de Benford**: só é um sinal confiável quando os valores testados cobrem
   várias ordens de grandeza. Não aplique a categorias de valor fixo (aluguel,
   financiamento) nem a um conjunto pequeno/estreito de valores — o próprio app
@@ -147,7 +160,8 @@ src/
     types.ts             tipos espelhando o schema SQL
     parsers/             OFX, CSV, PDF (pdfjs-dist), OCR (tesseract.js), dispatcher
     categorize/           regras determinísticas + regras aprendidas de categorização
-    contratos/             locatários/responsáveis solidários por contrato
+    contratos/             locatários/responsáveis solidários, histórico de reajustes
+                           e multa rescisória por contrato
     reconcile/            conciliação contrato×transação, aging de inadimplência
     reports/              DRE, série mensal, renda tributável (Carnê-Leão), DSS
     caucao/                correção monetária de depósito caução
@@ -155,11 +169,12 @@ src/
     auditoria/             duplicidade, outliers, lacunas, Lei de Benford
     rateio/                divisão de despesas coletivas entre imóveis
     contabilidade/          livro razão / balancete (partida dobrada derivada)
+    indices/                busca de IGP-M/IPCA/poupança direto da API do BACEN
     laudo/                 geração do PDF do laudo pericial
     seed/                  gerador de dados simulados
   components/            telas React (Dashboard, Importar, Transações, Contratos,
-                          Caução, Financiamentos, Renda Tributável, Livro Razão,
-                          Auditoria, Laudo)
+                          Reajustes e rescisão, Caução, Financiamentos, Índices
+                          econômicos, Renda Tributável, Livro Razão, Auditoria, Laudo)
 
 contabilidade-reconstituicao/   scaffold Python-espelho (schema.sql canônico, notas
                                 de arquitetura, roteamento de IA por custo) — ver seu
