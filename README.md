@@ -68,7 +68,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   jurídicas distintas.
 - **DSS (Demonstrativo Semestral Simplificado)**: arrecadação do rateio × gasto
   real em custeio coletivo por contrato/imóvel — o relatório que esse tipo de
-  contrato costuma obrigar o locador a enviar ao locatário periodicamente.
+  contrato costuma obrigar o locador a enviar ao locatário periodicamente. Junto
+  dele, uma sugestão de novo percentual de rateio para o próximo ciclo, que
+  amortiza o saldo (superávit/déficit) do período ao longo de 12 meses — nunca
+  aplica sozinho, só sugere.
 - **Livro razão e balancete**: cada transação é derivada em duas pernas
   (débito/crédito) na hora, sem tabela nova — dá o balancete de verificação por
   conta que um contador usa como ponto de partida para fechar um balanço formal.
@@ -120,11 +123,11 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   consistente com as transações), suficiente como balancete de verificação para
   um contador formalizar — mas não substitui o livro diário registrado/autenticado
   que a legislação exige de uma empresa de fato.
-- **Decomposição aluguel × rateio** (`percentual_aluguel_efetivo`) assume que o
-  próprio contrato já define o percentual fixo de cada parte — não há apuração
-  automática de superávit/déficit ano a ano como alguns contratos preveem
-  (mecanismo de balanceamento anual); o DSS mostra o saldo do período, mas o
-  ajuste dos percentuais na renovação ainda é manual.
+- **Decomposição aluguel × rateio** (`percentual_aluguel_efetivo`): o mecanismo
+  de balanceamento anual que alguns contratos preveem agora tem sugestão
+  automática (aba Renda tributável → "Ajuste de rateio sugerido"), mas ela
+  amortiza o saldo linearmente em 12 meses — se o seu contrato prevê outro
+  critério de rateio do saldo, confira a fórmula antes de aplicar.
 
 ## Conectar banco via Open Finance (opcional)
 
