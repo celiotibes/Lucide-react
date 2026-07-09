@@ -3,6 +3,7 @@ import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { gerarRendaTributavel, totalizarRendaTributavel } from "../domain/reports/rendaTributavel";
 import { gerarDss } from "../domain/reports/dss";
+import { sugerirAjusteRateio, aplicarAjusteRateio } from "../domain/rateio/ajusteAnual";
 import type { ContratoLocacao, Imovel } from "../domain/types";
 
 function hojeIso(): string {
@@ -13,7 +14,7 @@ function formatarMoeda(valor: number): string {
 }
 
 export function RendaTributavelView() {
-  const { db, versao } = useDb();
+  const { db, versao, persistir } = useDb();
   const hoje = hojeIso();
   const inicio12m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 12)).toISOString().slice(0, 10);
 
@@ -27,10 +28,21 @@ export function RendaTributavelView() {
   const imoveis = useMemo(() => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])), [db, versao]);
   const [contratoDssId, setContratoDssId] = useState<number | null>(null);
   const contratoDssAtivo = contratoDssId ?? contratosComRateio[0]?.id ?? null;
+  const contratoAtivo = contratosComRateio.find((c) => c.id === contratoDssAtivo) ?? null;
   const dss = useMemo(
     () => (db && contratoDssAtivo ? gerarDss(db, contratoDssAtivo, inicio12m, hoje) : null),
     [db, contratoDssAtivo, inicio12m, hoje],
   );
+  const sugestaoRateio = useMemo(
+    () => (db && contratoAtivo ? sugerirAjusteRateio(db, contratoAtivo, inicio12m, hoje) : null),
+    [db, versao, contratoAtivo, inicio12m, hoje],
+  );
+
+  const aplicarSugestaoRateio = async () => {
+    if (!db || !contratoAtivo || !sugestaoRateio) return;
+    aplicarAjusteRateio(db, contratoAtivo.id, sugestaoRateio.percentualAluguelEfetivoSugerido);
+    await persistir();
+  };
 
   const percentualTributavel = totais.totalRecebido > 0 ? (totais.rendaTributavel / totais.totalRecebido) * 100 : 0;
 
@@ -144,6 +156,43 @@ export function RendaTributavelView() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {sugestaoRateio && (
+            <div className="card" style={{ marginTop: 20 }}>
+              <h3 style={{ fontSize: 15, marginBottom: 6 }}>Ajuste de rateio sugerido (renovação anual)</h3>
+              <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginBottom: 14 }}>
+                Recalcula o percentual de rateio embutido no valor único para que a arrecadação do próximo ciclo
+                cubra a despesa média do período acima e absorva o saldo ({formatarMoeda(sugestaoRateio.saldoAcumulado)}
+                {" "}{dss?.saldo}) ao longo dos próximos {sugestaoRateio.mesesAmortizacao} meses — não altera nada
+                sozinho, só sugere; aplicar é uma decisão sua.
+              </p>
+              <div className="kpi-grid" style={{ marginBottom: 14 }}>
+                <div className="kpi-tile">
+                  <div className="label">Rateio atual</div>
+                  <div className="value">{sugestaoRateio.percentualRateioAtual.toFixed(1)}%</div>
+                </div>
+                <div className="kpi-tile">
+                  <div className="label">Rateio sugerido</div>
+                  <div className="value">{sugestaoRateio.percentualRateioSugerido.toFixed(1)}%</div>
+                </div>
+                <div className="kpi-tile">
+                  <div className="label">Aluguel efetivo atual</div>
+                  <div className="value">{sugestaoRateio.percentualAluguelEfetivoAtual.toFixed(1)}%</div>
+                </div>
+                <div className="kpi-tile">
+                  <div className="label">Aluguel efetivo sugerido</div>
+                  <div className="value">{sugestaoRateio.percentualAluguelEfetivoSugerido.toFixed(1)}%</div>
+                </div>
+              </div>
+              <button
+                className="btn"
+                disabled={Math.abs(sugestaoRateio.percentualAluguelEfetivoSugerido - sugestaoRateio.percentualAluguelEfetivoAtual) < 0.05}
+                onClick={aplicarSugestaoRateio}
+              >
+                Aplicar ajuste sugerido ao contrato
+              </button>
             </div>
           )}
         </>

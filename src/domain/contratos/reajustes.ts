@@ -8,7 +8,7 @@ function somarMeses(dataIso: string, meses: number): string {
   return data.toISOString().slice(0, 10);
 }
 
-function diferencaEmMeses(dataInicioIso: string, dataFimIso: string): number {
+export function diferencaEmMeses(dataInicioIso: string, dataFimIso: string): number {
   const inicio = new Date(dataInicioIso + "T00:00:00");
   const fim = new Date(dataFimIso + "T00:00:00");
   return (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth());
