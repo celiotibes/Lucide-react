@@ -12,6 +12,7 @@ export type TipoArquivoDetectado =
   | "pdf_fatura"
   | "pdf_desconhecido"
   | "imagem_comprovante"
+  | "open_finance"
   | "nao_suportado";
 
 export interface ResultadoImportacao {

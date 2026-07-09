@@ -20,8 +20,15 @@ código exige recategorizar.
 | 2.1.06  | Financiamento imobiliário — amortização | despesa      |
 | 2.1.07  | Taxas de plataforma (Airbnb/imobiliária)| despesa      |
 | 2.1.08  | Inadimplência / perdas com locatário    | despesa      |
+| 2.1.09  | Tarifas bancárias de cobrança (boleto/PIX) | despesa   |
 | 9.0.01  | Transferência entre contas próprias     | transferencia|
 | 9.0.02  | Depósito caução recebido/devolvido      | transferencia|
+
+`2.1.09` é para as tarifas que o próprio contrato de locação já prevê separadas
+do aluguel — ex.: taxa de emissão de boleto (Sicredi/Itaú) e custa de
+conciliação quando o locatário paga por PIX em vez do boleto. Nunca misture
+essas tarifas com o valor do aluguel recebido — são despesa da atividade, não
+abatimento de receita.
 
 `pessoal` e `transferencia` ficam fora do DRE da atividade de locação
 (`src/reports/dre.py` só soma `receita` e `despesa`) — isso é o que separa

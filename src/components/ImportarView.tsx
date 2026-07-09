@@ -3,6 +3,7 @@ import { FileWarning, FileCheck2, Loader2 } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { Dropzone } from "./Dropzone";
+import { ConectarPluggy } from "./ConectarPluggy";
 import { processarArquivo, type ResultadoImportacao } from "../domain/parsers/detectarTipo";
 import { persistirTransacoes } from "../domain/parsers/persistirTransacoes";
 import type { ContaBancaria } from "../domain/types";
@@ -21,6 +22,7 @@ const RESUMO_TIPO: Record<ResultadoImportacao["tipoDetectado"], string> = {
   pdf_fatura: "Fatura de cartão em PDF",
   pdf_desconhecido: "PDF não classificado",
   imagem_comprovante: "Comprovante (OCR)",
+  open_finance: "Open Finance (Pluggy)",
   nao_suportado: "Formato não suportado",
 };
 
@@ -49,6 +51,13 @@ export function ImportarView() {
     setProcessando(false);
   }
 
+  function tratarImportacaoPluggy(resultado: ResultadoImportacao, nomeFonte: string, contaSugeridaId: number | null) {
+    setArquivos((atual) => [
+      { nomeArquivo: nomeFonte, resultado, contaId: contaSugeridaId ?? contas[0]?.id ?? null, aceito: resultado.transacoes.length > 0 },
+      ...atual,
+    ]);
+  }
+
   async function confirmarImportacao() {
     if (!db) return;
     let totalInserido = 0;
@@ -65,6 +74,7 @@ export function ImportarView() {
     <div>
       <h2 className="section-title">Importar documentos</h2>
       <Dropzone onArquivos={tratarArquivos} />
+      <ConectarPluggy onImportado={tratarImportacaoPluggy} />
       {processando && (
         <p style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
           <Loader2 className="spin" size={16} /> Processando arquivos…

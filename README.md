@@ -5,10 +5,14 @@ a contabilidade de uma atividade de fato de locação de imóveis misturada em c
 pessoa física — pensado para gerar relatórios (DRE, inadimplência, depósitos caução)
 com lastro documental para uso em perícia judicial.
 
-**Tudo roda no navegador.** Não há backend: os dados ficam num banco SQLite
+**O núcleo roda inteiramente no navegador.** Os dados ficam num banco SQLite
 (via [sql.js](https://sql.js.org/), compilado para WebAssembly) persistido no
-IndexedDB do próprio navegador. Nada é enviado para servidor nenhum — importante dado
-o caráter sensível dos documentos financeiros e o contexto de quebra de sigilo bancário.
+IndexedDB do próprio navegador — nada é enviado a servidor nenhum por padrão,
+importante dado o caráter sensível dos documentos financeiros e o contexto de
+quebra de sigilo bancário. A única exceção é **opcional**: conectar um banco
+via Open Finance (Pluggy) exige um pequeno backend próprio (`server/`), porque
+o Client Secret da Pluggy nunca pode ficar no navegador — ver a seção
+"Conectar banco via Open Finance" abaixo.
 
 ## Rodando localmente
 
@@ -92,13 +96,12 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   financiamento) nem a um conjunto pequeno/estreito de valores — o próprio app
   já restringe o teste a despesas variáveis, mas o resultado ainda exige leitura
   crítica, não é veredito automático.
-- **Sem conciliação automática com o banco**: a importação é manual (upload de
-  arquivo). Registro direto como instituição participante do Open Finance Brasil
-  exigiria certificação FAPI/mTLS pelo Bacen — inviável para um app pessoal. O
-  caminho realista é um agregador certificado (Pluggy, Belvo) como intermediário:
-  ele já tem a certificação, expõe uma API REST simples, e você só paga por conta
-  conectada — mas isso tira a garantia de "tudo local", já que seus extratos
-  passariam pelo servidor do agregador. Não implementado até decidir esse trade-off.
+- **Conciliação automática com o banco (Pluggy)**: implementada como recurso opcional
+  em `server/` + `src/components/ConectarPluggy.tsx`. Exige rodar o backend próprio
+  (guarda o Client Secret, nunca o navegador) e aceitar que os extratos passem por
+  ele e pela Pluggy — não é mais "100% local" para quem usar esse caminho. Ver
+  "Conectar banco via Open Finance" abaixo. Não testado ponta a ponta com credenciais
+  reais neste ambiente de desenvolvimento (sandbox sem acesso às suas credenciais).
 - **Livro razão é derivado, não oficial**: `src/domain/contabilidade/livroRazao.ts`
   deriva débito/crédito de cada transação na hora (sem tabela nova, sempre
   consistente com as transações), suficiente como balancete de verificação para
@@ -109,6 +112,31 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   automática de superávit/déficit ano a ano como alguns contratos preveem
   (mecanismo de balanceamento anual); o DSS mostra o saldo do período, mas o
   ajuste dos percentuais na renovação ainda é manual.
+
+## Conectar banco via Open Finance (opcional)
+
+Além do upload manual, dá para conectar um banco de verdade via
+[Pluggy](https://pluggy.ai) (Open Finance Brasil). Isso exige um backend
+próprio, porque o Client Secret não pode ficar no navegador:
+
+```bash
+cd server
+npm install
+cp .env.example .env   # preencha CLIENT_ID/CLIENT_SECRET do dashboard.pluggy.ai
+npm run dev            # sobe em http://localhost:8787
+```
+
+Com o backend no ar, abra **Importar documentos** no app web → "Conectar
+banco via Open Finance" → aponte a URL do backend → conecte. Ver
+`server/README.md` para detalhes, incluindo como testar webhooks localmente.
+
+**Trade-off importante**: esse caminho tira a garantia de "tudo local" — os
+extratos passam pelo seu backend e pela Pluggy. O upload manual de
+OFX/CSV/PDF continua sendo o caminho 100% local, sem esse trade-off.
+
+**Segurança**: nunca exponha `CLIENT_SECRET` em código, print de tela ou
+mensagem. Se um Client Secret vazar por engano, regenere-o imediatamente em
+dashboard.pluggy.ai antes de usar o backend em produção.
 
 ## Estrutura
 
@@ -136,6 +164,9 @@ src/
 contabilidade-reconstituicao/   scaffold Python-espelho (schema.sql canônico, notas
                                 de arquitetura, roteamento de IA por custo) — ver seu
                                 próprio README para o dossiê técnico completo.
+
+server/                        backend opcional para conectar banco via Pluggy
+                                (Open Finance) — só existe pelo Client Secret.
 ```
 
 O `schema.sql` em `contabilidade-reconstituicao/` é a fonte única do modelo de dados;

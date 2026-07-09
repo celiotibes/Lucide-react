@@ -11,7 +11,7 @@ export function persistirTransacoes(db: Database, contaId: number, transacoes: T
       db,
       `INSERT OR IGNORE INTO transacoes (conta_id, data, valor, descricao_original, fitid, documento_fonte)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [contaId, transacao.data, transacao.valor, transacao.descricaoOriginal, transacao.fitid, documentoFonte ?? null],
+      [contaId, transacao.data, transacao.valor, transacao.descricaoOriginal, transacao.fitid, transacao.documentoFonte ?? documentoFonte ?? null],
     );
     inseridas += db.getRowsModified();
   }

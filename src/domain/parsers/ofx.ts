@@ -3,6 +3,7 @@ export interface TransacaoBruta {
   valor: number;
   descricaoOriginal: string;
   fitid: string;
+  documentoFonte?: string; // ex: linha digitável do boleto, quando conhecida por transação
 }
 
 function formatarDataOfx(bruta: string): string {
