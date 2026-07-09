@@ -1579,3 +1579,102 @@ create trigger trg_audit_politica_cobranca after insert or update or delete on c
   for each row execute function fn_audit_trigger();
 create trigger trg_audit_demonstrativos_rateio after insert or update or delete on demonstrativos_rateio
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 20. AJUSTES A PARTIR DE TRÊS CONTRATOS REAIS DE CURITIBA
+-- ============================================================================
+-- docs/11-auditoria-contratos-curitiba.md. Três contratos (dois residenciais
+-- em prédios com condomínio formal — Life Space Estação 509B e Central
+-- Station 503 — e um comercial — Sala 923B, Edifício Inspira Business)
+-- confirmam que Curitiba realmente é outra realidade, como o cliente havia
+-- avisado antes de eu ver um contrato de lá: NENHUM dos três usa o modelo
+-- de "rateio de custeio coletivo" de Florianópolis (Módulo 19) — em vez
+-- disso, todos têm um punhado de componentes extras (comodato de móveis,
+-- vaga de garagem, IPTU/condomínio repassados) somados a um aluguel-base.
+-- Os três também confirmam, de forma independente do contrato de
+-- Florianópolis, a base fixa de 30 dias no cálculo de pró-rata (item 20.4).
+
+-- ---- 20.1 Índice de correção monetária e desconto de pontualidade por contrato ----
+-- Achado: os quatro contratos reais analisados até aqui usam três índices
+-- de correção monetária diferentes para o mesmo tipo de cláusula (IPCA em
+-- João Pottker, IGPM na Sala Comercial 923B, "correção monetária" genérica
+-- sem índice nomeado nos outros dois) — confirma que isso também é termo de
+-- cada contrato, não uma constante.
+alter table contrato_politica_cobranca add column indice_correcao_monetaria text
+  check (indice_correcao_monetaria in ('IPCA','IGPM', null));
+
+-- Achado (Sala Comercial 923B): existe desconto de pontualidade (R$70 sobre
+-- R$1.360 nos primeiros 12 meses) que é perdido — não somado a uma multa
+-- adicional, mas o valor-base para cálculo de multa/juros volta a ser o
+-- valor "cheio" — quando o pagamento atrasa. Campo adicionado para não
+-- perder o dado; a lógica de cálculo (somar de volta o desconto perdido
+-- antes de aplicar multa/juros) AINDA NÃO foi implementada em
+-- server/financeiro/jurosMulta.ts — documentado como pendência explícita,
+-- apareceu em só 1 dos 4 contratos até aqui, não generalizei sem mais
+-- exemplos confirmando o padrão.
+alter table contrato_politica_cobranca add column desconto_pontualidade_valor numeric(14,2)
+  check (desconto_pontualidade_valor is null or desconto_pontualidade_valor >= 0);
+
+-- ---- 20.2 Finalidade da garantia (Apto 503, Central Station) ----
+-- Achado: contrato misto locação+comodato pode ter DUAS garantias
+-- distintas somadas num único depósito (2 aluguéis para a locação + 1
+-- aluguel para o comodato = 3 aluguéis no total) — sem este campo, as
+-- linhas de `garantias` não indicam a qual sub-relação (locação vs.
+-- comodato) cada valor se refere, dificultando a prestação de contas em
+-- caso de dedução parcial na saída.
+alter table garantias add column finalidade text check (finalidade in ('locacao','comodato','geral', null));
+
+-- ---- 20.3 Componentes mensais além do aluguel-base ----
+-- Modelo distinto do "rateio de custeio coletivo" (Módulo 19, Florianópolis
+-- — granular, com natureza fiscal, para até 9 rubricas de área comum
+-- compartilhada entre muitas unidades). Aqui é mais simples: um punhado de
+-- itens somados ao aluguel-base (`contratos.valor_aluguel`), confirmados
+-- nos três contratos de Curitiba:
+--   - Comodato de bens móveis: às vezes % do aluguel (Life Space, 15%
+--     "já incluído"), às vezes valor fixo à parte (Apto 503, R$350).
+--   - Vaga de garagem: valor fixo (Life Space, R$200) ou % do valor total
+--     do contrato (Sala Comercial, 10%).
+--   - IPTU, condomínio, taxa de coleta de lixo, taxa de bombeiros:
+--     repassados ao locatário no boleto consolidado — presentes nos TRÊS
+--     contratos de Curitiba, AUSENTES no contrato de Florianópolis (onde
+--     IPTU é despesa exclusiva do locador, dedutível do IRPF). Confirma
+--     que essa é uma diferença real de operação entre as duas cidades, não
+--     suposição.
+create table contrato_componentes_mensais (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  tipo text not null check (tipo in (
+    'comodato_moveis', 'vaga_garagem', 'iptu_repassado', 'condominio_repassado',
+    'taxa_lixo_repassada', 'taxa_bombeiros_repassada', 'outro'
+  )),
+  descricao text,
+  natureza text not null check (natureza in ('valor_fixo', 'percentual_do_aluguel', 'repassado_variavel')),
+  valor_fixo numeric(14,2),
+  percentual numeric(6,4),
+  criado_em timestamptz not null default now(),
+  constraint chk_componente_valor_coerente check (
+    (natureza = 'valor_fixo' and valor_fixo is not null and valor_fixo >= 0)
+    or (natureza = 'percentual_do_aluguel' and percentual is not null and percentual > 0 and percentual <= 1)
+    or (natureza = 'repassado_variavel')
+  )
+);
+
+alter table contrato_componentes_mensais enable row level security;
+create policy admin_full_access_componentes_mensais on contrato_componentes_mensais
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_componentes_do_proprio_contrato on contrato_componentes_mensais
+  for select using (
+    exists (
+      select 1 from contrato_partes cp
+      where cp.contrato_id = contrato_componentes_mensais.contrato_id and cp.pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+
+-- ---- 20.4 Pró-rata de 30 dias fixos: confirmado por mais 3 contratos ----
+-- Nenhuma mudança de schema — só registro de que a correção feita em
+-- server/financeiro/prorata.ts (docs/10-auditoria-contrato-real.md) não era
+-- peculiaridade de um único contrato: os três contratos de Curitiba usam a
+-- mesma cláusula ("considerando-se sempre o conjunto de 30 dias,
+-- independente do quantitativo de dias do mês em curso" — Apto 503;
+-- "com base em um mês comercial de 30 dias" — implícito nos demais). A
+-- correção já feita vale para os quatro contratos analisados até aqui.
