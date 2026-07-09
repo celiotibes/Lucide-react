@@ -52,6 +52,9 @@ import autoOptimizationRouter from '@/api/routes/autoOptimizationRouter';
 import monitoringRouter from '@/api/routes/monitoringRouter';
 import persistenceRouter from '@/api/routes/persistenceRouter';
 
+// Phase 5.7: Multi-Model Orchestration
+import multiModelRouter from '@/api/routes/multiModelRouter';
+
 const app: Express = express();
 
 validateConfig();
@@ -156,6 +159,9 @@ app.use('/api/v1/rate-limiting', verifyToken, rateLimitingRouter);
 app.use('/api/v1/optimization', verifyToken, autoOptimizationRouter);
 app.use('/api/v1/monitoring', verifyToken, monitoringRouter);
 app.use('/api/v1/persistence', verifyToken, persistenceRouter);
+
+// Phase 5.7: Multi-Model Orchestration
+app.use('/api/v1/multi-model', verifyToken, multiModelRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
