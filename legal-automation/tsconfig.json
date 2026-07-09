@@ -40,6 +40,7 @@
       "@middleware/*": ["src/middlewares/*"],
       "@adapters/*": ["src/adapters/*"],
       "@db/*": ["src/database/*"],
+      "@database/*": ["src/database/*"],
       "@ai/*": ["src/ai/*"],
       "@types/*": ["src/types/*"],
       "@integrations/*": ["src/integrations/*"]

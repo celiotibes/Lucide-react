@@ -45,6 +45,13 @@ import paymentController from '@/api/controllers/paymentController';
 import reportingController from '@/api/controllers/reportingController';
 import tribunalPollingController from '@/api/controllers/tribunalPollingController';
 
+// Phase 5: AI Optimization & Monitoring Routers
+import abTestingRouter from '@/api/routes/abTestingRouter';
+import rateLimitingRouter from '@/api/routes/rateLimitingRouter';
+import autoOptimizationRouter from '@/api/routes/autoOptimizationRouter';
+import monitoringRouter from '@/api/routes/monitoringRouter';
+import persistenceRouter from '@/api/routes/persistenceRouter';
+
 const app: Express = express();
 
 validateConfig();
@@ -142,6 +149,13 @@ app.use('/api/v1/reports', verifyToken, reportingController);
 
 // Tribunal Polling Routes
 app.use('/api/v1/tribunal-polling', verifyToken, tribunalPollingController);
+
+// Phase 5: AI Optimization & Monitoring Routes
+app.use('/api/v1/ab-testing', verifyToken, abTestingRouter);
+app.use('/api/v1/rate-limiting', verifyToken, rateLimitingRouter);
+app.use('/api/v1/optimization', verifyToken, autoOptimizationRouter);
+app.use('/api/v1/monitoring', verifyToken, monitoringRouter);
+app.use('/api/v1/persistence', verifyToken, persistenceRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
