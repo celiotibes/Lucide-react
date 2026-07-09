@@ -14,9 +14,18 @@
 // registrados — não faz sentido notificar cobrança de atraso numa fatura
 // que já está em acordo/renegociação (mesma suspensão de juros/multa já
 // aplicada por calcularJurosMulta).
+//
+// Política de cobrança por contrato (docs/10-auditoria-contrato-real.md):
+// juros/multa/honorários variam de contrato para contrato — um contrato
+// real assinado (Kitnet 16, João Pottker) usa multa em degraus (2%/10%) e
+// juros de 1% a.m., diferente do que este sistema assumia antes. Por isso
+// a política é lida de `contrato_politica_cobranca`; contratos sem uma
+// linha própria cadastrada caem no fallback `POLITICA_COBRANCA_GENERICA`
+// (explicitamente marcado como não confirmado contra nenhum contrato real
+// — ver server/financeiro/jurosMulta.ts).
 
 import type { Pool } from 'pg';
-import { calcularJurosMulta } from '../financeiro/jurosMulta';
+import { calcularJurosMulta, POLITICA_COBRANCA_GENERICA, type PoliticaCobranca } from '../financeiro/jurosMulta';
 
 export type EventoRegua = 'D5' | 'D15' | 'D30';
 
@@ -25,6 +34,7 @@ export interface ResultadoProcessamentoFatura {
   diasAtraso: number;
   valorAtualizado: number;
   eventosRegistrados: EventoRegua[];
+  politicaGenericaUsada: boolean;
 }
 
 const LIMIARES: Array<{ evento: EventoRegua; dias: number }> = [
@@ -39,6 +49,13 @@ interface LinhaFatura {
   vencimento: string;
   status: string;
   permite_acordo: boolean;
+  multa_ate_5_dias_pct: string | null;
+  dias_limite_multa_reduzida: number | null;
+  multa_apos_5_dias_pct: string | null;
+  juros_pct_am: string | null;
+  honorarios_pct: string | null;
+  honorarios_somente_se_judicial: boolean | null;
+  dias_gatilho_honorarios_automatico: number | null;
 }
 
 export async function processarReguaCobranca(
@@ -46,21 +63,28 @@ export async function processarReguaCobranca(
   dataReferencia: Date = new Date(),
 ): Promise<ResultadoProcessamentoFatura[]> {
   const { rows: faturas } = await pool.query<LinhaFatura>(
-    `select id, valor_bruto, vencimento, status, permite_acordo
-     from faturas
-     where status in ('aberta', 'atrasada')
-       and vencimento < $1::date`,
+    `select f.id, f.valor_bruto, f.vencimento, f.status, f.permite_acordo,
+            pc.multa_ate_5_dias_pct, pc.dias_limite_multa_reduzida, pc.multa_apos_5_dias_pct,
+            pc.juros_pct_am, pc.honorarios_pct, pc.honorarios_somente_se_judicial,
+            pc.dias_gatilho_honorarios_automatico
+     from faturas f
+     left join contrato_politica_cobranca pc on pc.contrato_id = f.contrato_id
+     where f.status in ('aberta', 'atrasada')
+       and f.vencimento < $1::date`,
     [formatarDataISO(dataReferencia)],
   );
 
   const resultados: ResultadoProcessamentoFatura[] = [];
 
   for (const fatura of faturas) {
+    const { politica, politicaGenericaUsada } = resolverPolitica(fatura);
+
     const calculo = calcularJurosMulta({
       valorOriginal: Number(fatura.valor_bruto),
       dataVencimento: new Date(fatura.vencimento),
       dataReferencia,
       permiteAcordo: fatura.permite_acordo,
+      politica,
     });
 
     if (calculo.diasAtraso <= 0) {
@@ -95,10 +119,31 @@ export async function processarReguaCobranca(
       diasAtraso: calculo.diasAtraso,
       valorAtualizado: calculo.valorAtualizado,
       eventosRegistrados,
+      politicaGenericaUsada,
     });
   }
 
   return resultados;
+}
+
+function resolverPolitica(fatura: LinhaFatura): { politica: PoliticaCobranca; politicaGenericaUsada: boolean } {
+  if (fatura.multa_ate_5_dias_pct === null) {
+    return { politica: POLITICA_COBRANCA_GENERICA, politicaGenericaUsada: true };
+  }
+
+  return {
+    politicaGenericaUsada: false,
+    politica: {
+      multaInicialPct: Number(fatura.multa_ate_5_dias_pct),
+      diasLimiteMultaInicial: fatura.dias_limite_multa_reduzida!,
+      multaAposLimitePct: Number(fatura.multa_apos_5_dias_pct),
+      jurosPctAoMes: Number(fatura.juros_pct_am),
+      honorariosPct: Number(fatura.honorarios_pct),
+      gatilhoHonorarios: fatura.honorarios_somente_se_judicial
+        ? { tipo: 'somente_se_necessario_judicial' }
+        : { tipo: 'automatico_apos_dias', dias: fatura.dias_gatilho_honorarios_automatico! },
+    },
+  };
 }
 
 function formatarDataISO(data: Date): string {

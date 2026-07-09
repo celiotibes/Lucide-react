@@ -98,6 +98,37 @@ describe.skipIf(!DATABASE_URL)('processarReguaCobranca (integração real com Po
     expect(rows[0].total).toBe(0);
   });
 
+  it('sem política própria cadastrada, usa a política genérica de fallback (sinalizado no resultado)', async () => {
+    const faturaId = await criarFaturaVencidaHaDias(3);
+    const resultados = await processarReguaCobranca(pool);
+    const resultado = resultados.find((r) => r.faturaId === faturaId)!;
+    expect(resultado.politicaGenericaUsada).toBe(true);
+  });
+
+  it('reproduz a régua de cobrança do contrato real (Kitnet 16, João Pottker): multa em degraus, juros de 1% a.m.', async () => {
+    // Cadastra a política de cobrança real deste contrato específico —
+    // diferente da genérica (multa 2%/10% em degraus, juros 1% a.m., não
+    // 2%; honorários só se necessitar ação judicial).
+    await pool.query(
+      `insert into contrato_politica_cobranca
+         (contrato_id, multa_ate_5_dias_pct, dias_limite_multa_reduzida, multa_apos_5_dias_pct, juros_pct_am, honorarios_somente_se_judicial)
+       values ($1, 0.02, 5, 0.10, 0.01, true)`,
+      [contratoId],
+    );
+
+    const faturaId = await criarFaturaVencidaHaDias(3); // dentro do degrau de 5 dias -> multa 2%
+    const resultados = await processarReguaCobranca(pool);
+    const resultado = resultados.find((r) => r.faturaId === faturaId)!;
+
+    expect(resultado.politicaGenericaUsada).toBe(false);
+    // valor bruto da fatura é 1000 nesta suíte; 3 dias de atraso, multa 2%
+    // (ainda no degrau inicial) + juros de 1% a.m. pro rata die (3/30) —
+    // sem honorários, porque não é gatilho automático nesta política.
+    const jurosEsperado = 1000 * 0.01 * (3 / 30);
+    const multaEsperada = 1000 * 0.02;
+    expect(resultado.valorAtualizado).toBeCloseTo(1000 + jurosEsperado + multaEsperada, 2);
+  });
+
   it('fatura ainda não vencida: não é tocada pelo job', async () => {
     const vencimentoFuturo = new Date();
     vencimentoFuturo.setUTCDate(vencimentoFuturo.getUTCDate() + 5);

@@ -1303,3 +1303,274 @@ create policy admin_le_audit_log on audit_log
 -- única via de escrita é o trigger fn_audit_trigger, que roda como o dono
 -- do schema (bypassa RLS) — nem o admin deve conseguir editar o log pela
 -- API.
+
+-- ============================================================================
+-- 19. AJUSTES A PARTIR DE CONTRATO REAL (Kitnet 16, Residencial João Pottker)
+-- ============================================================================
+-- Auditoria feita sobre um contrato assinado de verdade (docs/10-auditoria-
+-- contrato-real.md). Achados que exigiram schema novo, não só documentação:
+-- responsável financeiro solidário distinto de fiador; política de
+-- cobrança (multa/juros/honorários) como termo de CADA contrato, não
+-- constante do sistema; "rateio de custeio coletivo" com natureza fiscal
+-- própria (tributável vs. reembolso) exigida para IRPF correto; prestação
+-- de contas semestral com prazo de impugnação e concordância tácita;
+-- franquia hídrica por ocupação (água não é individualizável por unidade,
+-- diferente de energia); geração solar como fonte de receita separada.
+
+-- ---- 19.1 Responsável financeiro solidário: não é fiador ----
+-- O contrato real distingue LOCATÁRIO (ocupante) de RESPONSÁVEL FINANCEIRO
+-- SOLIDÁRIO (garantidor solidário sem ser fiador formal — normalmente pai/
+-- mãe de estudante). Modelar os dois como "fiador" perderia essa distinção
+-- semântica e jurídica (fiança tem regime próprio na Lei 8.245/91, distinto
+-- de responsabilidade solidária simples do art. 275 do Código Civil).
+alter table contrato_partes drop constraint contrato_partes_papel_check;
+alter table contrato_partes add constraint contrato_partes_papel_check
+  check (papel in ('locatario_principal','locatario_adicional','fiador','responsavel_solidario'));
+
+-- ---- 19.2 Política de cobrança por contrato ----
+-- Os parâmetros globais que o sistema assumia (multa 10% flat, juros 2%
+-- a.m., honorários automáticos aos 30 dias) vieram da descrição genérica
+-- original do projeto — o contrato real usa multa em degraus (2% até o 5º
+-- dia, 10% substituindo dali em diante sobre principal+juros+correção),
+-- juros de 1% a.m., e honorários só "em caso de necessidade de propositura
+-- de medida judicial", não automáticos. Isso prova que esses números são
+-- termo de cada contrato. server/financeiro/jurosMulta.ts consome esta
+-- tabela via server/integracao/reguaCobranca.ts, com fallback para uma
+-- política genérica quando um contrato não tiver linha própria aqui.
+create table contrato_politica_cobranca (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null unique references contratos(id) on delete cascade,
+  multa_ate_5_dias_pct numeric(6,4) not null check (multa_ate_5_dias_pct >= 0),
+  dias_limite_multa_reduzida smallint not null default 5 check (dias_limite_multa_reduzida >= 0),
+  multa_apos_5_dias_pct numeric(6,4) not null check (multa_apos_5_dias_pct >= 0),
+  juros_pct_am numeric(6,4) not null check (juros_pct_am >= 0),
+  honorarios_pct numeric(6,4) not null default 0.20 check (honorarios_pct >= 0),
+  honorarios_somente_se_judicial boolean not null default true,
+  dias_gatilho_honorarios_automatico smallint,
+  criado_em timestamptz not null default now(),
+  constraint chk_honorarios_gatilho_coerente check (
+    honorarios_somente_se_judicial = true or dias_gatilho_honorarios_automatico is not null
+  )
+);
+
+-- ---- 19.3 "Valor único mensal": aluguel efetivo vs. rateio de custeio ----
+-- A parte tributável (aluguel efetivo, base do IRPF Carnê-Leão) e a parte
+-- de reembolso não-tributável (rateio de custeio coletivo) têm proporção
+-- fixada no contrato — 55/45 neste caso, mas varia por contrato/residencial.
+-- Sem esse campo, o Módulo 15 (Tributário/DIRPF) não tem como separar
+-- receita tributável de mero trânsito contábil.
+alter table contratos add column percentual_aluguel_efetivo numeric(6,4);
+alter table contratos add constraint chk_percentual_aluguel_efetivo_fracao
+  check (percentual_aluguel_efetivo is null or (percentual_aluguel_efetivo > 0 and percentual_aluguel_efetivo <= 1));
+
+create table categorias_rateio_coletivo (
+  id uuid primary key default gen_random_uuid(),
+  codigo text not null unique,
+  descricao text not null,
+  natureza_fiscal text not null check (natureza_fiscal in ('aluguel_tributavel','reembolso_nao_tributavel'))
+);
+
+insert into categorias_rateio_coletivo (codigo, descricao, natureza_fiscal) values
+  ('aluguel_efetivo', 'Aluguel Efetivo — base de cálculo para IRPF Carnê-Leão', 'aluguel_tributavel'),
+  ('manutencao_mobiliario_areas_comuns', 'Custeio de uso e conservação de mobiliário e equipamentos de áreas comuns', 'reembolso_nao_tributavel'),
+  ('pequenos_reparos_areas_comuns', 'Custeio de uso e pequenos reparos de áreas comuns e infraestrutura compartilhada', 'reembolso_nao_tributavel'),
+  ('limpeza_zeladoria_terceirizada', 'Reembolso de custos de terceiros para limpeza e zeladoria de áreas comuns', 'reembolso_nao_tributavel'),
+  ('limpeza_areas_hidraulicas_comuns', 'Custeio de uso e limpeza de áreas hidráulicas/sanitárias comuns', 'reembolso_nao_tributavel'),
+  ('agua_esgoto_coletivo', 'Custeio de serviços essenciais de abastecimento coletivo (água e esgoto)', 'reembolso_nao_tributavel'),
+  ('lavanderia_coletiva_uso', 'Custeio de uso da lavanderia coletiva', 'reembolso_nao_tributavel'),
+  ('internet_wifi_coletivo', 'Custeio de uso do serviço de internet e rede wi-fi de uso coletivo', 'reembolso_nao_tributavel'),
+  ('seguranca_monitoramento_coletivo', 'Custeio de uso e monitoramento de sistemas de segurança coletivos', 'reembolso_nao_tributavel');
+
+alter table fatura_itens add column categoria_rateio_id uuid references categorias_rateio_coletivo(id);
+
+-- ---- 19.4 Demonstrativo Semestral Simplificado (DSS) e concordância tácita ----
+-- O contrato real obriga o envio semestral de um demonstrativo de
+-- arrecadação/gasto por rubrica, com 10 dias corridos para impugnação —
+-- silêncio do inquilino vira "concordância tácita absoluta" e serve como
+-- prova de regularidade de gestão. Isso é uma obrigação contratual
+-- recorrente, não um relatório opcional.
+create table demonstrativos_rateio (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid references residenciais(id),
+  periodo_inicio date not null,
+  periodo_fim date not null,
+  enviado_em timestamptz,
+  prazo_impugnacao_dias smallint not null default 10,
+  status text not null default 'rascunho' check (status in ('rascunho','enviado','aceito_tacito','impugnado')),
+  documento_id uuid references documentos_gerados(id),
+  constraint chk_dss_periodo check (periodo_fim > periodo_inicio)
+);
+
+create table demonstrativo_rateio_itens (
+  id uuid primary key default gen_random_uuid(),
+  demonstrativo_id uuid not null references demonstrativos_rateio(id) on delete cascade,
+  categoria_rateio_id uuid not null references categorias_rateio_coletivo(id),
+  valor_arrecadado numeric(14,2) not null check (valor_arrecadado >= 0),
+  valor_gasto numeric(14,2) not null check (valor_gasto >= 0),
+  saldo numeric(14,2) not null
+);
+
+create table impugnacoes_demonstrativo (
+  id uuid primary key default gen_random_uuid(),
+  demonstrativo_id uuid not null references demonstrativos_rateio(id),
+  pessoa_id uuid not null references pessoas(id),
+  categoria_rateio_id uuid references categorias_rateio_coletivo(id),
+  texto text not null,
+  criado_em timestamptz not null default now()
+);
+
+-- Fecha a janela de impugnação no próprio banco: sem isso, "concordância
+-- tácita" viraria uma regra só de aplicação, fácil de furar por um bug de
+-- UI que aceite impugnação fora do prazo.
+create or replace function fn_check_prazo_impugnacao()
+returns trigger as $$
+declare
+  v_enviado_em timestamptz;
+  v_prazo smallint;
+begin
+  select enviado_em, prazo_impugnacao_dias into v_enviado_em, v_prazo
+  from demonstrativos_rateio where id = new.demonstrativo_id;
+
+  if v_enviado_em is null then
+    raise exception 'Demonstrativo % ainda não foi enviado — não há prazo de impugnação em curso', new.demonstrativo_id;
+  end if;
+
+  if now() > v_enviado_em + (v_prazo || ' days')::interval then
+    raise exception 'Prazo de impugnação de % dias já expirou para o demonstrativo % (concordância tácita)', v_prazo, new.demonstrativo_id;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger trg_check_prazo_impugnacao
+  before insert on impugnacoes_demonstrativo
+  for each row execute function fn_check_prazo_impugnacao();
+
+-- ---- 19.5 Franquia hídrica por ocupação ----
+-- Diferente de energia (medida por unidade), água/esgoto não tem hidrômetro
+-- individualizável neste residencial — o contrato instituiu uma franquia
+-- em m³ por número de ocupantes, com rateio extraordinário de excedente
+-- quando o consumo real do prédio ultrapassa a soma das franquias.
+create table franquia_hidrica_ocupacao (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid not null references residenciais(id),
+  numero_ocupantes smallint not null check (numero_ocupantes > 0),
+  franquia_m3 numeric(8,2) not null check (franquia_m3 > 0),
+  unique (residencial_id, numero_ocupantes)
+);
+
+create table leituras_hidricas_coletivas (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid not null references residenciais(id),
+  competencia date not null,
+  consumo_total_m3 numeric(10,2) not null check (consumo_total_m3 >= 0),
+  valor_conta_agua numeric(14,2) not null check (valor_conta_agua >= 0),
+  status text not null default 'pendente_confirmacao' check (status in ('pendente_confirmacao','confirmada')),
+  confirmado_por uuid references pessoas(id),
+  confirmado_em timestamptz,
+  criado_em timestamptz not null default now(),
+  unique (residencial_id, competencia)
+);
+
+-- ---- 19.6 Geração de energia solar ----
+-- Fonte de receita citada pelo cliente (não estava no contrato modelo, mas
+-- é realidade operacional): geração solar exige leitura mensal obrigatória,
+-- assim como o consumo de energia, e gera crédito/cobrança adicional no
+-- boleto. A fórmula exata de faturamento é uma pergunta em aberto (ver
+-- docs/10-auditoria-contrato-real.md) — aqui só a estrutura de dados.
+create table geracao_solar (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid references residenciais(id),
+  imovel_id uuid references imoveis(id),
+  competencia date not null,
+  energia_gerada_kwh numeric(10,2) not null check (energia_gerada_kwh >= 0),
+  valor_credito numeric(14,2) check (valor_credito is null or valor_credito >= 0),
+  status text not null default 'pendente_confirmacao' check (status in ('pendente_confirmacao','confirmada')),
+  confirmado_por uuid references pessoas(id),
+  confirmado_em timestamptz,
+  criado_em timestamptz not null default now(),
+  constraint chk_geracao_solar_referencia check (residencial_id is not null or imovel_id is not null)
+);
+create unique index uq_geracao_solar_imovel_competencia
+  on geracao_solar(imovel_id, competencia) where imovel_id is not null;
+create unique index uq_geracao_solar_residencial_competencia
+  on geracao_solar(residencial_id, competencia) where residencial_id is not null and imovel_id is null;
+
+-- ---- 19.7 RLS das tabelas novas ----
+alter table contrato_politica_cobranca enable row level security;
+create policy admin_full_access_politica_cobranca on contrato_politica_cobranca
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+alter table categorias_rateio_coletivo enable row level security;
+create policy admin_escreve_categorias_rateio on categorias_rateio_coletivo
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy autenticado_le_categorias_rateio on categorias_rateio_coletivo
+  for select using (auth.uid() is not null);
+
+alter table demonstrativos_rateio enable row level security;
+create policy admin_full_access_dss on demonstrativos_rateio
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_dss_do_proprio_residencial on demonstrativos_rateio
+  for select using (
+    exists (
+      select 1 from contrato_partes cp
+      join contratos c on c.id = cp.contrato_id
+      join imoveis i on i.id = c.imovel_id
+      where cp.pessoa_id = fn_minha_pessoa_id() and i.residencial_id = demonstrativos_rateio.residencial_id
+    )
+  );
+
+alter table demonstrativo_rateio_itens enable row level security;
+create policy admin_full_access_dss_itens on demonstrativo_rateio_itens
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_itens_dss_do_proprio_residencial on demonstrativo_rateio_itens
+  for select using (
+    exists (
+      select 1 from demonstrativos_rateio d
+      join imoveis i on i.residencial_id = d.residencial_id
+      join contratos c on c.imovel_id = i.id
+      join contrato_partes cp on cp.contrato_id = c.id
+      where d.id = demonstrativo_rateio_itens.demonstrativo_id
+        and cp.pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+
+alter table impugnacoes_demonstrativo enable row level security;
+create policy admin_full_access_impugnacoes on impugnacoes_demonstrativo
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy pessoa_ve_e_cria_propria_impugnacao on impugnacoes_demonstrativo
+  for all using (pessoa_id = fn_minha_pessoa_id()) with check (pessoa_id = fn_minha_pessoa_id());
+
+alter table franquia_hidrica_ocupacao enable row level security;
+create policy admin_escreve_franquia_hidrica on franquia_hidrica_ocupacao
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy autenticado_le_franquia_hidrica on franquia_hidrica_ocupacao
+  for select using (auth.uid() is not null);
+
+alter table leituras_hidricas_coletivas enable row level security;
+create policy admin_full_access_leituras_hidricas on leituras_hidricas_coletivas
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_leituras_hidricas_do_proprio_residencial on leituras_hidricas_coletivas
+  for select using (
+    exists (
+      select 1 from contrato_partes cp
+      join contratos c on c.id = cp.contrato_id
+      join imoveis i on i.id = c.imovel_id
+      where cp.pessoa_id = fn_minha_pessoa_id() and i.residencial_id = leituras_hidricas_coletivas.residencial_id
+    )
+  );
+
+alter table geracao_solar enable row level security;
+create policy admin_full_access_geracao_solar on geracao_solar
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy investidor_ve_geracao_solar_do_proprio_imovel on geracao_solar
+  for select using (
+    exists (select 1 from imovel_propriedade ip where ip.imovel_id = geracao_solar.imovel_id and ip.proprietario_pessoa_id = fn_minha_pessoa_id())
+  );
+
+-- ---- 19.8 Auditoria das tabelas financeiras/contratuais novas ----
+create trigger trg_audit_politica_cobranca after insert or update or delete on contrato_politica_cobranca
+  for each row execute function fn_audit_trigger();
+create trigger trg_audit_demonstrativos_rateio after insert or update or delete on demonstrativos_rateio
+  for each row execute function fn_audit_trigger();
