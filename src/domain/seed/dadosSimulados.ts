@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
 import { executar } from "../../db/connection";
 import { gerarCronogramaSAC } from "../financiamento/amortizacao";
+import { registrarReajuste } from "../contratos/reajustes";
 
 // Gerador determinístico (sem dependência externa) — mesma seed sempre produz o mesmo dataset,
 // o que torna os testes e capturas de tela reprodutíveis.
@@ -32,6 +33,11 @@ function somarDias(dataIso: string, dias: number): string {
   const data = new Date(dataIso + "T00:00:00");
   data.setDate(data.getDate() + dias);
   return formatarData(data);
+}
+function diferencaEmMeses(dataInicioIso: string, dataFimIso: string): number {
+  const inicio = new Date(dataInicioIso + "T00:00:00");
+  const fim = new Date(dataFimIso + "T00:00:00");
+  return (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth());
 }
 
 const PLANO_DE_CONTAS = [
@@ -222,10 +228,19 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
     executar(
       db,
       `INSERT INTO contratos_locacao
-       (id, imovel_id, locatario, tipo, valor_referencia, dia_vencimento, data_inicio, data_fim, indice_reajuste, multa_percentual, juros_mensal_percentual)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'igpm', 2.0, 1.0)`,
+       (id, imovel_id, locatario, tipo, valor_referencia, dia_vencimento, data_inicio, data_fim, indice_reajuste, multa_percentual, juros_mensal_percentual, percentual_reajuste_primeira_renovacao)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'igpm', 2.0, 1.0, 5.0)`,
       [contrato.id, contrato.imovelId, contrato.locatario, contrato.tipo, contrato.valor, contrato.diaVencimento || null, contrato.inicio, contrato.fim],
     );
+  }
+  // registra um reajuste real (1ª renovação, percentual fixo) nos contratos de
+  // apartamento que já passaram de 12 meses — popula o histórico de reajustes
+  // com um caso não-hipotético para a tela de Reajustes e rescisão.
+  for (const contrato of contratos.filter((c) => c.imovelId === apto1 || c.imovelId === apto2)) {
+    if (diferencaEmMeses(contrato.inicio, hoje) >= 12) {
+      const dataVigencia = somarMeses(contrato.inicio, 12);
+      registrarReajuste(db, contrato.id, dataVigencia, Math.round(contrato.valor * 1.05), "fixo", "1ª renovação — percentual fixo pré-acordado");
+    }
   }
 
   // Contrato "kitnet estudantil" — modelo com múltiplos locatários solidários,
@@ -243,8 +258,9 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
     `INSERT INTO contratos_locacao
      (id, imovel_id, locatario, tipo, valor_referencia, dia_vencimento, data_inicio, data_fim, indice_reajuste,
       percentual_aluguel_efetivo, multa_percentual, multa_ate_dias, multa_percentual_substitutiva,
-      juros_mensal_percentual, indice_correcao_mora, honorarios_percentual, dias_gatilho_judicial)
-     VALUES (?, ?, ?, 'residencial_fixo', ?, 10, ?, NULL, 'ipca', 55, 2.0, 5, 10.0, 1.0, 'ipca', 20.0, 40)`,
+      juros_mensal_percentual, indice_correcao_mora, honorarios_percentual, dias_gatilho_judicial,
+      percentual_reajuste_primeira_renovacao)
+     VALUES (?, ?, ?, 'residencial_fixo', ?, 10, ?, NULL, 'ipca', 55, 2.0, 5, 10.0, 1.0, 'ipca', 20.0, 40, 6.0)`,
     [contratoEstudantilId, imovelEstudantilId, "Locatário Principal (exemplo)", 2490, somarMeses(hoje, -4)],
   );
   const partesEstudantil = [

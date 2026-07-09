@@ -80,7 +80,30 @@ CREATE TABLE contratos_locacao (
     honorarios_percentual REAL NOT NULL DEFAULT 0,       -- sobre o débito consolidado, se for a juízo
     dias_gatilho_judicial INTEGER NOT NULL DEFAULT 9999, -- dias de atraso a partir do qual honorários incidem
 
+    -- Regra de reajuste não uniforme (padrão real: 1ª renovação com percentual fixo
+    -- pré-acordado, renovações seguintes pelo índice). Ver contrato_reajustes para o
+    -- histórico do que foi de fato aplicado a cada ciclo.
+    percentual_reajuste_primeira_renovacao REAL,          -- ex: 6.0 (=6%). NULL = usa indice_reajuste desde a 1ª renovação
+    duracao_minima_meses INTEGER NOT NULL DEFAULT 12,     -- duração do prazo determinado de cada ciclo, para multa proporcional
+
+    -- Multa rescisória por quebra antecipada do prazo determinado (art. 4º Lei 8.245/91).
+    multa_rescisoria_teto_meses REAL NOT NULL DEFAULT 3,  -- teto em nº de meses do valor unificado vigente
+
     observacoes     TEXT
+);
+
+-- Histórico de reajustes efetivamente aplicados — prova documental de que o valor
+-- cobrado em cada período corresponde à regra contratual (fixo na 1ª renovação,
+-- índice nas seguintes), não um valor arbitrário.
+CREATE TABLE contrato_reajustes (
+    id                  INTEGER PRIMARY KEY,
+    contrato_id         INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    data_vigencia       DATE NOT NULL,             -- a partir de quando o valor_novo passou a valer
+    valor_anterior      REAL NOT NULL,
+    valor_novo          REAL NOT NULL,
+    percentual_aplicado REAL NOT NULL,
+    criterio            TEXT NOT NULL CHECK (criterio IN ('fixo', 'igpm', 'ipca')),
+    observacoes         TEXT
 );
 
 -- Locatários e responsáveis financeiros solidários adicionais além do locatário
@@ -166,3 +189,4 @@ CREATE INDEX idx_transacoes_imovel ON transacoes(imovel_id);
 CREATE INDEX idx_transacoes_contrato ON transacoes(contrato_id);
 CREATE INDEX idx_caucoes_contrato ON caucoes(contrato_id);
 CREATE INDEX idx_contrato_locatarios_contrato ON contrato_locatarios(contrato_id);
+CREATE INDEX idx_contrato_reajustes_contrato ON contrato_reajustes(contrato_id);

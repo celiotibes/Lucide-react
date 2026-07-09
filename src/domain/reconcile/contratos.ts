@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import type { CompetenciaEsperada } from "../types";
+import { valorVigente } from "../contratos/reajustes";
 
 const TOLERANCIA_VALOR = 0.05; // 5% de diferença aceitável (desconto, juro já embutido, etc.)
 const TOLERANCIA_DIAS = 10; // dias de atraso ainda tratados como "o mesmo pagamento"
@@ -37,11 +38,14 @@ export function gerarCompetencias(db: Database, hoje: string): CompetenciaEspera
     const fim = contrato.data_fim ?? hoje;
     let mes = contrato.data_inicio.slice(0, 8) + "01";
     while (mes <= fim) {
+      // usa o valor vigente naquele mês (respeita reajustes já registrados em
+      // contrato_reajustes), não sempre o valor original do dia 1 do contrato —
+      // senão, todo mês após um reajuste real pareceria "divergente".
       competencias.push({
         contrato_id: contrato.id,
         imovel_id: contrato.imovel_id,
         mes_referencia: mes,
-        valor_esperado: contrato.valor_referencia,
+        valor_esperado: valorVigente(db, contrato.id, mes),
       });
       mes = somarMeses(mes, 1);
     }

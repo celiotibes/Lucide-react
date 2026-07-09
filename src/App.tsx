@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
@@ -14,16 +14,18 @@ import { AuditoriaView } from "./components/AuditoriaView";
 import { LaudoView } from "./components/LaudoView";
 import { RendaTributavelView } from "./components/RendaTributavelView";
 import { LivroRazaoView } from "./components/LivroRazaoView";
+import { ReajustesRescisaoView } from "./components/ReajustesRescisaoView";
 
 type Aba =
   | "dashboard" | "importar" | "transacoes" | "contratos" | "caucao"
-  | "financiamentos" | "auditoria" | "laudo" | "renda" | "razao";
+  | "financiamentos" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
   { id: "importar", rotulo: "Importar documentos", icone: UploadCloud },
   { id: "transacoes", rotulo: "Transações", icone: ListChecks },
   { id: "contratos", rotulo: "Contratos e inadimplência", icone: FileSignature },
+  { id: "reajustes", rotulo: "Reajustes e rescisão", icone: TrendingUp },
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
@@ -135,6 +137,7 @@ function Conteudo() {
         {aba === "importar" && <ImportarView />}
         {aba === "transacoes" && <TransacoesView />}
         {aba === "contratos" && <ContratosInadimplenciaView />}
+        {aba === "reajustes" && <ReajustesRescisaoView />}
         {aba === "caucao" && <CaucaoView />}
         {aba === "financiamentos" && <FinanciamentosView />}
         {aba === "renda" && <RendaTributavelView />}

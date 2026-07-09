@@ -47,6 +47,22 @@ export interface ContratoLocacao {
   indice_correcao_mora: IndiceReajuste;
   honorarios_percentual: number;
   dias_gatilho_judicial: number;
+  percentual_reajuste_primeira_renovacao?: number;
+  duracao_minima_meses: number;
+  multa_rescisoria_teto_meses: number;
+  observacoes?: string;
+}
+
+export type CriterioReajuste = "fixo" | "igpm" | "ipca";
+
+export interface ContratoReajuste {
+  id: number;
+  contrato_id: number;
+  data_vigencia: string;
+  valor_anterior: number;
+  valor_novo: number;
+  percentual_aplicado: number;
+  criterio: CriterioReajuste;
   observacoes?: string;
 }
 
