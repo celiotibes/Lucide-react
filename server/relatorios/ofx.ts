@@ -105,3 +105,73 @@ function pad2(valor: number): string {
 function escaparSGML(texto: string): string {
   return texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, ' ');
 }
+
+// ---------------------------------------------------------------------------
+// Leitura (importação de extrato bancário — docs/18): direção inversa de
+// `gerarOFX`. Escopo deliberadamente limitado a OFX 1.0 SGML (tags de linha
+// única, sem fechamento obrigatório) — é o que a maioria dos bancos
+// brasileiros exporta e é o formato que este mesmo módulo gera. Não
+// interpreta OFX 2.x baseado em XML (tags sempre fechadas, namespaces) —
+// sem uma amostra real de arquivo 2.x à mão, seria uma suposição não
+// verificada sobre um formato genuinamente diferente.
+
+export class OFXInvalidoError extends Error {}
+
+export interface TransacaoOFXImportada {
+  /** FITID — identificador único da transação dado pelo banco/instituição. */
+  id: string;
+  data: Date;
+  /** Sinal já vem do próprio TRNAMT do arquivo — positivo/negativo conforme o banco reportou. */
+  valor: number;
+  descricao: string;
+}
+
+export function parsearOFX(conteudoOFX: string): TransacaoOFXImportada[] {
+  const blocos = conteudoOFX.split(/<STMTTRN>/i).slice(1);
+  return blocos.map((bloco) => parsearBlocoTransacao(bloco.split(/<\/STMTTRN>/i)[0]));
+}
+
+function parsearBlocoTransacao(bloco: string): TransacaoOFXImportada {
+  const dtPosted = extrairTagOFX(bloco, 'DTPOSTED');
+  const trnAmt = extrairTagOFX(bloco, 'TRNAMT');
+  const fitId = extrairTagOFX(bloco, 'FITID');
+  const memo = extrairTagOFX(bloco, 'MEMO') ?? '';
+
+  if (!dtPosted) throw new OFXInvalidoError('Transação OFX sem DTPOSTED');
+  if (!trnAmt) throw new OFXInvalidoError('Transação OFX sem TRNAMT');
+  if (!fitId) throw new OFXInvalidoError('Transação OFX sem FITID');
+
+  return {
+    id: fitId,
+    data: parsearDataOFX(dtPosted),
+    valor: Number(trnAmt),
+    descricao: desescaparSGML(memo),
+  };
+}
+
+function extrairTagOFX(bloco: string, tag: string): string | null {
+  const match = new RegExp(`<${tag}>([^\\r\\n<]*)`, 'i').exec(bloco);
+  return match ? match[1].trim() : null;
+}
+
+function parsearDataOFX(valor: string): Date {
+  // YYYYMMDD ou YYYYMMDDHHMMSS, com sufixo opcional de timezone entre
+  // colchetes (ex.: "20260710120000[-3:BRT]") — o timezone é ignorado, os
+  // dígitos são tratados como já estando na convenção UTC do resto do
+  // projeto (mesma simplificação de server/atendimento/prazoSla.ts).
+  const soDigitos = valor.split('[')[0].trim();
+  if (!/^\d{8,14}$/.test(soDigitos)) {
+    throw new OFXInvalidoError(`Data OFX inválida: "${valor}"`);
+  }
+  const ano = Number(soDigitos.slice(0, 4));
+  const mes = Number(soDigitos.slice(4, 6));
+  const dia = Number(soDigitos.slice(6, 8));
+  const hora = soDigitos.length >= 10 ? Number(soDigitos.slice(8, 10)) : 0;
+  const minuto = soDigitos.length >= 12 ? Number(soDigitos.slice(10, 12)) : 0;
+  const segundo = soDigitos.length >= 14 ? Number(soDigitos.slice(12, 14)) : 0;
+  return new Date(Date.UTC(ano, mes - 1, dia, hora, minuto, segundo));
+}
+
+function desescaparSGML(texto: string): string {
+  return texto.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+}

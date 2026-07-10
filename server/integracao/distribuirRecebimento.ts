@@ -110,6 +110,7 @@ export async function distribuirRecebimentosPendentes(pool: Pool): Promise<Resul
         imovelId: fatura.imovel_id,
         faturaId: fatura.id,
         valor: liquido,
+        valorBruto: bruto,
       });
 
       if (creditado) {
@@ -127,7 +128,7 @@ export async function distribuirRecebimentosPendentes(pool: Pool): Promise<Resul
 
 async function creditarInvestidor(
   pool: Pool,
-  input: { pessoaId: string; imovelId: string; faturaId: string; valor: number },
+  input: { pessoaId: string; imovelId: string; faturaId: string; valor: number; valorBruto: number },
 ): Promise<boolean> {
   const client = await pool.connect();
   try {
@@ -142,11 +143,11 @@ async function creditarInvestidor(
     const novoSaldo = arredondar(saldoAnterior + input.valor);
 
     const { rows: inseridas } = await client.query<{ id: string }>(
-      `insert into investidor_ledger (pessoa_id, imovel_id, tipo, valor, saldo_apos, referencia_fatura_id)
-       values ($1, $2, 'credito_repasse', $3, $4, $5)
+      `insert into investidor_ledger (pessoa_id, imovel_id, tipo, valor, valor_bruto, saldo_apos, referencia_fatura_id)
+       values ($1, $2, 'credito_repasse', $3, $4, $5, $6)
        on conflict (referencia_fatura_id, pessoa_id) where tipo = 'credito_repasse' do nothing
        returning id`,
-      [input.pessoaId, input.imovelId, input.valor, novoSaldo, input.faturaId],
+      [input.pessoaId, input.imovelId, input.valor, input.valorBruto, novoSaldo, input.faturaId],
     );
 
     await client.query('COMMIT');

@@ -60,11 +60,13 @@ describe.skipIf(!DATABASE_URL)('distribuirRecebimentosPendentes (integração re
     expect(distribuicao).toBeDefined();
     expect(distribuicao!.distribuicoes).toEqual([{ pessoaId: proprietarioId, valor: 1500 }]);
 
-    const { rows } = await pool.query(`select valor, saldo_apos, tipo, referencia_fatura_id from investidor_ledger where pessoa_id = $1`, [
-      proprietarioId,
-    ]);
+    const { rows } = await pool.query(
+      `select valor, valor_bruto, saldo_apos, tipo, referencia_fatura_id from investidor_ledger where pessoa_id = $1`,
+      [proprietarioId],
+    );
     expect(rows).toHaveLength(1);
     expect(Number(rows[0].valor)).toBe(1500);
+    expect(Number(rows[0].valor_bruto)).toBe(1500); // sem taxa, bruto == líquido
     expect(Number(rows[0].saldo_apos)).toBe(1500);
     expect(rows[0].tipo).toBe('credito_repasse');
     expect(rows[0].referencia_fatura_id).toBe(faturaId);
@@ -86,6 +88,15 @@ describe.skipIf(!DATABASE_URL)('distribuirRecebimentosPendentes (integração re
     expect(valorA).toBe(528);
     // bruto B = 400 (40% de 1000), sem taxa, líquido = 400
     expect(valorB).toBe(400);
+
+    const { rows } = await pool.query(`select pessoa_id, valor_bruto from investidor_ledger where pessoa_id in ($1, $2)`, [
+      proprietarioA,
+      proprietarioB,
+    ]);
+    const brutoA = rows.find((r) => r.pessoa_id === proprietarioA)!;
+    const brutoB = rows.find((r) => r.pessoa_id === proprietarioB)!;
+    expect(Number(brutoA.valor_bruto)).toBe(600); // bruto preservado mesmo com taxa deduzida do líquido
+    expect(Number(brutoB.valor_bruto)).toBe(400);
   });
 
   it('imóvel sem nenhuma linha de imovel_propriedade: 100% CRMT implícito, nada a distribuir', async () => {

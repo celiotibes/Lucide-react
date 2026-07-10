@@ -2059,3 +2059,39 @@ alter table pessoas add column asaas_customer_id text unique;
 -- referenciar a mesma fatura para o mesmo proprietário por outro motivo.
 create unique index uq_investidor_ledger_credito_repasse_por_fatura
   on investidor_ledger(referencia_fatura_id, pessoa_id) where tipo = 'credito_repasse';
+
+-- ============================================================================
+-- 25. EXTRATO DO PROPRIETÁRIO E CONCILIAÇÃO BANCÁRIA
+-- ============================================================================
+-- Auditoria pós-docs/17 ("audite e veja se falta desenvolver algo"):
+-- investidor_ledger finalmente recebe dado real desde distribuirRecebimento.ts,
+-- mas nada agregava isso no "Extrato do Proprietário" que o próprio comentário
+-- da tabela (Módulo 10) já citava como referência de mercado (Imobzi) — e
+-- `transacoes_bancarias.origem` já previa `'ofx'` como fonte, mas nenhum
+-- código lia um arquivo OFX (só o exportador de docs/15 existia, na direção
+-- contrária). `fundos`/`fundo_movimentacoes` (retenção FRO/CAPEX) ficam de
+-- fora desta rodada: não há percentual de retenção documentado em nenhum
+-- lugar (nem em `fundos`, nem em `imovel_propriedade`) — inventar um seria a
+-- mesma classe de erro já evitada nesta sessão (docs/10, docs/11, docs/15).
+
+-- `credito_repasse.valor` grava o líquido (pós taxa de administração) desde
+-- docs/17 — correto para o saldo corrido, mas insuficiente para o extrato
+-- mostrar "receita bruta" e "dedução" como linhas separadas (pedido
+-- implícito do próprio design de `extrato_mensal_itens`, que já tem
+-- `tipo in ('receita','despesa')`). Em vez de reescrever o ledger em duas
+-- linhas por lançamento (mudaria a semântica de `saldo_apos` e quebraria os
+-- 9 testes já existentes de `distribuirRecebimento.ts` sem necessidade),
+-- adicionar o valor bruto como coluna extra no mesmo lançamento é a mudança
+-- mínima que resolve o problema.
+alter table investidor_ledger add column valor_bruto numeric(14,2);
+
+-- `transacoes_bancarias` já previa `origem = 'ofx'`, mas não tinha nenhuma
+-- forma de saber se uma transação de um extrato já tinha sido importada
+-- antes — reimportar o mesmo arquivo (comum: usuário baixa o extrato do mês
+-- de novo, sobrepondo dias já cobertos) duplicaria lançamentos sem uma
+-- chave natural para deduplicar. FITID (financial institution transaction
+-- ID) é exatamente o campo que o próprio padrão OFX existe para resolver
+-- isso — cada banco garante que é único por conta.
+alter table transacoes_bancarias add column referencia_externa text;
+create unique index uq_transacoes_bancarias_conta_referencia_externa
+  on transacoes_bancarias(conta_id, referencia_externa) where referencia_externa is not null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gerarOFX, type TransacaoOFX } from './ofx';
+import { gerarOFX, OFXInvalidoError, parsearOFX, type TransacaoOFX } from './ofx';
 
 describe('gerarOFX', () => {
   const opcoesBase = {
@@ -68,5 +68,86 @@ describe('gerarOFX', () => {
     expect(ofx).toContain('<BANKTRANLIST>');
     expect(ofx).toContain('</BANKTRANLIST>');
     expect(ofx).not.toContain('<STMTTRN>');
+  });
+});
+
+describe('parsearOFX', () => {
+  it('round-trip: o que gerarOFX escreve, parsearOFX lê de volta igual', () => {
+    const transacoes: TransacaoOFX[] = [
+      { id: 'pay_1', data: new Date(Date.UTC(2026, 6, 10)), valor: 1500, descricao: 'Fatura Kitnet 16' },
+      { id: 'pay_2', data: new Date(Date.UTC(2026, 6, 15)), valor: -50.5, descricao: 'Estorno parcial' },
+    ];
+    const ofx = gerarOFX(transacoes, {
+      contaId: 'ASAAS',
+      dataInicio: new Date(Date.UTC(2026, 6, 1)),
+      dataFim: new Date(Date.UTC(2026, 6, 31)),
+    });
+
+    const importadas = parsearOFX(ofx);
+    expect(importadas).toHaveLength(2);
+    expect(importadas[0]).toEqual({ id: 'pay_1', data: new Date(Date.UTC(2026, 6, 10)), valor: 1500, descricao: 'Fatura Kitnet 16' });
+    expect(importadas[1]).toEqual({ id: 'pay_2', data: new Date(Date.UTC(2026, 6, 15)), valor: -50.5, descricao: 'Estorno parcial' });
+  });
+
+  it('lê DTPOSTED com hora e sufixo de timezone entre colchetes', () => {
+    const ofx = `<STMTTRN>
+<TRNTYPE>CREDIT
+<DTPOSTED>20260710120000[-3:BRT]
+<TRNAMT>100.00
+<FITID>abc123
+<MEMO>Teste
+</STMTTRN>`;
+    const [transacao] = parsearOFX(ofx);
+    expect(transacao.data).toEqual(new Date(Date.UTC(2026, 6, 10, 12, 0, 0)));
+  });
+
+  it('desescapa entidades SGML no memo (&amp; &lt; &gt;)', () => {
+    const ofx = `<STMTTRN>
+<TRNTYPE>CREDIT
+<DTPOSTED>20260710
+<TRNAMT>10.00
+<FITID>x
+<MEMO>A&amp;B &lt;teste&gt;
+</STMTTRN>`;
+    const [transacao] = parsearOFX(ofx);
+    expect(transacao.descricao).toBe('A&B <teste>');
+  });
+
+  it('sem nenhum STMTTRN: devolve lista vazia', () => {
+    expect(parsearOFX('OFXHEADER:100\n<OFX></OFX>')).toEqual([]);
+  });
+
+  it('rejeita transação sem FITID', () => {
+    const ofx = `<STMTTRN>\n<TRNTYPE>CREDIT\n<DTPOSTED>20260710\n<TRNAMT>10.00\n<MEMO>x\n</STMTTRN>`;
+    expect(() => parsearOFX(ofx)).toThrow(OFXInvalidoError);
+  });
+
+  it('rejeita transação sem TRNAMT', () => {
+    const ofx = `<STMTTRN>\n<TRNTYPE>CREDIT\n<DTPOSTED>20260710\n<FITID>x\n<MEMO>y\n</STMTTRN>`;
+    expect(() => parsearOFX(ofx)).toThrow(OFXInvalidoError);
+  });
+
+  it('rejeita data em formato inválido', () => {
+    const ofx = `<STMTTRN>\n<DTPOSTED>não-e-uma-data\n<TRNAMT>10.00\n<FITID>x\n</STMTTRN>`;
+    expect(() => parsearOFX(ofx)).toThrow(OFXInvalidoError);
+  });
+
+  it('múltiplas transações sem tag de fechamento entre elas (SGML real) ainda são separadas corretamente', () => {
+    const ofx = `<STMTTRN>
+<TRNTYPE>CREDIT
+<DTPOSTED>20260701
+<TRNAMT>100.00
+<FITID>t1
+<MEMO>Primeira
+<STMTTRN>
+<TRNTYPE>CREDIT
+<DTPOSTED>20260702
+<TRNAMT>200.00
+<FITID>t2
+<MEMO>Segunda`;
+    const transacoes = parsearOFX(ofx);
+    expect(transacoes.map((t) => t.id)).toEqual(['t1', 't2']);
+    expect(transacoes[0].valor).toBe(100);
+    expect(transacoes[1].valor).toBe(200);
   });
 });

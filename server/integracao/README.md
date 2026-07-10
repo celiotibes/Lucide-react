@@ -27,7 +27,13 @@ Liga `../relatorios/csv.ts` e `../relatorios/ofx.ts` (serializadores puros) ao b
 Emite a cobrança Asaas (boleto/PIX) de cada fatura `aberta` sem cobrança ainda — cria o cliente Asaas do locatário sob demanda (busca por CPF/CNPJ antes de criar) e persiste `cobrancas_asaas`. Primeira vez que `server/asaas/client.ts` é chamado por código de verdade, não só testado isolado (`docs/17-pipeline-recebimento.md`).
 
 ## `distribuirRecebimento.ts`
-Para cada fatura de aluguel paga ainda não distribuída: divide o valor líquido entre os proprietários do imóvel (`imovel_propriedade`) usando `../financeiro/splitPagamento.ts` (primeiro chamador real dessa função), deduz a taxa de administração por proprietário, e credita `investidor_ledger` com saldo corrido. Usa `pg_advisory_xact_lock` por pessoa — ver "Terceiro bug real" abaixo.
+Para cada fatura de aluguel paga ainda não distribuída: divide o valor líquido entre os proprietários do imóvel (`imovel_propriedade`) usando `../financeiro/splitPagamento.ts` (primeiro chamador real dessa função), deduz a taxa de administração por proprietário, e credita `investidor_ledger` com saldo corrido (`valor` líquido e `valor_bruto`, docs/18). Usa `pg_advisory_xact_lock` por pessoa — ver "Terceiro bug real" abaixo.
+
+## `gerarExtratoProprietario.ts`
+Agrega `investidor_ledger` no "Extrato do Proprietário" (`extratos_mensais_proprietario` + `extrato_mensal_itens`) por imóvel e consolidado da carteira, por mês de competência. Cuidado de idempotência documentado no próprio código: a unique constraint da tabela não protege o extrato consolidado (`imovel_id is null`) contra duplicação — SQL nunca considera dois `NULL` iguais — então essa idempotência é garantida em código, não pelo banco (`docs/18-extrato-proprietario-e-conciliacao-bancaria.md`).
+
+## `importarExtratoBancarioOFX.ts`
+Lê um arquivo `.ofx` (`../relatorios/ofx.ts:parsearOFX`, direção inversa do exportador de `docs/15`) e grava `transacoes_bancarias` sempre com `status = 'sugerido'` — nunca `'aprovado'` automaticamente, regra do schema desde a auditoria original (item 8). Idempotente por `referencia_externa` (FITID do banco), único por conta (`docs/18`).
 
 ## Bug real encontrado ao ligar isto ao banco pela primeira vez
 
