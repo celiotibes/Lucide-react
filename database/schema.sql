@@ -209,6 +209,23 @@ create table faturas (
 create index idx_faturas_contrato on faturas(contrato_id);
 create index idx_faturas_status_vencimento on faturas(status, vencimento);
 
+-- Índices únicos parciais (só para os dois tipos que já têm gerador
+-- automático — 'aluguel' e 'energia', um por contrato+competência):
+-- fecham no banco a mesma garantia que `gerarFaturaMensal.ts` e
+-- `faturarEnergia.ts` só checavam em código (`not exists` seguido de
+-- `insert`, sem transação nem lock — corrida real entre duas execuções
+-- concorrentes do mesmo job, ou entre o job e um retry, geraria fatura
+-- duplicada em vez de "pular por já existir"; foi exatamente o que a
+-- suíte de teste pegou ao rodar arquivos de teste em paralelo contra o
+-- mesmo banco). 'multa_juros'/'honorarios'/'taxa_condominio'/'outros'
+-- ficam de fora de propósito — nenhum gerador os cria ainda, e uma
+-- constraint única ampla demais bloquearia um uso legítimo futuro (ex.:
+-- mais de uma cobrança "outros" no mesmo mês).
+create unique index uq_faturas_aluguel_por_contrato_competencia
+  on faturas(contrato_id, competencia) where tipo = 'aluguel';
+create unique index uq_faturas_energia_por_contrato_competencia
+  on faturas(contrato_id, competencia) where tipo = 'energia';
+
 -- Detalhamento por item (transparência da taxa de 25% de energia — gap/auditoria item 1)
 create table fatura_itens (
   id uuid primary key default gen_random_uuid(),
@@ -1746,3 +1763,142 @@ create policy inquilino_ve_valores_do_proprio_contrato on contrato_componente_va
       where cm.id = contrato_componente_valores_mensais.componente_id and cp.pessoa_id = fn_minha_pessoa_id()
     )
   );
+
+-- ============================================================================
+-- 22. ORDENS DE SERVIÇO: CRONOGRAMA (MANUTENÇÃO PREVENTIVA) E ANDAMENTO
+--     PASSO A PASSO
+-- ============================================================================
+-- Pedido explícito do cliente: ordens de serviço não só para o zelador e
+-- serviços gerais, mas para qualquer prestador extra (eletricista,
+-- encanador, técnico de interfone, técnico de internet, montador de
+-- móveis etc. — `ordens_servico.categoria` já é texto livre desde o
+-- início, não precisa mudar para isso), com (1) cronograma/agendamento —
+-- não só chamado avulso reativo — e (2) relatório passo a passo do que
+-- aconteceu durante o serviço, não só check-in/check-out. Diferente das
+-- seções anteriores, isto não vem de um contrato assinado — é
+-- especificação direta do cliente, tratada com o mesmo cuidado de não
+-- inventar regra além do que foi pedido.
+
+-- ---- 22.1 Ordem de serviço pode ser da unidade OU do prédio inteiro ----
+-- Necessário para o cronograma de manutenção preventiva de área comum
+-- (ex.: limpeza de caixa d'água, revisão elétrica do prédio) em
+-- residenciais de Florianópolis sem condomínio formal (docs/11: em
+-- Curitiba isso já é resolvido pelo condomínio formal — só Florianópolis
+-- precisa que o CRMT gerencie manutenção de área comum diretamente).
+alter table ordens_servico alter column imovel_id drop not null;
+alter table ordens_servico add column residencial_id uuid references residenciais(id);
+alter table ordens_servico add constraint chk_os_um_alvo check (
+  (imovel_id is not null and residencial_id is null) or (imovel_id is null and residencial_id is not null)
+);
+
+-- ---- 22.2 Cronograma: data agendada da visita + origem (plano preventivo) ----
+alter table ordens_servico add column data_agendada timestamptz;
+alter table ordens_servico add column plano_manutencao_id uuid; -- FK adicionada em 22.4, após a tabela existir
+
+create index idx_os_data_agendada on ordens_servico(data_agendada) where data_agendada is not null;
+
+-- ---- 22.3 Andamento passo a passo (soma-se a, não substitui, check-in/check-out) ----
+-- Log append-only de etapas durante a execução — checkin_at/checkout_at/
+-- status continuam sendo o estado atual (já consumidos pela RLS
+-- existente); isto adiciona o histórico de como se chegou lá, com foto
+-- por etapa. A transição de status em si (aberto -> alocado ->
+-- em_execucao -> concluido) é decidida em código
+-- (server/integracao/andamentosOS.ts), não num trigger — mesma decisão
+-- já tomada para juros/multa e pró-rata (docs/03): lógica de fluxo de
+-- negócio vive em código testado, não escondida em SQL.
+--
+-- Sem política de UPDATE/DELETE para o prestador: o log é append-only de
+-- propósito (evidência de execução) — uma correção depois do fato é
+-- responsabilidade do admin, não do próprio prestador apagando o que
+-- registrou.
+create table ordem_servico_andamentos (
+  id uuid primary key default gen_random_uuid(),
+  ordem_servico_id uuid not null references ordens_servico(id) on delete cascade,
+  tipo text not null check (tipo in (
+    'atribuida','a_caminho','iniciada','pausada','material_pendente','retomada','concluida','cancelada','comentario'
+  )),
+  descricao text,
+  fotos_urls text[] not null default '{}',
+  registrado_por_pessoa_id uuid references pessoas(id),
+  criado_em timestamptz not null default now()
+);
+
+create index idx_os_andamentos_os on ordem_servico_andamentos(ordem_servico_id, criado_em);
+
+alter table ordem_servico_andamentos enable row level security;
+
+create policy admin_full_access_os_andamentos on ordem_servico_andamentos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+
+create policy prestador_registra_andamentos_da_propria_os on ordem_servico_andamentos
+  for insert with check (
+    exists (
+      select 1 from ordens_servico os
+      join usuarios u on u.pessoa_id = os.prestador_id
+      where os.id = ordem_servico_andamentos.ordem_servico_id and u.id = auth.uid() and u.papel = 'prestador'
+    )
+  );
+
+create policy prestador_ve_andamentos_da_propria_os on ordem_servico_andamentos
+  for select using (
+    exists (
+      select 1 from ordens_servico os
+      join usuarios u on u.pessoa_id = os.prestador_id
+      where os.id = ordem_servico_andamentos.ordem_servico_id and u.id = auth.uid() and u.papel = 'prestador'
+    )
+  );
+
+create policy inquilino_ve_andamentos_da_propria_os on ordem_servico_andamentos
+  for select using (
+    exists (
+      select 1 from ordens_servico os
+      join usuarios u on u.pessoa_id = os.aberto_por_pessoa_id
+      where os.id = ordem_servico_andamentos.ordem_servico_id and u.id = auth.uid() and u.papel = 'inquilino'
+    )
+  );
+
+create trigger trg_audit_os_andamentos after insert or update or delete on ordem_servico_andamentos
+  for each row execute function fn_audit_trigger();
+
+-- ---- 22.4 Planos de manutenção preventiva (cronograma recorrente) ----
+-- Gerador: server/integracao/gerarOrdensServicoPreventivas.ts. Mesmo
+-- padrão de idempotência de gerarFaturaMensal (docs/12): cada execução
+-- gerada fica ligada ao plano + à data prevista, então rodar o job duas
+-- vezes não duplica a OS.
+create table planos_manutencao_preventiva (
+  id uuid primary key default gen_random_uuid(),
+  imovel_id uuid references imoveis(id),
+  residencial_id uuid references residenciais(id),
+  categoria text not null,
+  descricao text,
+  periodicidade_dias integer not null check (periodicidade_dias > 0),
+  proxima_execucao date not null,
+  prestador_padrao_id uuid references pessoas(id),
+  ativo boolean not null default true,
+  criado_em timestamptz not null default now(),
+  constraint chk_plano_um_alvo check (
+    (imovel_id is not null and residencial_id is null) or (imovel_id is null and residencial_id is not null)
+  )
+);
+
+alter table ordens_servico add constraint fk_os_plano_manutencao
+  foreign key (plano_manutencao_id) references planos_manutencao_preventiva(id);
+
+alter table planos_manutencao_preventiva enable row level security;
+
+create policy admin_full_access_planos_preventivos on planos_manutencao_preventiva
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+-- Sem política de prestador/inquilino: o plano é dado de planejamento
+-- interno (não pedido como visível para prestador ou inquilino) — o
+-- prestador continua vendo as OS geradas a partir dele normalmente, via
+-- `prestador_ve_proprias_os` já existente.
+
+create trigger trg_audit_planos_preventivos after insert or update or delete on planos_manutencao_preventiva
+  for each row execute function fn_audit_trigger();
+
+-- ---- 22.5 Data do custo de OS (faltava — necessária para relatório de despesas) ----
+-- `ordem_servico_custos` não tinha nenhuma coluna de data. Sem isso, um
+-- relatório de despesas por período (docs/15) teria que usar a data da OS
+-- (criado_em/checkout_at), que não é a mesma coisa — a nota fiscal de um
+-- material pode ser lançada dias depois da execução do serviço.
+alter table ordem_servico_custos add column criado_em timestamptz not null default now();

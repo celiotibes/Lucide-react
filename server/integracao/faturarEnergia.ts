@@ -114,12 +114,21 @@ export async function faturarEnergiaConfirmada(pool: Pool, competencia: Date): P
 
     const vencimento = calcularVencimento(competenciaISO, contratoRows[0]?.dia_vencimento ?? 10);
 
+    // ON CONFLICT: mesma corrida possível de gerarFaturaMensal.ts (a
+    // seleção de leituras elegíveis, acima, e este insert não estão na
+    // mesma transação) — o índice único parcial
+    // `uq_faturas_energia_por_contrato_competencia` é a garantia real,
+    // isto só evita tratar a corrida como erro.
     const { rows: faturaRows } = await pool.query<{ id: string }>(
       `insert into faturas (contrato_id, imovel_id, competencia, tipo, valor_bruto, valor_liquido, vencimento)
        values ($1, $2, $3, 'energia', $4, $4, $5)
+       on conflict (contrato_id, competencia) where tipo = 'energia' do nothing
        returning id`,
       [leitura.contrato_id, leitura.imovel_id, competenciaISO, calculo.valorTotal, vencimento],
     );
+    if (faturaRows.length === 0) {
+      continue; // outra execução concorrente já gerou esta fatura primeiro
+    }
     const faturaId = faturaRows[0].id;
 
     for (const item of calculo.itens) {

@@ -146,12 +146,24 @@ export async function gerarFaturaMensal(pool: Pool, competencia: Date): Promise<
       vencimento = calcularVencimentoMesSeguinte(competenciaISO, contrato.dia_vencimento);
     }
 
+    // ON CONFLICT (não só o `not exists` do filtro acima) porque a
+    // seleção de contratos elegíveis e este insert não estão na mesma
+    // transação: duas execuções concorrentes deste job (ou um retry
+    // sobreposto) poderiam passar as duas pelo `not exists` antes de
+    // qualquer uma commitar. O índice único parcial
+    // `uq_faturas_aluguel_por_contrato_competencia` é quem de fato
+    // impede a fatura duplicada; isto só evita que a segunda execução
+    // trate a corrida como erro.
     const { rows: faturaRows } = await pool.query<{ id: string }>(
       `insert into faturas (contrato_id, imovel_id, competencia, tipo, valor_bruto, valor_liquido, vencimento)
        values ($1, $2, $3, 'aluguel', $4, $4, $5)
+       on conflict (contrato_id, competencia) where tipo = 'aluguel' do nothing
        returning id`,
       [contrato.id, contrato.imovel_id, competenciaISO, valorFatura, formatarDataISO(vencimento)],
     );
+    if (faturaRows.length === 0) {
+      continue; // outra execução concorrente já gerou esta fatura primeiro
+    }
     const faturaId = faturaRows[0].id;
 
     for (const item of itensParaGravar) {

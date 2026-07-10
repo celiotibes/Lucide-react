@@ -24,7 +24,9 @@ Duas frentes do projeto estão implementadas e testadas o máximo possível sem 
 
 **Custo:** sandbox é gratuito; produção cobra por cobrança recebida (ver `docs/07-selecao-de-ia-e-custos.md`, tabela de preços — R$1,99 por boleto/PIX recebido).
 
+**Nota (docs/14):** o mesmo projeto Supabase e a mesma decisão de login por magic link cobrem também o portal do prestador (eletricista, encanador, zelador etc.) — não é uma credencial adicional, é a mesma peça que falta para toda autenticação do sistema, back-office incluído (nenhuma tela tem login real ainda).
+
 ## O que eu faço assim que tiver cada uma
 
-- **Com a connection string do Supabase:** rodo o schema, rodo `npm run test:integration` contra ela, e começo a implementação real do login (Supabase Auth) no back-office e no futuro portal do inquilino.
+- **Com a connection string do Supabase:** rodo o schema, rodo `npm run test:integration` contra ela, e começo a implementação real do login (Supabase Auth) no back-office e nos portais (inquilino, investidor, prestador — RLS de todos já está pronta, só falta a autenticação de fato).
 - **Com a chave sandbox do Asaas:** ligo `server/asaas/client.ts` a uma fatura real (M3), implemento a rota de webhook, e testo o ciclo completo (criar cobrança → simular pagamento no sandbox → webhook atualiza a fatura no banco) de ponta a ponta, com o mesmo rigor usado até aqui.

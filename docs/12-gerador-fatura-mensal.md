@@ -35,7 +35,7 @@ Para cada contrato `locacao_padrao` ativo, num mês de competência dado, sem fa
 4. Nos meses seguintes, grava o valor cheio com os itens discriminados (aluguel líquido + decomposições percentuais + fixos + repassados).
 5. Vencimento sempre no dia `contratos.dia_vencimento` do mês **seguinte** ao da competência — mesma regra já usada por `prorata.ts` (evidência do contrato real da Kitnet 16) e por `faturarEnergia.ts`, agora aplicada de forma consistente à fatura de aluguel também.
 
-Idempotente (não duplica fatura para o mesmo contrato+competência+tipo). Contratos `temporada` não são tratados aqui — modelo de cobrança por diária/reserva, fora do escopo de um gerador de fatura mensal recorrente.
+Idempotente (não duplica fatura para o mesmo contrato+competência+tipo) — mas isso só foi verdade *na prática* depois de uma correção adicional: o `not exists` da consulta e o `insert` não estavam na mesma transação, então duas execuções concorrentes (dois jobs sobrepostos, um retry, ou dois testes em paralelo — foi assim que a suíte pegou) podiam gerar fatura duplicada. Fechado com um índice único parcial no banco (`uq_faturas_aluguel_por_contrato_competencia`) + `on conflict do nothing` no insert — detalhe completo em `server/integracao/README.md`. Contratos `temporada` não são tratados aqui — modelo de cobrança por diária/reserva, fora do escopo de um gerador de fatura mensal recorrente.
 
 ### Decisão não confirmada por contrato real, documentada explicitamente
 
