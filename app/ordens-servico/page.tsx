@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { obterPool } from '@/server/integracao/db';
 import { formatarData, formatarDataHora } from '@/lib/formatacao';
 
@@ -97,7 +98,9 @@ export default async function PaginaOrdensServico() {
           <tbody>
             {ordens.map((os) => (
               <tr key={os.id}>
-                <td>{os.protocolo ?? '—'}</td>
+                <td>
+                  <Link href={`/ordens-servico/${os.id}`}>{os.protocolo ?? os.id.slice(0, 8)}</Link>
+                </td>
                 <td>{os.natureza ? RUBRICA_NATUREZA[os.natureza] ?? os.natureza : '—'}</td>
                 <td>{os.categoria}</td>
                 <td>{os.alvo}</td>

@@ -186,3 +186,95 @@ tbody tr:last-child td {
   border-radius: 8px;
   color: var(--cor-alerta);
 }
+
+.formulario-linha {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.formulario-linha select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.formulario-linha button,
+.botao-secundario {
+  padding: 0.35rem 0.7rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.formulario-linha button {
+  background: var(--cor-primaria);
+  color: white;
+}
+
+.botao-secundario {
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  border: 1px solid var(--cor-borda) !important;
+}
+
+.valor-negativo {
+  color: var(--cor-alerta);
+}
+
+.ficha {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0.6rem 1rem;
+  background: white;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.ficha dt {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.85rem;
+}
+
+.ficha dd {
+  margin: 0;
+}
+
+.linha-do-tempo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.linha-do-tempo li {
+  background: white;
+  border: 1px solid var(--cor-borda);
+  border-left: 3px solid var(--cor-primaria);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+}
+
+.linha-do-tempo-data {
+  color: #666;
+  font-size: 0.82rem;
+  margin-left: 0.6rem;
+}
+
+.linha-do-tempo-autor {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.linha-do-tempo p {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+}
