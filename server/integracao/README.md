@@ -23,6 +23,12 @@ Gera a OS de cada ocorrência vencida de `planos_manutencao_preventiva` (cronogr
 ## `relatorios.ts`
 Liga `../relatorios/csv.ts` e `../relatorios/ofx.ts` (serializadores puros) ao banco: faturas e despesas de prestador em CSV (regime de competência), extrato de cobranças pagas em OFX (regime de caixa, formato de conciliação bancária/contábil). Não inventa a fórmula de total de `lancamentos_prestador` (valor_base/adicional_pct/km sem confirmação contratual) — exporta os campos crus separados (`docs/15-relatorios-exportaveis.md`).
 
+## `emitirCobranca.ts`
+Emite a cobrança Asaas (boleto/PIX) de cada fatura `aberta` sem cobrança ainda — cria o cliente Asaas do locatário sob demanda (busca por CPF/CNPJ antes de criar) e persiste `cobrancas_asaas`. Primeira vez que `server/asaas/client.ts` é chamado por código de verdade, não só testado isolado (`docs/17-pipeline-recebimento.md`).
+
+## `distribuirRecebimento.ts`
+Para cada fatura de aluguel paga ainda não distribuída: divide o valor líquido entre os proprietários do imóvel (`imovel_propriedade`) usando `../financeiro/splitPagamento.ts` (primeiro chamador real dessa função), deduz a taxa de administração por proprietário, e credita `investidor_ledger` com saldo corrido. Usa `pg_advisory_xact_lock` por pessoa — ver "Terceiro bug real" abaixo.
+
 ## Bug real encontrado ao ligar isto ao banco pela primeira vez
 
 Os testes unitários de `jurosMulta.ts` usavam datas de meia-noite UTC dos dois lados (`dataVencimento` e `dataReferencia`) e todos passavam. O teste de integração usa `new Date()` de verdade — hora real do relógio — como `dataReferencia`, exatamente como aconteceria num job rodando em produção a qualquer hora do dia. Isso expôs um bug imediatamente: uma fatura vencida há 3 dias virava "4 dias de atraso" sempre que o job rodava depois do meio-dia, porque a diferença em milissegundos incluía a fração de hora do dia e `Math.round` arredondava para cima.
@@ -33,7 +39,15 @@ Corrigido em `server/financeiro/jurosMulta.ts` truncando as duas datas para o di
 
 Ao adicionar mais arquivos de teste de integração (docs/12-15), a suíte começou a falhar de forma intermitente — não sempre, só às vezes, o assinalador clássico de corrida. Causa raiz: `gerarFaturaMensal`/`faturarEnergia` selecionam contratos/leituras elegíveis com um `select ... where not exists (select 1 from faturas ...)` e só *depois* fazem o `insert` — sem transação nem lock entre as duas consultas. Duas execuções concorrentes (dois jobs de cron sobrepostos, um retry enquanto o anterior ainda roda, ou — como aqui — dois arquivos de teste rodando em paralelo contra o mesmo Postgres) podem passar as duas pelo `not exists` antes de qualquer uma comitar, gerando fatura duplicada para o mesmo contrato+competência.
 
-Corrigido em duas camadas: (1) índices únicos parciais no banco (`uq_faturas_aluguel_por_contrato_competencia`, `uq_faturas_energia_por_contrato_competencia` — schema seção pós-22) que tornam a duplicata fisicamente impossível, não só improvável; (2) os dois `insert` passaram a usar `on conflict ... do nothing`, tratando a corrida como "outra execução já gerou, pular" em vez de deixar o `pg` lançar um erro de violação de constraint. Also corrigido: `vitest.config.ts` ganhou `fileParallelism: false` — os arquivos de teste de integração fazem varredura de portfólio inteiro de propósito (é o que a função faz em produção), então rodá-los em paralelo contra o mesmo banco sempre teria esse risco, independente da constraint.
+Corrigido em duas camadas: (1) índices únicos parciais no banco (`uq_faturas_aluguel_por_contrato_competencia`, `uq_faturas_energia_por_contrato_competencia` — schema seção pós-22) que tornam a duplicata fisicamente impossível, não só improvável; (2) os dois `insert` passaram a usar `on conflict ... do nothing`, tratando a corrida como "outra execução já gerou, pular" em vez de deixar o `pg` lançar um erro de violação de constraint. Também corrigido: `vitest.config.ts` ganhou `fileParallelism: false` — os arquivos de teste de integração fazem varredura de portfólio inteiro de propósito (é o que a função faz em produção), então rodá-los em paralelo contra o mesmo banco sempre teria esse risco, independente da constraint.
+
+## Terceiro bug (prevenido, não pego pela suíte desta vez): saldo corrido em `distribuirRecebimento.ts`
+
+Mesma classe de corrida dos dois bugs acima, mas envolvendo dinheiro de forma mais direta: `investidor_ledger.saldo_apos` é um saldo corrido — cada linha nova precisa ler o saldo anterior antes de somar. Duas execuções concorrentes lendo o "saldo anterior" antes de qualquer uma comitar corromperiam o saldo do investidor (lost update), sem violar nenhuma constraint simples (diferente do caso de fatura duplicada). Desta vez a proteção foi aplicada **antes** de a suíte encontrar o problema, aplicando a lição dos dois bugs anteriores: `pg_advisory_xact_lock(hashtext(pessoa_id))` serializa a leitura+escrita do saldo por pessoa, e o índice único parcial `uq_investidor_ledger_credito_repasse_por_fatura` é a segunda linha de defesa (nenhuma fatura credita duas vezes o mesmo proprietário).
+
+## Lição de teste: varredura de portfólio inteiro exige asserção escopada, não contagem global
+
+Depois de fixar a corrida com `fileParallelism: false`, a suíte ainda falhava de forma intermitente — desta vez por testes que assumiam estar "sozinhos" no banco (contando `<STMTTRN>` do extrato OFX, ou comparando um `asaas_id` mockado fixo) quando na verdade `exportarExtratoCobrancasOFX`/`emitirCobrancasPendentes` varrem o portfólio inteiro **de propósito** — o mesmo comportamento que faz o produto funcionar em produção também garante que outro arquivo de teste, rodando na mesma suíte, pode legitimamente contribuir dado para a mesma consulta. Corrigido escopando as asserções ao dado do próprio teste (por `FITID`/`id`, não contagem total) e trocando IDs mockados fixos por únicos por chamada (`docs/17`).
 
 ## Rodando os testes
 

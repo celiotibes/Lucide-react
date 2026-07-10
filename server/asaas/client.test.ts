@@ -100,4 +100,47 @@ describe('AsaasClient', () => {
     await client.consultarCobranca('x');
     expect(fetchFake).toHaveBeenCalledWith('https://sandbox.asaas.com/api/v3/payments/x', expect.anything());
   });
+
+  it('criarCliente monta a requisição corretamente e mapeia a resposta', async () => {
+    const fetchFake = fetchMockado(200, { id: 'cus_1', name: 'Maria Teste', cpfCnpj: '11122233344' });
+    const client = new AsaasClient({ apiKey: 'chave-teste', fetchImpl: fetchFake });
+
+    const resultado = await client.criarCliente({ nome: 'Maria Teste', cpfCnpj: '11122233344', email: 'maria@ex.com' });
+
+    expect(fetchFake).toHaveBeenCalledWith(
+      'https://api.asaas.com/v3/customers',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const corpoEnviado = JSON.parse((fetchFake as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    expect(corpoEnviado).toMatchObject({ name: 'Maria Teste', cpfCnpj: '11122233344', email: 'maria@ex.com' });
+    expect(resultado).toEqual({ id: 'cus_1', nome: 'Maria Teste', cpfCnpj: '11122233344' });
+  });
+
+  it('criarCliente lança AsaasApiError quando a API responde erro', async () => {
+    const fetchFake = fetchMockado(400, { errors: [{ description: 'CPF inválido' }] });
+    const client = new AsaasClient({ apiKey: 'chave-teste', fetchImpl: fetchFake });
+
+    await expect(client.criarCliente({ nome: 'X', cpfCnpj: '000' })).rejects.toThrow(AsaasApiError);
+  });
+
+  it('buscarClientePorCpfCnpj devolve o cliente quando encontrado', async () => {
+    const fetchFake = fetchMockado(200, { data: [{ id: 'cus_2', name: 'João', cpfCnpj: '55566677788' }] });
+    const client = new AsaasClient({ apiKey: 'chave-teste', fetchImpl: fetchFake });
+
+    const resultado = await client.buscarClientePorCpfCnpj('55566677788');
+
+    expect(fetchFake).toHaveBeenCalledWith(
+      'https://api.asaas.com/v3/customers?cpfCnpj=55566677788',
+      expect.anything(),
+    );
+    expect(resultado).toEqual({ id: 'cus_2', nome: 'João', cpfCnpj: '55566677788' });
+  });
+
+  it('buscarClientePorCpfCnpj devolve null quando não encontrado', async () => {
+    const fetchFake = fetchMockado(200, { data: [] });
+    const client = new AsaasClient({ apiKey: 'chave-teste', fetchImpl: fetchFake });
+
+    const resultado = await client.buscarClientePorCpfCnpj('00000000000');
+    expect(resultado).toBeNull();
+  });
 });

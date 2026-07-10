@@ -20,13 +20,15 @@ Duas frentes do projeto estão implementadas e testadas o máximo possível sem 
 2. Ative o **ambiente sandbox** (Asaas oferece um ambiente de testes separado do de produção, sem mexer com dinheiro real) — normalmente em **Configurações → Integrações → API** ou num link direto para `sandbox.asaas.com`; a interface pode variar, procure por "Sandbox" ou "Ambiente de testes".
 3. Gere uma **chave de API** (API Key) do ambiente sandbox.
 4. Me passe essa chave (ou configure como variável de ambiente `ASAAS_API_KEY` e `ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3`) — com isso eu rodo `server/asaas/client.ts` contra a API real pela primeira vez e confirmo que o mapeamento de campos (`server/asaas/client.test.ts` hoje testa contra um mock baseado na documentação) bate com a resposta real.
-5. Configure o webhook: em **Integrações → Webhooks** no painel Asaas, aponte para a URL que vamos expor em `app/api/webhooks/asaas` (ainda não implementada — é o próximo passo depois de validar o cliente) e defina um **token de autenticação** — é esse token que `verificarTokenWebhook` (`server/asaas/webhook.ts`) confere.
+5. Configure o webhook: em **Integrações → Webhooks** no painel Asaas, aponte para `https://[seu-deploy]/api/webhooks/asaas` (rota já implementada, `docs/17-pipeline-recebimento.md` — só falta o deploy existir e a URL real ser cadastrada lá) e defina um **token de autenticação** — vira a variável de ambiente `ASAAS_WEBHOOK_TOKEN`, que `verificarTokenWebhook` (`server/asaas/webhook.ts`) confere a cada chamada.
 
 **Custo:** sandbox é gratuito; produção cobra por cobrança recebida (ver `docs/07-selecao-de-ia-e-custos.md`, tabela de preços — R$1,99 por boleto/PIX recebido).
+
+**Variáveis de ambiente do pipeline completo (docs/17), todas já esperadas pelo código**: `DATABASE_URL`, `CRON_SECRET` (protege as três rotas de cron — fatura mensal, emissão de cobrança, distribuição ao proprietário), `ASAAS_API_KEY`, `ASAAS_BASE_URL` (opcional, default é produção — use a URL de sandbox enquanto testando), `ASAAS_WEBHOOK_TOKEN`.
 
 **Nota (docs/14):** o mesmo projeto Supabase e a mesma decisão de login por magic link cobrem também o portal do prestador (eletricista, encanador, zelador etc.) — não é uma credencial adicional, é a mesma peça que falta para toda autenticação do sistema, back-office incluído (nenhuma tela tem login real ainda).
 
 ## O que eu faço assim que tiver cada uma
 
 - **Com a connection string do Supabase:** rodo o schema, rodo `npm run test:integration` contra ela, e começo a implementação real do login (Supabase Auth) no back-office e nos portais (inquilino, investidor, prestador — RLS de todos já está pronta, só falta a autenticação de fato).
-- **Com a chave sandbox do Asaas:** ligo `server/asaas/client.ts` a uma fatura real (M3), implemento a rota de webhook, e testo o ciclo completo (criar cobrança → simular pagamento no sandbox → webhook atualiza a fatura no banco) de ponta a ponta, com o mesmo rigor usado até aqui.
+- **Com a chave sandbox do Asaas:** o pipeline inteiro já existe (`docs/17-pipeline-recebimento.md`) — falta só validar contra a API real em vez do mock: criar cobrança de verdade, simular pagamento no sandbox, confirmar que o webhook atualiza a fatura e que a distribuição ao proprietário roda em cima disso, de ponta a ponta.

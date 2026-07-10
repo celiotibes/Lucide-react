@@ -34,6 +34,19 @@ export interface CobrancaAsaas {
   qrCodePix?: string;
 }
 
+export interface CriarClienteInput {
+  nome: string;
+  cpfCnpj: string;
+  email?: string;
+  telefone?: string;
+}
+
+export interface ClienteAsaas {
+  id: string;
+  nome: string;
+  cpfCnpj: string;
+}
+
 export class AsaasApiError extends Error {
   constructor(
     message: string,
@@ -65,6 +78,20 @@ function mapearPagamento(corpo: PagamentoAsaasBruto): CobrancaAsaas {
     linkBoleto: corpo.bankSlipUrl,
     qrCodePix: corpo.pixQrCodeId,
   };
+}
+
+interface ClienteAsaasBruto {
+  id: string;
+  name: string;
+  cpfCnpj: string;
+}
+
+interface ListaClientesAsaasBruto {
+  data?: ClienteAsaasBruto[];
+}
+
+function mapearCliente(corpo: ClienteAsaasBruto): ClienteAsaas {
+  return { id: corpo.id, nome: corpo.name, cpfCnpj: corpo.cpfCnpj };
 }
 
 export class AsaasClient {
@@ -127,5 +154,46 @@ export class AsaasClient {
     }
 
     return mapearPagamento(corpo);
+  }
+
+  /** Cria um cliente Asaas — pré-requisito para `criarCobranca` (que exige um `customerId` já existente do lado deles). */
+  async criarCliente(input: CriarClienteInput): Promise<ClienteAsaas> {
+    const resposta = await this.fetchImpl(`${this.baseUrl}/customers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        access_token: this.apiKey,
+      },
+      body: JSON.stringify({
+        name: input.nome,
+        cpfCnpj: input.cpfCnpj,
+        email: input.email,
+        phone: input.telefone,
+      }),
+    });
+
+    const corpo = (await resposta.json()) as ClienteAsaasBruto;
+
+    if (!resposta.ok) {
+      throw new AsaasApiError(`Asaas retornou ${resposta.status} ao criar cliente`, resposta.status, corpo);
+    }
+
+    return mapearCliente(corpo);
+  }
+
+  /** Busca um cliente já cadastrado pelo CPF/CNPJ, para não duplicar o cadastro no Asaas a cada nova cobrança. `null` se não encontrar. */
+  async buscarClientePorCpfCnpj(cpfCnpj: string): Promise<ClienteAsaas | null> {
+    const resposta = await this.fetchImpl(`${this.baseUrl}/customers?cpfCnpj=${encodeURIComponent(cpfCnpj)}`, {
+      headers: { access_token: this.apiKey },
+    });
+
+    const corpo = (await resposta.json()) as ListaClientesAsaasBruto;
+
+    if (!resposta.ok) {
+      throw new AsaasApiError(`Asaas retornou ${resposta.status} ao buscar cliente por CPF/CNPJ`, resposta.status, corpo);
+    }
+
+    const encontrados = corpo.data ?? [];
+    return encontrados.length > 0 ? mapearCliente(encontrados[0]) : null;
   }
 }

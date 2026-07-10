@@ -126,20 +126,23 @@ describe.skipIf(!DATABASE_URL)('relatórios exportáveis (integração real com 
   describe('extrato de cobranças pagas (OFX, regime de caixa)', () => {
     it('só inclui cobranças com status pago e data_pagamento preenchida', async () => {
       const faturaId = await criarFatura('2026-07-01', 1500);
-      await pool.query(
+      const paga = await pool.query(
         `insert into cobrancas_asaas (fatura_id, tipo, valor_cobrado, status, data_pagamento)
-         values ($1, 'pix', 1500, 'pago', '2026-07-10')`,
+         values ($1, 'pix', 1500, 'pago', '2026-07-10') returning id`,
         [faturaId],
       );
-      await pool.query(
-        `insert into cobrancas_asaas (fatura_id, tipo, valor_cobrado, status) values ($1, 'boleto', 1500, 'pendente')`,
+      const pendente = await pool.query(
+        `insert into cobrancas_asaas (fatura_id, tipo, valor_cobrado, status) values ($1, 'boleto', 1500, 'pendente') returning id`,
         [faturaId],
       );
 
       const ofx = await exportarExtratoCobrancasOFX(pool, periodoJulho2026);
-      expect(ofx).toContain('<TRNAMT>1500.00');
+      // Portfólio inteiro no período pode ter outras cobranças de outros
+      // testes rodando na mesma suíte — a asserção verifica a cobrança
+      // desta pessoa por FITID (id próprio), não uma contagem global.
+      expect(ofx).toContain(`<FITID>${paga.rows[0].id}`);
       expect(ofx).toContain('<TRNTYPE>CREDIT');
-      expect((ofx.match(/<STMTTRN>/g) ?? []).length).toBe(1); // só a cobrança paga, não a pendente
+      expect(ofx).not.toContain(`<FITID>${pendente.rows[0].id}`); // a pendente não entra
     });
   });
 });

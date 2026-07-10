@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { Pool } from 'pg';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { encerrarPool } from '@/server/integracao/db';
 import { GET, POST } from './route';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -42,6 +43,11 @@ describe.skipIf(!DATABASE_URL)('rota /api/cron/gerar-fatura-mensal (integração
 
   afterAll(async () => {
     await pool.end();
+    // `obterPool()` (usado dentro da rota) cria um pool próprio, separado
+    // deste `pool` de teste — sem fechá-lo também, a conexão fica aberta
+    // além do fim da suíte, o que já causou instabilidade em execuções
+    // consecutivas do banco de teste (DROP DATABASE com conexão pendente).
+    await encerrarPool();
   });
 
   function requisicao(query: string, autorizacao: string | null): NextRequest {

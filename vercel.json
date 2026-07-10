@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/gerar-fatura-mensal",
       "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/emitir-cobrancas",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/distribuir-recebimentos",
+      "schedule": "0 8 * * *"
     }
   ]
 }

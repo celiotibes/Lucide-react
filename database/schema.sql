@@ -2034,3 +2034,28 @@ create policy inquilino_abre_propria_os on ordens_servico
     aberto_por_pessoa_id = fn_minha_pessoa_id()
     and exists (select 1 from usuarios u where u.id = auth.uid() and u.papel = 'inquilino')
   );
+
+-- ============================================================================
+-- 24. PIPELINE DE RECEBIMENTO: EMISSÃO DE COBRANÇA, WEBHOOK E REPASSE
+-- ============================================================================
+-- `server/asaas/client.ts` e `server/asaas/webhook.ts` existiam desde as
+-- primeiras fases, testados isoladamente (fetch mockado — nunca contra o
+-- sandbox real, sem chave de API neste ambiente), mas nada os ligava ao
+-- banco: nenhuma fatura tinha uma cobrança emitida de verdade, nenhum
+-- webhook atualizava nada, e `investidor_ledger` nunca recebia uma linha.
+-- Esta seção fecha essa cadeia (docs/17-pipeline-recebimento.md).
+
+-- Guarda o id do cliente no Asaas por pessoa, para não recriar o cadastro
+-- lá a cada nova cobrança (`server/integracao/emitirCobranca.ts`).
+alter table pessoas add column asaas_customer_id text unique;
+
+-- Índice único parcial: no máximo um `credito_repasse` por (fatura,
+-- pessoa) — mesma proteção contra corrida real já aplicada a
+-- `faturas` (seção pós-22, `uq_faturas_aluguel_por_contrato_competencia`):
+-- duas execuções concorrentes de `distribuirRecebimento.ts` não podem
+-- creditar o mesmo proprietário duas vezes pela mesma fatura. Parcial
+-- (não um índice único geral em `referencia_fatura_id, pessoa_id`) porque
+-- outros tipos de lançamento (`debito_custo`, etc.) podem legitimamente
+-- referenciar a mesma fatura para o mesmo proprietário por outro motivo.
+create unique index uq_investidor_ledger_credito_repasse_por_fatura
+  on investidor_ledger(referencia_fatura_id, pessoa_id) where tipo = 'credito_repasse';
