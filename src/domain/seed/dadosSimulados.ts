@@ -2,6 +2,7 @@ import type { Database } from "sql.js";
 import { executar } from "../../db/connection";
 import { gerarCronogramaSAC } from "../financiamento/amortizacao";
 import { registrarReajuste } from "../contratos/reajustes";
+import { garantirPlanoDeContasPadrao } from "../planoDeContas";
 
 // Gerador determinístico (sem dependência externa) — mesma seed sempre produz o mesmo dataset,
 // o que torna os testes e capturas de tela reprodutíveis.
@@ -40,24 +41,6 @@ function diferencaEmMeses(dataInicioIso: string, dataFimIso: string): number {
   return (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth());
 }
 
-const PLANO_DE_CONTAS = [
-  { codigo: "1.1.01", descricao: "Aluguéis — contratos residenciais", grupo: "receita", natureza: "credito" },
-  { codigo: "1.2.01", descricao: "Airbnb / temporada", grupo: "receita", natureza: "credito" },
-  { codigo: "1.3.01", descricao: "Multas e juros de atraso recebidos", grupo: "receita", natureza: "credito" },
-  { codigo: "1.9.01", descricao: "Salário — servidor federal", grupo: "pessoal", natureza: "credito" },
-  { codigo: "2.1.01", descricao: "Condomínio e IPTU", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.02", descricao: "Manutenção corrente", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.03", descricao: "Obra / capex", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.04", descricao: "Prestadores de serviço", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.05", descricao: "Financiamento imobiliário — juros", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.06", descricao: "Financiamento imobiliário — amortização", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.07", descricao: "Taxas de plataforma (Airbnb/imobiliária)", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.08", descricao: "Inadimplência / perdas com locatário", grupo: "despesa", natureza: "debito" },
-  { codigo: "2.1.09", descricao: "Tarifas bancárias de cobrança (boleto/PIX)", grupo: "despesa", natureza: "debito" },
-  { codigo: "9.0.01", descricao: "Transferência entre contas próprias", grupo: "transferencia", natureza: "debito" },
-  { codigo: "9.0.02", descricao: "Depósito caução recebido/devolvido", grupo: "transferencia", natureza: "credito" },
-] as const;
-
 const NOMES_LOCATARIOS = [
   "Ana Paula Ferreira", "Bruno Costa Lima", "Carla Menezes", "Diego Alves Souza", "Elaine Rocha",
   "Fábio Nunes", "Gabriela Torres", "Henrique Barbosa", "Isabela Cardoso", "João Vitor Ramos",
@@ -76,11 +59,7 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
   const dataInicioJanela = somarMeses(hoje, -36);
 
   // 1. Plano de contas
-  for (const conta of PLANO_DE_CONTAS) {
-    executar(db, "INSERT INTO plano_de_contas (codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?)", [
-      conta.codigo, conta.descricao, conta.grupo, conta.natureza,
-    ]);
-  }
+  garantirPlanoDeContasPadrao(db);
 
   // 2. Contas bancárias
   const bancos = [
@@ -97,25 +76,34 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
     contaIds.push(indice + 1);
   });
 
-  // 3. Imóveis: 8 kitnets num mesmo edifício + 2 apartamentos financiados
+  // 3. Imóveis: 8 kitnets num mesmo edifício em Florianópolis + 2 apartamentos financiados
+  // em Curitiba, mais um apto de uso pessoal (residência própria) — para demonstrar o
+  // agrupamento por cidade e a exclusão de despesa pessoal do DRE da atividade de locação.
   const imoveis: { id: number; tipo: string; financiado: number }[] = [];
   for (let i = 1; i <= 8; i++) {
     const id = i;
     executar(
       db,
-      "INSERT INTO imoveis (id, apelido, tipo, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, 0)",
-      [id, `Kitnet ${100 + i} - Ed. Aurora`, "kitnet", "Rua das Acácias, 200", 0.08, 28],
+      "INSERT INTO imoveis (id, apelido, tipo, cidade, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+      [id, `Kitnet ${100 + i} - Ed. Aurora`, "kitnet", "Florianópolis", "Rua das Acácias, 200", 0.08, 28],
     );
     imoveis.push({ id, tipo: "kitnet", financiado: 0 });
   }
   const apto1 = 9, apto2 = 10;
-  executar(db, "INSERT INTO imoveis (id, apelido, tipo, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, 1)", [
-    apto1, "Apto 302 - Ed. Bela Vista", "apartamento", "Av. Central, 850", 1, 72,
+  executar(db, "INSERT INTO imoveis (id, apelido, tipo, cidade, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, ?, 1)", [
+    apto1, "Apto 302 - Ed. Bela Vista", "apartamento", "Curitiba", "Av. Central, 850", 1, 72,
   ]);
-  executar(db, "INSERT INTO imoveis (id, apelido, tipo, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, 1)", [
-    apto2, "Apto 501 - Ed. Central", "apartamento", "Rua XV de Novembro, 430", 1, 85,
+  executar(db, "INSERT INTO imoveis (id, apelido, tipo, cidade, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, ?, 1)", [
+    apto2, "Apto 501 - Ed. Central", "apartamento", "Curitiba", "Rua XV de Novembro, 430", 1, 85,
   ]);
   imoveis.push({ id: apto1, tipo: "apartamento", financiado: 1 }, { id: apto2, tipo: "apartamento", financiado: 1 });
+
+  const apto3 = 12; // residência própria (uso pessoal) — não entra em contratos/DRE da atividade
+  executar(
+    db,
+    "INSERT INTO imoveis (id, apelido, tipo, cidade, endereco, fracao_ideal, area_m2, financiado, uso_pessoal) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)",
+    [apto3, "Apto Residencial (uso próprio)", "apartamento", "Curitiba", "Rua das Araucárias, 120", 1, 95],
+  );
 
   // 4. Financiamentos (taxas ilustrativas — o financiamento 1 é deliberadamente
   // sobrecobrado nas transações abaixo, para popular o detector de anatocismo)
@@ -411,6 +399,15 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
   inserirTransacao(contaFixa, dataDuplicata, -540, "PIX PORTARIA ED AURORA REFORCO", "2.1.04", 1, null, 2);
   inserirTransacao(contaFixa, somarMeses(hoje, -5), -8900, "PIX GESTAO AIRBNB TAXA EXTRAORDINARIA", "2.1.04", 1, null, 3);
 
+  // Despesas do apto de uso pessoal (apto3) — devem aparecer na tela de imóveis/transações,
+  // mas ficar de fora do DRE da atividade de locação por padrão (não é o negócio).
+  let mesApto3 = somarMeses(hoje, -11);
+  while (mesApto3 <= hoje) {
+    inserirTransacao(contaIds[2], somarDias(mesApto3, 8), -620, "BOLETO CONDOMINIO ED RESIDENCIAL PROPRIO", "2.1.01", apto3, null, null);
+    mesApto3 = somarMeses(mesApto3, 1);
+  }
+  inserirTransacao(contaIds[2], somarMeses(hoje, -6), -1840, "IPTU 2026 RESIDENCIA PROPRIA COTA UNICA", "2.1.01", apto3, null, null);
+
   // 10. Cauções — algumas contratos residenciais recebem depósito caução
   let proximaCaucaoId = 1;
   let totalCaucoes = 0;
@@ -440,8 +437,13 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
 
 export function limparBanco(db: Database): void {
   const tabelas = [
-    "rateios", "transacoes", "caucoes", "contratos_locacao", "obras", "financiamentos",
-    "prestadores", "imoveis", "plano_de_contas", "contas_bancarias", "indices_economicos",
+    // tabelas com FK para outras vêm primeiro (ordem importa mesmo com PRAGMA foreign_keys
+    // ligado, porque o SQLite valida a FK no momento do DELETE, não no fim da transação)
+    "documento_transacoes", "documento_imoveis", "documentos",
+    "rateios", "regras_categorizacao", "transacoes",
+    "caucoes", "contrato_reajustes", "contrato_locatarios", "contratos_locacao",
+    "obras", "financiamentos", "prestadores", "imoveis",
+    "plano_de_contas", "contas_bancarias", "indices_economicos",
   ];
   for (const tabela of tabelas) executar(db, `DELETE FROM ${tabela}`);
 }

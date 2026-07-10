@@ -18,10 +18,15 @@ CREATE TABLE imoveis (
     id              INTEGER PRIMARY KEY,
     apelido         TEXT NOT NULL,              -- ex: "Kitnet 302 - Ed. Aurora"
     tipo            TEXT NOT NULL CHECK (tipo IN ('apartamento', 'kitnet', 'outro')),
+    cidade          TEXT,                       -- ex: "Florianópolis", "Curitiba" — agrupamento regional p/ relatórios e rateio
     endereco        TEXT,
     fracao_ideal    REAL,                       -- para rateio de despesas coletivas por m²/fração
     area_m2         REAL,
-    financiado      INTEGER NOT NULL DEFAULT 0 CHECK (financiado IN (0, 1))
+    financiado      INTEGER NOT NULL DEFAULT 0 CHECK (financiado IN (0, 1)),
+    -- 1 = residência própria (uso pessoal), não faz parte da atividade de fato de locação —
+    -- excluída por padrão do DRE/relatórios da atividade, mas continua rastreável para mostrar
+    -- separação clara entre despesa pessoal e despesa do negócio (capacidade contributiva).
+    uso_pessoal     INTEGER NOT NULL DEFAULT 0 CHECK (uso_pessoal IN (0, 1))
 );
 
 CREATE TABLE financiamentos (
@@ -184,9 +189,57 @@ CREATE TABLE regras_categorizacao (
     criado_em           DATE NOT NULL
 );
 
+-- Documento de suporte (contrato, recibo, fatura, nota fiscal, pedido comercial, boleto)
+-- usado para identificar a que produto/serviço um pagamento/PIX se refere, antes de
+-- classificá-lo num imóvel (ou grupo de imóveis, proporcional) e numa conta do plano.
+-- valor/data_documento/cnpj_cpf_contraparte são extraídos automaticamente do texto do
+-- arquivo (heurística determinística — regex sobre o texto extraído por PDF/OCR) e usados
+-- para sugerir o casamento com transações; nome_contraparte pode vir da extração ou ser
+-- preenchido manualmente.
+CREATE TABLE documentos (
+    id                          INTEGER PRIMARY KEY,
+    tipo                        TEXT NOT NULL CHECK (tipo IN ('contrato', 'recibo', 'fatura', 'nota_fiscal', 'pedido_comercial', 'boleto', 'outro')),
+    arquivo_nome                TEXT NOT NULL,
+    valor                       REAL,
+    data_documento              DATE,
+    cnpj_cpf_contraparte        TEXT,
+    nome_contraparte            TEXT,
+    descricao_produto_servico   TEXT,
+    plano_conta_codigo          TEXT REFERENCES plano_de_contas(codigo),
+    texto_extraido              TEXT,             -- texto bruto extraído do PDF/OCR, p/ auditoria e nova tentativa de extração
+    criado_em                   DATE NOT NULL,
+    observacoes                 TEXT
+);
+
+-- A que imóvel(is) o documento se refere, com percentual quando o gasto/produto é
+-- compartilhado entre mais de um (ex: nota fiscal de material usado em 2 kitnets).
+-- percentual em 0-100 (não em fração 0-1, ao contrário de `rateios.percentual`).
+CREATE TABLE documento_imoveis (
+    id              INTEGER PRIMARY KEY,
+    documento_id    INTEGER NOT NULL REFERENCES documentos(id),
+    imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
+    percentual      REAL NOT NULL DEFAULT 100 CHECK (percentual > 0 AND percentual <= 100)
+);
+
+-- Vínculo sugerido/confirmado entre um documento e uma transação bancária — score é a
+-- confiança do casamento automático (valor/data/CNPJ), nunca aplicado sem confirmação
+-- explícita do usuário (status muda de 'sugerido' para 'confirmado' só nesse momento).
+CREATE TABLE documento_transacoes (
+    id              INTEGER PRIMARY KEY,
+    documento_id    INTEGER NOT NULL REFERENCES documentos(id),
+    transacao_id    INTEGER NOT NULL REFERENCES transacoes(id),
+    score           REAL NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('sugerido', 'confirmado', 'rejeitado')) DEFAULT 'sugerido',
+    UNIQUE (documento_id, transacao_id)
+);
+
 CREATE INDEX idx_transacoes_data ON transacoes(data);
 CREATE INDEX idx_transacoes_imovel ON transacoes(imovel_id);
 CREATE INDEX idx_transacoes_contrato ON transacoes(contrato_id);
 CREATE INDEX idx_caucoes_contrato ON caucoes(contrato_id);
 CREATE INDEX idx_contrato_locatarios_contrato ON contrato_locatarios(contrato_id);
 CREATE INDEX idx_contrato_reajustes_contrato ON contrato_reajustes(contrato_id);
+CREATE INDEX idx_documentos_data ON documentos(data_documento);
+CREATE INDEX idx_documento_imoveis_documento ON documento_imoveis(documento_id);
+CREATE INDEX idx_documento_transacoes_documento ON documento_transacoes(documento_id);
+CREATE INDEX idx_documento_transacoes_transacao ON documento_transacoes(transacao_id);

@@ -23,10 +23,12 @@ export interface Imovel {
   id: number;
   apelido: string;
   tipo: TipoImovel;
+  cidade?: string;
   endereco?: string;
   fracao_ideal?: number;
   area_m2?: number;
   financiado: 0 | 1;
+  uso_pessoal: 0 | 1;
 }
 
 export interface ContratoLocacao {
@@ -137,4 +139,38 @@ export interface StatusInadimplencia {
   honorarios: number;
   totalDevido: number;
   situacao: "pago" | "em_aberto" | "inadimplente";
+}
+
+export type TipoDocumento = "contrato" | "recibo" | "fatura" | "nota_fiscal" | "pedido_comercial" | "boleto" | "outro";
+
+export interface Documento {
+  id: number;
+  tipo: TipoDocumento;
+  arquivo_nome: string;
+  valor?: number;
+  data_documento?: string;
+  cnpj_cpf_contraparte?: string;
+  nome_contraparte?: string;
+  descricao_produto_servico?: string;
+  plano_conta_codigo?: string;
+  texto_extraido?: string;
+  criado_em: string;
+  observacoes?: string;
+}
+
+export interface DocumentoImovel {
+  id: number;
+  documento_id: number;
+  imovel_id: number;
+  percentual: number; // 0-100
+}
+
+export type StatusDocumentoTransacao = "sugerido" | "confirmado" | "rejeitado";
+
+export interface DocumentoTransacao {
+  id: number;
+  documento_id: number;
+  transacao_id: number;
+  score: number;
+  status: StatusDocumentoTransacao;
 }

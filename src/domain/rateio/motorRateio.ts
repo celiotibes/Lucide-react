@@ -63,6 +63,26 @@ export function removerRateio(db: Database, transacaoId: number): void {
   executar(db, "DELETE FROM rateios WHERE transacao_id = ?", [transacaoId]);
 }
 
+/** Rateia por percentuais explícitos (não calculados por critério) — usado quando a
+ * distribuição entre imóveis vem de um documento de suporte (nota fiscal, recibo) que já
+ * define a proporção, em vez de recalcular por fração ideal/área/unidade. `percentual` em
+ * fração 0-1, igual à convenção de `rateios.percentual` (diferente de `documento_imoveis`,
+ * que guarda 0-100 — quem chama esta função converte). */
+export function aplicarRateioPersonalizado(db: Database, transacaoId: number, distribuicao: PercentualRateio[]): void {
+  const [transacao] = consultar<{ valor: number }>(db, "SELECT valor FROM transacoes WHERE id = ?", [transacaoId]);
+  if (!transacao) throw new Error(`Transação ${transacaoId} não encontrada.`);
+
+  removerRateio(db, transacaoId);
+  for (const { imovelId, percentual } of distribuicao) {
+    executar(
+      db,
+      "INSERT INTO rateios (transacao_id, imovel_id, criterio, percentual, valor_rateado) VALUES (?, ?, 'documento', ?, ?)",
+      [transacaoId, imovelId, percentual, transacao.valor * percentual],
+    );
+  }
+  executar(db, "UPDATE transacoes SET imovel_id = NULL WHERE id = ?", [transacaoId]);
+}
+
 export interface RateioDetalhado {
   imovelId: number;
   imovelApelido: string;

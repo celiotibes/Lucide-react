@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
@@ -16,14 +16,18 @@ import { RendaTributavelView } from "./components/RendaTributavelView";
 import { LivroRazaoView } from "./components/LivroRazaoView";
 import { ReajustesRescisaoView } from "./components/ReajustesRescisaoView";
 import { IndicesEconomicosView } from "./components/IndicesEconomicosView";
+import { ImoveisView } from "./components/ImoveisView";
+import { DocumentosView } from "./components/DocumentosView";
 
 type Aba =
-  | "dashboard" | "importar" | "transacoes" | "contratos" | "caucao"
+  | "dashboard" | "importar" | "imoveis" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
+  { id: "imoveis", rotulo: "Imóveis", icone: Building2 },
   { id: "importar", rotulo: "Importar documentos", icone: UploadCloud },
+  { id: "documentos", rotulo: "Documentos e classificação", icone: FolderSearch },
   { id: "transacoes", rotulo: "Transações", icone: ListChecks },
   { id: "contratos", rotulo: "Contratos e inadimplência", icone: FileSignature },
   { id: "reajustes", rotulo: "Reajustes e rescisão", icone: TrendingUp },
@@ -136,7 +140,9 @@ function Conteudo() {
           </div>
         )}
         {aba === "dashboard" && <Dashboard />}
+        {aba === "imoveis" && <ImoveisView />}
         {aba === "importar" && <ImportarView />}
+        {aba === "documentos" && <DocumentosView />}
         {aba === "transacoes" && <TransacoesView />}
         {aba === "contratos" && <ContratosInadimplenciaView />}
         {aba === "reajustes" && <ReajustesRescisaoView />}
