@@ -1902,3 +1902,135 @@ create trigger trg_audit_planos_preventivos after insert or update or delete on 
 -- (criado_em/checkout_at), que não é a mesma coisa — a nota fiscal de um
 -- material pode ser lançada dias depois da execução do serviço.
 alter table ordem_servico_custos add column criado_em timestamptz not null default now();
+
+-- ============================================================================
+-- 23. PORTAL DO INQUILINO: CENTRAL DE CHAMADOS (HELPDESK)
+-- ============================================================================
+-- Pedido explícito do cliente: portal self-service com abertura de chamado
+-- categorizada, protocolo, SLA por natureza da demanda, notificação a cada
+-- mudança de status e pesquisa de satisfação ao concluir. `ordens_servico`
+-- já modelava "chamado aberto pelo inquilino" (aberto_por_pessoa_id) e "OS
+-- de prestador" (prestador_id) como a MESMA linha — decisão que se
+-- mantém: não crio uma tabela `chamados` separada, porque "transformar o
+-- chamado em O.S." (pilar 4 do pedido) já é automático quando um
+-- `prestador_id` é atribuído à mesma linha — duas tabelas exigiriam
+-- sincronizar estado em dois lugares para o mesmo conceito.
+
+-- ---- 23.1 Protocolo legível ----
+-- UUID não é um número que se fala ao telefone ou se escreve num e-mail.
+-- Contador global (não reinicia por ano — o ano no texto é só rótulo,
+-- não implica reinício da sequência), formatado "CH-2026-000123".
+create sequence seq_protocolo_os;
+
+create or replace function fn_gerar_protocolo_os()
+returns trigger as $$
+begin
+  if new.protocolo is null then
+    new.protocolo := 'CH-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('seq_protocolo_os')::text, 6, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+alter table ordens_servico add column protocolo text unique;
+
+create trigger trg_gerar_protocolo_os before insert on ordens_servico
+  for each row execute function fn_gerar_protocolo_os();
+
+-- ---- 23.2 Natureza da demanda (eixo diferente de urgência) ----
+-- `urgencia` (já existente) é severidade subjetiva declarada por quem
+-- abre. `natureza` é o eixo que decide PARA ONDE o chamado vai e QUAL
+-- prazo de SLA se aplica — as quatro categorias pedidas pelo cliente.
+-- Nullable na tabela de propósito: OS geradas internamente (cronograma
+-- preventivo, ordem aberta direto pelo admin) não são obrigatoriamente
+-- um dos quatro tipos de chamado do inquilino — a obrigatoriedade é
+-- reforçada em código só no fluxo de abertura pelo inquilino
+-- (`server/integracao/abrirChamado.ts`), não travada para toda a tabela.
+alter table ordens_servico add column natureza text
+  check (natureza in ('emergencia','financeiro','contratual','manutencao', null));
+
+-- ---- 23.3 Vínculo direto com o contrato vigente na abertura ----
+-- `imovel_id` já existia, mas um imóvel pode ter tido mais de um
+-- contrato ao longo do tempo — sem isto, "qual contrato estava vigente
+-- quando este chamado foi aberto" fica implícito e pode mudar de
+-- resposta se o contrato for substituído depois.
+alter table ordens_servico add column contrato_id uuid references contratos(id);
+
+-- ---- 23.4 Anexos no ato de abertura ----
+-- `ordem_servico_andamentos.fotos_urls` (docs/14) já cobre fotos DURANTE
+-- a execução; isto é o mesmo padrão, mas para o que o inquilino já
+-- anexa ao abrir o chamado (fotos/vídeos do problema, pedido do cliente).
+alter table ordens_servico add column anexos_urls text[] not null default '{}';
+
+-- ---- 23.5 SLA por natureza ----
+-- "24 horas úteis para dúvidas... 2 horas para emergências" (texto do
+-- cliente) — note a distinção real: emergência é em horas CORRIDAS (um
+-- vazamento grave não espera o expediente abrir), as outras três em
+-- horas ÚTEIS (seg-sex, 9h-18h — cálculo em
+-- server/atendimento/prazoSla.ts). Fica como tabela, não constante no
+-- código, para o prazo poder ser ajustado sem deploy.
+create table sla_politicas (
+  natureza text primary key check (natureza in ('emergencia','financeiro','contratual','manutencao')),
+  prazo_horas numeric(6,2) not null check (prazo_horas > 0),
+  horas_uteis boolean not null default true
+);
+
+insert into sla_politicas (natureza, prazo_horas, horas_uteis) values
+  ('emergencia', 2, false),
+  ('financeiro', 24, true),
+  ('contratual', 24, true),
+  ('manutencao', 48, true); -- não especificado no pedido do cliente; 48h fica explícito aqui, ajustável, em vez de suposição escondida em código
+
+alter table ordens_servico add column sla_prazo_em timestamptz;
+
+-- "Muda de cor na tela quando vence" (pedido do cliente) é
+-- responsabilidade de quem lê (`sla_prazo_em < now() and status not in
+-- ('concluido','cancelado')`) — não um booleano gravado, que ficaria
+-- desatualizado no instante exato em que o relógio passasse do prazo
+-- sem um job recalculando.
+
+alter table sla_politicas enable row level security;
+create policy admin_full_access_sla on sla_politicas
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy autenticado_le_sla on sla_politicas
+  for select using (auth.uid() is not null);
+
+-- ---- 23.6 Pesquisa de satisfação: quando foi enviada ----
+-- `avaliacao_estrelas` (já existia) é a resposta (1 a 5). Isto é o
+-- disparo — sem isto não dá para saber se a pesquisa já foi mandada
+-- (evita mandar duas vezes) nem medir taxa de resposta (enviada vs.
+-- respondida).
+alter table ordens_servico add column pesquisa_enviada_em timestamptz;
+
+-- ---- 23.7 Notificação a cada mudança de status ----
+-- `notificacoes_log` (Módulo 14) já existia no schema mas nenhum código
+-- gravava nela — estrutura morta. `server/integracao/andamentosOS.ts`
+-- (docs/14, docs/16) passa a INSERIR nela a cada transição de status, e
+-- ao concluir (pesquisa de satisfação). Duas mudanças pequenas na tabela
+-- para isso ser honesto e rastreável:
+--   - `status` só tinha 'enviado'/'falhou'/'lido' — todos implicam que
+--     um provedor real confirmou algo. Sem chave de API de provedor de
+--     notificação (mesma classe de bloqueio de
+--     `docs/09-credenciais-necessarias.md`), gravar 'enviado' seria
+--     afirmar uma entrega que não aconteceu. `pendente_envio` descreve o
+--     que de fato acontece hoje: o conteúdo foi gerado e logado, o
+--     disparo real por e-mail/SMS/WhatsApp ainda depende do provedor.
+--   - `ordem_servico_id` (nullable — nem toda notificação futura será de
+--     um chamado) liga a notificação ao chamado que a gerou, para o
+--     histórico centralizado (pedido do cliente, pilar 4) conseguir
+--     listar "todas as notificações deste protocolo".
+alter table notificacoes_log drop constraint notificacoes_log_status_check;
+alter table notificacoes_log add constraint notificacoes_log_status_check
+  check (status in ('enviado','falhou','lido','pendente_envio'));
+alter table notificacoes_log alter column status set default 'pendente_envio';
+alter table notificacoes_log add column ordem_servico_id uuid references ordens_servico(id);
+
+-- ---- 23.8 Inquilino pode abrir o próprio chamado ----
+-- RLS já deixava o inquilino VER a própria OS (Módulo 6) mas não
+-- INSERIR uma — sem isto, o pilar "self-service 24/7" do pedido do
+-- cliente não existe no nível de dado, mesmo depois de a tela existir.
+create policy inquilino_abre_propria_os on ordens_servico
+  for insert with check (
+    aberto_por_pessoa_id = fn_minha_pessoa_id()
+    and exists (select 1 from usuarios u where u.id = auth.uid() and u.papel = 'inquilino')
+  );

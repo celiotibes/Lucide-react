@@ -11,3 +11,9 @@ export function formatarData(data: Date | string): string {
   const d = typeof data === 'string' ? new Date(data) : data;
   return d.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
+
+/** Data + hora — usado onde a hora importa de verdade (ex.: prazo de SLA de poucas horas, não só o dia). */
+export function formatarDataHora(data: Date | string): string {
+  const d = typeof data === 'string' ? new Date(data) : data;
+  return d.toLocaleString('pt-BR', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' });
+}

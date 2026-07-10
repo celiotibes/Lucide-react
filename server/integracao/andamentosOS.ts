@@ -14,6 +14,15 @@
 // ativa não é validada — nenhuma regra de negócio real foi especificada
 // para isso, e travar demais aqui seria inventar processo que o cliente não
 // pediu.
+//
+// Pilar 3 do portal do inquilino (docs/16): toda mudança de status grava
+// uma linha em `notificacoes_log` para quem abriu o chamado (`status =
+// 'pendente_envio'` — o disparo real por e-mail/SMS/WhatsApp depende de
+// um provedor com credencial, ver schema seção 23.7). Ao concluir, além
+// da notificação de status, marca `pesquisa_enviada_em` e loga o disparo
+// da pesquisa de satisfação (1-5 estrelas, `ordens_servico.avaliacao_estrelas`
+// já existia — isto só garante que a pesquisa não é mandada duas vezes e
+// que dá para medir taxa de resposta).
 
 import type { Pool } from 'pg';
 
@@ -40,6 +49,10 @@ export interface ResultadoAndamento {
   andamentoId: string;
   /** Novo valor de `ordens_servico.status`, ou `null` se este andamento não mudou o status. */
   statusAtualizado: string | null;
+  /** true quando uma notificação de mudança de status foi logada (só ocorre se a OS tem `aberto_por_pessoa_id`). */
+  notificacaoRegistrada: boolean;
+  /** true quando este andamento concluiu a OS e a pesquisa de satisfação foi disparada. */
+  pesquisaSatisfacaoDisparada: boolean;
 }
 
 const ESTADOS_FINAIS = new Set(['concluido', 'cancelado']);
@@ -59,13 +72,15 @@ const STATUS_POR_TIPO: Partial<Record<TipoAndamento, string>> = {
 };
 
 export async function registrarAndamentoOS(pool: Pool, input: RegistrarAndamentoInput): Promise<ResultadoAndamento> {
-  const { rows: osRows } = await pool.query<{ status: string }>(`select status from ordens_servico where id = $1`, [
-    input.ordemServicoId,
-  ]);
+  const { rows: osRows } = await pool.query<{ status: string; aberto_por_pessoa_id: string | null }>(
+    `select status, aberto_por_pessoa_id from ordens_servico where id = $1`,
+    [input.ordemServicoId],
+  );
   if (osRows.length === 0) {
     throw new Error(`Ordem de serviço ${input.ordemServicoId} não encontrada`);
   }
   const statusAtual = osRows[0].status;
+  const abertoPorPessoaId = osRows[0].aberto_por_pessoa_id;
   if (ESTADOS_FINAIS.has(statusAtual)) {
     throw new Error(
       `Ordem de serviço ${input.ordemServicoId} já está em estado final (${statusAtual}) — não aceita novo andamento`,
@@ -81,6 +96,8 @@ export async function registrarAndamentoOS(pool: Pool, input: RegistrarAndamento
 
   const novoStatus = STATUS_POR_TIPO[input.tipo];
   let statusAtualizado: string | null = null;
+  let notificacaoRegistrada = false;
+  let pesquisaSatisfacaoDisparada = false;
 
   if (novoStatus && novoStatus !== statusAtual) {
     if (input.tipo === 'iniciada') {
@@ -99,8 +116,25 @@ export async function registrarAndamentoOS(pool: Pool, input: RegistrarAndamento
         input.ordemServicoId,
       ]);
     }
+
+    if (abertoPorPessoaId) {
+      await pool.query(
+        `insert into notificacoes_log (pessoa_id, ordem_servico_id, canal, template) values ($1, $2, 'email', $3)`,
+        [abertoPorPessoaId, input.ordemServicoId, `status_os_${novoStatus}`],
+      );
+      notificacaoRegistrada = true;
+
+      if (input.tipo === 'concluida') {
+        await pool.query(`update ordens_servico set pesquisa_enviada_em = now() where id = $1`, [input.ordemServicoId]);
+        await pool.query(
+          `insert into notificacoes_log (pessoa_id, ordem_servico_id, canal, template) values ($1, $2, 'email', 'pesquisa_satisfacao')`,
+          [abertoPorPessoaId, input.ordemServicoId],
+        );
+        pesquisaSatisfacaoDisparada = true;
+      }
+    }
     statusAtualizado = novoStatus;
   }
 
-  return { andamentoId, statusAtualizado };
+  return { andamentoId, statusAtualizado, notificacaoRegistrada, pesquisaSatisfacaoDisparada };
 }
