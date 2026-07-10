@@ -31,6 +31,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   Curitiba —, endereço, fração ideal, área, financiado, uso pessoal). Cidade agrupa
   relatórios e rateio por região; marcar "uso pessoal" tira o imóvel do DRE da atividade de
   locação por padrão, mantendo suas despesas rastreáveis separadamente.
+- **Cadastros**: contratos de locação completos (dados básicos, regras de reajuste,
+  inadimplência), com locatários/responsáveis solidários e depósito caução gerenciados
+  inline por contrato, além de contas bancárias, prestadores de serviço, financiamentos e
+  obras — tudo o que antes só existia nos dados de demonstração.
 - **Importar documentos** (`/importar`): arraste ou selecione extratos `.ofx`/`.qfx`,
   planilhas `.csv`, PDFs de extrato bancário ou fatura de cartão, e fotos de boleto/
   comprovante PIX. Cada arquivo é processado no navegador e as transações extraídas
@@ -199,10 +203,12 @@ src/
     indices/                busca de IGP-M/IPCA/poupança direto da API do BACEN
     laudo/                 geração do PDF do laudo pericial
     seed/                  gerador de dados simulados
-  components/            telas React (Dashboard, Imóveis, Importar, Documentos e
-                          classificação, Transações, Contratos, Reajustes e rescisão,
-                          Caução, Financiamentos, Índices econômicos, Renda
+  components/            telas React (Dashboard, Imóveis, Cadastros, Importar,
+                          Documentos e classificação, Transações, Contratos, Reajustes
+                          e rescisão, Caução, Financiamentos, Índices econômicos, Renda
                           Tributável, Livro Razão, Auditoria, Laudo)
+    cadastros/             sub-telas de Cadastros (contratos, contas bancárias,
+                           prestadores, financiamentos, obras)
 
 contabilidade-reconstituicao/   scaffold Python-espelho (schema.sql canônico, notas
                                 de arquitetura, roteamento de IA por custo) — ver seu

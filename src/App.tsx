@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
@@ -18,14 +18,16 @@ import { ReajustesRescisaoView } from "./components/ReajustesRescisaoView";
 import { IndicesEconomicosView } from "./components/IndicesEconomicosView";
 import { ImoveisView } from "./components/ImoveisView";
 import { DocumentosView } from "./components/DocumentosView";
+import { CadastrosView } from "./components/CadastrosView";
 
 type Aba =
-  | "dashboard" | "importar" | "imoveis" | "documentos" | "transacoes" | "contratos" | "caucao"
+  | "dashboard" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
   { id: "imoveis", rotulo: "Imóveis", icone: Building2 },
+  { id: "cadastros", rotulo: "Cadastros", icone: ClipboardList },
   { id: "importar", rotulo: "Importar documentos", icone: UploadCloud },
   { id: "documentos", rotulo: "Documentos e classificação", icone: FolderSearch },
   { id: "transacoes", rotulo: "Transações", icone: ListChecks },
@@ -141,6 +143,7 @@ function Conteudo() {
         )}
         {aba === "dashboard" && <Dashboard />}
         {aba === "imoveis" && <ImoveisView />}
+        {aba === "cadastros" && <CadastrosView />}
         {aba === "importar" && <ImportarView />}
         {aba === "documentos" && <DocumentosView />}
         {aba === "transacoes" && <TransacoesView />}
