@@ -46,6 +46,7 @@ const RUBRICA_NATUREZA: Record<string, string> = {
   financeiro: 'Financeiro',
   contratual: 'Contratual',
   manutencao: 'Manutenção',
+  juridico: 'Jurídico',
 };
 
 const RUBRICA_ANDAMENTO: Record<string, string> = {

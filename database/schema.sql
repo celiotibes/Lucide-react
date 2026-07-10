@@ -2095,3 +2095,119 @@ alter table investidor_ledger add column valor_bruto numeric(14,2);
 alter table transacoes_bancarias add column referencia_externa text;
 create unique index uq_transacoes_bancarias_conta_referencia_externa
   on transacoes_bancarias(conta_id, referencia_externa) where referencia_externa is not null;
+
+-- ============================================================================
+-- 26. SOLICITAÇÕES ESPECIALIZADAS: IMAGENS DE CÂMERA, CHAVE RESERVA E
+--     AUTORIZAÇÃO DE INTERNET PARTICULAR
+-- ============================================================================
+-- Anexos I-VI de Florianópolis (Kitnet 16, Residencial João Pottker),
+-- enviados após docs/10, trouxeram três coisas que o helpdesk genérico
+-- (seção 23) ainda não cobria — não são "chamado qualquer", são pedidos
+-- com regra própria de aprovação e/ou tarifa.
+
+-- ---- 26.1 Imagens de câmera: o padrão do Anexo III é negar, não aprovar ----
+-- O Anexo III, item B.2, veda expressamente "a solicitação de imagens por
+-- inquilinos para fins particulares, exceto sob ordem judicial ou
+-- policial". O cliente confirmou (nesta conversa): o pedido do inquilino
+-- não é aprovado pelo admin — vira análise do jurídico para verificar se
+-- há exceção legal aplicável, mantendo a regra do anexo como padrão
+-- (ou seja: a resposta default é negar; só uma exceção legal fundamentada
+-- muda isso). Por isso natureza ganha um quinto valor, distinto dos
+-- quatro já existentes — nenhum dos quatro (emergência/financeiro/
+-- contratual/manutenção) descreve corretamente "isto vai para análise
+-- jurídica antes de qualquer resposta ao inquilino".
+alter table ordens_servico drop constraint ordens_servico_natureza_check;
+alter table ordens_servico add constraint ordens_servico_natureza_check
+  check (natureza in ('emergencia','financeiro','contratual','manutencao','juridico', null));
+
+alter table sla_politicas drop constraint sla_politicas_natureza_check;
+alter table sla_politicas add constraint sla_politicas_natureza_check
+  check (natureza in ('emergencia','financeiro','contratual','manutencao','juridico'));
+
+-- Prazo de 5 dias úteis: não especificado pelo cliente para este caso
+-- específico, mas é o mesmo prazo que o próprio Anexo III usa em toda
+-- parte onde envolve manifestação/análise formal (item C.1-A: 5 dias
+-- úteis para o inquilino se manifestar sobre uma multa; item 5.2:
+-- "rotina" de manutenção em 5 dias úteis) — mantém a mesma régua do
+-- contrato em vez de inventar um número novo. Ajustável, como
+-- 'manutencao' (seção 23.5) já é.
+insert into sla_politicas (natureza, prazo_horas, horas_uteis) values
+  ('juridico', 40, true); -- 5 dias úteis * 8h
+
+create table solicitacoes_imagens_cameras (
+  id uuid primary key default gen_random_uuid(),
+  ordem_servico_id uuid not null unique references ordens_servico(id) on delete cascade,
+  data_solicitada date not null,
+  horario_solicitado text not null,
+  justificativa text not null,
+  status text not null default 'em_analise_juridica'
+    check (status in ('em_analise_juridica', 'excecao_legal_deferida', 'indeferida_regra_padrao')),
+  parecer_juridico text,
+  analisado_por_pessoa_id uuid references pessoas(id),
+  analisado_em timestamptz,
+  criado_em timestamptz not null default now(),
+  constraint chk_parecer_quando_decidido check (
+    status = 'em_analise_juridica' or parecer_juridico is not null
+  )
+);
+
+alter table solicitacoes_imagens_cameras enable row level security;
+create policy admin_full_access_solicitacoes_cameras on solicitacoes_imagens_cameras
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_propria_solicitacao_cameras on solicitacoes_imagens_cameras
+  for select using (
+    exists (
+      select 1 from ordens_servico os
+      where os.id = solicitacoes_imagens_cameras.ordem_servico_id and os.aberto_por_pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+
+create trigger trg_audit_solicitacoes_cameras
+  after insert or update or delete on solicitacoes_imagens_cameras
+  for each row execute function fn_audit_trigger();
+
+-- ---- 26.2 Chave reserva/cópia: tarifa é do contrato, não do sistema ----
+-- O Anexo II, item 2, lista "Chaveiro (abertura/perda) — R$ 140,00" — e
+-- mais uma dúzia de outras taxas fixas de manutenção (pintura,
+-- desentupimento, limpeza pesada) que hoje não existem em lugar nenhum
+-- do schema. Em vez de uma coluna só para "valor da chave" (repetindo o
+-- erro já corrigido em docs/01/docs/10 de tratar termo de contrato como
+-- constante do sistema), esta tabela generaliza a "Planilha de Taxas de
+-- Manutenção" do Anexo II inteira, por contrato — serve para chave
+-- reserva agora e para o resto da tabela (usada em indenização por
+-- sinistro, Anexo II item 5) quando esse fluxo for construído.
+create table contrato_tarifario_servicos (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  servico text not null,
+  valor numeric(10,2) not null check (valor >= 0),
+  observacao text,
+  criado_em timestamptz not null default now(),
+  unique (contrato_id, servico)
+);
+
+alter table contrato_tarifario_servicos enable row level security;
+create policy admin_full_access_tarifario_servicos on contrato_tarifario_servicos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_tarifario_do_proprio_contrato on contrato_tarifario_servicos
+  for select using (
+    exists (
+      select 1 from contrato_partes cp
+      where cp.contrato_id = contrato_tarifario_servicos.contrato_id and cp.pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+
+create trigger trg_audit_tarifario_servicos
+  after insert or update or delete on contrato_tarifario_servicos
+  for each row execute function fn_audit_trigger();
+
+-- ---- 26.3 Autorização de internet particular: orientação é dado do imóvel, não do sistema ----
+-- "Orientações de como fazer na estrutura do imóvel" é informação física
+-- de cada prédio (por onde passa a fiação, se pode furar parede,
+-- localização do rack) — não é algo que se possa inferir ou inventar por
+-- código. Fica como campo cadastrável pelo admin, nulo até alguém
+-- preencher; o fluxo de solicitação (server/integracao/
+-- solicitarAutorizacaoInternetParticular.ts) devolve o texto se existir e
+-- avisa explicitamente quando ainda não foi cadastrado, em vez de inventar
+-- instrução técnica genérica.
+alter table imoveis add column orientacoes_instalacao_internet text;

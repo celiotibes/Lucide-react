@@ -53,6 +53,7 @@ const RUBRICA_NATUREZA: Record<string, string> = {
   financeiro: 'Financeiro',
   contratual: 'Contratual',
   manutencao: 'Manutenção',
+  juridico: 'Jurídico',
 };
 
 export default async function PaginaOrdensServico() {

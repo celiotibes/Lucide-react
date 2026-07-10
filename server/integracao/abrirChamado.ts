@@ -11,10 +11,10 @@
 // ("o inquilino deve selecionar a natureza da solicitação", pedido do
 // cliente).
 
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { calcularPrazoSla } from '../atendimento/prazoSla';
 
-export type NaturezaChamado = 'emergencia' | 'financeiro' | 'contratual' | 'manutencao';
+export type NaturezaChamado = 'emergencia' | 'financeiro' | 'contratual' | 'manutencao' | 'juridico';
 export type UrgenciaChamado = 'baixa' | 'media' | 'alta' | 'urgente';
 
 export interface AbrirChamadoInput {
@@ -37,7 +37,10 @@ export interface ResultadoAbrirChamado {
 
 export class ChamadoInvalidoError extends Error {}
 
-export async function abrirChamado(pool: Pool, input: AbrirChamadoInput): Promise<ResultadoAbrirChamado> {
+// Aceita `Pool` (uso avulso) ou `PoolClient` (quando outra função já abriu
+// uma transação e precisa que esta abertura de chamado participe dela —
+// ver server/integracao/solicitarImagensCameras.ts).
+export async function abrirChamado(pool: Pool | PoolClient, input: AbrirChamadoInput): Promise<ResultadoAbrirChamado> {
   const { rows: politicaRows } = await pool.query<{ prazo_horas: string; horas_uteis: boolean }>(
     `select prazo_horas, horas_uteis from sla_politicas where natureza = $1`,
     [input.natureza],
