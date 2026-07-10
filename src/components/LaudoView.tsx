@@ -31,8 +31,8 @@ export function LaudoView() {
     [db, versao, periodoInicio, periodoFim],
   );
 
-  function gerar() {
-    baixarLaudoPdf(
+  async function gerar() {
+    await baixarLaudoPdf(
       { periodoInicio, periodoFim, linhasDre, statusInadimplencia, duplicatas, outliers, lacunas },
       `laudo-reconstituicao-${periodoInicio}-a-${periodoFim}.pdf`,
     );

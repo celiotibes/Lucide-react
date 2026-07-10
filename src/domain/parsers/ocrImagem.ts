@@ -1,24 +1,46 @@
-import { createWorker } from "tesseract.js";
 import type { TransacaoBruta } from "./ofx";
+
+const TIMEOUT_OCR_MS = 30000;
+
+/** tesseract.js pode travar (nunca resolver nem rejeitar) quando o worker interno falha
+ * de um jeito que não vira uma rejeição de Promise normal — visto na prática quando o
+ * download do pacote de idioma (CDN, só no primeiro uso) falha por rede indisponível.
+ * Sem isso, a UI ficaria presa em "Extraindo texto…" para sempre em vez de mostrar erro. */
+function comTimeout<T>(promessa: Promise<T>, ms: number, mensagemErro: string): Promise<T> {
+  return Promise.race([
+    promessa,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(mensagemErro)), ms)),
+  ]);
+}
 
 /** Roda OCR (português) sobre uma foto de boleto ou comprovante PIX e retorna o texto bruto.
  * Cada chamada cria e destrói um worker — aceitável para o volume de "centenas de recibos"
- * processados aos poucos; para lotes grandes, reaproveite um worker entre chamadas. */
+ * processados aos poucos; para lotes grandes, reaproveite um worker entre chamadas.
+ * tesseract.js só é importado quando uma imagem é de fato enviada — import() dinâmico tira
+ * o pacote inteiro (worker + núcleo WASM) do bundle inicial da aplicação. */
 export async function ocrImagem(arquivo: File): Promise<string> {
-  // worker e core rodam de assets locais (public/tesseract) — nenhum dado do usuário
-  // sai do navegador. Só o pacote de idioma (por.traineddata) ainda vem de CDN na primeira
-  // execução; depois fica em cache no navegador.
-  const worker = await createWorker("por", 1, {
-    workerPath: "/tesseract/worker.min.js",
-    corePath: "/tesseract/tesseract-core-simd-lstm.wasm.js",
-  });
+  const { createWorker } = await import("tesseract.js");
+  // worker e core rodam de assets locais (public/tesseract) — nenhum dado do usuário sai do
+  // navegador. Só o pacote de idioma (por.traineddata) ainda vem de CDN na primeira execução
+  // (depois fica em cache) — createWorker já baixa isso durante a inicialização, então o
+  // timeout precisa cobrir a criação do worker, não só o reconhecimento em si.
+  const worker = await comTimeout(
+    createWorker("por", 1, { workerPath: "/tesseract/worker.min.js", corePath: "/tesseract/tesseract-core-simd-lstm.wasm.js" }),
+    TIMEOUT_OCR_MS,
+    "OCR não conseguiu inicializar a tempo — confira sua conexão (o pacote de idioma português é baixado de uma CDN pública no primeiro uso) e tente novamente.",
+  );
   try {
     const {
       data: { text },
-    } = await worker.recognize(arquivo);
+    } = await comTimeout(worker.recognize(arquivo), TIMEOUT_OCR_MS, "OCR não respondeu a tempo — tente novamente.");
+    worker.terminate().catch(() => {});
     return text;
-  } finally {
-    await worker.terminate();
+  } catch (erro) {
+    // Não espera terminate() responder: se o worker travou (ex: falha de rede durante o
+    // download do pacote de idioma), terminate() pode nunca resolver também — melhor vazar
+    // um worker morto do que travar a UI de novo dentro do próprio tratamento de erro.
+    worker.terminate().catch(() => {});
+    throw erro;
   }
 }
 

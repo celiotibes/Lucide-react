@@ -100,9 +100,11 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   [tesseract.js](https://github.com/naptha/tesseract.js) com worker e núcleo WASM
   vendorizados em `public/tesseract/` (não dependem de CDN), mas o **pacote de
   idioma português** (`por.traineddata`) ainda é baixado de uma CDN pública no
-  primeiro uso e fica em cache no navegador depois disso. Isso não pôde ser testado
-  neste ambiente de desenvolvimento porque a política de rede do sandbox bloqueia
-  esse download — funciona normalmente num navegador comum com internet.
+  primeiro uso e fica em cache no navegador depois disso. Testado neste ambiente com
+  a CDN bloqueada pela política de rede do sandbox: sem o timeout de 30s embutido em
+  `ocrImagem()`, a falha do worker interno do tesseract.js travava a tela em
+  "Extraindo texto…" para sempre em vez de mostrar erro — corrigido; funciona
+  normalmente (sem timeout) num navegador comum com internet.
 - **Extração de PDF** (`pdfDocumento.ts`, `linhasTransacao.ts`) funciona por
   heurística de regex sobre o texto extraído — cobre bem extratos e faturas com
   layout "data + descrição + valor" por linha, mas layouts muito diferentes do

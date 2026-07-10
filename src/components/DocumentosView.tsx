@@ -1,10 +1,17 @@
 import { useMemo, useState } from "react";
-import { FileText, Loader2, Link2, X, Check, Plus, Trash2 } from "lucide-react";
+import { FileText, Loader2, Link2, X, Check, Plus, Trash2, Pencil } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { Dropzone } from "./Dropzone";
 import { extrairTextoDocumento, extrairCamposDeTexto } from "../domain/documentos/extrairCampos";
-import { inserirDocumento, listarDocumentos, listarImoveisDoDocumento, listarTransacoesVinculadas } from "../domain/documentos/documentos";
+import {
+  inserirDocumento,
+  listarDocumentos,
+  listarImoveisDoDocumento,
+  listarTransacoesVinculadas,
+  atualizarDocumento,
+  excluirDocumento,
+} from "../domain/documentos/documentos";
 import { sugerirTransacoesParaDocumento, vincularDocumento, rejeitarSugestao, type SugestaoTransacao } from "../domain/documentos/matching";
 import type { Documento, Imovel, PlanoConta, TipoDocumento } from "../domain/types";
 
@@ -264,6 +271,8 @@ export function DocumentosView() {
                   expandido={documentoExpandidoId === d.id}
                   onToggle={() => setDocumentoExpandidoId(documentoExpandidoId === d.id ? null : d.id)}
                   onMudou={persistir}
+                  imoveis={imoveis}
+                  planoContas={planoContas}
                 />
               ))}
               {documentos.length === 0 && (
@@ -281,25 +290,42 @@ export function DocumentosView() {
   );
 }
 
+interface FormularioEdicao {
+  arquivoNome: string;
+  tipo: TipoDocumento;
+  valor: string;
+  data: string;
+  cnpjCpf: string;
+  nomeContraparte: string;
+  descricaoProdutoServico: string;
+  planoContaCodigo: string;
+  imoveisPercentuais: { imovelId: number; percentual: string }[];
+}
+
 function DocumentoLinha({
   documento,
   expandido,
   onToggle,
   onMudou,
+  imoveis,
+  planoContas,
 }: {
   documento: Documento;
   expandido: boolean;
   onToggle: () => void;
   onMudou: () => Promise<void>;
+  imoveis: Imovel[];
+  planoContas: PlanoConta[];
 }) {
   const { db, versao } = useDb();
+  const [editando, setEditando] = useState<FormularioEdicao | null>(null);
 
   const imoveisDoDocumento = useMemo(() => (db && expandido ? listarImoveisDoDocumento(db, documento.id) : []), [db, versao, expandido, documento.id]);
   const vinculos = useMemo(() => (db && expandido ? listarTransacoesVinculadas(db, documento.id) : []), [db, versao, expandido, documento.id]);
   const confirmados = vinculos.filter((v) => v.status === "confirmado");
   const sugestoes = useMemo<SugestaoTransacao[]>(
-    () => (db && expandido && confirmados.length === 0 ? sugerirTransacoesParaDocumento(db, documento) : []),
-    [db, versao, expandido, documento, confirmados.length],
+    () => (db && expandido && !editando && confirmados.length === 0 ? sugerirTransacoesParaDocumento(db, documento) : []),
+    [db, versao, expandido, editando, documento, confirmados.length],
   );
 
   async function confirmar(s: SugestaoTransacao) {
@@ -313,6 +339,66 @@ function DocumentoLinha({
     await onMudou();
   }
 
+  function abrirEdicao() {
+    const atuais = db ? listarImoveisDoDocumento(db, documento.id) : [];
+    setEditando({
+      arquivoNome: documento.arquivo_nome,
+      tipo: documento.tipo,
+      valor: documento.valor !== undefined && documento.valor !== null ? documento.valor.toFixed(2).replace(".", ",") : "",
+      data: documento.data_documento ?? "",
+      cnpjCpf: documento.cnpj_cpf_contraparte ?? "",
+      nomeContraparte: documento.nome_contraparte ?? "",
+      descricaoProdutoServico: documento.descricao_produto_servico ?? "",
+      planoContaCodigo: documento.plano_conta_codigo ?? "",
+      imoveisPercentuais: atuais.map((di) => ({ imovelId: di.imovel_id, percentual: di.percentual.toString() })),
+    });
+  }
+
+  async function salvarEdicao() {
+    if (!db || !editando) return;
+    const valor = editando.valor.trim() === "" ? undefined : Number.parseFloat(editando.valor.replace(",", "."));
+    const imoveisPct = editando.imoveisPercentuais
+      .filter((ip) => ip.percentual.trim() !== "")
+      .map((ip) => ({ imovelId: ip.imovelId, percentual: Number.parseFloat(ip.percentual.replace(",", ".")) }));
+    atualizarDocumento(
+      db,
+      documento.id,
+      {
+        tipo: editando.tipo,
+        arquivo_nome: editando.arquivoNome,
+        valor,
+        data_documento: editando.data.trim() || undefined,
+        cnpj_cpf_contraparte: editando.cnpjCpf.trim() || undefined,
+        nome_contraparte: editando.nomeContraparte.trim() || undefined,
+        descricao_produto_servico: editando.descricaoProdutoServico.trim() || undefined,
+        plano_conta_codigo: editando.planoContaCodigo || undefined,
+      },
+      imoveisPct,
+    );
+    await onMudou();
+    setEditando(null);
+  }
+
+  async function excluir() {
+    if (!db) return;
+    const aviso =
+      confirmados.length > 0
+        ? `Este documento está vinculado a ${confirmados.length} transação(ões) confirmada(s). Excluir o documento NÃO desfaz a classificação (imóvel/categoria) já aplicada a elas — só remove o documento e o vínculo. Continuar?`
+        : `Excluir "${documento.arquivo_nome}"?`;
+    if (!confirm(aviso)) return;
+    excluirDocumento(db, documento.id);
+    await onMudou();
+  }
+
+  function adicionarImovelNaEdicao() {
+    if (!editando || imoveis.length === 0) return;
+    setEditando({ ...editando, imoveisPercentuais: [...editando.imoveisPercentuais, { imovelId: imoveis[0].id, percentual: editando.imoveisPercentuais.length === 0 ? "100" : "" }] });
+  }
+  function removerImovelNaEdicao(indice: number) {
+    if (!editando) return;
+    setEditando({ ...editando, imoveisPercentuais: editando.imoveisPercentuais.filter((_, i) => i !== indice) });
+  }
+
   return (
     <>
       <tr>
@@ -321,13 +407,100 @@ function DocumentoLinha({
         <td className="num">{documento.valor !== undefined && documento.valor !== null ? formatarMoeda(documento.valor) : "—"}</td>
         <td>{documento.data_documento ?? "—"}</td>
         <td style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{documento.plano_conta_codigo ?? "—"}</td>
-        <td>
-          <button className="btn" style={{ padding: "4px 8px", fontSize: 12 }} onClick={onToggle}>
+        <td style={{ display: "flex", gap: 4 }}>
+          <button className="btn" style={{ padding: "4px 8px", fontSize: 12 }} onClick={() => { setEditando(null); onToggle(); }}>
             <Link2 size={12} /> {expandido ? "Fechar" : "Vincular"}
+          </button>
+          <button className="btn" style={{ padding: "4px 7px" }} title="Editar" onClick={() => { abrirEdicao(); if (!expandido) onToggle(); }}>
+            <Pencil size={13} />
+          </button>
+          <button className="btn danger" style={{ padding: "4px 7px" }} title="Excluir" onClick={excluir}>
+            <Trash2 size={13} />
           </button>
         </td>
       </tr>
-      {expandido && (
+      {expandido && editando && (
+        <tr>
+          <td colSpan={6} style={{ background: "var(--surface-2)" }}>
+            <div style={{ padding: "12px 4px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Tipo
+                  <select className="btn" style={{ width: "100%", marginTop: 4 }} value={editando.tipo} onChange={(e) => setEditando({ ...editando, tipo: e.target.value as TipoDocumento })}>
+                    {Object.entries(ROTULO_TIPO).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Valor (R$)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={editando.valor} onChange={(e) => setEditando({ ...editando, valor: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Data
+                  <input type="date" className="btn" style={{ width: "100%", marginTop: 4 }} value={editando.data} onChange={(e) => setEditando({ ...editando, data: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  CNPJ/CPF
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={editando.cnpjCpf} onChange={(e) => setEditando({ ...editando, cnpjCpf: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Fornecedor/contraparte
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={editando.nomeContraparte} onChange={(e) => setEditando({ ...editando, nomeContraparte: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Categoria
+                  <select className="btn" style={{ width: "100%", marginTop: 4 }} value={editando.planoContaCodigo} onChange={(e) => setEditando({ ...editando, planoContaCodigo: e.target.value })}>
+                    <option value="">— sem categoria —</option>
+                    {planoContas.map((p) => <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>)}
+                  </select>
+                </label>
+              </div>
+              <label style={{ fontSize: 12, color: "var(--ink-soft)", display: "block", marginBottom: 10 }}>
+                Produto/serviço a que se refere
+                <input
+                  className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }}
+                  value={editando.descricaoProdutoServico}
+                  onChange={(e) => setEditando({ ...editando, descricaoProdutoServico: e.target.value })}
+                />
+              </label>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 6 }}>Imóvel(is)</div>
+                {editando.imoveisPercentuais.map((ip, j) => (
+                  <div key={j} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                    <select
+                      className="btn" style={{ flex: 1 }}
+                      value={ip.imovelId}
+                      onChange={(e) => {
+                        const novoId = Number(e.target.value);
+                        setEditando({ ...editando, imoveisPercentuais: editando.imoveisPercentuais.map((x, k) => (k === j ? { ...x, imovelId: novoId } : x)) });
+                      }}
+                    >
+                      {imoveis.map((im) => <option key={im.id} value={im.id}>{im.apelido}{im.cidade ? ` (${im.cidade})` : ""}</option>)}
+                    </select>
+                    <input
+                      className="btn" style={{ cursor: "text", width: 80 }} value={ip.percentual} placeholder="% "
+                      onChange={(e) => {
+                        const novoPct = e.target.value;
+                        setEditando({ ...editando, imoveisPercentuais: editando.imoveisPercentuais.map((x, k) => (k === j ? { ...x, percentual: novoPct } : x)) });
+                      }}
+                    />
+                    <button className="btn" style={{ padding: "4px 7px" }} onClick={() => removerImovelNaEdicao(j)}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+                <button className="btn" style={{ padding: "4px 8px", fontSize: 12 }} onClick={adicionarImovelNaEdicao}>
+                  <Plus size={12} /> Adicionar imóvel
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn primary" onClick={salvarEdicao}>Salvar alterações</button>
+                <button className="btn" onClick={() => setEditando(null)}>Cancelar</button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+      {expandido && !editando && (
         <tr>
           <td colSpan={6} style={{ background: "var(--surface-2)" }}>
             <div style={{ padding: "10px 4px" }}>

@@ -1,12 +1,19 @@
-import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// pdfjs-dist (com o worker WASM/JS) só é carregado quando um PDF é de fato enviado —
+// import() dinâmico em vez de estático tira ~2MB do bundle inicial da aplicação.
+async function carregarPdfjs() {
+  const [pdfjsLib, { default: workerUrl }] = await Promise.all([
+    import("pdfjs-dist"),
+    import("pdfjs-dist/build/pdf.worker.mjs?url"),
+  ]);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+  return pdfjsLib;
+}
 
 /** Extrai o texto de um PDF (extrato bancário ou fatura de cartão) linha a linha.
  * Funciona apenas para PDFs com camada de texto — PDFs escaneados (imagem pura)
  * devem passar por OCR (ver ocrImagem.ts). */
 export async function extrairTextoPdf(arquivo: File): Promise<string[]> {
+  const pdfjsLib = await carregarPdfjs();
   const bytes = await arquivo.arrayBuffer();
   const documento = await pdfjsLib.getDocument({ data: bytes }).promise;
 

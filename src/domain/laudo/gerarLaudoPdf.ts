@@ -1,4 +1,4 @@
-import jsPDF from "jspdf";
+import type { default as jsPDF } from "jspdf";
 import type { LinhaDre } from "../types";
 import type { TransacaoDuplicada, OutlierEstatistico, LacunaMensal } from "../auditoria/auditoriaForense";
 import type { StatusInadimplencia } from "../types";
@@ -83,9 +83,12 @@ class Escritor {
 /** Monta o laudo em PDF: metodologia, DRE do período, inadimplência e achados de
  * auditoria forense — o mesmo tipo de documento que Ábacus/Peritus/ForenseAI
  * entregam para anexar a processo judicial. Revisão humana obrigatória antes de
- * protocolar: este é um apoio à instrução, não uma peça jurídica pronta. */
-export function gerarLaudoPdf(dados: DadosLaudo): jsPDF {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+ * protocolar: este é um apoio à instrução, não uma peça jurídica pronta.
+ * jspdf só é importado quando o laudo é de fato gerado — import() dinâmico tira o
+ * pacote (que arrasta html2canvas) do bundle inicial da aplicação. */
+export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
+  const { default: JsPdf } = await import("jspdf");
+  const doc = new JsPdf({ unit: "mm", format: "a4" });
   const w = new Escritor(doc);
 
   w.titulo("Laudo de reconstituição contábil");
@@ -166,6 +169,7 @@ export function gerarLaudoPdf(dados: DadosLaudo): jsPDF {
   return doc;
 }
 
-export function baixarLaudoPdf(dados: DadosLaudo, nomeArquivo: string): void {
-  gerarLaudoPdf(dados).save(nomeArquivo);
+export async function baixarLaudoPdf(dados: DadosLaudo, nomeArquivo: string): Promise<void> {
+  const doc = await gerarLaudoPdf(dados);
+  doc.save(nomeArquivo);
 }

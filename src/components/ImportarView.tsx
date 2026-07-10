@@ -39,13 +39,24 @@ export function ImportarView() {
     setMensagem(null);
     const processados: ArquivoProcessado[] = [];
     for (const arquivo of novos) {
-      const resultado = await processarArquivo(arquivo);
-      processados.push({
-        nomeArquivo: arquivo.name,
-        resultado,
-        contaId: contas[0]?.id ?? null,
-        aceito: resultado.transacoes.length > 0,
-      });
+      try {
+        const resultado = await processarArquivo(arquivo);
+        processados.push({
+          nomeArquivo: arquivo.name,
+          resultado,
+          contaId: contas[0]?.id ?? null,
+          aceito: resultado.transacoes.length > 0,
+        });
+      } catch (erro) {
+        // Nunca deixa um arquivo com falha (ex: OCR sem rede) travar o lote inteiro
+        // nem prender o spinner "Processando arquivos…" para sempre.
+        processados.push({
+          nomeArquivo: arquivo.name,
+          resultado: { tipoDetectado: "nao_suportado", transacoes: [], avisos: [erro instanceof Error ? erro.message : String(erro)] },
+          contaId: contas[0]?.id ?? null,
+          aceito: false,
+        });
+      }
     }
     setArquivos((atual) => [...processados, ...atual]);
     setProcessando(false);

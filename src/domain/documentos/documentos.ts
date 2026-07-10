@@ -49,6 +49,47 @@ export function definirImoveisDoDocumento(db: Database, documentoId: number, imo
   }
 }
 
+export interface AtualizacaoDocumento {
+  tipo: TipoDocumento;
+  arquivo_nome: string;
+  valor?: number;
+  data_documento?: string;
+  cnpj_cpf_contraparte?: string;
+  nome_contraparte?: string;
+  descricao_produto_servico?: string;
+  plano_conta_codigo?: string;
+}
+
+export function atualizarDocumento(db: Database, documentoId: number, doc: AtualizacaoDocumento, imoveis: { imovelId: number; percentual: number }[]): void {
+  executar(
+    db,
+    `UPDATE documentos SET tipo = ?, arquivo_nome = ?, valor = ?, data_documento = ?, cnpj_cpf_contraparte = ?, nome_contraparte = ?, descricao_produto_servico = ?, plano_conta_codigo = ?
+     WHERE id = ?`,
+    [
+      doc.tipo,
+      doc.arquivo_nome,
+      doc.valor ?? null,
+      doc.data_documento ?? null,
+      doc.cnpj_cpf_contraparte ?? null,
+      doc.nome_contraparte ?? null,
+      doc.descricao_produto_servico ?? null,
+      doc.plano_conta_codigo ?? null,
+      documentoId,
+    ],
+  );
+  definirImoveisDoDocumento(db, documentoId, imoveis);
+}
+
+/** Remove o documento e seus vínculos — não reverte a classificação (imóvel/categoria) já
+ * aplicada em transações vinculadas, porque desfazer isso automaticamente poderia mudar
+ * dados da transação como efeito colateral de uma exclusão não relacionada a ela. Quem
+ * chama deve avisar o usuário disso antes de confirmar. */
+export function excluirDocumento(db: Database, documentoId: number): void {
+  executar(db, "DELETE FROM documento_transacoes WHERE documento_id = ?", [documentoId]);
+  executar(db, "DELETE FROM documento_imoveis WHERE documento_id = ?", [documentoId]);
+  executar(db, "DELETE FROM documentos WHERE id = ?", [documentoId]);
+}
+
 export function listarDocumentos(db: Database): Documento[] {
   return consultar<Documento>(db, "SELECT * FROM documentos ORDER BY criado_em DESC, id DESC");
 }

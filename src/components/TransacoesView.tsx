@@ -43,6 +43,12 @@ export function TransacoesView() {
     await persistir();
   }
 
+  async function atribuirImovel(transacaoId: number, imovelId: string) {
+    if (!db) return;
+    executar(db, "UPDATE transacoes SET imovel_id = ? WHERE id = ?", [imovelId || null, transacaoId]);
+    await persistir();
+  }
+
   function abrirSalvarRegra(transacao: Transacao) {
     setRegraAbertaId(transacao.id);
     setPadraoRegra(escaparParaRegex(transacao.descricao_original));
@@ -149,11 +155,23 @@ export function TransacoesView() {
                     </td>
                     <td>
                       {rateios.length > 0 ? (
-                        <span className="pill good">rateado · {rateios.length} imóveis</span>
-                      ) : t.imovel_id ? (
-                        imoveis.find((i) => i.id === t.imovel_id)?.apelido ?? t.imovel_id
+                        <span
+                          className="pill good"
+                          style={{ cursor: "pointer" }}
+                          title="Clique para editar o rateio"
+                          onClick={() => abrirRateio(t)}
+                        >
+                          rateado · {rateios.length} imóveis
+                        </span>
                       ) : (
-                        "—"
+                        <select value={t.imovel_id ?? ""} onChange={(e) => atribuirImovel(t.id, e.target.value)}>
+                          <option value="">— sem imóvel —</option>
+                          {imoveis.map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.apelido}
+                            </option>
+                          ))}
+                        </select>
                       )}
                     </td>
                     <td>{t.categorizado_por ? <span className="pill good">{t.categorizado_por}</span> : <span className="pill warning">pendente</span>}</td>
