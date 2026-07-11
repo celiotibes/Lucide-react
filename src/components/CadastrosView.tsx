@@ -4,14 +4,16 @@ import { PrestadoresForm } from "./cadastros/PrestadoresForm";
 import { FinanciamentosForm } from "./cadastros/FinanciamentosForm";
 import { ObrasForm } from "./cadastros/ObrasForm";
 import { ContratosForm } from "./cadastros/ContratosForm";
+import { DividasConsumoForm } from "./cadastros/DividasConsumoForm";
 
-type SubAba = "contratos" | "contas" | "prestadores" | "financiamentos" | "obras";
+type SubAba = "contratos" | "contas" | "prestadores" | "financiamentos" | "dividas" | "obras";
 
 const SUBABAS: { id: SubAba; rotulo: string }[] = [
   { id: "contratos", rotulo: "Contratos de locação" },
   { id: "contas", rotulo: "Contas bancárias" },
   { id: "prestadores", rotulo: "Prestadores de serviço" },
   { id: "financiamentos", rotulo: "Financiamentos" },
+  { id: "dividas", rotulo: "Dívidas de consumo" },
   { id: "obras", rotulo: "Obras" },
 ];
 
@@ -45,6 +47,7 @@ export function CadastrosView() {
       {subAba === "contas" && <ContasBancariasForm />}
       {subAba === "prestadores" && <PrestadoresForm />}
       {subAba === "financiamentos" && <FinanciamentosForm />}
+      {subAba === "dividas" && <DividasConsumoForm />}
       {subAba === "obras" && <ObrasForm />}
     </div>
   );

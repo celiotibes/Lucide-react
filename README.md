@@ -65,6 +65,16 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 - **Financiamentos**: cronograma teórico SAC/Price gerado localmente e comparado
   mês a mês com o que foi de fato lançado, sinalizando divergência de juros acima
   de 5% (indício de anatocismo ou encargo não previsto em contrato).
+- **Patrimônio e alavancagem**: balanço patrimonial (ativo − passivo), diferente do
+  DRE — patrimônio líquido imobiliário (valor venal dos imóveis próprios menos saldo
+  devedor de financiamentos e dívidas de consumo), alavancagem por imóvel, liquidez
+  corrente (caixa disponível ÷ compromissos de curto prazo) e comprometimento de
+  renda. Imóveis em gestão de terceiros (matrícula de outra pessoa) ficam de fora do
+  patrimônio líquido, mas continuam com o fluxo de caixa rastreado normalmente.
+  Cadastros → Dívidas de consumo cobre consignado/empréstimo/cartão parcelado — sem
+  matrícula, porque o Registrato/SCR do Bacen não tem API pública; o saldo é
+  relançado manualmente a partir do relatório que você mesmo baixa em
+  `registrato.bcb.gov.br`.
 - **Auditoria forense**: duplicidade de lançamento, outliers estatísticos (z-score)
   por categoria, lacunas em despesas recorrentes e teste da Lei de Benford — tudo
   local, sem IA paga.
@@ -137,6 +147,15 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   financiamento) nem a um conjunto pequeno/estreito de valores — o próprio app
   já restringe o teste a despesas variáveis, mas o resultado ainda exige leitura
   crítica, não é veredito automático.
+- **Patrimônio e alavancagem**: valor venal, valor de aquisição e matrícula são
+  inteiramente informados por você (aba Imóveis) — o sistema nunca estima nem busca
+  isso automaticamente. Sem valor venal cadastrado, o imóvel fica de fora da soma
+  do patrimônio líquido (avisado explicitamente na tela), nunca com um valor
+  aproximado. **O Registrato/SCR do Bacen não tem API pública** — é um portal de
+  autoatendimento do cidadão (`registrato.bcb.gov.br`, login gov.br); não há como o
+  sistema "puxar" isso automaticamente, ao contrário do que a Open Finance permite
+  para extrato bancário. O caminho real é baixar seu próprio relatório
+  periodicamente e relançar o saldo devedor em Cadastros → Dívidas de consumo.
 - **Conciliação automática com o banco (Pluggy)**: implementada como recurso opcional
   em `server/` + `src/components/ConectarPluggy.tsx`. Exige rodar o backend próprio
   (guarda o Client Secret, nunca o navegador) e aceitar que os extratos passem por
@@ -203,12 +222,16 @@ src/
                            documento×transação
     contabilidade/          livro razão / balancete (partida dobrada derivada)
     indices/                busca de IGP-M/IPCA/poupança direto da API do BACEN
+    patrimonio/             balanço patrimonial: patrimônio líquido, alavancagem por
+                           imóvel, liquidez corrente, comprometimento de renda,
+                           demonstrativo de endividamento global, VPL de dívida
     laudo/                 geração do PDF do laudo pericial
     seed/                  gerador de dados simulados
   components/            telas React (Dashboard, Imóveis, Cadastros, Importar,
                           Documentos e classificação, Transações, Contratos, Reajustes
-                          e rescisão, Caução, Financiamentos, Índices econômicos, Renda
-                          Tributável, Livro Razão, Auditoria, Laudo)
+                          e rescisão, Caução, Financiamentos, Patrimônio e
+                          alavancagem, Índices econômicos, Renda Tributável, Livro
+                          Razão, Auditoria, Laudo)
     cadastros/             sub-telas de Cadastros (contratos, contas bancárias,
                            prestadores, financiamentos, obras)
 

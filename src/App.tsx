@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
@@ -19,10 +19,11 @@ import { IndicesEconomicosView } from "./components/IndicesEconomicosView";
 import { ImoveisView } from "./components/ImoveisView";
 import { DocumentosView } from "./components/DocumentosView";
 import { CadastrosView } from "./components/CadastrosView";
+import { PatrimonioView } from "./components/PatrimonioView";
 
 type Aba =
   | "dashboard" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
-  | "financiamentos" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices";
+  | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -35,6 +36,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "reajustes", rotulo: "Reajustes e rescisão", icone: TrendingUp },
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
+  { id: "patrimonio", rotulo: "Patrimônio e alavancagem", icone: Scale },
   { id: "indices", rotulo: "Índices econômicos", icone: LineChart },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
@@ -151,6 +153,7 @@ function Conteudo() {
         {aba === "reajustes" && <ReajustesRescisaoView />}
         {aba === "caucao" && <CaucaoView />}
         {aba === "financiamentos" && <FinanciamentosView />}
+        {aba === "patrimonio" && <PatrimonioView />}
         {aba === "indices" && <IndicesEconomicosView />}
         {aba === "renda" && <RendaTributavelView />}
         {aba === "razao" && <LivroRazaoView />}

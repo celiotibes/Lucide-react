@@ -19,6 +19,8 @@ export interface ContaBancaria {
   observacoes?: string;
 }
 
+export type RegimePatrimonial = "proprio" | "gestao_terceiros";
+
 export interface Imovel {
   id: number;
   apelido: string;
@@ -29,6 +31,13 @@ export interface Imovel {
   area_m2?: number;
   financiado: 0 | 1;
   uso_pessoal: 0 | 1;
+  matricula?: string;
+  matricula_mae?: string;
+  valor_aquisicao?: number;
+  valor_venal_atual?: number;
+  data_avaliacao_venal?: string;
+  regime_patrimonial: RegimePatrimonial;
+  proprietario_nome?: string;
 }
 
 export interface ContratoLocacao {
@@ -173,4 +182,17 @@ export interface DocumentoTransacao {
   transacao_id: number;
   score: number;
   status: StatusDocumentoTransacao;
+}
+
+export type TipoDividaConsumo = "consignado" | "emprestimo_pessoal" | "cartao_parcelado" | "outro";
+
+export interface DividaConsumo {
+  id: number;
+  tipo: TipoDividaConsumo;
+  instituicao: string;
+  valor_contratado?: number;
+  saldo_devedor_atual: number;
+  parcela_mensal: number;
+  data_referencia_saldo: string;
+  observacoes?: string;
 }

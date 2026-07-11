@@ -26,7 +26,20 @@ CREATE TABLE imoveis (
     -- 1 = residência própria (uso pessoal), não faz parte da atividade de fato de locação —
     -- excluída por padrão do DRE/relatórios da atividade, mas continua rastreável para mostrar
     -- separação clara entre despesa pessoal e despesa do negócio (capacidade contributiva).
-    uso_pessoal     INTEGER NOT NULL DEFAULT 0 CHECK (uso_pessoal IN (0, 1))
+    uso_pessoal     INTEGER NOT NULL DEFAULT 0 CHECK (uso_pessoal IN (0, 1)),
+
+    -- Registro imobiliário e avaliação — base do balanço patrimonial (ativo x passivo),
+    -- dimensão diferente de uso_pessoal (que é sobre USO, não sobre TITULARIDADE).
+    matricula               TEXT,               -- nº de matrícula do imóvel, quando individual
+    matricula_mae           TEXT,               -- matrícula-mãe que agrupa várias unidades (ex: kitnets sob 1 condomínio)
+    valor_aquisicao         REAL,               -- custo histórico de aquisição
+    valor_venal_atual       REAL,               -- valor de mercado/venal mais recente informado pelo usuário
+    data_avaliacao_venal    DATE,               -- data de referência de valor_venal_atual
+    -- 'proprio' entra no patrimônio líquido do usuário; 'gestao_terceiros' é administrado por
+    -- ele (fluxo de caixa rastreado normalmente) mas não soma no patrimônio líquido pessoal —
+    -- caso do imóvel de terceiro (ex: "Avani") sob gestão/usufruto.
+    regime_patrimonial      TEXT NOT NULL DEFAULT 'proprio' CHECK (regime_patrimonial IN ('proprio', 'gestao_terceiros')),
+    proprietario_nome       TEXT                -- preenchido quando regime_patrimonial = 'gestao_terceiros'
 );
 
 CREATE TABLE financiamentos (
@@ -39,6 +52,22 @@ CREATE TABLE financiamentos (
     data_contrato   DATE NOT NULL,
     parcelas_total  INTEGER NOT NULL,
     observacoes     TEXT
+);
+
+-- Dívida de consumo não-imobiliária (consignado, empréstimo pessoal, cartão parcelado) —
+-- não tem matrícula/imóvel associado nem cronograma SAC/Price automático porque a fonte
+-- típica é um relatório Registrato/SCR do Bacen (autoatendimento do cidadão, sem API
+-- pública) ou fatura de cartão: o usuário relança o saldo devedor periodicamente a partir
+-- do próprio relatório, em vez do sistema recalcular amortização sozinho.
+CREATE TABLE dividas_consumo (
+    id                      INTEGER PRIMARY KEY,
+    tipo                    TEXT NOT NULL CHECK (tipo IN ('consignado', 'emprestimo_pessoal', 'cartao_parcelado', 'outro')),
+    instituicao             TEXT NOT NULL,
+    valor_contratado        REAL,
+    saldo_devedor_atual     REAL NOT NULL,
+    parcela_mensal          REAL NOT NULL,
+    data_referencia_saldo   DATE NOT NULL,      -- data em que saldo_devedor_atual foi apurado (ex: data do Registrato)
+    observacoes             TEXT
 );
 
 CREATE TABLE obras (
