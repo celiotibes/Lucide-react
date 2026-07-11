@@ -44,6 +44,7 @@ import mobileDashboardController from '@/api/controllers/mobileDashboardControll
 import paymentController from '@/api/controllers/paymentController';
 import reportingController from '@/api/controllers/reportingController';
 import tribunalPollingController from '@/api/controllers/tribunalPollingController';
+import contractRouter from '@/api/routes/contractRouter';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -164,6 +165,9 @@ app.use('/api/v1/reports', verifyToken, reportingController);
 
 // Tribunal Polling Routes
 app.use('/api/v1/tribunal-polling', verifyToken, tribunalPollingController);
+
+// Phase 5: Contract Lifecycle Management
+app.use('/api/v1/contracts', verifyToken, contractRouter);
 
 // Phase 5: AI Optimization & Monitoring Routes
 app.use('/api/v1/ab-testing', verifyToken, abTestingRouter);
