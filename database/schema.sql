@@ -2401,3 +2401,52 @@ alter table modelos_contrato add constraint uq_modelos_contrato_cidade_categoria
 -- via `contratos.clausulas_adicionais` (seção 27.2), preenchido contrato a
 -- contrato, em vez de fingir uma fórmula universal que nenhuma evidência
 -- sustenta ainda.
+
+-- ============================================================================
+-- 29. SOLICITAÇÃO DE QUEBRA DE CONTRATO (CÁLCULO DE MULTA RESCISÓRIA)
+-- ============================================================================
+-- Item do pedido original do portal do inquilino ("pedido de quebra de
+-- contrato com cálculo automático de multa rescisória para análise da
+-- gestão") — a fórmula de Florianópolis (cláusula 11.2 + bonificação de
+-- dezembro do Anexo I) já estava 100% evidenciada desde docs/10, só
+-- faltava código (`server/financeiro/multaRescisoria.ts`). Curitiba
+-- continua sem fórmula própria codificada (3 contratos reais, 3 fórmulas
+-- diferentes — docs/11) — o pedido abre e calcula quando há fórmula
+-- (Florianópolis), e abre sinalizando "sem cálculo automático, gestão
+-- aplica a cláusula deste contrato" quando não há (Curitiba), em vez de
+-- fingir uma fórmula universal.
+create table solicitacoes_quebra_contrato (
+  id uuid primary key default gen_random_uuid(),
+  ordem_servico_id uuid not null unique references ordens_servico(id) on delete cascade,
+  contrato_id uuid not null references contratos(id),
+  data_rescisao_desejada date not null,
+  data_notificacao date not null,
+  -- null quando a cidade do contrato não tem fórmula codificada ainda —
+  -- nunca um valor "estimado"/adivinhado nesse caso.
+  multa_calculada numeric(14,2),
+  faixa_bonificacao text check (faixa_bonificacao in
+    ('ate_22_novembro', 'ate_27_novembro', 'fora_da_janela', 'nao_aplicavel', null)),
+  status text not null default 'em_analise' check (status in ('em_analise', 'aprovada', 'rejeitada')),
+  parecer_gestao text,
+  analisado_por_pessoa_id uuid references pessoas(id),
+  analisado_em timestamptz,
+  criado_em timestamptz not null default now(),
+  constraint chk_quebra_parecer_quando_decidido check (
+    status = 'em_analise' or parecer_gestao is not null
+  )
+);
+
+alter table solicitacoes_quebra_contrato enable row level security;
+create policy admin_full_access_quebra_contrato on solicitacoes_quebra_contrato
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy inquilino_ve_propria_solicitacao_quebra on solicitacoes_quebra_contrato
+  for select using (
+    exists (
+      select 1 from ordens_servico os
+      where os.id = solicitacoes_quebra_contrato.ordem_servico_id and os.aberto_por_pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+
+create trigger trg_audit_quebra_contrato
+  after insert or update or delete on solicitacoes_quebra_contrato
+  for each row execute function fn_audit_trigger();
