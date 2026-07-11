@@ -5,6 +5,7 @@ import { consultar } from "../db/connection";
 import { gerarSerieMensal, gerarDre, resultadoLiquido } from "../domain/reports/dre";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia, agingPorFaixa } from "../domain/reconcile/inadimplencia";
+import { calcularDesempenhoPorImovel, calcularDesempenhoPorCidade } from "../domain/reports/desempenhoPorImovel";
 import type { Imovel } from "../domain/types";
 
 function hojeIso(): string {
@@ -49,6 +50,9 @@ export function Dashboard() {
     const excecoes = conciliar(db, competencias);
     return calcularInadimplencia(db, excecoes, hoje);
   }, [db, versao, hoje]);
+
+  const desempenhoImoveis = useMemo(() => (db ? calcularDesempenhoPorImovel(db, dataInicio12m, hoje) : []), [db, versao, dataInicio12m, hoje]);
+  const desempenhoCidades = useMemo(() => (db ? calcularDesempenhoPorCidade(db, dataInicio12m, hoje) : []), [db, versao, dataInicio12m, hoje]);
 
   const aging = useMemo(() => agingPorFaixa(statusInadimplencia), [statusInadimplencia]);
   const dadosAging = Object.entries(aging).map(([faixa, valores]) => ({ faixa, ...valores }));
@@ -143,6 +147,57 @@ export function Dashboard() {
           {statusInadimplencia.filter((s) => s.diasAtraso > 0).length === 0 && (
             <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 10 }}>Nenhuma competência em aberto — todos os contratos residenciais conciliados.</p>
           )}
+        </div>
+      </div>
+
+      <div className="grid-2" style={{ marginTop: 24 }}>
+        <div className="card">
+          <h2 className="section-title">Resultado por imóvel (12 meses)</h2>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr><th>Imóvel</th><th className="num">Receita</th><th className="num">Despesa</th><th className="num">Resultado</th></tr>
+              </thead>
+              <tbody>
+                {desempenhoImoveis.map((d) => (
+                  <tr key={d.imovel.id}>
+                    <td>{d.imovel.apelido}</td>
+                    <td className="num">{formatarMoeda(d.receita)}</td>
+                    <td className="num">{formatarMoeda(d.despesa)}</td>
+                    <td className="num" style={{ color: d.resultadoLiquido >= 0 ? "var(--viz-good)" : "var(--viz-despesa)" }}>{formatarMoeda(d.resultadoLiquido)}</td>
+                  </tr>
+                ))}
+                {desempenhoImoveis.length === 0 && (
+                  <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum imóvel cadastrado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="card">
+          <h2 className="section-title">Resultado por cidade / centro de custo</h2>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr><th>Cidade</th><th className="num">Imóveis</th><th className="num">Receita</th><th className="num">Despesa</th><th className="num">Resultado</th></tr>
+              </thead>
+              <tbody>
+                {desempenhoCidades.map((d) => (
+                  <tr key={d.cidade}>
+                    <td>{d.cidade}</td>
+                    <td className="num">{d.quantidadeImoveis}</td>
+                    <td className="num">{formatarMoeda(d.receita)}</td>
+                    <td className="num">{formatarMoeda(d.despesa)}</td>
+                    <td className="num" style={{ color: d.resultadoLiquido >= 0 ? "var(--viz-good)" : "var(--viz-despesa)" }}>{formatarMoeda(d.resultadoLiquido)}</td>
+                  </tr>
+                ))}
+                {desempenhoCidades.length === 0 && (
+                  <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum imóvel cadastrado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
 import { useMemo } from "react";
+import { AlertTriangle } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
+import { calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";
 import type { Caucao, ContratoLocacao, Imovel } from "../domain/types";
 
 function hojeIso(): string {
@@ -27,6 +29,11 @@ export function CaucaoView() {
     return caucoes.map((c) => calcularCaucao(db, c.id, hoje));
   }, [db, caucoes, hoje]);
 
+  const caucoesRetidas = caucoes.filter((c) => !c.data_devolucao);
+  const passivoCaucaoRetido = caucoes.reduce((acc, c, indice) => (c.data_devolucao ? acc : acc + calculos[indice].valorADevolver), 0);
+  const saldoCaixaAtual = useMemo(() => (db ? calcularSaldoCaixaAtual(db) : 0), [db, versao]);
+  const caucaoCobertaPeloCaixa = saldoCaixaAtual >= passivoCaucaoRetido;
+
   return (
     <div>
       <h2 className="section-title">Depósitos caução ({caucoes.length})</h2>
@@ -35,6 +42,43 @@ export function CaucaoView() {
         pré-carregada nos dados de demonstração é <strong>ilustrativa</strong> — substitua pelos valores reais do
         BACEN/IBGE antes de usar o cálculo para fins periciais.
       </p>
+
+      {caucoesRetidas.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 15, marginBottom: 10 }}>Passivo de caução — reserva ou fluxo de caixa?</h3>
+          <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginBottom: 12 }}>
+            Depósito caução não é receita — é obrigação de devolver. Este painel compara o total ainda retido
+            (corrigido) contra o caixa disponível hoje, para mostrar se o dinheiro do caução ainda está de fato
+            reservado ou já foi consumido no fluxo de caixa geral (o que gera um passivo descoberto).
+          </p>
+          <div className="kpi-grid" style={{ marginBottom: 10 }}>
+            <div className="kpi-tile">
+              <div className="label">Passivo de caução retido (corrigido)</div>
+              <div className="value">{formatarMoeda(passivoCaucaoRetido)}</div>
+            </div>
+            <div className="kpi-tile">
+              <div className="label">Caixa disponível hoje</div>
+              <div className="value">{formatarMoeda(saldoCaixaAtual)}</div>
+            </div>
+            <div className="kpi-tile">
+              <div className="label">Cobertura</div>
+              <div className={`value ${caucaoCobertaPeloCaixa ? "good" : "critical"}`}>
+                {caucaoCobertaPeloCaixa ? "coberto" : "descoberto"}
+              </div>
+            </div>
+          </div>
+          {!caucaoCobertaPeloCaixa && (
+            <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 24 }}>
+              <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span>
+                O caixa disponível hoje não cobre o total de cauções ainda retidas — parte do dinheiro depositado
+                pelos locatários já foi usada no fluxo de caixa geral em vez de mantida em reserva, gerando um
+                passivo descoberto de {formatarMoeda(passivoCaucaoRetido - saldoCaixaAtual)}.
+              </span>
+            </div>
+          )}
+        </>
+      )}
 
       <div className="table-wrap">
         <table className="data-table">

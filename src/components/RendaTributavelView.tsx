@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { gerarRendaTributavel, totalizarRendaTributavel } from "../domain/reports/rendaTributavel";
+import { calcularCapacidadeContributiva, calcularCapacidadeContributivaMensal } from "../domain/reports/capacidadeContributiva";
+import { calcularAnaliseVertical, calcularAnaliseHorizontal } from "../domain/reports/analiseVerticalHorizontal";
 import { gerarDss } from "../domain/reports/dss";
 import { sugerirAjusteRateio, aplicarAjusteRateio } from "../domain/rateio/ajusteAnual";
 import type { ContratoLocacao, Imovel } from "../domain/types";
@@ -20,6 +22,10 @@ export function RendaTributavelView() {
 
   const linhas = useMemo(() => (db ? gerarRendaTributavel(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
   const totais = useMemo(() => totalizarRendaTributavel(linhas), [linhas]);
+  const capacidade = useMemo(() => (db ? calcularCapacidadeContributiva(db, inicio12m, hoje) : null), [db, versao, inicio12m, hoje]);
+  const capacidadeMensal = useMemo(() => (db ? calcularCapacidadeContributivaMensal(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
+  const analiseVertical = useMemo(() => (db ? calcularAnaliseVertical(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
+  const analiseHorizontal = useMemo(() => (db ? calcularAnaliseHorizontal(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
 
   const contratosComRateio = useMemo<ContratoLocacao[]>(
     () => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE percentual_aluguel_efetivo < 100 ORDER BY id") : []),
@@ -48,12 +54,115 @@ export function RendaTributavelView() {
 
   return (
     <div>
+      <h2 className="section-title">Capacidade contributiva real</h2>
+      <p style={{ maxWidth: "70ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 20 }}>
+        O número central para a Vara de Família: receita bruta alta não é capacidade contributiva alta. O total
+        recebido bruto passa por duas reduções antes de virar dinheiro disponível — o reembolso de rateio (não é
+        renda, é recomposição de custo repassado ao locatário) e a despesa operacional da atividade (condomínio,
+        manutenção, prestadores, tarifas — já excluindo qualquer imóvel de uso pessoal).
+      </p>
+
+      {capacidade && (
+        <div className="kpi-grid" style={{ marginBottom: 10 }}>
+          <div className="kpi-tile">
+            <div className="label">Total recebido bruto (12m)</div>
+            <div className="value">{formatarMoeda(capacidade.totalRecebidoBruto)}</div>
+          </div>
+          <div className="kpi-tile">
+            <div className="label">(−) Reembolso de rateio</div>
+            <div className="value">{formatarMoeda(capacidade.reembolsoNaoTributavel)}</div>
+          </div>
+          <div className="kpi-tile">
+            <div className="label">(−) Despesa operacional</div>
+            <div className="value">{formatarMoeda(capacidade.despesaOperacionalTotal)}</div>
+          </div>
+          <div className="kpi-tile">
+            <div className="label">= Resultado líquido real</div>
+            <div className={`value ${capacidade.resultadoLiquidoReal >= 0 ? "good" : "critical"}`}>
+              {formatarMoeda(capacidade.resultadoLiquidoReal)}
+            </div>
+          </div>
+        </div>
+      )}
+      {capacidade && capacidade.percentualDisponivelSobreRecebido !== null && (
+        <p style={{ fontSize: 13, marginBottom: 24 }}>
+          Do total recebido bruto, apenas <strong>{capacidade.percentualDisponivelSobreRecebido.toFixed(1)}%</strong>{" "}
+          é resultado líquido real disponível — o restante é reembolso de custo repassado ou despesa operacional da
+          atividade.
+        </p>
+      )}
+
+      <div className="table-wrap" style={{ marginBottom: 28 }}>
+        <table className="data-table">
+          <thead>
+            <tr><th>Mês</th><th className="num">Recebido bruto</th><th className="num">Despesa operacional</th><th className="num">Resultado real</th></tr>
+          </thead>
+          <tbody>
+            {capacidadeMensal.map((l) => (
+              <tr key={l.mes}>
+                <td>{l.mes}</td>
+                <td className="num">{formatarMoeda(l.totalRecebidoBruto)}</td>
+                <td className="num">{formatarMoeda(l.despesaOperacionalTotal)}</td>
+                <td className="num">{formatarMoeda(l.resultadoLiquidoReal)}</td>
+              </tr>
+            ))}
+            {capacidadeMensal.length === 0 && (
+              <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum dado no período.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="section-title">Análise vertical e horizontal do DRE</h2>
+      <p style={{ maxWidth: "70ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 16 }}>
+        Vertical: cada linha como % da receita total do período — mostra a proporção do custo, não só o valor
+        absoluto. Horizontal: comparação com os 12 meses imediatamente anteriores — evidencia se despesa de
+        manutenção/obra subiu na mesma proporção da receita (capacidade contributiva estável) ou ficou para trás.
+      </p>
+      <div className="table-wrap" style={{ marginBottom: 28 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              <th className="num">Valor (12m)</th>
+              <th className="num">% da receita (vertical)</th>
+              <th className="num">Valor (12m anteriores)</th>
+              <th className="num">Variação (horizontal)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {analiseHorizontal.map((h) => {
+              const vertical = analiseVertical.find((v) => v.codigo === h.codigo);
+              return (
+                <tr key={h.codigo}>
+                  <td>{h.codigo} · {h.descricao}</td>
+                  <td className="num">{formatarMoeda(Math.abs(h.totalAtual))}</td>
+                  <td className="num">{vertical?.percentualSobreReceita !== null && vertical?.percentualSobreReceita !== undefined ? `${vertical.percentualSobreReceita.toFixed(1)}%` : "—"}</td>
+                  <td className="num" style={{ color: "var(--ink-soft)" }}>{formatarMoeda(Math.abs(h.totalAnterior))}</td>
+                  <td className="num">
+                    {h.variacaoPercentual !== null ? (
+                      <span className={`pill ${h.variacaoPercentual > 20 ? "warning" : h.variacaoPercentual < -20 ? "critical" : "good"}`}>
+                        {h.variacaoPercentual > 0 ? "+" : ""}{h.variacaoPercentual.toFixed(1)}%
+                      </span>
+                    ) : (
+                      "novo"
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {analiseHorizontal.length === 0 && (
+              <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum dado no período.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
       <h2 className="section-title">Renda tributável (Carnê-Leão)</h2>
       <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 20 }}>
         Separa, de cada recebimento de aluguel, o que é Aluguel Efetivo (base do IRPF) do que é reembolso de rateio
         de custeio coletivo (trânsito contábil, não tributável) — a distinção que contratos com "valor único mensal"
-        fazem explicitamente. O total recebido nas contas quase sempre é maior do que a renda de fato, e é essa
-        diferença que importa para capacidade contributiva.
+        fazem explicitamente.
       </p>
 
       <div className="kpi-grid">

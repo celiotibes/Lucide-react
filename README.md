@@ -48,7 +48,8 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   cobrir mais de um) é aplicada à transação. Nunca classifica sozinho: toda sugestão
   precisa de confirmação explícita.
 - **Painel**: DRE dos últimos 12 meses, série mensal de receita/despesa/resultado
-  (36 meses) e gráfico de inadimplência por faixa de atraso.
+  (36 meses), gráfico de inadimplência por faixa de atraso, ranking de resultado
+  líquido por imóvel e DRE agregado por cidade/centro de custo (Floripa × Curitiba).
 - **Transações**: fila de revisão e categorização manual pelo plano de contas.
 - **Contratos e inadimplência**: lista de contratos de locação e competências em
   aberto com dias de atraso, multa e juros de mora calculados pelas cláusulas de
@@ -58,7 +59,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   índice contratado desde o último reajuste) e calculadora de multa rescisória
   proporcional por quebra antecipada do prazo determinado (art. 4º, Lei 8.245/91).
 - **Depósitos caução**: correção monetária mês a mês (poupança/IGPM/IPCA) a partir
-  da série cadastrada em `indices_economicos`.
+  da série cadastrada em `indices_economicos`, mais um painel de passivo de caução
+  que compara o total ainda retido (corrigido) contra o caixa disponível hoje —
+  mostra se o dinheiro do caução está de fato reservado ou já foi consumido no
+  fluxo de caixa geral (passivo descoberto).
 - **Índices econômicos**: busca IGP-M, IPCA e poupança direto da API pública do
   Banco Central (SGS), rodando no navegador — sem passar por nenhum backend deste
   projeto — com lançamento manual como fallback se a busca falhar.
@@ -88,6 +92,13 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 - **Múltiplos locatários e responsáveis solidários**: um contrato pode ter vários
   nomes vinculados (comum em locação estudantil/compartilhada), todos exibidos
   junto ao contrato.
+- **Capacidade contributiva real**: consolida recebido bruto → (−) reembolso de
+  rateio (não tributável) → (−) despesa operacional → = resultado líquido real,
+  mês a mês e no acumulado — o argumento central de que renda bruta recebida não
+  é o mesmo que capacidade de pagar. Inclui também uma análise vertical (cada
+  linha do DRE como % da receita) e horizontal (variação contra o período
+  imediatamente anterior de mesma duração) para evidenciar se despesa subiu na
+  mesma proporção da receita ou ficou para trás.
 - **Renda tributável (Carnê-Leão)**: separa, mês a mês, o que é Aluguel Efetivo
   (base do IRPF) do que é reembolso de rateio de custeio coletivo — para contratos
   de "valor único mensal" que decompõem o valor cobrado em duas naturezas
