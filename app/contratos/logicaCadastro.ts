@@ -11,6 +11,7 @@ export interface DadosNovoContrato {
   dataInicio: string; // 'YYYY-MM-DD'
   diaVencimento: number;
   valorAluguel: number;
+  clausulasAdicionais?: string | null;
 }
 
 export type ResultadoCadastroContrato = { sucesso: true; id: string } | { sucesso: false; erro: string };
@@ -64,9 +65,16 @@ export async function inserirContrato(pool: Pool, dados: DadosNovoContrato): Pro
     }
 
     const contrato = await client.query<{ id: string }>(
-      `insert into contratos (imovel_id, tipo, data_inicio, dia_vencimento, valor_aluguel)
-       values ($1, $2, $3, $4, $5) returning id`,
-      [dados.imovelId, dados.tipo, dados.dataInicio, dados.diaVencimento, dados.valorAluguel],
+      `insert into contratos (imovel_id, tipo, data_inicio, dia_vencimento, valor_aluguel, clausulas_adicionais)
+       values ($1, $2, $3, $4, $5, $6) returning id`,
+      [
+        dados.imovelId,
+        dados.tipo,
+        dados.dataInicio,
+        dados.diaVencimento,
+        dados.valorAluguel,
+        dados.clausulasAdicionais?.trim() || null,
+      ],
     );
     const contratoId = contrato.rows[0].id;
 

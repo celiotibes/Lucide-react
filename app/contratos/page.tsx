@@ -15,6 +15,7 @@ interface LinhaContrato {
   locatario: string | null;
 }
 
+
 async function buscarContratos(): Promise<LinhaContrato[]> {
   const pool = obterPool();
   const { rows } = await pool.query<LinhaContrato>(`
@@ -83,6 +84,7 @@ export default async function PaginaContratos() {
               <th>Fim</th>
               <th>Aluguel</th>
               <th>Status</th>
+              <th>Contrato</th>
             </tr>
           </thead>
           <tbody>
@@ -96,6 +98,9 @@ export default async function PaginaContratos() {
                 <td>{formatarMoeda(contrato.valor_aluguel)}</td>
                 <td>
                   <span className="tag">{RUBRICA_STATUS[contrato.status] ?? contrato.status}</span>
+                </td>
+                <td>
+                  <Link href={`/contratos/${contrato.id}/contrato`}>Gerar/ver</Link>
                 </td>
               </tr>
             ))}

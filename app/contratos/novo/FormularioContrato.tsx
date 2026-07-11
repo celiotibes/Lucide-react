@@ -64,6 +64,15 @@ export function FormularioContrato({ imoveis }: { imoveis: Imovel[] }) {
         <input name="valor_aluguel" type="number" min={0.01} step="0.01" required />
       </label>
 
+      <label>
+        Cláusulas adicionais / pedidos específicos (opcional)
+        <textarea
+          name="clausulas_adicionais"
+          rows={4}
+          placeholder="Um parágrafo por pedido — cada parágrafo vira uma cláusula própria no contrato gerado."
+        />
+      </label>
+
       <button type="submit" disabled={pendente}>
         {pendente ? 'Salvando…' : 'Salvar contrato'}
       </button>

@@ -20,6 +20,7 @@ export async function criarContrato(
     dataInicio: String(formData.get('data_inicio') ?? ''),
     diaVencimento: Number(formData.get('dia_vencimento')),
     valorAluguel: Number(formData.get('valor_aluguel')),
+    clausulasAdicionais: String(formData.get('clausulas_adicionais') ?? '').trim() || null,
   });
 
   if (!resultado.sucesso) {
