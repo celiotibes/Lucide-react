@@ -87,6 +87,9 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   soma a fatia correspondente.
 - **Categorização com aprendizado**: ao categorizar uma transação manualmente, dá
   para salvar o padrão como regra e aplicá-la de uma vez às pendências semelhantes.
+  Opcionalmente a regra também pode fixar um imóvel (útil para fornecedor recorrente
+  de uma unidade só, ex: CEMIG/CASAN de um imóvel específico) — nunca sobrescreve um
+  imóvel (ou rateio) já atribuído manualmente a uma transação.
 - **Laudo pericial**: exporta um PDF com DRE, inadimplência e achados de auditoria
   do período — apoio à instrução, não uma peça jurídica pronta.
 - **Múltiplos locatários e responsáveis solidários**: um contrato pode ter vários

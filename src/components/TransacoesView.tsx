@@ -18,6 +18,7 @@ export function TransacoesView() {
   const [rateioAbertoId, setRateioAbertoId] = useState<number | null>(null);
   const [regraAbertaId, setRegraAbertaId] = useState<number | null>(null);
   const [padraoRegra, setPadraoRegra] = useState("");
+  const [imovelRegra, setImovelRegra] = useState<number | "">("");
   const [imoveisSelecionados, setImoveisSelecionados] = useState<number[]>([]);
   const [criterio, setCriterio] = useState<CriterioRateio>("fracao_ideal");
   const [mensagem, setMensagem] = useState<string | null>(null);
@@ -52,11 +53,12 @@ export function TransacoesView() {
   function abrirSalvarRegra(transacao: Transacao) {
     setRegraAbertaId(transacao.id);
     setPadraoRegra(escaparParaRegex(transacao.descricao_original));
+    setImovelRegra(transacao.imovel_id ?? "");
   }
 
   async function confirmarSalvarRegra(transacao: Transacao) {
     if (!db || !transacao.plano_conta_codigo) return;
-    salvarRegra(db, padraoRegra, transacao.plano_conta_codigo);
+    salvarRegra(db, padraoRegra, transacao.plano_conta_codigo, imovelRegra === "" ? null : imovelRegra);
     const aplicadas = aplicarRegrasSalvas(db);
     await persistir();
     setRegraAbertaId(null);
@@ -103,6 +105,7 @@ export function TransacoesView() {
               <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
                 <span>
                   <code>{r.padrao}</code> → {r.plano_conta_codigo}
+                  {r.imovel_id !== null && ` · ${imoveis.find((i) => i.id === r.imovel_id)?.apelido ?? "imóvel #" + r.imovel_id}`}
                 </span>
                 <button className="btn" style={{ padding: "3px 8px" }} onClick={async () => { if (!db) return; excluirRegra(db, r.id); await persistir(); }}>
                   <Trash2 size={13} />
@@ -189,12 +192,25 @@ export function TransacoesView() {
                   {regraAbertaId === t.id && (
                     <tr>
                       <td colSpan={7} style={{ background: "var(--surface-2)" }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 4px" }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 4px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13 }}>Padrão (regex):</span>
-                          <input value={padraoRegra} onChange={(e) => setPadraoRegra(e.target.value)} style={{ flex: 1, padding: "5px 8px" }} />
+                          <input value={padraoRegra} onChange={(e) => setPadraoRegra(e.target.value)} style={{ flex: 1, minWidth: 160, padding: "5px 8px" }} />
+                          <span style={{ fontSize: 13 }}>Imóvel (opcional):</span>
+                          <select value={imovelRegra} onChange={(e) => setImovelRegra(e.target.value ? Number(e.target.value) : "")}>
+                            <option value="">— não associar imóvel —</option>
+                            {imoveis.map((i) => (
+                              <option key={i.id} value={i.id}>{i.apelido}</option>
+                            ))}
+                          </select>
                           <button className="btn primary" onClick={() => confirmarSalvarRegra(t)}>Salvar regra</button>
                           <button className="btn" onClick={() => setRegraAbertaId(null)}>Cancelar</button>
                         </div>
+                        <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: "0 4px 8px" }}>
+                          Se um imóvel for escolhido, a regra passa a atribuí-lo automaticamente em toda transação
+                          futura que casar com o padrão — mas nunca sobrescreve um imóvel (ou rateio) já atribuído
+                          manualmente. Útil para fornecedores fixos de uma única unidade (ex: CEMIG, CASAN de um
+                          imóvel específico).
+                        </p>
                       </td>
                     </tr>
                   )}

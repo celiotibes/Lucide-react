@@ -5,6 +5,7 @@ export interface RegraSalva {
   id: number;
   padrao: string;
   plano_conta_codigo: string;
+  imovel_id: number | null;
   criado_em: string;
 }
 
@@ -18,10 +19,11 @@ export function listarRegras(db: Database): RegraSalva[] {
   return consultar<RegraSalva>(db, "SELECT * FROM regras_categorizacao ORDER BY criado_em DESC");
 }
 
-export function salvarRegra(db: Database, padrao: string, planoContaCodigo: string): void {
-  executar(db, "INSERT INTO regras_categorizacao (padrao, plano_conta_codigo, criado_em) VALUES (?, ?, ?)", [
+export function salvarRegra(db: Database, padrao: string, planoContaCodigo: string, imovelId: number | null = null): void {
+  executar(db, "INSERT INTO regras_categorizacao (padrao, plano_conta_codigo, imovel_id, criado_em) VALUES (?, ?, ?, ?)", [
     padrao,
     planoContaCodigo,
+    imovelId,
     new Date().toISOString().slice(0, 10),
   ]);
 }
@@ -35,9 +37,9 @@ export function excluirRegra(db: Database, id: number): void {
  * (Domínio, Alterdata) usam para lançamentos repetitivos. */
 export function aplicarRegrasSalvas(db: Database): number {
   const regras = listarRegras(db);
-  const pendentes = consultar<{ id: number; descricao_original: string }>(
+  const pendentes = consultar<{ id: number; descricao_original: string; imovel_id: number | null }>(
     db,
-    "SELECT id, descricao_original FROM transacoes WHERE plano_conta_codigo IS NULL",
+    "SELECT id, descricao_original, imovel_id FROM transacoes WHERE plano_conta_codigo IS NULL",
   );
 
   let resolvidas = 0;
@@ -50,10 +52,20 @@ export function aplicarRegrasSalvas(db: Database): number {
         continue; // regex inválida cadastrada manualmente — ignora em vez de quebrar o lote
       }
       if (casa) {
-        executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'regra' WHERE id = ?", [
-          regra.plano_conta_codigo,
-          transacao.id,
-        ]);
+        // Só aplica o imóvel da regra se a transação ainda não tiver um definido —
+        // nunca sobrescreve uma atribuição manual/rateio já existente.
+        if (regra.imovel_id !== null && transacao.imovel_id === null) {
+          executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'regra', imovel_id = ? WHERE id = ?", [
+            regra.plano_conta_codigo,
+            regra.imovel_id,
+            transacao.id,
+          ]);
+        } else {
+          executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'regra' WHERE id = ?", [
+            regra.plano_conta_codigo,
+            transacao.id,
+          ]);
+        }
         resolvidas++;
         break;
       }

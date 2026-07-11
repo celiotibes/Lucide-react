@@ -215,6 +215,7 @@ CREATE TABLE regras_categorizacao (
     id                  INTEGER PRIMARY KEY,
     padrao              TEXT NOT NULL,             -- regex aplicado a descricao_original (case-insensitive)
     plano_conta_codigo  TEXT NOT NULL REFERENCES plano_de_contas(codigo),
+    imovel_id           INTEGER REFERENCES imoveis(id), -- opcional: fornecedor recorrente de 1 imóvel só (ex: CEMIG de uma unidade); NULL = regra não decide o imóvel
     criado_em           DATE NOT NULL
 );
 
