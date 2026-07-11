@@ -132,31 +132,15 @@ export function calcularComprometimentoRenda(db: Database, dataReferencia: strin
   };
 }
 
+/** Demonstrativo de Endividamento Global: financiamentos imobiliários + dívidas de
+ * consumo numa lista única, para mostrar o perfil de risco completo do CPF (não só o
+ * imobiliário). Ver calcularVPLDoEndividamento() abaixo, que gera esta mesma lista já
+ * com o VPL de cada dívida — é a versão usada pela UI. */
 export interface LinhaEndividamento {
   categoria: "financiamento" | "divida_consumo";
   descricao: string;
   saldoDevedor: number;
   parcelaMensal: number;
-}
-
-/** Demonstrativo de Endividamento Global: financiamentos imobiliários + dívidas de
- * consumo numa lista única, para mostrar o perfil de risco completo do CPF (não só o
- * imobiliário). */
-export function gerarDemonstrativoEndividamentoGlobal(db: Database, dataReferencia: string): LinhaEndividamento[] {
-  const imoveis = new Map(listarImoveis(db).map((i) => [i.id, i]));
-  const financiamentos = listarFinanciamentos(db).map((f) => ({
-    categoria: "financiamento" as const,
-    descricao: `${f.instituicao} — ${imoveis.get(f.imovel_id)?.apelido ?? `imóvel ${f.imovel_id}`}`,
-    saldoDevedor: saldoDevedorFinanciamento(f, dataReferencia),
-    parcelaMensal: parcelaMensalFinanciamento(f, dataReferencia),
-  }));
-  const dividas = listarDividasConsumo(db).map((d) => ({
-    categoria: "divida_consumo" as const,
-    descricao: `${d.instituicao} — ${ROTULO_TIPO_DIVIDA[d.tipo]}`,
-    saldoDevedor: d.saldo_devedor_atual,
-    parcelaMensal: d.parcela_mensal,
-  }));
-  return [...financiamentos, ...dividas].sort((a, b) => b.saldoDevedor - a.saldoDevedor);
 }
 
 export const ROTULO_TIPO_DIVIDA: Record<DividaConsumo["tipo"], string> = {
@@ -219,4 +203,48 @@ export function calcularLiquidezCorrente(db: Database, dataReferencia: string): 
 export function calcularVPLDivida(parcelasMensais: number[], taxaDescontoMensalPercentual: number): number {
   const taxa = taxaDescontoMensalPercentual / 100;
   return parcelasMensais.reduce((acc, parcela, indice) => acc + parcela / Math.pow(1 + taxa, indice + 1), 0);
+}
+
+export interface LinhaEndividamentoComVPL extends LinhaEndividamento {
+  parcelasRestantesEstimadas: number;
+  vpl: number;
+}
+
+/** VPL de cada dívida do demonstrativo de endividamento global. Financiamentos usam o
+ * cronograma teórico real (SAC/Price) — parcelas futuras exatas. Dívidas de consumo não
+ * têm prazo cadastrado (só saldo e parcela), então o número de parcelas restantes é
+ * estimado por saldo_devedor_atual / parcela_mensal — aproximação simples que ignora a
+ * composição de juros dentro da própria estimativa de prazo; sempre uma sub ou
+ * sobre-estimativa leve, nunca um valor "oficial" do contrato. */
+export function calcularVPLDoEndividamento(db: Database, dataReferencia: string, taxaDescontoMensalPercentual: number): LinhaEndividamentoComVPL[] {
+  const imoveis = new Map(listarImoveis(db).map((i) => [i.id, i]));
+
+  const financiamentos = listarFinanciamentos(db).map((f): LinhaEndividamentoComVPL => {
+    const parcelasFuturas = gerarCronograma(f)
+      .filter((p) => p.data >= dataReferencia)
+      .map((p) => p.parcela);
+    return {
+      categoria: "financiamento",
+      descricao: `${f.instituicao} — ${imoveis.get(f.imovel_id)?.apelido ?? `imóvel ${f.imovel_id}`}`,
+      saldoDevedor: saldoDevedorFinanciamento(f, dataReferencia),
+      parcelaMensal: parcelaMensalFinanciamento(f, dataReferencia),
+      parcelasRestantesEstimadas: parcelasFuturas.length,
+      vpl: calcularVPLDivida(parcelasFuturas, taxaDescontoMensalPercentual),
+    };
+  });
+
+  const dividas = listarDividasConsumo(db).map((d): LinhaEndividamentoComVPL => {
+    const parcelasRestantesEstimadas = d.parcela_mensal > 0 ? Math.ceil(d.saldo_devedor_atual / d.parcela_mensal) : 0;
+    const parcelasFuturas = Array(parcelasRestantesEstimadas).fill(d.parcela_mensal);
+    return {
+      categoria: "divida_consumo",
+      descricao: `${d.instituicao} — ${ROTULO_TIPO_DIVIDA[d.tipo]}`,
+      saldoDevedor: d.saldo_devedor_atual,
+      parcelaMensal: d.parcela_mensal,
+      parcelasRestantesEstimadas,
+      vpl: calcularVPLDivida(parcelasFuturas, taxaDescontoMensalPercentual),
+    };
+  });
+
+  return [...financiamentos, ...dividas].sort((a, b) => b.saldoDevedor - a.saldoDevedor);
 }

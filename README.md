@@ -88,7 +88,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   Cadastros → Dívidas de consumo cobre consignado/empréstimo/cartão parcelado — sem
   matrícula, porque o Registrato/SCR do Bacen não tem API pública; o saldo é
   relançado manualmente a partir do relatório que você mesmo baixa em
-  `registrato.bcb.gov.br`.
+  `registrato.bcb.gov.br`. O demonstrativo de endividamento global inclui o VPL de
+  cada dívida (taxa de desconto mensal configurável) — mostra que a soma nominal das
+  parcelas futuras "vale" menos hoje do que parece, mas ainda é exigibilidade
+  presente sobre o patrimônio.
 - **Auditoria forense**: duplicidade de lançamento, outliers estatísticos (z-score)
   por categoria, lacunas em despesas recorrentes e teste da Lei de Benford — tudo
   local, sem IA paga.

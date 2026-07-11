@@ -6,7 +6,7 @@ import {
   calcularAlavancagemPorImovel,
   calcularComprometimentoRenda,
   calcularLiquidezCorrente,
-  gerarDemonstrativoEndividamentoGlobal,
+  calcularVPLDoEndividamento,
 } from "../domain/patrimonio/balancoPatrimonial";
 
 function hojeIso(): string {
@@ -20,11 +20,18 @@ export function PatrimonioView() {
   const { db, versao } = useDb();
   const hoje = hojeIso();
   const [salarioMensal, setSalarioMensal] = useState("23000");
+  const [taxaDesconto, setTaxaDesconto] = useState("1");
 
   const patrimonioLiquido = useMemo(() => (db ? calcularPatrimonioLiquido(db, hoje) : null), [db, versao, hoje]);
   const alavancagem = useMemo(() => (db ? calcularAlavancagemPorImovel(db, hoje) : []), [db, versao, hoje]);
   const liquidez = useMemo(() => (db ? calcularLiquidezCorrente(db, hoje) : null), [db, versao, hoje]);
-  const endividamento = useMemo(() => (db ? gerarDemonstrativoEndividamentoGlobal(db, hoje) : []), [db, versao, hoje]);
+  const taxaDescontoNumero = Number.parseFloat(taxaDesconto.replace(",", ".")) || 0;
+  const endividamento = useMemo(
+    () => (db ? calcularVPLDoEndividamento(db, hoje, taxaDescontoNumero) : []),
+    [db, versao, hoje, taxaDescontoNumero],
+  );
+  const somaSaldoDevedor = endividamento.reduce((acc, l) => acc + l.saldoDevedor, 0);
+  const somaVpl = endividamento.reduce((acc, l) => acc + l.vpl, 0);
   const comprometimento = useMemo(
     () => (db ? calcularComprometimentoRenda(db, hoje, Number.parseFloat(salarioMensal.replace(",", ".")) || 0) : null),
     [db, versao, hoje, salarioMensal],
@@ -168,12 +175,20 @@ export function PatrimonioView() {
       <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginBottom: 12 }}>
         Consolida financiamentos imobiliários e dívidas de consumo (consignado, empréstimo, cartão parcelado) num
         único perfil de risco do CPF — inclua também o que estiver no seu relatório Registrato/SCR (Bacen), lançando
-        cada dívida em Cadastros → Dívidas de consumo (não há API pública para buscar isso automaticamente).
+        cada dívida em Cadastros → Dívidas de consumo (não há API pública para buscar isso automaticamente). A
+        coluna VPL desconta o fluxo de parcelas futuras pela taxa mensal informada abaixo — mostra que a soma
+        nominal das parcelas "vale" menos hoje do que parece, mas ainda é exigibilidade presente sobre o
+        patrimônio. Para dívida de consumo (sem prazo cadastrado, só saldo e parcela), o número de parcelas
+        restantes é estimado por saldo ÷ parcela — aproximação simples, não o número oficial do contrato.
       </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <label htmlFor="taxa-desconto" style={{ fontSize: 13, color: "var(--ink-soft)" }}>Taxa de desconto mensal (%)</label>
+        <input id="taxa-desconto" className="btn" style={{ cursor: "text", width: 80 }} value={taxaDesconto} onChange={(e) => setTaxaDesconto(e.target.value)} />
+      </div>
       <div className="table-wrap">
         <table className="data-table">
           <thead>
-            <tr><th>Categoria</th><th>Descrição</th><th className="num">Saldo devedor</th><th className="num">Parcela mensal</th></tr>
+            <tr><th>Categoria</th><th>Descrição</th><th className="num">Saldo devedor</th><th className="num">Parcela mensal</th><th className="num">VPL</th></tr>
           </thead>
           <tbody>
             {endividamento.map((l, indice) => (
@@ -182,10 +197,19 @@ export function PatrimonioView() {
                 <td>{l.descricao}</td>
                 <td className="num">{formatarMoeda(l.saldoDevedor)}</td>
                 <td className="num">{formatarMoeda(l.parcelaMensal)}</td>
+                <td className="num">{formatarMoeda(l.vpl)}</td>
               </tr>
             ))}
             {endividamento.length === 0 && (
-              <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhuma dívida cadastrada.</td></tr>
+              <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhuma dívida cadastrada.</td></tr>
+            )}
+            {endividamento.length > 0 && (
+              <tr>
+                <td colSpan={2} style={{ fontWeight: 600 }}>Total</td>
+                <td className="num" style={{ fontWeight: 600 }}>{formatarMoeda(somaSaldoDevedor)}</td>
+                <td></td>
+                <td className="num" style={{ fontWeight: 600 }}>{formatarMoeda(somaVpl)}</td>
+              </tr>
             )}
           </tbody>
         </table>
