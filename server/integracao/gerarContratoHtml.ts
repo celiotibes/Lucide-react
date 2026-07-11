@@ -24,6 +24,23 @@ const RUBRICA_ESTADO_CIVIL: Record<string, string> = {
   uniao_estavel: 'em união estável',
 };
 
+const RUBRICA_COMPONENTE: Record<string, string> = {
+  comodato_moveis: 'Comodato de bens móveis',
+  vaga_garagem: 'Vaga de garagem',
+  iptu_repassado: 'IPTU',
+  condominio_repassado: 'Condomínio',
+  taxa_lixo_repassada: 'Taxa de coleta de resíduos',
+  taxa_bombeiros_repassada: 'Taxa de bombeiros',
+  outro: 'Outro',
+};
+
+// Categoria do imóvel para resolução do modelo (schema seção 28) — só
+// distingue comercial de residencial, o único corte que os 3 contratos
+// reais de Curitiba evidenciam até aqui (docs/11, "Sétimo achado").
+function categoriaDoImovel(tipoImovel: string): 'residencial' | 'comercial' {
+  return tipoImovel === 'sala_comercial' ? 'comercial' : 'residencial';
+}
+
 export class ContratoSemModeloError extends Error {}
 
 export interface ResultadoGerarContratoHtml {
@@ -51,13 +68,17 @@ export async function gerarContratoHtml(pool: Pool | PoolClient, contratoId: str
   }
   const contrato = contratoRows[0];
 
+  const categoria = categoriaDoImovel(contrato.imovel_tipo);
   const { rows: modeloRows } = await pool.query<{ corpo_html: string; versao: number }>(
-    `select corpo_html, versao from modelos_contrato where cidade_id = $1 and ativo limit 1`,
-    [contrato.cidade_id],
+    `select corpo_html, versao from modelos_contrato
+     where cidade_id = $1 and ativo and categoria in ($2, 'geral')
+     order by (categoria = $2) desc
+     limit 1`,
+    [contrato.cidade_id, categoria],
   );
   if (modeloRows.length === 0) {
     throw new ContratoSemModeloError(
-      `Nenhum modelo de contrato ativo cadastrado para ${contrato.cidade_nome}/${contrato.cidade_uf}`,
+      `Nenhum modelo de contrato ativo cadastrado para ${contrato.cidade_nome}/${contrato.cidade_uf} (categoria "${categoria}" ou "geral")`,
     );
   }
 
@@ -83,6 +104,7 @@ export async function gerarContratoHtml(pool: Pool | PoolClient, contratoId: str
   const garantia = garantiaRows[0] ?? null;
 
   const mobilia = await buscarMobiliaDoContrato(pool, contrato.imovel_id, contrato.comodo_id);
+  const componentesMensais = await buscarComponentesMensais(pool, contratoId);
 
   const modalidade: 'kitnet_integral' | 'coliving_quarto' = contrato.comodo_id ? 'coliving_quarto' : 'kitnet_integral';
   const objetoLocacao = contrato.comodo_id
@@ -108,6 +130,7 @@ export async function gerarContratoHtml(pool: Pool | PoolClient, contratoId: str
     locatarios,
     solidarios,
     mobilia,
+    componentes_mensais: componentesMensais,
     clausulas_adicionais_html: paragrafosParaHtml(contrato.clausulas_adicionais),
   };
 
@@ -138,6 +161,38 @@ async function buscarMobiliaDoContrato(
     [imovelId],
   );
   return rows;
+}
+
+// Descrição do componente para o TEXTO do contrato (não para a fatura
+// mensal — `server/financeiro/valorMensalContrato.ts` continua sendo a
+// função certa para isso). Um contrato assinado uma vez não precisa do
+// valor exato de um `repassado_variavel` (IPTU/condomínio do mês
+// corrente) — precisa descrever a REGRA ("repassado ao valor de face"),
+// exatamente como o texto real dos 3 contratos de Curitiba faz
+// (docs/11). Só `valor_fixo` e `percentual_do_aluguel` têm número fixo
+// para mostrar aqui.
+async function buscarComponentesMensais(pool: Pool | PoolClient, contratoId: string): Promise<LinhaTemplate[]> {
+  const { rows } = await pool.query<{
+    tipo: string;
+    descricao: string | null;
+    natureza: string;
+    valor_fixo: string | null;
+    percentual: string | null;
+  }>(
+    `select tipo, descricao, natureza, valor_fixo, percentual
+     from contrato_componentes_mensais where contrato_id = $1 order by criado_em`,
+    [contratoId],
+  );
+
+  return rows.map((c) => ({
+    tipo_label: c.descricao ?? RUBRICA_COMPONENTE[c.tipo] ?? c.tipo,
+    valor_exibicao:
+      c.natureza === 'valor_fixo'
+        ? formatarMoeda(c.valor_fixo!)
+        : c.natureza === 'percentual_do_aluguel'
+          ? `${(Number(c.percentual) * 100).toFixed(0)}% do aluguel (já incluído)`
+          : 'repassado ao valor de face, conforme fatura da concessionária/condomínio',
+  }));
 }
 
 function formatarParte(parte: LinhaTemplate): LinhaTemplate {

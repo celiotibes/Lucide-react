@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { obterPool } from '@/server/integracao/db';
-import { inserirModeloContrato } from './logicaCadastro';
+import { inserirModeloContrato, type CategoriaModeloContrato } from './logicaCadastro';
 
 export interface EstadoFormularioModeloContrato {
   erro?: string;
@@ -14,6 +14,7 @@ export async function criarModeloContrato(
 ): Promise<EstadoFormularioModeloContrato> {
   const resultado = await inserirModeloContrato(obterPool(), {
     cidadeId: String(formData.get('cidade_id') ?? ''),
+    categoria: String(formData.get('categoria') ?? 'geral') as CategoriaModeloContrato,
     nome: String(formData.get('nome') ?? ''),
     corpoHtml: String(formData.get('corpo_html') ?? ''),
   });

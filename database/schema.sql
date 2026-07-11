@@ -2355,3 +2355,49 @@ create trigger trg_audit_modelos_contrato after insert or update or delete on mo
 alter table garantias add column forma_pagamento text
   check (forma_pagamento in ('pix','boleto','dinheiro','parcelado', null));
 alter table garantias add column parcelas smallint check (parcelas is null or parcelas > 0);
+
+-- ============================================================================
+-- 28. MODELOS DE CONTRATO POR CATEGORIA DE IMÓVEL (NÃO SÓ POR CIDADE)
+-- ============================================================================
+-- Você enviou o texto corrido dos 3 contratos reais de Curitiba já
+-- estruturalmente auditados em docs/11 (componentes mensais, garantia
+-- dupla, IPTU repassado) e a heterogeneidade se mostrou maior do que só
+-- valores: multa rescisória em três formatos diferentes (fixa em meses,
+-- fixa em salários mínimos, proporcional com teto) e regras de forma de
+-- pagamento que se contradizem entre os contratos residenciais, além da
+-- Sala Comercial ser estruturalmente outra coisa (vaga como % do valor
+-- total, reajuste em degraus, sem comodato). Um único modelo por cidade
+-- (seção 27.4) obrigaria Curitiba a se parecer artificialmente homogênea
+-- do jeito que Florianópolis genuinamente é — decisão sua, confirmada via
+-- pergunta direta: modelos passam a ser por (cidade, categoria de imóvel).
+alter table modelos_contrato add column categoria text not null default 'geral'
+  check (categoria in ('geral', 'residencial', 'comercial'));
+
+-- `'geral'` é o valor dos modelos já cadastrados antes desta seção (hoje,
+-- só Florianópolis) — continuam resolvendo normalmente sem precisar de
+-- categoria própria, porque lá a homogeneidade entre kitnets já foi
+-- comprovada (docs/10). Curitiba passa a cadastrar `'residencial'` e
+-- `'comercial'` como linhas próprias, cada uma com seu próprio ativo/
+-- versão — `gerarContratoHtml.ts` resolve a categoria do imóvel
+-- (`imoveis.tipo = 'sala_comercial'` → comercial, os demais →
+-- residencial) e busca o modelo exato daquela categoria, caindo para
+-- `'geral'` só quando a cidade não tiver um modelo específico cadastrado.
+drop index uq_modelos_contrato_ativo_por_cidade;
+create unique index uq_modelos_contrato_ativo_por_cidade_categoria
+  on modelos_contrato(cidade_id, categoria) where ativo;
+
+alter table modelos_contrato drop constraint modelos_contrato_cidade_id_versao_key;
+alter table modelos_contrato add constraint uq_modelos_contrato_cidade_categoria_versao
+  unique (cidade_id, categoria, versao);
+
+-- A multa rescisória (3 meses fixos / 3 salários mínimos / 50% proporcional
+-- com teto — nenhuma das três é a mesma fórmula) e a forma de pagamento
+-- aceita (PIX proibido, PIX obrigatório só na caução, PIX como exceção)
+-- deliberadamente NÃO ganharam campo próprio em `contrato_politica_cobranca`
+-- nesta rodada: são 3 contratos residenciais/comerciais de Curitiba contra
+-- 1 padrão homogêneo de Florianópolis — o mesmo risco de generalizar cedo
+-- demais já documentado em docs/11 para o desconto de pontualidade. Os
+-- modelos de Curitiba (residencial e comercial) tratam essas duas cláusulas
+-- via `contratos.clausulas_adicionais` (seção 27.2), preenchido contrato a
+-- contrato, em vez de fingir uma fórmula universal que nenhuma evidência
+-- sustenta ainda.

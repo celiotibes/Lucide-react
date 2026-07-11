@@ -33,6 +33,21 @@ export function FormularioModeloContrato({ cidades }: { cidades: Cidade[] }) {
       </label>
 
       <label>
+        Categoria
+        <select name="categoria" required defaultValue="geral">
+          <option value="geral">Geral (um único modelo para toda a cidade)</option>
+          <option value="residencial">Residencial</option>
+          <option value="comercial">Comercial</option>
+        </select>
+      </label>
+
+      <p className="section-hint">
+        &quot;Geral&quot; é o padrão de Florianópolis, onde as kitnets são homogêneas o bastante para um único modelo.
+        Cidades com imóveis heterogêneos (ex.: Curitiba) devem cadastrar &quot;Residencial&quot; e &quot;Comercial&quot;
+        separadamente — cada categoria mantém sua própria versão ativa.
+      </p>
+
+      <label>
         Nome do modelo
         <input name="nome" placeholder="Modelo padrão — locação residencial" required />
       </label>

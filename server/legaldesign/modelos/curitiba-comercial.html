@@ -1,0 +1,137 @@
+<!--
+  Modelo de contrato — Curitiba, categoria comercial. Conteúdo de gestão,
+  não código (docs/27, docs/28). Baseado no único contrato comercial real
+  já auditado (Sala Comercial 923-B, Inspira Business — docs/11), então
+  mais cauteloso do que o residencial: com só 1 exemplo, a fórmula exata
+  de multa rescisória e o reajuste em degraus (sem reajuste anos 1-2, +5%
+  fixo no ano 3, índice a partir do ano 4) NÃO viram texto fixo aqui —
+  ficam em {{{clausulas_adicionais_html}}}, contrato a contrato, até haver
+  um segundo contrato comercial real confirmando (ou não) um padrão.
+
+  Placeholders entre {{ }}: server/legaldesign/mesclarTemplate.ts.
+-->
+<style>
+  .contrato-crmt {
+    --tinta: #201f1c;
+    --tinta-suave: #5c5850;
+    --linha: #e3e0d8;
+    --marca: #8a5a1f;
+    --marca-tint: #f6efe3;
+    --alerta: #9c4a10;
+    --alerta-tint: #fbeee0;
+    font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--tinta);
+    line-height: 1.5;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 4rem;
+    font-size: 15px;
+  }
+  .contrato-crmt h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.3rem; }
+  .contrato-crmt .subtitulo { color: var(--tinta-suave); font-size: 0.95rem; margin: 0 0 1.75rem; }
+  .contrato-crmt h2 {
+    font-size: 1.05rem; font-weight: 700; margin: 2.2rem 0 0.75rem;
+    padding-bottom: 0.4rem; border-bottom: 2px solid var(--marca);
+  }
+  .contrato-crmt p { margin: 0 0 0.85rem; }
+
+  .quadro-resumo {
+    background: var(--marca-tint); border: 1px solid var(--linha); border-radius: 10px;
+    padding: 1.25rem 1.5rem; margin-bottom: 2rem;
+  }
+  .quadro-resumo h2 {
+    border: none; margin: 0 0 0.9rem; font-size: 0.75rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--marca);
+  }
+  .quadro-resumo table { width: 100%; border-collapse: collapse; }
+  .quadro-resumo td { padding: 0.35rem 0; font-size: 0.92rem; vertical-align: top; }
+  .quadro-resumo td.rotulo { color: var(--tinta-suave); width: 38%; }
+  .quadro-resumo td.valor { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .contrato-crmt table.tabela-partes,
+  .contrato-crmt table.tabela-componentes {
+    width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; font-size: 0.9rem;
+  }
+  .tabela-partes th, .tabela-componentes th {
+    text-align: left; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--tinta-suave); padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--linha);
+  }
+  .tabela-partes td, .tabela-componentes td {
+    padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--linha);
+  }
+
+  .caixa-alerta {
+    background: var(--alerta-tint); border-left: 4px solid var(--alerta); border-radius: 0 8px 8px 0;
+    padding: 0.9rem 1.1rem; margin: 1rem 0; font-size: 0.92rem;
+  }
+  .caixa-alerta strong.titulo {
+    display: block; color: var(--alerta); font-size: 0.78rem; text-transform: uppercase;
+    letter-spacing: 0.04em; margin-bottom: 0.35rem;
+  }
+
+  .contrato-crmt .assinaturas { margin-top: 3rem; display: grid; gap: 2.5rem; }
+  .contrato-crmt .linha-assinatura {
+    border-top: 1px solid var(--tinta); padding-top: 0.4rem; font-size: 0.85rem; color: var(--tinta-suave);
+  }
+</style>
+
+<div class="contrato-crmt">
+  <h1>Contrato de Locação Comercial</h1>
+  <p class="subtitulo">{{cidade_nome}}/{{cidade_uf}} — Matzenbacher &amp; Tibes Locações</p>
+
+  <div class="quadro-resumo">
+    <h2>Quadro-resumo</h2>
+    <table>
+      <tbody>
+        <tr><td class="rotulo">Imóvel</td><td class="valor">{{imovel_identificacao}} — {{imovel_endereco}}</td></tr>
+        <tr><td class="rotulo">Finalidade</td><td class="valor">Uso exclusivamente comercial</td></tr>
+        <tr><td class="rotulo">Aluguel-base</td><td class="valor">{{valor_aluguel}}</td></tr>
+        <tr><td class="rotulo">Vencimento</td><td class="valor">Dia {{dia_vencimento}} de cada mês</td></tr>
+        <tr><td class="rotulo">Início da locação</td><td class="valor">{{data_inicio}}</td></tr>
+        <tr><td class="rotulo">Índice de reajuste</td><td class="valor">{{indice_reajuste}}</td></tr>
+        <tr><td class="rotulo">Garantia</td><td class="valor">{{garantia_tipo}} — {{garantia_valor}} ({{garantia_forma_pagamento}})</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>1. Das Partes</h2>
+  <p><strong>LOCADOR:</strong> Célio Ribas Matzenbacher Tibes, brasileiro, advogado inscrito na OAB/PR sob o nº 105415, com procuração de Avani Elvira Ribas Matzenbacher Tibes, representando Matzenbacher &amp; Tibes Locações na administração do imóvel objeto deste contrato.</p>
+  <table class="tabela-partes">
+    <thead><tr><th>Papel</th><th>Nome</th><th>CPF/CNPJ</th><th>RG</th><th>Profissão</th><th>Estado civil</th></tr></thead>
+    <tbody>
+      {{#each locatarios}}<tr><td>{{papel_label}}</td><td>{{nome}}</td><td>{{cpf}}</td><td>{{rg}}</td><td>{{profissao}}</td><td>{{estado_civil}}</td></tr>{{/each}}
+      {{#each solidarios}}<tr><td>{{papel_label}}</td><td>{{nome}}</td><td>{{cpf}}</td><td>{{rg}}</td><td>{{profissao}}</td><td>{{estado_civil}}</td></tr>{{/each}}
+    </tbody>
+  </table>
+
+  <h2>2. Do Objeto e da Finalidade</h2>
+  <p>O presente contrato tem por objeto {{objeto_locacao}}, locado exclusivamente para fins comerciais. Eventuais reformas ou adaptações que o locatário pretender executar no imóvel só poderão ser realizadas mediante autorização prévia e expressa do locador e, quando aplicável, do condomínio.</p>
+
+  <h2>3. Do Valor e da Composição Mensal</h2>
+  <p>O valor mensal é de {{valor_aluguel}}, pago sempre de forma mês vencido, com vencimento todo dia {{dia_vencimento}}, acrescido, quando aplicável, dos seguintes componentes:</p>
+  <table class="tabela-componentes">
+    <thead><tr><th>Componente</th><th>Valor/Regra</th></tr></thead>
+    <tbody>{{#each componentes_mensais}}<tr><td>{{tipo_label}}</td><td>{{valor_exibicao}}</td></tr>{{/each}}</tbody>
+  </table>
+
+  <h2>4. Do Prazo e do Reajuste</h2>
+  <p>O prazo deste contrato é de {{data_inicio}} até {{data_fim}}, reajustável pelo índice {{indice_reajuste}} — salvo regra de reajuste em degraus específica deste contrato, descrita na seção de cláusulas específicas abaixo.</p>
+
+  <h2>5. Da Garantia</h2>
+  <p>A título de garantia, fica estabelecida a modalidade de {{garantia_tipo}}, no valor de {{garantia_valor}}, a ser paga via {{garantia_forma_pagamento}} (parcelas, quando houver parcelamento: {{garantia_parcelas}}).</p>
+
+  <div class="caixa-alerta">
+    <strong class="titulo">Atraso no pagamento</strong>
+    Sujeito à política de cobrança específica deste contrato — multa, juros de mora e correção monetária conforme cláusula própria (política registrada em <code>contrato_politica_cobranca</code>, não uma constante do sistema).
+  </div>
+
+  <h2>6. Multa Rescisória, Reajuste em Degraus e Forma de Pagamento Aceita</h2>
+  <p><em>Cláusulas específicas deste contrato — com apenas um contrato comercial real auditado até aqui, a fórmula de multa por saída antecipada e o eventual reajuste em degraus não viram regra fixa deste modelo. Definidas abaixo:</em></p>
+  {{{clausulas_adicionais_html}}}
+
+  <div class="assinaturas">
+    <div class="linha-assinatura">LOCADOR — Célio Ribas Matzenbacher Tibes</div>
+    {{#each locatarios}}<div class="linha-assinatura">{{papel_label}} — {{nome}}</div>{{/each}}
+    {{#each solidarios}}<div class="linha-assinatura">{{papel_label}} — {{nome}}</div>{{/each}}
+  </div>
+</div>

@@ -149,4 +149,86 @@ describe.skipIf(!DATABASE_URL)('gerarContratoHtml (integração real com Postgre
       ),
     ).rejects.toThrow();
   });
+
+  it('categoria (schema 28): imóvel residencial usa o modelo "residencial" quando ele existe, não o "geral"', async () => {
+    await pool.query(
+      `insert into modelos_contrato (cidade_id, categoria, nome, corpo_html) values ($1, 'residencial', 'Modelo residencial', $2)`,
+      [cidadeId, '<h1>MODELO RESIDENCIAL — {{imovel_identificacao}}</h1>'],
+    );
+
+    const imovel = await pool.query(
+      `insert into imoveis (cidade_id, identificacao, tipo) values ($1, $2, 'apartamento') returning id`,
+      [cidadeId, `Apto Categoria ${randomUUID()}`],
+    );
+    const contrato = await pool.query(
+      `insert into contratos (imovel_id, tipo, data_inicio, dia_vencimento, valor_aluguel)
+       values ($1, 'locacao_padrao', '2026-07-08', 10, 1500) returning id`,
+      [imovel.rows[0].id],
+    );
+
+    const resultado = await gerarContratoHtml(pool, contrato.rows[0].id);
+    expect(resultado.html).toContain('MODELO RESIDENCIAL');
+  });
+
+  it('categoria (schema 28): sala_comercial resolve para "comercial", cai para "geral" quando não há modelo comercial cadastrado', async () => {
+    const imovel = await pool.query(
+      `insert into imoveis (cidade_id, identificacao, tipo) values ($1, $2, 'sala_comercial') returning id`,
+      [cidadeId, `Sala Categoria ${randomUUID()}`],
+    );
+    const contrato = await pool.query(
+      `insert into contratos (imovel_id, tipo, data_inicio, dia_vencimento, valor_aluguel)
+       values ($1, 'locacao_padrao', '2026-07-08', 10, 1300) returning id`,
+      [imovel.rows[0].id],
+    );
+
+    // sem modelo 'comercial' cadastrado ainda: cai para o 'geral' inserido no beforeEach.
+    const semComercial = await gerarContratoHtml(pool, contrato.rows[0].id);
+    expect(semComercial.html).toContain('Contrato —');
+
+    await pool.query(
+      `insert into modelos_contrato (cidade_id, categoria, nome, corpo_html) values ($1, 'comercial', 'Modelo comercial', $2)`,
+      [cidadeId, '<h1>MODELO COMERCIAL — {{imovel_identificacao}}</h1>'],
+    );
+
+    const comModeloComercial = await gerarContratoHtml(pool, contrato.rows[0].id);
+    expect(comModeloComercial.html).toContain('MODELO COMERCIAL');
+  });
+
+  it('componentes mensais (Curitiba, docs/11): valor_fixo mostra o valor, percentual mostra "já incluído", repassado_variavel descreve a regra sem valor específico', async () => {
+    const modeloComComponentes = `<table>{{#each componentes_mensais}}<tr><td>{{tipo_label}}</td><td>{{valor_exibicao}}</td></tr>{{/each}}</table>`;
+    await pool.query(`update modelos_contrato set corpo_html = $1 where cidade_id = $2 and categoria = 'geral'`, [
+      modeloComComponentes,
+      cidadeId,
+    ]);
+
+    const imovel = await pool.query(
+      `insert into imoveis (cidade_id, identificacao, tipo) values ($1, $2, 'apartamento') returning id`,
+      [cidadeId, `Apto Componentes ${randomUUID()}`],
+    );
+    const contrato = await pool.query(
+      `insert into contratos (imovel_id, tipo, data_inicio, dia_vencimento, valor_aluguel)
+       values ($1, 'locacao_padrao', '2026-07-08', 10, 1300) returning id`,
+      [imovel.rows[0].id],
+    );
+    const contratoId = contrato.rows[0].id;
+
+    await pool.query(
+      `insert into contrato_componentes_mensais (contrato_id, tipo, natureza, valor_fixo) values ($1, 'comodato_moveis', 'valor_fixo', 350)`,
+      [contratoId],
+    );
+    await pool.query(
+      `insert into contrato_componentes_mensais (contrato_id, tipo, natureza, percentual) values ($1, 'vaga_garagem', 'percentual_do_aluguel', 0.10)`,
+      [contratoId],
+    );
+    await pool.query(
+      `insert into contrato_componentes_mensais (contrato_id, tipo, natureza) values ($1, 'iptu_repassado', 'repassado_variavel')`,
+      [contratoId],
+    );
+
+    const resultado = await gerarContratoHtml(pool, contratoId);
+
+    expect(resultado.html).toMatch(/<td>Comodato de bens móveis<\/td><td>R\$\s*350,00<\/td>/);
+    expect(resultado.html).toContain('<td>Vaga de garagem</td><td>10% do aluguel (já incluído)</td>');
+    expect(resultado.html).toContain('<td>IPTU</td><td>repassado ao valor de face');
+  });
 });
