@@ -55,6 +55,12 @@ import persistenceRouter from '@/api/routes/persistenceRouter';
 // Phase 5.7: Multi-Model Orchestration
 import multiModelRouter from '@/api/routes/multiModelRouter';
 
+// Phase 1: WhatsApp Bot + CRM
+import crmRouter from '@/api/routes/crmRouter';
+
+// Phase 2: Intimation Capture & Deadline Tracking
+import intimationRouter from '@/api/routes/intimationRouter';
+
 const app: Express = express();
 
 validateConfig();
@@ -162,6 +168,12 @@ app.use('/api/v1/persistence', verifyToken, persistenceRouter);
 
 // Phase 5.7: Multi-Model Orchestration
 app.use('/api/v1/multi-model', verifyToken, multiModelRouter);
+
+// Phase 1: WhatsApp Bot + CRM Integration
+app.use('/api/v1/crm', verifyToken, crmRouter);
+
+// Phase 2: Intimation Capture & Deadline Tracking
+app.use('/api/v1/intimations', verifyToken, intimationRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
