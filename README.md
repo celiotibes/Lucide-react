@@ -117,10 +117,22 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   linha do DRE como % da receita) e horizontal (variação contra o período
   imediatamente anterior de mesma duração) para evidenciar se despesa subiu na
   mesma proporção da receita ou ficou para trás.
+- **Regime de caixa × regime de competência**: compara, mês a mês, o aluguel devido
+  pelos contratos residenciais fixos (competência, mesmo motor do módulo de
+  inadimplência) contra o efetivamente recebido no caixa — evidencia que em meses de
+  atraso a renda devida supera a recebida, e é o caixa que determina capacidade de
+  pagar de fato.
 - **Renda tributável (Carnê-Leão)**: separa, mês a mês, o que é Aluguel Efetivo
   (base do IRPF) do que é reembolso de rateio de custeio coletivo — para contratos
   de "valor único mensal" que decompõem o valor cobrado em duas naturezas
   jurídicas distintas.
+- **Simulador de Carnê-Leão por imóvel**: aplica a tabela progressiva mensal do IRPF
+  (vigente desde 05/2024 — confira se mudou) sobre a renda tributável menos despesas
+  dedutíveis selecionáveis por checkbox (manutenção e taxas de administração vêm
+  marcadas por padrão; condomínio/IPTU fica desmarcado por padrão para evitar dupla
+  dedução quando há reembolso de rateio embutido no contrato). Claramente rotulado
+  como simulação, não apuração oficial — confirme com um contador antes de usar em
+  juízo.
 - **DSS (Demonstrativo Semestral Simplificado)**: arrecadação do rateio × gasto
   real em custeio coletivo por contrato/imóvel — o relatório que esse tipo de
   contrato costuma obrigar o locador a enviar ao locatário periodicamente. Junto
@@ -135,6 +147,16 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 
 ## Limitações conhecidas (leia antes de usar com dados reais)
 
+- **Simulador de Carnê-Leão** (`src/domain/reports/irpfCarneLeao.ts`): é uma simulação
+  para organização/estimativa, não uma apuração fiscal oficial. A tabela progressiva
+  mensal do IRPF pré-carregada é a vigente desde 05/2024 (Lei nº 14.848/2024) — pode ter
+  mudado; confira em gov.br/receitafederal antes de qualquer uso oficial. As categorias
+  de despesa dedutível marcadas por padrão (manutenção, taxas de administração) são uma
+  seleção conservadora, não uma lista fiscal fechada — condomínio/IPTU fica desmarcado
+  por padrão justamente para evitar dupla dedução com o reembolso de rateio já excluído
+  da renda tributável. O imposto é calculado sobre a média mensal do período (não mês a
+  mês real), o que tende a subestimar levemente períodos com receita muito irregular.
+  Confirme sempre com um contador antes de apresentar este número em juízo.
 - **XML de nota fiscal** (`src/domain/documentos/parseNFe.ts`): NF-e (modelo 55) segue o
   layout nacional único do SEFAZ, extração confiável por tag. NFS-e (nota de serviço) não
   tem padrão nacional — cada prefeitura define seu próprio XML — a extração tenta os nomes
