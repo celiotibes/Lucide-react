@@ -1,10 +1,18 @@
 import { Fragment, useMemo, useState } from "react";
-import { Wand2, Split, Trash2 } from "lucide-react";
+import { Wand2, Split, Trash2, Download } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar, executar } from "../db/connection";
 import type { Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
+import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
+
+const PILL_CLASSE_PF_NEGOCIO: Record<ClassificacaoPfNegocio, string> = {
+  PF: "warning",
+  "Negócio": "good",
+  "Transferência": "",
+  Pendente: "critical",
+};
 
 const ROTULO_CRITERIO: Record<CriterioRateio, string> = {
   fracao_ideal: "Fração ideal",
@@ -24,6 +32,7 @@ export function TransacoesView() {
   const [mensagem, setMensagem] = useState<string | null>(null);
 
   const planoContas = useMemo<PlanoConta[]>(() => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []), [db, versao]);
+  const planoContasPorCodigo = useMemo(() => new Map(planoContas.map((p) => [p.codigo, p])), [planoContas]);
   const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
   const regrasSalvas = useMemo(() => (db ? listarRegras(db) : []), [db, versao]);
 
@@ -87,14 +96,31 @@ export function TransacoesView() {
     setRateioAbertoId(null);
   }
 
+  function exportarMapaConciliacao() {
+    if (!db) return;
+    const csv = gerarCsvConciliacao(gerarMapaConciliacao(db));
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mapa-conciliacao-bancaria-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <h2 className="section-title">Transações {totalPendentes > 0 && <span className="pill warning">{totalPendentes} pendente(s) de categorização</span>}</h2>
-        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5 }}>
-          <input type="checkbox" checked={somentePendentes} onChange={(e) => setSomentePendentes(e.target.checked)} />
-          Mostrar apenas pendentes
-        </label>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5 }}>
+            <input type="checkbox" checked={somentePendentes} onChange={(e) => setSomentePendentes(e.target.checked)} />
+            Mostrar apenas pendentes
+          </label>
+          <button className="btn" onClick={exportarMapaConciliacao} title="Exporta todas as transações com Data, Descrição, Valor, Categoria, Imóvel e PF/Negócio">
+            <Download size={13} /> Exportar mapa de conciliação (CSV)
+          </button>
+        </div>
       </div>
 
       {regrasSalvas.length > 0 && (
@@ -131,6 +157,7 @@ export function TransacoesView() {
               <th className="num">Valor</th>
               <th>Categoria</th>
               <th>Imóvel</th>
+              <th>PF × Negócio</th>
               <th>Origem</th>
               <th></th>
             </tr>
@@ -177,6 +204,13 @@ export function TransacoesView() {
                         </select>
                       )}
                     </td>
+                    <td>
+                      {(() => {
+                        const classificacao = classificarPfNegocio(t.plano_conta_codigo ? planoContasPorCodigo.get(t.plano_conta_codigo)?.grupo : undefined);
+                        const classe = PILL_CLASSE_PF_NEGOCIO[classificacao];
+                        return <span className={`pill ${classe}`.trim()}>{classificacao}</span>;
+                      })()}
+                    </td>
                     <td>{t.categorizado_por ? <span className="pill good">{t.categorizado_por}</span> : <span className="pill warning">pendente</span>}</td>
                     <td style={{ display: "flex", gap: 4 }}>
                       {t.plano_conta_codigo && (
@@ -191,7 +225,7 @@ export function TransacoesView() {
                   </tr>
                   {regraAbertaId === t.id && (
                     <tr>
-                      <td colSpan={7} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 4px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13 }}>Padrão (regex):</span>
                           <input value={padraoRegra} onChange={(e) => setPadraoRegra(e.target.value)} style={{ flex: 1, minWidth: 160, padding: "5px 8px" }} />
@@ -216,7 +250,7 @@ export function TransacoesView() {
                   )}
                   {rateioAbertoId === t.id && (
                     <tr>
-                      <td colSpan={7} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
                         <div style={{ padding: "10px 4px" }}>
                           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
                             {imoveis.map((i) => (
@@ -257,7 +291,7 @@ export function TransacoesView() {
             })}
             {transacoes.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                <td colSpan={8} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                   Nenhuma transação encontrada. Importe documentos ou carregue os dados de demonstração.
                 </td>
               </tr>

@@ -50,7 +50,11 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 - **Painel**: DRE dos últimos 12 meses, série mensal de receita/despesa/resultado
   (36 meses), gráfico de inadimplência por faixa de atraso, ranking de resultado
   líquido por imóvel e DRE agregado por cidade/centro de custo (Floripa × Curitiba).
-- **Transações**: fila de revisão e categorização manual pelo plano de contas.
+- **Transações**: fila de revisão e categorização manual pelo plano de contas, com
+  coluna PF × Negócio (derivada do grupo da conta: `pessoal` é PF, `receita`/`despesa`
+  é a atividade de locação, `transferencia` — entre contas próprias, caução — fica à
+  parte por não ser nem um nem outro) e exportação em CSV do mapa de conciliação
+  completo (Data, Descrição, Valor, Categoria, Imóvel, PF/Negócio, Origem).
 - **Contratos e inadimplência**: lista de contratos de locação e competências em
   aberto com dias de atraso, multa e juros de mora calculados pelas cláusulas de
   cada contrato.
