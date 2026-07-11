@@ -100,8 +100,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   Opcionalmente a regra também pode fixar um imóvel (útil para fornecedor recorrente
   de uma unidade só, ex: CEMIG/CASAN de um imóvel específico) — nunca sobrescreve um
   imóvel (ou rateio) já atribuído manualmente a uma transação.
-- **Laudo pericial**: exporta um PDF com DRE, inadimplência e achados de auditoria
-  do período — apoio à instrução, não uma peça jurídica pronta.
+- **Laudo pericial**: exporta um PDF com 9 seções — metodologia, capacidade
+  contributiva real, DRE com análise vertical/horizontal, patrimônio líquido e
+  alavancagem, inadimplência, passivo de caução, desempenho por imóvel, achados de
+  auditoria forense e ressalvas — apoio à instrução, não uma peça jurídica pronta.
 - **Múltiplos locatários e responsáveis solidários**: um contrato pode ter vários
   nomes vinculados (comum em locação estudantil/compartilhada), todos exibidos
   junto ao contrato.

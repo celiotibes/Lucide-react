@@ -2,6 +2,10 @@ import type { default as jsPDF } from "jspdf";
 import type { LinhaDre } from "../types";
 import type { TransacaoDuplicada, OutlierEstatistico, LacunaMensal } from "../auditoria/auditoriaForense";
 import type { StatusInadimplencia } from "../types";
+import type { CapacidadeContributiva } from "../reports/capacidadeContributiva";
+import type { LinhaAnaliseVertical, LinhaAnaliseHorizontal } from "../reports/analiseVerticalHorizontal";
+import type { PatrimonioLiquido, LiquidezCorrente } from "../patrimonio/balancoPatrimonial";
+import type { DesempenhoImovel } from "../reports/desempenhoPorImovel";
 
 export interface DadosLaudo {
   periodoInicio: string;
@@ -11,10 +15,24 @@ export interface DadosLaudo {
   duplicatas: TransacaoDuplicada[];
   outliers: OutlierEstatistico[];
   lacunas: LacunaMensal[];
+  capacidadeContributiva: CapacidadeContributiva;
+  analiseVertical: LinhaAnaliseVertical[];
+  analiseHorizontal: LinhaAnaliseHorizontal[];
+  patrimonioLiquido: PatrimonioLiquido;
+  liquidezCorrente: LiquidezCorrente;
+  passivoCaucaoRetido: number;
+  saldoCaixaAtual: number;
+  desempenhoImoveis: DesempenhoImovel[];
 }
 
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** Corta texto que estouraria a largura fixa de uma coluna da tabela — o jsPDF não quebra
+ * nem trunca automaticamente, então texto longo "cola" visualmente na coluna seguinte. */
+function truncar(texto: string, maxCaracteres: number): string {
+  return texto.length > maxCaracteres ? `${texto.slice(0, maxCaracteres - 1)}…` : texto;
 }
 
 const MARGEM = 18;
@@ -101,13 +119,36 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
 
   w.secao("1. Metodologia");
   w.paragrafo(
-    "Os lançamentos foram extraídos de extratos bancários (OFX/CSV/PDF) e comprovantes fotografados, categorizados " +
-      "por regra determinística e revisão manual, e conciliados contra os contratos de locação vigentes com " +
-      "tolerância de 5% no valor e 10 dias na data de vencimento. Despesas coletivas foram rateadas entre imóveis " +
-      "por fração ideal, área ou divisão igual, conforme indicado em cada lançamento.",
+    "Os lançamentos foram extraídos de extratos bancários (OFX/CSV/PDF), XML de nota fiscal e comprovantes " +
+      "fotografados, categorizados por regra determinística e revisão manual, e conciliados contra os contratos de " +
+      "locação vigentes com tolerância de 5% no valor e 10 dias na data de vencimento. Despesas coletivas foram " +
+      "rateadas entre imóveis por fração ideal, área ou divisão igual, conforme indicado em cada lançamento. O " +
+      "regime de caixa (data efetiva de entrada/saída) foi usado para a reconstituição do fluxo; o DRE demonstra o " +
+      "resultado por competência dentro do mesmo período.",
   );
 
-  w.secao("2. Demonstração de resultado (DRE) do período");
+  const cc = dados.capacidadeContributiva;
+  w.secao("2. Capacidade contributiva real");
+  w.paragrafo(
+    "Recebimento bruto não equivale a capacidade de pagar: parte do valor recebido é reembolso de custeio " +
+      "(rateio de água/energia/condomínio repassado pelo locatário, sem natureza de renda) e o restante ainda é " +
+      "consumido por despesa operacional (manutenção, prestadores, financiamento, taxas). O resultado líquido real " +
+      "abaixo é o que efetivamente sobra, decomposto passo a passo.",
+  );
+  w.linhaTabela(["Total recebido bruto", formatarMoeda(cc.totalRecebidoBruto)], [110, 64], true);
+  w.linhaTabela(["(-) Reembolso de rateio (não tributável)", formatarMoeda(cc.reembolsoNaoTributavel)], [110, 64]);
+  w.linhaTabela(["(-) Despesa operacional", formatarMoeda(cc.despesaOperacionalTotal)], [110, 64]);
+  w.linhaTabela(["= Resultado líquido real", formatarMoeda(cc.resultadoLiquidoReal)], [110, 64], true);
+  if (cc.percentualDisponivelSobreRecebido !== null) {
+    w.espaco(1);
+    w.paragrafo(
+      `Apenas ${cc.percentualDisponivelSobreRecebido.toFixed(1)}% do valor bruto recebido no período corresponde a ` +
+        `resultado líquido real disponível — o restante é reembolso de terceiros ou já foi consumido por custo de operação.`,
+    );
+  }
+  w.espaco(4);
+
+  w.secao("3. Demonstração de resultado (DRE) do período");
   w.linhaTabela(["Código", "Descrição", "Grupo", "Valor"], [20, 90, 25, 45], true);
   let receitaTotal = 0;
   let despesaTotal = 0;
@@ -120,8 +161,62 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
   w.linhaTabela(["", "Resultado líquido", "", formatarMoeda(receitaTotal + despesaTotal)], [20, 90, 25, 45], true);
   w.espaco(4);
 
+  w.secao("3.1 Análise vertical e horizontal do DRE");
+  w.paragrafo(
+    "Cada linha como % da receita do período (vertical) e sua variação contra o período imediatamente anterior de " +
+      "mesma duração (horizontal) — evidencia se o custo subiu na mesma proporção da receita (capacidade " +
+      "contributiva estável) ou ficou para trás (capacidade contributiva caindo apesar da receita bruta subir). " +
+      "Com período de análise longo (ex: 3 anos), a comparação horizontal usa como base os 3 anos anteriores ao " +
+      "início do período — se a atividade ainda não existia ou tinha poucas transações nessa janela-base, a " +
+      "variação percentual perde significado; para isso, use um período mais curto (ex: 12 meses) ao interpretar a " +
+      "coluna de variação.",
+  );
+  const linhasRelevantes = dados.analiseVertical
+    .filter((l) => l.grupo !== "transferencia")
+    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
+    .slice(0, 10);
+  if (linhasRelevantes.length > 0) {
+    const porCodigoHorizontal = new Map(dados.analiseHorizontal.map((l) => [l.codigo, l]));
+    w.linhaTabela(["Categoria", "Valor (período)", "% receita", "Variação vs. anterior"], [70, 40, 25, 39], true);
+    for (const l of linhasRelevantes) {
+      const horizontal = porCodigoHorizontal.get(l.codigo);
+      const variacaoTexto = horizontal?.variacaoPercentual != null ? `${horizontal.variacaoPercentual >= 0 ? "+" : ""}${horizontal.variacaoPercentual.toFixed(1)}%` : "novo";
+      const percentualTexto = l.percentualSobreReceita != null ? `${l.percentualSobreReceita.toFixed(1)}%` : "—";
+      w.linhaTabela([truncar(`${l.codigo} · ${l.descricao}`, 38), formatarMoeda(l.total), percentualTexto, variacaoTexto], [70, 40, 25, 39]);
+    }
+  }
+  w.espaco(4);
+
+  const pl = dados.patrimonioLiquido;
+  const liq = dados.liquidezCorrente;
+  w.secao("4. Patrimônio líquido e alavancagem");
+  w.paragrafo(
+    "Possuir vários imóveis não significa ter liquidez disponível: o ativo imobilizado só vira dinheiro se vendido, " +
+      "enquanto financiamentos e dívidas de consumo são exigíveis presentes. O indicador abaixo separa patrimônio " +
+      "(bens menos dívidas) de liquidez corrente (caixa disponível frente aos compromissos de curto prazo).",
+  );
+  w.linhaTabela(["Ativo imobiliário (valor venal, imóveis próprios)", formatarMoeda(pl.ativoImobiliario)], [110, 64], true);
+  w.linhaTabela(["(-) Passivo de financiamentos", formatarMoeda(pl.passivoFinanciamentos)], [110, 64]);
+  w.linhaTabela(["(-) Passivo de dívidas de consumo", formatarMoeda(pl.passivoConsumo)], [110, 64]);
+  w.linhaTabela(["= Patrimônio líquido", formatarMoeda(pl.patrimonioLiquido)], [110, 64], true);
+  if (pl.imoveisSemValorVenal.length > 0) {
+    w.espaco(1);
+    w.paragrafo(
+      `Excluídos do ativo por falta de valor venal cadastrado (não estimado): ${pl.imoveisSemValorVenal.join(", ")}.`,
+    );
+  }
+  w.espaco(2);
+  w.linhaTabela(["Caixa disponível hoje", formatarMoeda(liq.saldoCaixaAtual)], [110, 64]);
+  w.linhaTabela(["Passivo circulante (dívida + caução, 12 meses)", formatarMoeda(liq.passivoCirculante)], [110, 64]);
+  w.linhaTabela(
+    ["Índice de liquidez corrente", liq.indiceLiquidezCorrente !== null ? liq.indiceLiquidezCorrente.toFixed(2) : "indefinido (sem passivo circulante)"],
+    [110, 64],
+    true,
+  );
+  w.espaco(4);
+
   const emAberto = dados.statusInadimplencia.filter((s) => s.diasAtraso > 0);
-  w.secao("3. Inadimplência");
+  w.secao("5. Inadimplência");
   if (emAberto.length === 0) {
     w.paragrafo("Nenhuma competência em aberto identificada dentro do período analisado.");
   } else {
@@ -135,7 +230,31 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
   }
   w.espaco(4);
 
-  w.secao("4. Achados de auditoria forense");
+  w.secao("6. Passivo de caução");
+  w.paragrafo(
+    "Depósito caução não é receita — é obrigação de devolver, corrigida mês a mês pelo índice contratado. O " +
+      "indicador abaixo compara o total ainda retido contra o caixa disponível hoje: se o caixa não cobre o " +
+      "passivo, parte do dinheiro do caução já foi consumida no fluxo geral em vez de mantida em reserva.",
+  );
+  const caucaoDescoberto = dados.saldoCaixaAtual < dados.passivoCaucaoRetido;
+  w.linhaTabela(["Passivo de caução retido (corrigido)", formatarMoeda(dados.passivoCaucaoRetido)], [110, 64]);
+  w.linhaTabela(["Caixa disponível hoje", formatarMoeda(dados.saldoCaixaAtual)], [110, 64]);
+  w.linhaTabela(["Cobertura", caucaoDescoberto ? `descoberto em ${formatarMoeda(dados.passivoCaucaoRetido - dados.saldoCaixaAtual)}` : "coberto"], [110, 64], true);
+  w.espaco(4);
+
+  w.secao("7. Desempenho por imóvel");
+  w.paragrafo("Resultado líquido do período por imóvel, do maior para o menor — a receita do portfólio não se distribui de forma uniforme entre as unidades.");
+  if (dados.desempenhoImoveis.length > 0) {
+    w.linhaTabela(["Imóvel", "Receita", "Despesa", "Resultado"], [70, 35, 35, 34], true);
+    for (const d of dados.desempenhoImoveis) {
+      w.linhaTabela([d.imovel.apelido, formatarMoeda(d.receita), formatarMoeda(d.despesa), formatarMoeda(d.resultadoLiquido)], [70, 35, 35, 34]);
+    }
+  } else {
+    w.paragrafo("Nenhum imóvel cadastrado (excluídos os de uso pessoal, que não entram na atividade de locação).");
+  }
+  w.espaco(4);
+
+  w.secao("8. Achados de auditoria forense");
   w.paragrafo(
     `Duplicidades: ${dados.duplicatas.length}. Outliers estatísticos (>3 desvios-padrão da categoria): ${dados.outliers.length}. ` +
       `Lacunas em despesas recorrentes: ${dados.lacunas.length}.`,
@@ -155,12 +274,15 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
   }
   w.espaco(6);
 
-  w.secao("5. Ressalvas");
+  w.secao("9. Ressalvas");
   w.paragrafo(
     "Este laudo é um apoio à organização documental e não constitui parecer contábil ou pericial formal. Valores, " +
       "critérios de rateio e categorizações devem ser conferidos por um contador ou perito habilitado antes de uso " +
       "em juízo. Divergências identificadas na seção de auditoria forense são indícios estatísticos, não conclusões — " +
-      "cada uma deve ser investigada contra o documento-fonte correspondente.",
+      "cada uma deve ser investigada contra o documento-fonte correspondente. Em síntese: a receita bruta recebida " +
+      "no período (seção 2) não equivale a capacidade contributiva, dado o reembolso de rateio sem natureza de " +
+      "renda, a despesa operacional necessária à manutenção dos imóveis, a alavancagem e o comprometimento de " +
+      "renda com dívida (seção 4) e o passivo de caução ainda a devolver (seção 6).",
   );
 
   w.espaco(10);
