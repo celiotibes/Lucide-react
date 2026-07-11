@@ -61,6 +61,9 @@ import crmRouter from '@/api/routes/crmRouter';
 // Phase 2: Intimation Capture & Deadline Tracking
 import intimationRouter from '@/api/routes/intimationRouter';
 
+// Phase 3: Financial Management & Billing
+import financialRouter from '@/api/routes/financialRouter';
+
 const app: Express = express();
 
 validateConfig();
@@ -174,6 +177,9 @@ app.use('/api/v1/crm', verifyToken, crmRouter);
 
 // Phase 2: Intimation Capture & Deadline Tracking
 app.use('/api/v1/intimations', verifyToken, intimationRouter);
+
+// Phase 3: Financial Management & Billing
+app.use('/api/v1/financial', verifyToken, financialRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
