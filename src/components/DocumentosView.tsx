@@ -60,15 +60,19 @@ export function DocumentosView() {
       try {
         const texto = await extrairTextoDocumento(arquivo);
         const campos = extrairCamposDeTexto(texto);
+        const veioDeXmlNota = arquivo.name.toLowerCase().endsWith(".xml") && (campos.nomeContraparte || campos.descricaoProdutoServico);
+        const descricao = [campos.numeroDocumento ? `NF nº ${campos.numeroDocumento}` : null, campos.descricaoProdutoServico]
+          .filter(Boolean)
+          .join(" — ");
         novos.push({
           arquivoNome: arquivo.name,
           textoExtraido: texto,
-          tipo: "outro",
+          tipo: veioDeXmlNota ? "nota_fiscal" : "outro",
           valor: campos.valor?.toFixed(2).replace(".", ",") ?? "",
           data: campos.data ?? "",
           cnpjCpf: campos.cnpjCpf ?? "",
-          nomeContraparte: "",
-          descricaoProdutoServico: "",
+          nomeContraparte: campos.nomeContraparte ?? "",
+          descricaoProdutoServico: descricao,
           planoContaCodigo: "",
           imoveisPercentuais: [],
         });
@@ -140,7 +144,11 @@ export function DocumentosView() {
         categoria) é aplicada à transação só nesse momento.
       </p>
 
-      <Dropzone onArquivos={tratarArquivos} aceitar=".pdf,image/*" ajuda="PDF ou foto de contrato, recibo, fatura, nota fiscal, pedido comercial ou boleto" />
+      <Dropzone
+        onArquivos={tratarArquivos}
+        aceitar=".pdf,.xml,image/*"
+        ajuda="PDF ou foto de contrato, recibo, fatura, pedido comercial ou boleto — ou XML de nota fiscal (NF-e/NFS-e), extraído por tag em vez de OCR"
+      />
       {processando && (
         <p style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
           <Loader2 className="spin" size={16} /> Extraindo texto do documento…

@@ -39,14 +39,20 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   planilhas `.csv`, PDFs de extrato bancário ou fatura de cartão, e fotos de boleto/
   comprovante PIX. Cada arquivo é processado no navegador e as transações extraídas
   ficam em preview para revisão antes de gravar no banco.
-- **Documentos e classificação**: envie contratos, recibos, faturas, notas fiscais,
-  pedidos comerciais e boletos — o sistema extrai valor, data e CNPJ/CPF do texto
-  (heurística determinística local, sem IA) e sugere a qual pagamento/PIX cada documento
-  corresponde por proximidade de valor/data e ocorrência do CNPJ/nome do fornecedor na
-  descrição bancária. Ao confirmar um vínculo, a classificação do documento (categoria do
-  plano de contas e imóvel — único ou rateio proporcional entre vários, se o documento
-  cobrir mais de um) é aplicada à transação. Nunca classifica sozinho: toda sugestão
-  precisa de confirmação explícita.
+- **Documentos e classificação**: envie contratos, recibos, faturas, pedidos comerciais
+  e boletos (PDF ou foto) — o sistema extrai valor, data e CNPJ/CPF do texto (heurística
+  determinística local, sem IA). Para **nota fiscal em XML** (NF-e modelo 55 ou NFS-e), a
+  extração é por tag em vez de regex sobre texto de OCR: pega automaticamente valor,
+  data de emissão, CNPJ/razão social do emitente, número da nota e a descrição do
+  produto/serviço — a NF-e segue o layout nacional único do SEFAZ (extração confiável); a
+  NFS-e não tem padrão nacional (cada prefeitura define o próprio XML), então a extração é
+  best-effort pelos nomes de tag mais comuns e cai para "sem categoria automática" (nunca
+  finge sucesso) se não reconhecer o layout do seu município. Em qualquer caso, o sistema
+  sugere a qual pagamento/PIX cada documento corresponde por proximidade de valor/data e
+  ocorrência do CNPJ/nome do fornecedor na descrição bancária. Ao confirmar um vínculo, a
+  classificação do documento (categoria do plano de contas e imóvel — único ou rateio
+  proporcional entre vários, se o documento cobrir mais de um) é aplicada à transação.
+  Nunca classifica sozinho: toda sugestão precisa de confirmação explícita.
 - **Painel**: DRE dos últimos 12 meses, série mensal de receita/despesa/resultado
   (36 meses), gráfico de inadimplência por faixa de atraso, ranking de resultado
   líquido por imóvel e DRE agregado por cidade/centro de custo (Floripa × Curitiba).
@@ -124,6 +130,12 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 
 ## Limitações conhecidas (leia antes de usar com dados reais)
 
+- **XML de nota fiscal** (`src/domain/documentos/parseNFe.ts`): NF-e (modelo 55) segue o
+  layout nacional único do SEFAZ, extração confiável por tag. NFS-e (nota de serviço) não
+  tem padrão nacional — cada prefeitura define seu próprio XML — a extração tenta os nomes
+  de tag mais comuns (variações do padrão ABRASF) e **não finge sucesso**: se o layout do
+  seu município não bater com nenhum candidato reconhecido, o documento cai para "Outro"
+  com campos vazios em vez de inventar valor/CNPJ. Sempre confira o texto extraído.
 - **OCR de imagens** (`src/domain/parsers/ocrImagem.ts`) usa
   [tesseract.js](https://github.com/naptha/tesseract.js) com worker e núcleo WASM
   vendorizados em `public/tesseract/` (não dependem de CDN), mas o **pacote de
