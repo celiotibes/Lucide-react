@@ -64,6 +64,9 @@ import intimationRouter from '@/api/routes/intimationRouter';
 // Phase 3: Financial Management & Billing
 import financialRouter from '@/api/routes/financialRouter';
 
+// Phase 4: Jurimetry & Analytics
+import jurimetriaRouter from '@/api/routes/jurimetriaRouter';
+
 const app: Express = express();
 
 validateConfig();
@@ -180,6 +183,9 @@ app.use('/api/v1/intimations', verifyToken, intimationRouter);
 
 // Phase 3: Financial Management & Billing
 app.use('/api/v1/financial', verifyToken, financialRouter);
+
+// Phase 4: Jurimetry & Analytics
+app.use('/api/v1/jurimetria', verifyToken, jurimetriaRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
