@@ -2211,3 +2211,147 @@ create trigger trg_audit_tarifario_servicos
 -- avisa explicitamente quando ainda não foi cadastrado, em vez de inventar
 -- instrução técnica genérica.
 alter table imoveis add column orientacoes_instalacao_internet text;
+
+-- ============================================================================
+-- 27. MOTOR DE GERAÇÃO DE CONTRATOS (LEGAL DESIGN / VISUAL LAW)
+-- ============================================================================
+-- Pedido explícito do cliente: gerar o contrato de locação em HTML/CSS
+-- (Legal Design/Visual Law, custo zero de licenciamento), fundindo modelo
+-- regional + dados variáveis do inquilino + inventário de mobília
+-- independente + cláusulas adicionais de texto livre, com suporte a
+-- Kitnet Integral ou Co-living por quarto. `docs/27-motor-de-contratos.md`
+-- explica cada decisão; aqui só o schema. Reaproveita o que já existia em
+-- vez de duplicar: `contrato_partes` já modela múltiplos locatários e
+-- responsáveis solidários (seção 19.6), `garantias` já modela caução,
+-- `ativos_comodato` já é o inventário de mobília por imóvel (seção 7,
+-- CPC 27) — este módulo estende os três, não os recria.
+
+-- ---- 27.1 Dados cadastrais que faltavam em `pessoas` para o contrato ----
+-- RG, profissão e estado civil são exigidos na qualificação das partes de
+-- qualquer contrato de locação — `pessoas` só tinha nome/CPF/e-mail/
+-- telefone/endereço (bastava para faturamento, não para qualificação
+-- jurídica).
+alter table pessoas add column rg text;
+alter table pessoas add column profissao text;
+alter table pessoas add column estado_civil text
+  check (estado_civil in ('solteiro','casado','divorciado','viuvo','uniao_estavel', null));
+
+-- ---- 27.2 Co-living: cômodos como unidade locável dentro do imóvel ----
+-- `imoveis` já é a unidade "kitnet" — para co-living, o contrato pode se
+-- referir só a um cômodo dela, não à unidade inteira. `permite_coliving`
+-- é a flag que o requisito pediu; `comodos` só existe quando essa flag é
+-- usada (uma kitnet tradicional nunca ganha linha aqui).
+alter table imoveis add column permite_coliving boolean not null default false;
+
+create table comodos (
+  id uuid primary key default gen_random_uuid(),
+  imovel_id uuid not null references imoveis(id) on delete cascade,
+  identificacao text not null,           -- ex: "Quarto 1", "Suíte A"
+  area_m2 numeric(6,2),
+  valor_aluguel_referencia numeric(14,2), -- valor de mercado do cômodo isolado, referência para o contrato de co-living
+  ativo boolean not null default true,
+  criado_em timestamptz not null default now(),
+  unique (imovel_id, identificacao)
+);
+
+create index idx_comodos_imovel on comodos(imovel_id);
+
+alter table comodos enable row level security;
+create policy admin_full_access_comodos on comodos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_comodos after insert or update or delete on comodos
+  for each row execute function fn_audit_trigger();
+
+-- `contratos.comodo_id` nulo = objeto da locação é o imóvel inteiro
+-- (kitnet tradicional ou "Opção A: Kitnet Toda" do co-living); preenchido
+-- = objeto é só aquele cômodo ("Opção B: Por Quartos"). A trigger garante
+-- que só é possível vincular um cômodo de um imóvel que de fato permite
+-- co-living e que o cômodo pertence ao mesmo imóvel do contrato — regra
+-- demais para um `check` simples (precisa consultar duas tabelas).
+alter table contratos add column comodo_id uuid references comodos(id);
+alter table contratos add column clausulas_adicionais text; -- pedidos específicos do inquilino, texto livre injetado no HTML final
+
+create or replace function fn_check_contrato_comodo_coerente()
+returns trigger as $$
+declare
+  v_imovel_do_comodo uuid;
+  v_permite_coliving boolean;
+begin
+  if new.comodo_id is null then
+    return new;
+  end if;
+
+  select imovel_id into v_imovel_do_comodo from comodos where id = new.comodo_id;
+  if v_imovel_do_comodo is distinct from new.imovel_id then
+    raise exception 'Cômodo % não pertence ao imóvel % deste contrato', new.comodo_id, new.imovel_id;
+  end if;
+
+  select permite_coliving into v_permite_coliving from imoveis where id = new.imovel_id;
+  if not coalesce(v_permite_coliving, false) then
+    raise exception 'Imóvel % não permite co-living — contrato não pode se referir a um cômodo específico', new.imovel_id;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger trg_check_contrato_comodo_coerente
+  before insert or update on contratos
+  for each row execute function fn_check_contrato_comodo_coerente();
+
+-- ---- 27.3 Inventário de mobília: estender `ativos_comodato`, não duplicar ----
+-- `ativos_comodato` (seção 7) já é "inventário de mobília vinculado ao
+-- imóvel", já suporta adicionar/remover item a qualquer momento sem tocar
+-- em texto jurídico nenhum (é uma tabela própria, sempre foi). O único
+-- requisito novo é o co-living: um item pode ser de um cômodo específico
+-- (`comodo_id`) ou de área comum compartilhada (`area_comum` — cozinha,
+-- lavanderia, sala). Os dois são mutuamente exclusivos por natureza; a
+-- constraint impede gravar os dois ao mesmo tempo. Quando o imóvel não
+-- usa co-living, os dois ficam nulos/falsos e a busca de mobília do
+-- contrato continua sendo "tudo do imóvel", como já era.
+alter table ativos_comodato add column comodo_id uuid references comodos(id);
+alter table ativos_comodato add column area_comum boolean not null default false;
+alter table ativos_comodato add constraint chk_ativo_comodo_ou_area_comum_nao_ambos
+  check (not (comodo_id is not null and area_comum));
+
+-- ---- 27.4 Modelos de contrato por região: conteúdo de gestão, não código ----
+-- Mesma decisão já validada para o resto do sistema (relatório de
+-- auditoria do portal do inquilino, seção "Templates com variáveis"):
+-- HTML/Markdown com marcadores `{{variavel}}`, mantido pela gestão via
+-- cadastro, nunca hardcoded em TypeScript — trocar uma cláusula não pode
+-- exigir um deploy. `cidade_id` decide automaticamente Florianópolis vs.
+-- Curitiba a partir da cidade do imóvel (`imoveis.cidade_id` já existe);
+-- `versao`/`ativo` permite corrigir um modelo sem invalidar contratos já
+-- gerados com a versão anterior (o HTML final de cada contrato já fica
+-- persistido em `documentos_gerados`, não recalculado depois).
+create table modelos_contrato (
+  id uuid primary key default gen_random_uuid(),
+  cidade_id uuid not null references cidades(id),
+  nome text not null,
+  versao smallint not null default 1,
+  corpo_html text not null,
+  ativo boolean not null default true,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  unique (cidade_id, versao)
+);
+
+-- No máximo um modelo ativo por cidade — evita ambiguidade na hora de
+-- resolver "qual modelo usar para este imóvel" sem precisar de ORDER
+-- BY/LIMIT torcido no código de geração.
+create unique index uq_modelos_contrato_ativo_por_cidade
+  on modelos_contrato(cidade_id) where ativo;
+
+alter table modelos_contrato enable row level security;
+create policy admin_full_access_modelos_contrato on modelos_contrato
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_modelos_contrato after insert or update or delete on modelos_contrato
+  for each row execute function fn_audit_trigger();
+
+-- ---- 27.5 Garantia: forma de devolução/pagamento (faltava em `garantias`) ----
+-- O pedido do cliente inclui "forma de devolução e condições de
+-- pagamento (PIX, boleto, parcelado em X vezes)" da caução — `garantias`
+-- já tinha valor/tipo/status, faltava só como o dinheiro entra e sai.
+alter table garantias add column forma_pagamento text
+  check (forma_pagamento in ('pix','boleto','dinheiro','parcelado', null));
+alter table garantias add column parcelas smallint check (parcelas is null or parcelas > 0);
