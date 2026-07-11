@@ -39,8 +39,7 @@ async function syncPropertyCalendar(
   };
 
   try {
-    Logger.info("Syncing calendar for property", {
-      context: "BookingCalendarSync",
+    Logger.info("BookingCalendarSync", "Syncing calendar for property", {
       propertyId,
       externalPropertyId,
     });

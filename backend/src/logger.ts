@@ -53,20 +53,76 @@ class Logger {
     }
   }
 
-  static info(context: string, message: string, data?: Record<string, unknown>) {
-    this.log(LogLevel.INFO, context, message, undefined, data);
+  static info(context: string | Record<string, unknown>, message?: string | Record<string, unknown>, data?: Record<string, unknown>) {
+    // Handle overloads: (context, message, data) or (message, data)
+    if (typeof context === "object" && message === undefined) {
+      // Legacy format: Logger.info({ context, ... })
+      const ctx = (context as Record<string, unknown>).context as string || "App";
+      const msg = (context as Record<string, unknown>).message as string || "Info";
+      const dataObj = context as Record<string, unknown>;
+      this.log(LogLevel.INFO, ctx, msg, undefined, dataObj);
+    } else if (typeof context === "string") {
+      // Standard format: Logger.info("context", "message", {...})
+      const msg = typeof message === "string" ? message : "Info";
+      const dataObj = typeof message === "object" ? message : (data || {});
+      this.log(LogLevel.INFO, context, msg, undefined, dataObj);
+    } else {
+      this.log(LogLevel.INFO, "App", "Info", undefined, {});
+    }
   }
 
-  static warn(context: string, message: string, data?: Record<string, unknown>) {
-    this.log(LogLevel.WARN, context, message, undefined, data);
+  static warn(context: string | Record<string, unknown>, message?: string | Record<string, unknown>, data?: Record<string, unknown>) {
+    if (typeof context === "object" && message === undefined) {
+      const ctx = (context as Record<string, unknown>).context as string || "App";
+      const msg = (context as Record<string, unknown>).message as string || "Warning";
+      const dataObj = context as Record<string, unknown>;
+      this.log(LogLevel.WARN, ctx, msg, undefined, dataObj);
+    } else if (typeof context === "string") {
+      const msg = typeof message === "string" ? message : "Warning";
+      const dataObj = typeof message === "object" ? message : (data || {});
+      this.log(LogLevel.WARN, context, msg, undefined, dataObj);
+    } else {
+      this.log(LogLevel.WARN, "App", "Warning", undefined, {});
+    }
   }
 
-  static error(context: string, message: string, error?: Error | string, data?: Record<string, unknown>) {
-    this.log(LogLevel.ERROR, context, message, error, data);
+  static error(context: string | Record<string, unknown>, message?: string | Error | Record<string, unknown>, error?: Error | string | Record<string, unknown>, data?: Record<string, unknown>) {
+    if (typeof context === "object" && message === undefined) {
+      const ctx = (context as Record<string, unknown>).context as string || "App";
+      const msg = (context as Record<string, unknown>).message as string || "Error";
+      const err = (context as Record<string, unknown>).error as Error | string | undefined;
+      const dataObj = context as Record<string, unknown>;
+      this.log(LogLevel.ERROR, ctx, msg, err, dataObj);
+    } else if (typeof context === "string") {
+      const msg = typeof message === "string" ? message : "Error";
+      let err: Error | string | undefined;
+      let dataObj: Record<string, unknown> | undefined;
+
+      if (typeof message === "object") {
+        dataObj = message;
+      } else if (typeof error === "string" || error instanceof Error) {
+        err = error;
+        dataObj = typeof error === "object" && !(error instanceof Error) ? (error as Record<string, unknown>) : (data || {});
+      }
+      this.log(LogLevel.ERROR, context, msg, err, dataObj);
+    } else {
+      this.log(LogLevel.ERROR, "App", "Error", undefined, {});
+    }
   }
 
-  static debug(context: string, message: string, data?: Record<string, unknown>) {
-    this.log(LogLevel.DEBUG, context, message, undefined, data);
+  static debug(context: string | Record<string, unknown>, message?: string | Record<string, unknown>, data?: Record<string, unknown>) {
+    if (typeof context === "object" && message === undefined) {
+      const ctx = (context as Record<string, unknown>).context as string || "App";
+      const msg = (context as Record<string, unknown>).message as string || "Debug";
+      const dataObj = context as Record<string, unknown>;
+      this.log(LogLevel.DEBUG, ctx, msg, undefined, dataObj);
+    } else if (typeof context === "string") {
+      const msg = typeof message === "string" ? message : "Debug";
+      const dataObj = typeof message === "object" ? message : (data || {});
+      this.log(LogLevel.DEBUG, context, msg, undefined, dataObj);
+    } else {
+      this.log(LogLevel.DEBUG, "App", "Debug", undefined, {});
+    }
   }
 }
 
