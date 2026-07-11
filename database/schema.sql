@@ -2450,3 +2450,107 @@ create policy inquilino_ve_propria_solicitacao_quebra on solicitacoes_quebra_con
 create trigger trg_audit_quebra_contrato
   after insert or update or delete on solicitacoes_quebra_contrato
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 30. AUDITORIA DE GERAÇÃO SOLAR (SHINEPHONE/GROWATT + FATURA CELESC GD)
+-- ============================================================================
+-- Resolve a pergunta em aberto desde docs/10 ("preciso que você descreva o
+-- mecanismo real de monetização da energia solar"): geração fotovoltaica
+-- com créditos de compensação (Lei 14.300/2022, REN ANEEL 1.059/2023),
+-- monitorada pela API do app ShinePhone (Growatt) e cruzada com a fatura
+-- de geração distribuída (GD) da Celesc para isolar quanto da energia
+-- gerada/consumida corresponde às áreas comuns — a parte que não é
+-- cobrada individualmente de nenhum inquilino.
+--
+-- `geracao_solar` (seção 19) já existia como o total mensal CONFIRMADO —
+-- esta seção adiciona a granularidade diária de origem (API) que
+-- alimenta essa confirmação, sem duplicar o que já existia.
+create table leituras_geracao_solar_diaria (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid not null references residenciais(id),
+  data date not null,
+  energia_gerada_kwh numeric(10,2) not null check (energia_gerada_kwh >= 0),
+  origem text not null check (origem in ('api_shinephone', 'manual')),
+  -- Resposta bruta da API guardada para auditoria/depuração — o formato
+  -- exato depende de qual das duas integrações (token V1 ou legada por
+  -- usuário/senha) for usada; ainda não implementado (server/growatt/
+  -- client.ts não existe até você confirmar qual caminho seguir).
+  payload_bruto jsonb,
+  criado_em timestamptz not null default now(),
+  unique (residencial_id, data)
+);
+
+alter table leituras_geracao_solar_diaria enable row level security;
+create policy admin_full_access_leituras_geracao_diaria on leituras_geracao_solar_diaria
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_leituras_geracao_diaria
+  after insert or update or delete on leituras_geracao_solar_diaria
+  for each row execute function fn_audit_trigger();
+
+-- Fatura de Geração Distribuída da Celesc: os três valores que a
+-- auditoria precisa (valor total, kWh injetado, kWh consumido da rede)
+-- entram por lançamento manual nesta rodada — sem uma fatura real de GD
+-- em mãos, um parser automático seria adivinhar o layout do PDF (mesmo
+-- erro que o projeto evita desde docs/10/11). `arquivo_url` guarda o PDF
+-- de origem para auditoria; `status` segue o mesmo padrão de confirmação
+-- humana de `leituras_energia`/`geracao_solar` — nunca vira auditoria
+-- oficial sem confirmação.
+create table faturas_celesc_gd (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid not null references residenciais(id),
+  competencia date not null,
+  valor_total numeric(14,2) not null check (valor_total >= 0),
+  energia_injetada_kwh numeric(10,2) not null check (energia_injetada_kwh >= 0),
+  energia_consumida_rede_kwh numeric(10,2) not null check (energia_consumida_rede_kwh >= 0),
+  arquivo_url text,
+  status text not null default 'pendente_confirmacao' check (status in ('pendente_confirmacao', 'confirmada')),
+  confirmado_por uuid references pessoas(id),
+  confirmado_em timestamptz,
+  criado_em timestamptz not null default now(),
+  unique (residencial_id, competencia)
+);
+
+alter table faturas_celesc_gd enable row level security;
+create policy admin_full_access_faturas_celesc_gd on faturas_celesc_gd
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_faturas_celesc_gd
+  after insert or update or delete on faturas_celesc_gd
+  for each row execute function fn_audit_trigger();
+
+-- Resultado da auditoria mensal (server/energia/auditoriaGeracaoSolar.ts):
+-- cruza geração solar confirmada + fatura Celesc GD confirmada + soma do
+-- que já foi cobrado dos inquilinos (fatura_itens, já existente via
+-- faturarEnergia.ts) para isolar o consumo de área comum e o resultado
+-- financeiro (lucro ou custo absorvido pela administração).
+create table auditorias_energia_solar (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid not null references residenciais(id),
+  competencia date not null,
+  energia_gerada_total_kwh numeric(10,2) not null,
+  energia_injetada_kwh numeric(10,2) not null,
+  consumo_proprio_instantaneo_kwh numeric(10,2) not null,
+  energia_consumida_rede_kwh numeric(10,2) not null,
+  total_consumido_kwh numeric(10,2) not null,
+  total_cobrado_inquilinos_kwh numeric(10,2) not null,
+  total_cobrado_inquilinos_valor numeric(14,2) not null,
+  area_comum_kwh numeric(10,2) not null,
+  area_comum_valor numeric(14,2) not null,
+  resultado_financeiro_valor numeric(14,2) not null,
+  calculado_em timestamptz not null default now(),
+  unique (residencial_id, competencia)
+);
+
+alter table auditorias_energia_solar enable row level security;
+create policy admin_full_access_auditorias_energia_solar on auditorias_energia_solar
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy investidor_ve_auditoria_do_proprio_residencial on auditorias_energia_solar
+  for select using (
+    exists (
+      select 1 from imoveis i
+      join imovel_propriedade ip on ip.imovel_id = i.id
+      where i.residencial_id = auditorias_energia_solar.residencial_id and ip.proprietario_pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+create trigger trg_audit_auditorias_energia_solar
+  after insert or update or delete on auditorias_energia_solar
+  for each row execute function fn_audit_trigger();

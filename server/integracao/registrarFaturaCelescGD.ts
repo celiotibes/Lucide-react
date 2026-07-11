@@ -1,0 +1,57 @@
+// Lançamento manual da fatura de Geração Distribuída (GD) da Celesc —
+// sem uma fatura real em mãos para confirmar o layout exato dos campos,
+// um parser automático seria adivinhar (mesmo cuidado de docs/10/11:
+// nunca codificar formato de documento sem ver o documento real).
+// `docs/30-auditoria-geracao-solar.md` documenta o plano de evoluir para
+// parser de texto assim que houver 2-3 faturas reais para conferir.
+//
+// Sempre nasce `pendente_confirmacao` — mesmo padrão de `leituras_energia`
+// e `geracao_solar`: dado de origem externa nunca vira número oficial sem
+// confirmação humana.
+
+import type { Pool } from 'pg';
+
+export interface DadosFaturaCelescGD {
+  residencialId: string;
+  competencia: string; // 'YYYY-MM-DD', sempre dia 1
+  valorTotal: number;
+  energiaInjetadaKwh: number;
+  energiaConsumidaRedeKwh: number;
+  arquivoUrl?: string | null;
+}
+
+export type ResultadoRegistrarFaturaCelescGD = { sucesso: true; id: string } | { sucesso: false; erro: string };
+
+export async function registrarFaturaCelescGD(
+  pool: Pool,
+  dados: DadosFaturaCelescGD,
+): Promise<ResultadoRegistrarFaturaCelescGD> {
+  if (!dados.residencialId) {
+    return { sucesso: false, erro: 'Selecione o residencial.' };
+  }
+  if (!(dados.valorTotal >= 0)) {
+    return { sucesso: false, erro: 'Valor total deve ser zero ou positivo.' };
+  }
+  if (!(dados.energiaInjetadaKwh >= 0) || !(dados.energiaConsumidaRedeKwh >= 0)) {
+    return { sucesso: false, erro: 'Energia injetada e consumida da rede devem ser zero ou positivas.' };
+  }
+
+  try {
+    const { rows } = await pool.query<{ id: string }>(
+      `insert into faturas_celesc_gd (residencial_id, competencia, valor_total, energia_injetada_kwh, energia_consumida_rede_kwh, arquivo_url)
+       values ($1, $2, $3, $4, $5, $6)
+       returning id`,
+      [dados.residencialId, dados.competencia, dados.valorTotal, dados.energiaInjetadaKwh, dados.energiaConsumidaRedeKwh, dados.arquivoUrl ?? null],
+    );
+    return { sucesso: true, id: rows[0].id };
+  } catch (e) {
+    return { sucesso: false, erro: `Não foi possível salvar: ${e instanceof Error ? e.message : 'erro desconhecido'}` };
+  }
+}
+
+export async function confirmarFaturaCelescGD(pool: Pool, id: string, confirmadoPorPessoaId: string): Promise<void> {
+  await pool.query(
+    `update faturas_celesc_gd set status = 'confirmada', confirmado_por = $2, confirmado_em = now() where id = $1`,
+    [id, confirmadoPorPessoaId],
+  );
+}
