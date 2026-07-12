@@ -1,0 +1,30 @@
+{
+  "test:performance": {
+    "description": "Executar testes de performance",
+    "command": "npm run test:perf:load"
+  },
+  "test:perf:load": {
+    "description": "Load test com k6 (ramp-up até 100 usuarios)",
+    "command": "k6 run --vus=100 --duration=30s performance/load-test.js"
+  },
+  "test:perf:soak": {
+    "description": "Soak test com k6 (30 min com 20 usuarios)",
+    "command": "k6 run --vus=20 --duration=30m performance/soak-test.js"
+  },
+  "test:perf:stress": {
+    "description": "Stress test com k6 (encontrar breaking point)",
+    "command": "k6 run performance/stress-test.js"
+  },
+  "test:perf:spike": {
+    "description": "Spike test com k6 (pico de 500 usuarios)",
+    "command": "k6 run --vus=500 --duration=5m performance/load-test.js"
+  },
+  "test:perf:baseline": {
+    "description": "Executar baseline de performance (todos os testes)",
+    "command": "npm run test:perf:load && npm run test:perf:soak && npm run test:perf:stress"
+  },
+  "perf:analyze": {
+    "description": "Analisar resultados de performance",
+    "command": "node performance/analyze-results.js"
+  }
+}
