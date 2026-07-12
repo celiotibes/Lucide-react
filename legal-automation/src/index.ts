@@ -48,6 +48,7 @@ import contractRouter from '@/api/routes/contractRouter';
 import auditRouter from '@/api/routes/auditRouter';
 import eventRouter from '@/api/routes/eventRouter';
 import cacheRouter from '@/api/routes/cacheRouter';
+import healthRouter from '@/api/routes/healthRouter';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -92,15 +93,8 @@ const upload = multer({
   limits: { fileSize: config.max_file_size },
 });
 
-// Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: config.node_env,
-  });
-});
+// Health check routes
+app.use('/health', healthRouter);
 
 // API Routes
 app.use('/api/v1/auth', authController);
