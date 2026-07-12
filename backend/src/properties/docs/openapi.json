@@ -1,0 +1,381 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Property Management API",
+    "description": "API for managing rental properties, listings, and leads across multiple platforms",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support",
+      "email": "support@ufsc-kitnets.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.ufsc-kitnets.com/api",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/properties": {
+      "get": {
+        "summary": "List all properties",
+        "tags": ["Properties"],
+        "parameters": [
+          {
+            "name": "ownerId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of properties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Property" }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": { "type": "integer" },
+                        "offset": { "type": "integer" },
+                        "count": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new property",
+        "tags": ["Properties"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PropertyInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Property created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Property" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/properties/{id}": {
+      "get": {
+        "summary": "Get property details",
+        "tags": ["Properties"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Property details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Property" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Property not found" }
+        }
+      },
+      "put": {
+        "summary": "Update property",
+        "tags": ["Properties"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PropertyInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Property updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Property" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete property",
+        "tags": ["Properties"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Property deleted" }
+        }
+      }
+    },
+    "/properties/{id}/dashboard": {
+      "get": {
+        "summary": "Get property dashboard",
+        "tags": ["Properties"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PropertyDashboard" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/listings": {
+      "get": {
+        "summary": "List all listings",
+        "tags": ["Listings"],
+        "responses": {
+          "200": {
+            "description": "List of listings"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new listing",
+        "tags": ["Listings"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ListingInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Listing created" }
+        }
+      }
+    },
+    "/listings/{id}": {
+      "get": {
+        "summary": "Get listing details",
+        "tags": ["Listings"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Listing details" }
+        }
+      },
+      "put": {
+        "summary": "Update listing",
+        "tags": ["Listings"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ListingInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Listing updated" }
+        }
+      },
+      "delete": {
+        "summary": "Delete listing",
+        "tags": ["Listings"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Listing deleted" }
+        }
+      }
+    },
+    "/listings/{id}/performance": {
+      "get": {
+        "summary": "Get listing performance metrics",
+        "tags": ["Listings"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Performance metrics" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Property": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "owner_id": { "type": "string", "format": "uuid" },
+          "internal_code": { "type": "string" },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "state": { "type": "string", "maxLength": 2 },
+          "type": { "type": "string", "enum": ["kitnet", "apt_2qt", "apt_3qt"] },
+          "area_m2": { "type": "number" },
+          "bedrooms": { "type": "integer" },
+          "bathrooms": { "type": "integer" },
+          "base_monthly_rent": { "type": "number" },
+          "status": { "type": "string", "enum": ["active", "maintenance", "off_season", "archived"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PropertyInput": {
+        "type": "object",
+        "required": ["owner_id", "address", "city", "state", "type", "area_m2", "base_monthly_rent"],
+        "properties": {
+          "owner_id": { "type": "string" },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "state": { "type": "string" },
+          "type": { "type": "string" },
+          "area_m2": { "type": "number" },
+          "bedrooms": { "type": "integer" },
+          "bathrooms": { "type": "integer" },
+          "base_monthly_rent": { "type": "number" }
+        }
+      },
+      "Listing": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "property_id": { "type": "string" },
+          "platform": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "base_price": { "type": "number" },
+          "sync_status": { "type": "string" }
+        }
+      },
+      "ListingInput": {
+        "type": "object",
+        "required": ["property_id", "platform", "title", "description", "base_price"],
+        "properties": {
+          "property_id": { "type": "string" },
+          "platform": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "base_price": { "type": "number" }
+        }
+      },
+      "PropertyDashboard": {
+        "type": "object",
+        "properties": {
+          "property": { "$ref": "#/components/schemas/Property" },
+          "occupancy_rate": { "type": "number" },
+          "revenue_month": { "type": "number" },
+          "leads_month": { "type": "integer" },
+          "conversion_rate": { "type": "number" }
+        }
+      }
+    }
+  }
+}
