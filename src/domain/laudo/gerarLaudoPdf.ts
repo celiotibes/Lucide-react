@@ -29,12 +29,6 @@ function formatarMoeda(valor: number): string {
   return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-/** Corta texto que estouraria a largura fixa de uma coluna da tabela — o jsPDF não quebra
- * nem trunca automaticamente, então texto longo "cola" visualmente na coluna seguinte. */
-function truncar(texto: string, maxCaracteres: number): string {
-  return texto.length > maxCaracteres ? `${texto.slice(0, maxCaracteres - 1)}…` : texto;
-}
-
 /** Substitui variantes Unicode de hífen/menos (ex: MINUS SIGN "−" U+2212) por hífen ASCII
  * antes de desenhar no PDF. A fonte padrão helvetica do jsPDF usa WinAnsiEncoding, que
  * cobre bem acentuação portuguesa e até travessão/aspas curvas (—, –, ", ") — mas não
@@ -92,13 +86,27 @@ class Escritor {
     this.y += 2;
   }
 
+  /** Corta texto que estouraria a largura da coluna, medindo a largura real no jsPDF
+   * (fonte/tamanho já ajustados por quem chama) — antes o corte era só num ponto do
+   * arquivo, com um limite de caracteres chutado; qualquer outra coluna com texto longo
+   * (descrição bancária crua, nome de locatário) colava visualmente na coluna seguinte. */
+  private truncarParaLargura(texto: string, larguraMm: number): string {
+    const larguraDisponivel = larguraMm - 1;
+    if (this.doc.getTextWidth(texto) <= larguraDisponivel) return texto;
+    let cortado = texto;
+    while (cortado.length > 1 && this.doc.getTextWidth(`${cortado}…`) > larguraDisponivel) {
+      cortado = cortado.slice(0, -1);
+    }
+    return `${cortado}…`;
+  }
+
   linhaTabela(colunas: string[], larguras: number[], negrito = false) {
     this.quebrarPaginaSeNecessario(5.5);
     this.doc.setFont("helvetica", negrito ? "bold" : "normal");
     this.doc.setFontSize(9);
     let x = MARGEM;
     colunas.forEach((coluna, indice) => {
-      this.doc.text(sanitizarTextoPdf(coluna), x, this.y, { maxWidth: larguras[indice] });
+      this.doc.text(this.truncarParaLargura(sanitizarTextoPdf(coluna), larguras[indice]), x, this.y);
       x += larguras[indice];
     });
     this.y += 5;
@@ -193,7 +201,7 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
       const horizontal = porCodigoHorizontal.get(l.codigo);
       const variacaoTexto = horizontal?.variacaoPercentual != null ? `${horizontal.variacaoPercentual >= 0 ? "+" : ""}${horizontal.variacaoPercentual.toFixed(1)}%` : "novo";
       const percentualTexto = l.percentualSobreReceita != null ? `${l.percentualSobreReceita.toFixed(1)}%` : "—";
-      w.linhaTabela([truncar(`${l.codigo} · ${l.descricao}`, 38), formatarMoeda(l.total), percentualTexto, variacaoTexto], [70, 40, 25, 39]);
+      w.linhaTabela([`${l.codigo} · ${l.descricao}`, formatarMoeda(l.total), percentualTexto, variacaoTexto], [70, 40, 25, 39]);
     }
   }
   w.espaco(4);

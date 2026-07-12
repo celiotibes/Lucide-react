@@ -29,6 +29,7 @@ export function RendaTributavelView() {
   const capacidadeMensal = useMemo(() => (db ? calcularCapacidadeContributivaMensal(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
   const analiseVertical = useMemo(() => (db ? calcularAnaliseVertical(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
   const analiseHorizontal = useMemo(() => (db ? calcularAnaliseHorizontal(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
+  const analiseVerticalPorCodigo = useMemo(() => new Map(analiseVertical.map((v) => [v.codigo, v])), [analiseVertical]);
   const comparativoCaixaCompetencia = useMemo(
     () => (db ? compararReceitaCaixaXCompetencia(db, inicio12m, hoje) : []),
     [db, versao, inicio12m, hoje],
@@ -178,7 +179,7 @@ export function RendaTributavelView() {
           </thead>
           <tbody>
             {analiseHorizontal.map((h) => {
-              const vertical = analiseVertical.find((v) => v.codigo === h.codigo);
+              const vertical = analiseVerticalPorCodigo.get(h.codigo);
               return (
                 <tr key={h.codigo}>
                   <td>{h.codigo} · {h.descricao}</td>

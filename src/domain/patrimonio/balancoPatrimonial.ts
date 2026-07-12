@@ -1,15 +1,20 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
-import { gerarCronograma, type Financiamento } from "../financiamento/amortizacao";
+import { gerarCronograma, type Financiamento, type ParcelaAmortizacao } from "../financiamento/amortizacao";
 import { calcularCaucao } from "../caucao/calculoCaucao";
 import type { Caucao, DividaConsumo, Imovel } from "../types";
 
 /** Saldo devedor de um financiamento numa data — última parcela do cronograma teórico
  * (SAC/Price) com data <= dataReferencia. Antes do início do contrato, o saldo é o valor
- * contratado; depois da última parcela, é zero (quitado). */
-export function saldoDevedorFinanciamento(financiamento: Financiamento, dataReferencia: string): number {
+ * contratado; depois da última parcela, é zero (quitado). Aceita um cronograma
+ * já calculado (evita gerar o mesmo cronograma de novo quando o chamador também precisa
+ * de parcelaMensalFinanciamento/parcelas futuras do mesmo financiamento). */
+export function saldoDevedorFinanciamento(
+  financiamento: Financiamento,
+  dataReferencia: string,
+  cronograma: ParcelaAmortizacao[] = gerarCronograma(financiamento),
+): number {
   if (dataReferencia < financiamento.data_contrato) return financiamento.valor_contratado;
-  const cronograma = gerarCronograma(financiamento);
   const ultimaVencida = [...cronograma].reverse().find((p) => p.data <= dataReferencia);
   // Sem parcela vencida (dataReferencia cai entre a assinatura do contrato e o
   // vencimento da 1ª parcela — a 1ª parcela vence 1 mês após data_contrato) — nenhuma
@@ -19,10 +24,14 @@ export function saldoDevedorFinanciamento(financiamento: Financiamento, dataRefe
 }
 
 /** Parcela mensal teórica de um financiamento na data de referência (0 se já quitado ou
- * ainda não iniciado). */
-export function parcelaMensalFinanciamento(financiamento: Financiamento, dataReferencia: string): number {
+ * ainda não iniciado). Aceita um cronograma já calculado, mesmo motivo de
+ * saldoDevedorFinanciamento. */
+export function parcelaMensalFinanciamento(
+  financiamento: Financiamento,
+  dataReferencia: string,
+  cronograma: ParcelaAmortizacao[] = gerarCronograma(financiamento),
+): number {
   if (dataReferencia < financiamento.data_contrato) return 0;
-  const cronograma = gerarCronograma(financiamento);
   const parcelaAtual = cronograma.find((p) => p.data >= dataReferencia);
   return parcelaAtual?.parcela ?? 0;
 }
@@ -244,14 +253,15 @@ export function calcularVPLDoEndividamento(db: Database, dataReferencia: string,
   const financiamentos = listarFinanciamentos(db)
     .filter((f) => idsImoveisProprios.has(f.imovel_id))
     .map((f): LinhaEndividamentoComVPL => {
-      const parcelasFuturas = gerarCronograma(f)
-        .filter((p) => p.data >= dataReferencia)
-        .map((p) => p.parcela);
+      // Cronograma calculado uma única vez e reaproveitado nas 3 derivações abaixo
+      // (antes cada uma gerava o próprio cronograma do zero).
+      const cronograma = gerarCronograma(f);
+      const parcelasFuturas = cronograma.filter((p) => p.data >= dataReferencia).map((p) => p.parcela);
       return {
         categoria: "financiamento",
         descricao: `${f.instituicao} — ${imoveis.get(f.imovel_id)?.apelido ?? `imóvel ${f.imovel_id}`}`,
-        saldoDevedor: saldoDevedorFinanciamento(f, dataReferencia),
-        parcelaMensal: parcelaMensalFinanciamento(f, dataReferencia),
+        saldoDevedor: saldoDevedorFinanciamento(f, dataReferencia, cronograma),
+        parcelaMensal: parcelaMensalFinanciamento(f, dataReferencia, cronograma),
         parcelasRestantesEstimadas: parcelasFuturas.length,
         vpl: calcularVPLDivida(parcelasFuturas, taxaDescontoMensalPercentual),
       };

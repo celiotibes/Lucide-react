@@ -33,10 +33,12 @@ export interface DesempenhoCidade {
   quantidadeImoveis: number;
 }
 
-/** Agrega o desempenho por imóvel em centro de custo regional (cidade) — a "nuvem de
- * custos" Floripa × Curitiba: soma direta dos resultados por imóvel de cada cidade. */
-export function calcularDesempenhoPorCidade(db: Database, dataInicio: string, dataFim: string): DesempenhoCidade[] {
-  const porImovel = calcularDesempenhoPorImovel(db, dataInicio, dataFim);
+/** Agrega uma lista de DesempenhoImovel já calculada em centro de custo regional
+ * (cidade) — a "nuvem de custos" Floripa × Curitiba. Separado de
+ * calcularDesempenhoPorCidade() para quem já tem calcularDesempenhoPorImovel() calculado
+ * (ex: Dashboard, que mostra as duas tabelas) poder reaproveitar em vez de rodar o DRE de
+ * cada imóvel duas vezes. */
+export function agruparDesempenhoPorCidade(porImovel: DesempenhoImovel[]): DesempenhoCidade[] {
   const porCidade = new Map<string, DesempenhoCidade>();
 
   for (const d of porImovel) {
@@ -50,4 +52,10 @@ export function calcularDesempenhoPorCidade(db: Database, dataInicio: string, da
   }
 
   return Array.from(porCidade.values()).sort((a, b) => b.resultadoLiquido - a.resultadoLiquido);
+}
+
+/** Agrega o desempenho por imóvel em centro de custo regional (cidade) — a "nuvem de
+ * custos" Floripa × Curitiba: soma direta dos resultados por imóvel de cada cidade. */
+export function calcularDesempenhoPorCidade(db: Database, dataInicio: string, dataFim: string): DesempenhoCidade[] {
+  return agruparDesempenhoPorCidade(calcularDesempenhoPorImovel(db, dataInicio, dataFim));
 }

@@ -5,7 +5,7 @@ import { consultar } from "../db/connection";
 import { gerarSerieMensal, gerarDre, resultadoLiquido } from "../domain/reports/dre";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia, agingPorFaixa } from "../domain/reconcile/inadimplencia";
-import { calcularDesempenhoPorImovel, calcularDesempenhoPorCidade } from "../domain/reports/desempenhoPorImovel";
+import { calcularDesempenhoPorImovel, agruparDesempenhoPorCidade } from "../domain/reports/desempenhoPorImovel";
 import type { Imovel } from "../domain/types";
 
 function hojeIso(): string {
@@ -52,7 +52,9 @@ export function Dashboard() {
   }, [db, versao, hoje]);
 
   const desempenhoImoveis = useMemo(() => (db ? calcularDesempenhoPorImovel(db, dataInicio12m, hoje) : []), [db, versao, dataInicio12m, hoje]);
-  const desempenhoCidades = useMemo(() => (db ? calcularDesempenhoPorCidade(db, dataInicio12m, hoje) : []), [db, versao, dataInicio12m, hoje]);
+  // Deriva de desempenhoImoveis (já calculado acima) em vez de rodar o DRE de cada
+  // imóvel de novo — calcularDesempenhoPorCidade() faz exatamente essa segunda rodada.
+  const desempenhoCidades = useMemo(() => agruparDesempenhoPorCidade(desempenhoImoveis), [desempenhoImoveis]);
 
   const aging = useMemo(() => agingPorFaixa(statusInadimplencia), [statusInadimplencia]);
   const dadosAging = Object.entries(aging).map(([faixa, valores]) => ({ faixa, ...valores }));
