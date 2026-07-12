@@ -146,6 +146,22 @@ a {
   cursor: not-allowed;
 }
 
+.bloco-repetivel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0;
+}
+
+.bloco-repetivel legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0 0.4rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

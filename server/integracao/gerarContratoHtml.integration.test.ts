@@ -194,6 +194,39 @@ describe.skipIf(!DATABASE_URL)('gerarContratoHtml (integração real com Postgre
     expect(comModeloComercial.html).toContain('MODELO COMERCIAL');
   });
 
+  it('garantias (docs/32): lista TODAS as garantias do contrato, não só a mais recente — evidência real Life Space/Apto 503', async () => {
+    const modeloComGarantias = `<table>{{#each garantias}}<tr><td>{{finalidade_label}}</td><td>{{tipo_label}}</td><td>{{valor}}</td><td>{{forma_pagamento}}</td></tr>{{/each}}</table>`;
+    await pool.query(`update modelos_contrato set corpo_html = $1 where cidade_id = $2 and categoria = 'geral'`, [
+      modeloComGarantias,
+      cidadeId,
+    ]);
+
+    const imovel = await pool.query(
+      `insert into imoveis (cidade_id, identificacao, tipo) values ($1, $2, 'apartamento') returning id`,
+      [cidadeId, `Apto Garantias ${randomUUID()}`],
+    );
+    const contrato = await pool.query(
+      `insert into contratos (imovel_id, tipo, data_inicio, dia_vencimento, valor_aluguel)
+       values ($1, 'locacao_padrao', '2026-07-08', 10, 1590) returning id`,
+      [imovel.rows[0].id],
+    );
+    const contratoId = contrato.rows[0].id;
+
+    await pool.query(
+      `insert into garantias (contrato_id, tipo, valor, finalidade, forma_pagamento) values ($1, 'caucao', 1590, 'locacao', 'pix')`,
+      [contratoId],
+    );
+    await pool.query(
+      `insert into garantias (contrato_id, tipo, valor, finalidade, forma_pagamento) values ($1, 'caucao', 240, 'comodato', 'boleto')`,
+      [contratoId],
+    );
+
+    const resultado = await gerarContratoHtml(pool, contratoId);
+
+    expect(resultado.html).toMatch(/<td>Locação<\/td><td>Caução<\/td><td>R\$\s*1\.590,00<\/td><td>PIX<\/td>/);
+    expect(resultado.html).toMatch(/<td>Comodato de bens móveis<\/td><td>Caução<\/td><td>R\$\s*240,00<\/td><td>boleto<\/td>/);
+  });
+
   it('componentes mensais (Curitiba, docs/11): valor_fixo mostra o valor, percentual mostra "já incluído", repassado_variavel descreve a regra sem valor específico', async () => {
     const modeloComComponentes = `<table>{{#each componentes_mensais}}<tr><td>{{tipo_label}}</td><td>{{valor_exibicao}}</td></tr>{{/each}}</table>`;
     await pool.query(`update modelos_contrato set corpo_html = $1 where cidade_id = $2 and categoria = 'geral'`, [

@@ -39,6 +39,22 @@ describe('mesclarTemplate', () => {
   it('variável ausente vira string vazia, não "undefined" literal', () => {
     expect(mesclarTemplate('{{inexistente}}', {})).toBe('');
   });
+
+  it('dois blocos #each separados com o mesmo nome de lista renderizam de forma independente (docs/32)', () => {
+    // Achado real ao adicionar um segundo bloco {{#each garantias}} nos
+    // modelos de Curitiba: a regex não-gulosa pareia cada abertura com o
+    // {{/each}} mais próximo, então dois blocos sequenciais funcionam —
+    // o bug real que isso expôs foi escrever a sintaxe {{#each garantias}}
+    // dentro de um COMENTÁRIO HTML de documentação, sem fechamento, o que
+    // "roubava" o {{/each}} do primeiro bloco funcional de verdade. Este
+    // teste trava o comportamento correto (dois blocos reais, bem
+    // formados) para não regredir.
+    const template = '<div>{{#each garantias}}[{{tipo}}]{{/each}}</div><p>{{#each garantias}}({{tipo}}){{/each}}</p>';
+    const resultado = mesclarTemplate(template, {
+      garantias: [{ tipo: 'caucao' }, { tipo: 'fiador' }],
+    });
+    expect(resultado).toBe('<div>[caucao][fiador]</div><p>(caucao)(fiador)</p>');
+  });
 });
 
 describe('escaparHtml', () => {

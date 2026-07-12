@@ -34,6 +34,27 @@ const RUBRICA_COMPONENTE: Record<string, string> = {
   outro: 'Outro',
 };
 
+const RUBRICA_TIPO_GARANTIA: Record<string, string> = {
+  caucao: 'Caução',
+  fiador: 'Fiador',
+  seguro_fianca: 'Seguro-fiança',
+  titulo_capitalizacao: 'Título de capitalização',
+  seguro_incendio: 'Seguro-incêndio',
+};
+
+const RUBRICA_FINALIDADE_GARANTIA: Record<string, string> = {
+  locacao: 'Locação',
+  comodato: 'Comodato de bens móveis',
+  geral: 'Geral',
+};
+
+const RUBRICA_FORMA_PAGAMENTO: Record<string, string> = {
+  pix: 'PIX',
+  boleto: 'boleto',
+  dinheiro: 'dinheiro',
+  parcelado: 'parcelado',
+};
+
 // Categoria do imóvel para resolução do modelo (schema seção 28) — só
 // distingue comercial de residencial, o único corte que os 3 contratos
 // reais de Curitiba evidenciam até aqui (docs/11, "Sétimo achado").
@@ -97,11 +118,32 @@ export async function gerarContratoHtml(pool: Pool | PoolClient, contratoId: str
     .filter((p) => p.papel === 'fiador' || p.papel === 'responsavel_solidario')
     .map((p) => formatarParte(p));
 
-  const { rows: garantiaRows } = await pool.query(
-    `select tipo, valor, forma_pagamento, parcelas from garantias where contrato_id = $1 order by criado_em desc limit 1`,
+  // Um contrato pode ter mais de uma garantia — evidência real (docs/32):
+  // Life Space Estação 509-B e Apto 503/Central Station somam uma garantia
+  // para a locação e outra para o aditivo de comodato de bens móveis, com
+  // valores e formas de pagamento diferentes entre si. `garantias` expõe
+  // TODAS ao template (`{{#each garantias}}`); os campos singulares
+  // (`garantia_tipo` etc.) continuam existindo, apontando para a primeira
+  // por ordem de criação, só para não quebrar o modelo de Florianópolis
+  // (evidência real: contrato único, uma garantia só).
+  const { rows: garantiaRows } = await pool.query<{
+    tipo: string;
+    valor: string;
+    forma_pagamento: string | null;
+    parcelas: number | null;
+    finalidade: string | null;
+  }>(
+    `select tipo, valor, forma_pagamento, parcelas, finalidade from garantias where contrato_id = $1 order by criado_em`,
     [contratoId],
   );
   const garantia = garantiaRows[0] ?? null;
+  const garantias: LinhaTemplate[] = garantiaRows.map((g) => ({
+    tipo_label: RUBRICA_TIPO_GARANTIA[g.tipo] ?? g.tipo,
+    valor: formatarMoeda(g.valor),
+    finalidade_label: g.finalidade ? RUBRICA_FINALIDADE_GARANTIA[g.finalidade] ?? g.finalidade : 'Geral',
+    forma_pagamento: g.forma_pagamento ? RUBRICA_FORMA_PAGAMENTO[g.forma_pagamento] ?? g.forma_pagamento : 'não definida',
+    parcelas: g.parcelas ?? '',
+  }));
 
   const mobilia = await buscarMobiliaDoContrato(pool, contrato.imovel_id, contrato.comodo_id);
   const componentesMensais = await buscarComponentesMensais(pool, contratoId);
@@ -123,10 +165,13 @@ export async function gerarContratoHtml(pool: Pool | PoolClient, contratoId: str
     data_inicio: formatarData(contrato.data_inicio),
     data_fim: contrato.data_fim ? formatarData(contrato.data_fim) : '',
     indice_reajuste: contrato.indice_reajuste ?? 'não definido',
-    garantia_tipo: garantia?.tipo ?? '',
+    garantia_tipo: garantia ? (RUBRICA_TIPO_GARANTIA[garantia.tipo] ?? garantia.tipo) : '',
     garantia_valor: garantia?.valor ? formatarMoeda(garantia.valor) : '',
-    garantia_forma_pagamento: garantia?.forma_pagamento ?? '',
+    garantia_forma_pagamento: garantia?.forma_pagamento
+      ? (RUBRICA_FORMA_PAGAMENTO[garantia.forma_pagamento] ?? garantia.forma_pagamento)
+      : '',
     garantia_parcelas: garantia?.parcelas ?? '',
+    garantias,
     locatarios,
     solidarios,
     mobilia,

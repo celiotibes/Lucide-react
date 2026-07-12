@@ -5,10 +5,26 @@
   mais cauteloso do que o residencial: com só 1 exemplo, a fórmula exata
   de multa rescisória e o reajuste em degraus (sem reajuste anos 1-2, +5%
   fixo no ano 3, índice a partir do ano 4) NÃO viram texto fixo aqui —
-  ficam em {{{clausulas_adicionais_html}}}, contrato a contrato, até haver
-  um segundo contrato comercial real confirmando (ou não) um padrão.
+  ficam no placeholder de cláusulas adicionais, contrato a contrato, até
+  haver um segundo contrato comercial real confirmando (ou não) um padrão.
 
-  Placeholders entre {{ }}: server/legaldesign/mesclarTemplate.ts.
+  Multa por infração contratual (distinta da rescisória) virou cláusula
+  fixa (docs/32): os 2 contratos residenciais de Curitiba já auditados
+  confirmam o mesmo valor (3 aluguéis vigentes) que este contrato
+  comercial já usava — 3/3 contratos concordam, evidência suficiente
+  para fixar. Direito de preferência continua com o prazo deste único
+  contrato comercial (10 dias), sem generalizar com o prazo dos
+  residenciais (15 dias, docs/32) — categorias diferentes, cautela
+  mantida até haver um segundo contrato comercial real. Garantia agora
+  lista TODAS as garantias do contrato (bloco de repetição sobre
+  "garantias").
+
+  ATENÇÃO ao editar este comentário: nunca escrever a sintaxe literal de
+  placeholder (chave dupla) aqui dentro — o motor de merge
+  (server/legaldesign/mesclarTemplate.ts) processa o arquivo inteiro,
+  comentário HTML incluído, então um bloco "each" sem fechamento escrito
+  só para fins de documentação quebra o pareamento do bloco "each" real
+  mais abaixo (já aconteceu, docs/32).
 -->
 <style>
   .contrato-crmt {
@@ -89,7 +105,7 @@
         <tr><td class="rotulo">Vencimento</td><td class="valor">Dia {{dia_vencimento}} de cada mês</td></tr>
         <tr><td class="rotulo">Início da locação</td><td class="valor">{{data_inicio}}</td></tr>
         <tr><td class="rotulo">Índice de reajuste</td><td class="valor">{{indice_reajuste}}</td></tr>
-        <tr><td class="rotulo">Garantia</td><td class="valor">{{garantia_tipo}} — {{garantia_valor}} ({{garantia_forma_pagamento}})</td></tr>
+        <tr><td class="rotulo">Garantia</td><td class="valor">{{#each garantias}}{{tipo_label}} ({{finalidade_label}}) — {{valor}}<br/>{{/each}}</td></tr>
       </tbody>
     </table>
   </div>
@@ -118,14 +134,24 @@
   <p>O prazo deste contrato é de {{data_inicio}} até {{data_fim}}, reajustável pelo índice {{indice_reajuste}} — salvo regra de reajuste em degraus específica deste contrato, descrita na seção de cláusulas específicas abaixo.</p>
 
   <h2>5. Da Garantia</h2>
-  <p>A título de garantia, fica estabelecida a modalidade de {{garantia_tipo}}, no valor de {{garantia_valor}}, a ser paga via {{garantia_forma_pagamento}} (parcelas, quando houver parcelamento: {{garantia_parcelas}}).</p>
+  <p>A título de garantia, ficam estabelecidas as modalidades abaixo:</p>
+  <table class="tabela-partes">
+    <thead><tr><th>Finalidade</th><th>Modalidade</th><th>Valor</th><th>Forma de pagamento</th><th>Parcelas</th></tr></thead>
+    <tbody>{{#each garantias}}<tr><td>{{finalidade_label}}</td><td>{{tipo_label}}</td><td>{{valor}}</td><td>{{forma_pagamento}}</td><td>{{parcelas}}</td></tr>{{/each}}</tbody>
+  </table>
 
   <div class="caixa-alerta">
     <strong class="titulo">Atraso no pagamento</strong>
     Sujeito à política de cobrança específica deste contrato — multa, juros de mora e correção monetária conforme cláusula própria (política registrada em <code>contrato_politica_cobranca</code>, não uma constante do sistema).
   </div>
 
-  <h2>6. Multa Rescisória, Reajuste em Degraus e Forma de Pagamento Aceita</h2>
+  <h2>6. Direito de Preferência</h2>
+  <p>Caso o locador manifeste vontade de vender o imóvel objeto deste contrato, deverá propor a venda por escrito ao locatário, que terá 10 (dez) dias, a partir da comunicação, para se manifestar sobre o exercício da preferência de compra. Sendo o imóvel alienado durante o prazo locatício, o adquirente fica obrigado a respeitar este contrato por, no mínimo, 6 (seis) meses.</p>
+
+  <h2>7. Multa por Infração Contratual</h2>
+  <p>A parte que infringir qualquer cláusula deste contrato — distinta da multa rescisória por saída antecipada, tratada na seção seguinte — pagará à parte inocente o valor correspondente a 3 (três) aluguéis vigentes à época da infração, sem prejuízo de eventuais perdas e danos e da rescisão imediata do contrato.</p>
+
+  <h2>8. Multa Rescisória, Reajuste em Degraus e Forma de Pagamento Aceita</h2>
   <p><em>Cláusulas específicas deste contrato — com apenas um contrato comercial real auditado até aqui, a fórmula de multa por saída antecipada e o eventual reajuste em degraus não viram regra fixa deste modelo. Definidas abaixo:</em></p>
   {{{clausulas_adicionais_html}}}
 

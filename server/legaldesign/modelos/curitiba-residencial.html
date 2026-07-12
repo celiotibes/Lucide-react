@@ -11,12 +11,32 @@
 
   Multa rescisória e forma de pagamento aceita NÃO estão fixas neste
   modelo — os 3 contratos reais de Curitiba já auditados têm 3 fórmulas
-  de multa diferentes e regras de PIX que se contradizem entre si
-  (docs/11, "Sétimo achado"). Cada contrato define essas duas cláusulas
-  via {{{clausulas_adicionais_html}}}, preenchido contrato a contrato —
-  fingir uma fórmula única aqui inventaria uma regra sem evidência.
+  de multa diferentes (Sala Comercial: 3 meses de aluguel se sair antes
+  de 12 meses; Life Space Estação 509-B: 50% do prazo restante até 12
+  meses, limitado a 3 aluguéis; Apto 503/Central Station: 3 salários
+  mínimos) e regras de PIX que se contradizem entre si (docs/11, "Sétimo
+  achado"). Cada contrato define essas duas cláusulas via placeholder de
+  cláusulas adicionais, preenchido contrato a contrato — fingir uma
+  fórmula única aqui inventaria uma regra sem evidência.
 
-  Placeholders entre {{ }}: server/legaldesign/mesclarTemplate.ts.
+  O que os 2 contratos residenciais reais (Life Space Estação 509-B,
+  Apto 503/Central Station) confirmam de forma idêntica, e por isso VIRA
+  cláusula fixa aqui (docs/32): multa geral de infração contratual (3
+  aluguéis vigentes à época, distinta da multa rescisória por saída
+  antecipada), vistoria por registro fotográfico/vídeo em grupo de
+  WhatsApp, direito de preferência de compra com 15 dias para
+  manifestação, e autorização de citação/intimação por WhatsApp/e-mail
+  para o Juizado Especial da comarca do imóvel. Garantia agora lista
+  TODAS as garantias do contrato (bloco de repetição sobre "garantias"),
+  não só uma — os 2 contratos residenciais somam garantia da locação +
+  garantia do aditivo de comodato de bens móveis.
+
+  ATENÇÃO ao editar este comentário: nunca escrever a sintaxe literal de
+  placeholder (chave dupla) aqui dentro — o motor de merge
+  (server/legaldesign/mesclarTemplate.ts) processa o arquivo inteiro,
+  comentário HTML incluído, então um bloco "each" sem fechamento escrito
+  só para fins de documentação quebra o pareamento do bloco "each" real
+  mais abaixo (já aconteceu, docs/32).
 -->
 <style>
   .contrato-crmt {
@@ -97,7 +117,7 @@
         <tr><td class="rotulo">Vencimento</td><td class="valor">Dia {{dia_vencimento}} de cada mês</td></tr>
         <tr><td class="rotulo">Início da locação</td><td class="valor">{{data_inicio}}</td></tr>
         <tr><td class="rotulo">Índice de reajuste</td><td class="valor">{{indice_reajuste}}</td></tr>
-        <tr><td class="rotulo">Garantia</td><td class="valor">{{garantia_tipo}} — {{garantia_valor}} ({{garantia_forma_pagamento}})</td></tr>
+        <tr><td class="rotulo">Garantia</td><td class="valor">{{#each garantias}}{{tipo_label}} ({{finalidade_label}}) — {{valor}}<br/>{{/each}}</td></tr>
       </tbody>
     </table>
   </div>
@@ -126,7 +146,11 @@
   <p>O prazo deste contrato é de {{data_inicio}} até {{data_fim}}, reajustável pelo índice {{indice_reajuste}}.</p>
 
   <h2>5. Da Garantia</h2>
-  <p>A título de garantia, fica estabelecida a modalidade de {{garantia_tipo}}, no valor de {{garantia_valor}}, a ser paga via {{garantia_forma_pagamento}} (parcelas, quando houver parcelamento: {{garantia_parcelas}}).</p>
+  <p>A título de garantia, ficam estabelecidas as modalidades abaixo — um contrato de locação com aditivo de comodato de bens móveis usa, normalmente, uma garantia para cada um dos dois:</p>
+  <table class="tabela-partes">
+    <thead><tr><th>Finalidade</th><th>Modalidade</th><th>Valor</th><th>Forma de pagamento</th><th>Parcelas</th></tr></thead>
+    <tbody>{{#each garantias}}<tr><td>{{finalidade_label}}</td><td>{{tipo_label}}</td><td>{{valor}}</td><td>{{forma_pagamento}}</td><td>{{parcelas}}</td></tr>{{/each}}</tbody>
+  </table>
 
   <div class="caixa-alerta">
     <strong class="titulo">Atraso no pagamento</strong>
@@ -140,7 +164,19 @@
     <tbody>{{#each mobilia}}<tr><td>{{descricao}}</td><td>{{categoria}}</td><td>{{valor_aquisicao}}</td></tr>{{/each}}</tbody>
   </table>
 
-  <h2>7. Multa Rescisória e Forma de Pagamento Aceita</h2>
+  <h2>7. Da Vistoria</h2>
+  <p>A vistoria de entrada e, quando necessária, de devolução, será realizada por meio de registro de fotos e vídeos em um Grupo de WhatsApp criado para essa finalidade entre locador e locatário, cujo relatório será enviado por e-mail para compor a documentação deste contrato. O locador poderá realizar vistorias esporádicas em dia e hora combinados; constatado vício que afete a estrutura física do imóvel, o locatário terá 10 (dez) dias para o conserto, sob pena de rescisão contratual.</p>
+
+  <h2>8. Direito de Preferência</h2>
+  <p>Caso o locador manifeste vontade de vender o imóvel objeto deste contrato, deverá propor a venda por escrito ao locatário, que terá 15 (quinze) dias, a partir da comunicação, para se manifestar sobre o exercício da preferência de compra.</p>
+
+  <h2>9. Multa por Infração Contratual</h2>
+  <p>A parte que infringir qualquer cláusula deste contrato — distinta da multa rescisória por saída antecipada, tratada na seção seguinte — pagará à parte inocente o valor correspondente a 3 (três) aluguéis vigentes à época da infração, sem prejuízo de eventuais perdas e danos e da rescisão imediata do contrato.</p>
+
+  <h2>10. Cobrança Judicial e Citação Eletrônica</h2>
+  <p>Locador e locatário autorizam expressamente, para os fins deste contrato, o recebimento de citações, intimações e notificações judiciais e extrajudiciais por WhatsApp, e-mail certificado ou outro meio eletrônico regulamentado, perante o Juizado Especial da comarca de situação do imóvel, valendo os dados de contato registrados neste contrato.</p>
+
+  <h2>11. Multa Rescisória e Forma de Pagamento Aceita</h2>
   <p><em>Cláusulas específicas deste contrato — cada locação em Curitiba tem sua própria fórmula de multa por saída antecipada e sua própria regra de forma de pagamento aceita (boleto, PIX, ou ambos), definidas abaixo:</em></p>
   {{{clausulas_adicionais_html}}}
 
