@@ -49,6 +49,7 @@ import auditRouter from '@/api/routes/auditRouter';
 import eventRouter from '@/api/routes/eventRouter';
 import cacheRouter from '@/api/routes/cacheRouter';
 import healthRouter from '@/api/routes/healthRouter';
+import swaggerRouter from '@/api/routes/swaggerRouter';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -95,6 +96,9 @@ const upload = multer({
 
 // Health check routes
 app.use('/health', healthRouter);
+
+// API Documentation (Swagger/OpenAPI)
+app.use('/api-docs', swaggerRouter);
 
 // API Routes
 app.use('/api/v1/auth', authController);
