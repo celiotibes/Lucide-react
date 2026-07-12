@@ -41,6 +41,11 @@ export function aplicarRegrasSalvas(db: Database): number {
     db,
     "SELECT id, descricao_original, imovel_id FROM transacoes WHERE plano_conta_codigo IS NULL",
   );
+  // aplicarRateio() zera transacoes.imovel_id quando o valor é dividido entre vários
+  // imóveis (a divisão real fica em `rateios`) — checar só imovel_id === null não basta
+  // pra saber se a transação já tem uma atribuição, senão uma regra com imóvel fixo
+  // sobrescreveria um rateio manual já aplicado.
+  const idsComRateio = new Set(consultar<{ transacao_id: number }>(db, "SELECT DISTINCT transacao_id FROM rateios").map((r) => r.transacao_id));
 
   let resolvidas = 0;
   for (const transacao of pendentes) {
@@ -53,8 +58,8 @@ export function aplicarRegrasSalvas(db: Database): number {
       }
       if (casa) {
         // Só aplica o imóvel da regra se a transação ainda não tiver um definido —
-        // nunca sobrescreve uma atribuição manual/rateio já existente.
-        if (regra.imovel_id !== null && transacao.imovel_id === null) {
+        // nunca sobrescreve uma atribuição manual ou rateio já existente.
+        if (regra.imovel_id !== null && transacao.imovel_id === null && !idsComRateio.has(transacao.id)) {
           executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'regra', imovel_id = ? WHERE id = ?", [
             regra.plano_conta_codigo,
             regra.imovel_id,

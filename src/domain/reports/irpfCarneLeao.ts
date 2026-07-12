@@ -89,17 +89,32 @@ export function calcularCarneLeaoPorImovel(
   const numeroMeses = contarMeses(dataInicio, dataFim);
 
   return imoveis.map((imovel): LinhaCarneLeaoImovel => {
-    const receitaAluguel = consultar<{ valor: number; percentual: number | null }>(
+    // Une transações diretas do imóvel com a fatia de transações rateadas entre vários
+    // imóveis (mesmo padrão de gerarDre em dre.ts) — sem isso, receita/despesa rateada
+    // (ex.: condomínio coletivo) fica de fora do cálculo para todo imóvel participante.
+    const receitaAluguel = consultar<{ codigo: string; valor: number; percentual: number | null }>(
       db,
-      `SELECT t.valor AS valor, c.percentual_aluguel_efetivo AS percentual
-       FROM transacoes t
-       JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
-       LEFT JOIN contratos_locacao c ON c.id = t.contrato_id
-       WHERE p.grupo = 'receita' AND t.imovel_id = ? AND t.data BETWEEN ? AND ?`,
-      [imovel.id, dataInicio, dataFim],
+      `SELECT codigo, valor, percentual FROM (
+         SELECT p.codigo AS codigo, t.valor AS valor, c.percentual_aluguel_efetivo AS percentual
+         FROM transacoes t
+         JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+         LEFT JOIN contratos_locacao c ON c.id = t.contrato_id
+         WHERE p.grupo = 'receita' AND t.imovel_id = ? AND t.data BETWEEN ? AND ?
+         UNION ALL
+         SELECT p.codigo AS codigo, r.valor_rateado AS valor, c.percentual_aluguel_efetivo AS percentual
+         FROM rateios r
+         JOIN transacoes t ON t.id = r.transacao_id
+         JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+         LEFT JOIN contratos_locacao c ON c.id = t.contrato_id
+         WHERE p.grupo = 'receita' AND r.imovel_id = ? AND t.data BETWEEN ? AND ?
+       )`,
+      [imovel.id, dataInicio, dataFim, imovel.id, dataInicio, dataFim],
     );
+    // Mesma regra de rendaTributavel.ts: só o código de aluguel (1.1.01) tem o percentual
+    // do contrato aplicado — qualquer outra receita (multas, créditos jurídicos, Airbnb)
+    // é 100% tributável, mesmo que vinculada a um contrato com rateio embutido.
     const rendaTributavelBruta = receitaAluguel.reduce((acc, l) => {
-      const percentual = l.percentual !== null ? l.percentual : 100;
+      const percentual = l.codigo === "1.1.01" && l.percentual !== null ? l.percentual : 100;
       return acc + l.valor * (percentual / 100);
     }, 0);
 
@@ -108,8 +123,15 @@ export function calcularCarneLeaoPorImovel(
       const placeholders = codigosDedutiveis.map(() => "?").join(",");
       const linhas = consultar<{ total: number | null }>(
         db,
-        `SELECT SUM(ABS(valor)) AS total FROM transacoes WHERE imovel_id = ? AND plano_conta_codigo IN (${placeholders}) AND data BETWEEN ? AND ?`,
-        [imovel.id, ...codigosDedutiveis, dataInicio, dataFim],
+        `SELECT SUM(valor) AS total FROM (
+           SELECT ABS(t.valor) AS valor FROM transacoes t
+           WHERE t.imovel_id = ? AND t.plano_conta_codigo IN (${placeholders}) AND t.data BETWEEN ? AND ?
+           UNION ALL
+           SELECT ABS(r.valor_rateado) AS valor FROM rateios r
+           JOIN transacoes t ON t.id = r.transacao_id
+           WHERE r.imovel_id = ? AND t.plano_conta_codigo IN (${placeholders}) AND t.data BETWEEN ? AND ?
+         )`,
+        [imovel.id, ...codigosDedutiveis, dataInicio, dataFim, imovel.id, ...codigosDedutiveis, dataInicio, dataFim],
       );
       despesaDedutivel = linhas[0]?.total ?? 0;
     }

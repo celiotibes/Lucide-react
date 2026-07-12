@@ -11,7 +11,11 @@ export function saldoDevedorFinanciamento(financiamento: Financiamento, dataRefe
   if (dataReferencia < financiamento.data_contrato) return financiamento.valor_contratado;
   const cronograma = gerarCronograma(financiamento);
   const ultimaVencida = [...cronograma].reverse().find((p) => p.data <= dataReferencia);
-  return ultimaVencida ? Math.max(0, ultimaVencida.saldoDevedorFinal) : 0;
+  // Sem parcela vencida (dataReferencia cai entre a assinatura do contrato e o
+  // vencimento da 1ª parcela — a 1ª parcela vence 1 mês após data_contrato) — nenhuma
+  // amortização ainda ocorreu, saldo devedor é o valor integral contratado, não zero.
+  if (!ultimaVencida) return financiamento.valor_contratado;
+  return Math.max(0, ultimaVencida.saldoDevedorFinal);
 }
 
 /** Parcela mensal teórica de um financiamento na data de referência (0 se já quitado ou
@@ -114,9 +118,13 @@ export interface ComprometimentoRenda {
 
 /** % da renda mensal comprometida com parcelas de dívida (financiamentos + consignado/
  * empréstimo/cartão parcelado) — o "índice de comprometimento de renda" que evidencia
- * quanto do subsídio já está retido antes de chegar à conta. */
+ * quanto do subsídio já está retido antes de chegar à conta. Só considera financiamento
+ * de imóvel próprio (regime_patrimonial = 'proprio') — a parcela de um financiamento em
+ * gestão de terceiros não é obrigação pessoal do usuário, mesma regra de
+ * calcularPatrimonioLiquido. */
 export function calcularComprometimentoRenda(db: Database, dataReferencia: string, salarioMensal: number): ComprometimentoRenda {
-  const financiamentos = listarFinanciamentos(db);
+  const idsImoveisProprios = new Set(listarImoveis(db).filter((i) => i.regime_patrimonial === "proprio").map((i) => i.id));
+  const financiamentos = listarFinanciamentos(db).filter((f) => idsImoveisProprios.has(f.imovel_id));
   const dividas = listarDividasConsumo(db);
 
   const parcelasFinanciamentos = financiamentos.reduce((acc, f) => acc + parcelaMensalFinanciamento(f, dataReferencia), 0);
@@ -167,19 +175,28 @@ export interface LiquidezCorrente {
 /** Liquidez corrente = caixa disponível / (parcelas de dívida vencendo em 12 meses +
  * cauções ainda retidas, tratadas como exigíveis de curto prazo). Demonstra que o dinheiro
  * em conta pode estar consumido por compromissos de curto prazo mesmo com 9 imóveis no
- * ativo — o ativo imobilizado não é liquidez imediata. */
+ * ativo — o ativo imobilizado não é liquidez imediata. Só considera financiamento de
+ * imóvel próprio, mesma regra de calcularPatrimonioLiquido/calcularComprometimentoRenda. */
 export function calcularLiquidezCorrente(db: Database, dataReferencia: string): LiquidezCorrente {
   const saldoCaixaAtual = calcularSaldoCaixaAtual(db);
   const dataLimite = somarMeses(dataReferencia, 12);
 
-  const financiamentos = listarFinanciamentos(db);
+  const idsImoveisProprios = new Set(listarImoveis(db).filter((i) => i.regime_patrimonial === "proprio").map((i) => i.id));
+  const financiamentos = listarFinanciamentos(db).filter((f) => idsImoveisProprios.has(f.imovel_id));
   let parcelasFinanciamentos = 0;
   for (const f of financiamentos) {
     const cronograma = gerarCronograma(f);
     parcelasFinanciamentos += cronograma.filter((p) => p.data >= dataReferencia && p.data < dataLimite).reduce((acc, p) => acc + p.parcela, 0);
   }
+  // Dívida de consumo não tem prazo cadastrado (só saldo e parcela) — estima parcelas
+  // restantes por saldo ÷ parcela (mesma aproximação de calcularVPLDoEndividamento) e
+  // limita a 12: uma dívida a 2 meses de quitar não pode contar como 12 parcelas cheias
+  // no passivo circulante de 12 meses, senão o índice de liquidez fica pior que a realidade.
   const dividas = listarDividasConsumo(db);
-  const parcelasConsumo = dividas.reduce((acc, d) => acc + d.parcela_mensal * 12, 0);
+  const parcelasConsumo = dividas.reduce((acc, d) => {
+    const parcelasRestantes = d.parcela_mensal > 0 ? Math.ceil(d.saldo_devedor_atual / d.parcela_mensal) : 0;
+    return acc + d.parcela_mensal * Math.min(12, parcelasRestantes);
+  }, 0);
   const parcelasDividaProximos12Meses = parcelasFinanciamentos + parcelasConsumo;
 
   const caucoesAtivas = consultar<Caucao>(db, "SELECT * FROM caucoes WHERE data_devolucao IS NULL");
@@ -210,28 +227,35 @@ export interface LinhaEndividamentoComVPL extends LinhaEndividamento {
   vpl: number;
 }
 
-/** VPL de cada dívida do demonstrativo de endividamento global. Financiamentos usam o
- * cronograma teórico real (SAC/Price) — parcelas futuras exatas. Dívidas de consumo não
- * têm prazo cadastrado (só saldo e parcela), então o número de parcelas restantes é
- * estimado por saldo_devedor_atual / parcela_mensal — aproximação simples que ignora a
- * composição de juros dentro da própria estimativa de prazo; sempre uma sub ou
- * sobre-estimativa leve, nunca um valor "oficial" do contrato. */
+/** VPL de cada dívida do demonstrativo de endividamento global — o "perfil de risco do
+ * CPF" do usuário. Só considera financiamento de imóvel próprio (regime_patrimonial =
+ * 'proprio'): a dívida de um financiamento em gestão de terceiros não é obrigação
+ * pessoal do usuário, mesma regra de calcularPatrimonioLiquido/calcularComprometimentoRenda
+ * — incluir aqui misturaria dívida de terceiro no risco do CPF do próprio usuário.
+ * Financiamentos usam o cronograma teórico real (SAC/Price) — parcelas futuras exatas.
+ * Dívidas de consumo não têm prazo cadastrado (só saldo e parcela), então o número de
+ * parcelas restantes é estimado por saldo_devedor_atual / parcela_mensal — aproximação
+ * simples que ignora a composição de juros dentro da própria estimativa de prazo;
+ * sempre uma sub ou sobre-estimativa leve, nunca um valor "oficial" do contrato. */
 export function calcularVPLDoEndividamento(db: Database, dataReferencia: string, taxaDescontoMensalPercentual: number): LinhaEndividamentoComVPL[] {
   const imoveis = new Map(listarImoveis(db).map((i) => [i.id, i]));
+  const idsImoveisProprios = new Set(Array.from(imoveis.values()).filter((i) => i.regime_patrimonial === "proprio").map((i) => i.id));
 
-  const financiamentos = listarFinanciamentos(db).map((f): LinhaEndividamentoComVPL => {
-    const parcelasFuturas = gerarCronograma(f)
-      .filter((p) => p.data >= dataReferencia)
-      .map((p) => p.parcela);
-    return {
-      categoria: "financiamento",
-      descricao: `${f.instituicao} — ${imoveis.get(f.imovel_id)?.apelido ?? `imóvel ${f.imovel_id}`}`,
-      saldoDevedor: saldoDevedorFinanciamento(f, dataReferencia),
-      parcelaMensal: parcelaMensalFinanciamento(f, dataReferencia),
-      parcelasRestantesEstimadas: parcelasFuturas.length,
-      vpl: calcularVPLDivida(parcelasFuturas, taxaDescontoMensalPercentual),
-    };
-  });
+  const financiamentos = listarFinanciamentos(db)
+    .filter((f) => idsImoveisProprios.has(f.imovel_id))
+    .map((f): LinhaEndividamentoComVPL => {
+      const parcelasFuturas = gerarCronograma(f)
+        .filter((p) => p.data >= dataReferencia)
+        .map((p) => p.parcela);
+      return {
+        categoria: "financiamento",
+        descricao: `${f.instituicao} — ${imoveis.get(f.imovel_id)?.apelido ?? `imóvel ${f.imovel_id}`}`,
+        saldoDevedor: saldoDevedorFinanciamento(f, dataReferencia),
+        parcelaMensal: parcelaMensalFinanciamento(f, dataReferencia),
+        parcelasRestantesEstimadas: parcelasFuturas.length,
+        vpl: calcularVPLDivida(parcelasFuturas, taxaDescontoMensalPercentual),
+      };
+    });
 
   const dividas = listarDividasConsumo(db).map((d): LinhaEndividamentoComVPL => {
     const parcelasRestantesEstimadas = d.parcela_mensal > 0 ? Math.ceil(d.saldo_devedor_atual / d.parcela_mensal) : 0;

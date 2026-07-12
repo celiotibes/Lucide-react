@@ -49,7 +49,10 @@ export function CaucaoView() {
           <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginBottom: 12 }}>
             Depósito caução não é receita — é obrigação de devolver. Este painel compara o total ainda retido
             (corrigido) contra o caixa disponível hoje, para mostrar se o dinheiro do caução ainda está de fato
-            reservado ou já foi consumido no fluxo de caixa geral (o que gera um passivo descoberto).
+            reservado ou já foi consumido no fluxo de caixa geral (o que gera um passivo descoberto). "Caixa
+            disponível hoje" é a soma de todas as transações lançadas — só é um proxy válido do saldo real se o
+            histórico importado cobrir o período inteiro desde a abertura das contas; se faltar algum mês no
+            meio, a cobertura mostrada aqui pode estar errada.
           </p>
           <div className="kpi-grid" style={{ marginBottom: 10 }}>
             <div className="kpi-tile">

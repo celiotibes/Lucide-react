@@ -138,7 +138,9 @@ export function PatrimonioView() {
           <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginBottom: 24 }}>
             Abaixo de 1,00: o caixa disponível hoje não cobre as parcelas de dívida e cauções exigíveis nos próximos
             12 meses — evidência de que o dinheiro em conta é consumido por compromissos de curto prazo, mesmo com
-            vários imóveis no ativo (ativo imobilizado não é liquidez imediata).
+            vários imóveis no ativo (ativo imobilizado não é liquidez imediata). "Caixa disponível hoje" é a soma de
+            todas as transações lançadas — só é um proxy válido se o histórico importado cobrir o período inteiro
+            desde a abertura das contas; um mês faltando no meio do histórico distorce este índice.
           </p>
         </>
       )}

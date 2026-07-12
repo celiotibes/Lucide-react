@@ -147,6 +147,16 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 
 ## Limitações conhecidas (leia antes de usar com dados reais)
 
+- **Migração de schema** (`src/db/migracoes.ts`): o banco vive persistido no IndexedDB do
+  navegador entre sessões, então uma coluna ou tabela nova adicionada ao `schema.sql` não
+  aparece automaticamente num banco salvo por uma versão anterior do app. `abrirBanco()`
+  e `importarArquivo()` rodam o `schema.sql` atual de novo (idempotente — todo
+  `CREATE TABLE`/`INDEX` usa `IF NOT EXISTS`) e depois `garantirColunasAtualizadas()`,
+  que compara cada tabela contra `PRAGMA table_info` e roda `ALTER TABLE ADD COLUMN` para
+  o que faltar. Verificado importando um backup real gerado com o schema anterior a este
+  módulo de Patrimônio — sem essa migração, editar um imóvel, abrir Patrimônio, Dívidas
+  de consumo ou salvar uma regra quebrava para qualquer usuário com dados salvos antes da
+  mudança.
 - **Simulador de Carnê-Leão** (`src/domain/reports/irpfCarneLeao.ts`): é uma simulação
   para organização/estimativa, não uma apuração fiscal oficial. A tabela progressiva
   mensal do IRPF pré-carregada é a vigente desde 05/2024 (Lei nº 14.848/2024) — pode ter

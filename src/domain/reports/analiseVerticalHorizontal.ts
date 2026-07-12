@@ -47,7 +47,12 @@ function somarDias(dataIso: string, dias: number): string {
  * estável) ou ficou para trás (capacidade contributiva real caindo apesar da receita
  * bruta subir). */
 export function calcularAnaliseHorizontal(db: Database, dataInicio: string, dataFim: string): LinhaAnaliseHorizontal[] {
-  const diasPeriodo = Math.round((new Date(dataFim + "T00:00:00").getTime() - new Date(dataInicio + "T00:00:00").getTime()) / 86400000);
+  // +1 porque dataInicio/dataFim são limites INCLUSIVOS (gerarDre usa "data BETWEEN
+  // dataInicio AND dataFim") — sem o +1, um período de 1 ano civil (365 dias corridos
+  // contando os dois extremos) calcularia diasPeriodo = 364 (diferença exclusiva entre
+  // os timestamps), deslocando a janela anterior em 1 dia e perdendo o alinhamento com
+  // o ano civil equivalente.
+  const diasPeriodo = Math.round((new Date(dataFim + "T00:00:00").getTime() - new Date(dataInicio + "T00:00:00").getTime()) / 86400000) + 1;
   const dataFimAnterior = somarDias(dataInicio, -1);
   const dataInicioAnterior = somarDias(dataFimAnterior, -diasPeriodo);
 

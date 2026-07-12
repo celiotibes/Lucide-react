@@ -35,6 +35,17 @@ function truncar(texto: string, maxCaracteres: number): string {
   return texto.length > maxCaracteres ? `${texto.slice(0, maxCaracteres - 1)}…` : texto;
 }
 
+/** Substitui variantes Unicode de hífen/menos (ex: MINUS SIGN "−" U+2212) por hífen ASCII
+ * antes de desenhar no PDF. A fonte padrão helvetica do jsPDF usa WinAnsiEncoding, que
+ * cobre bem acentuação portuguesa e até travessão/aspas curvas (—, –, ", ") — mas não
+ * esses sinais de menos matemáticos, que quebram o kerning e renderizam letra por letra
+ * (bug real encontrado e corrigido nesta seção). Aplicado a TODO texto que passa por
+ * paragrafo()/linhaTabela(), não só às strings fixas — texto dinâmico (nome de
+ * locatário, descrição bancária crua do OFX) pode conter o mesmo caractere. */
+function sanitizarTextoPdf(texto: string): string {
+  return texto.replace(/[−‐‑‒―]/g, "-").replace(/ /g, " ");
+}
+
 const MARGEM = 18;
 const LARGURA_UTIL = 210 - MARGEM * 2;
 
@@ -72,7 +83,7 @@ class Escritor {
   paragrafo(texto: string) {
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(9.5);
-    const linhas = this.doc.splitTextToSize(texto, LARGURA_UTIL);
+    const linhas = this.doc.splitTextToSize(sanitizarTextoPdf(texto), LARGURA_UTIL);
     for (const linha of linhas) {
       this.quebrarPaginaSeNecessario(5);
       this.doc.text(linha, MARGEM, this.y);
@@ -87,7 +98,7 @@ class Escritor {
     this.doc.setFontSize(9);
     let x = MARGEM;
     colunas.forEach((coluna, indice) => {
-      this.doc.text(coluna, x, this.y, { maxWidth: larguras[indice] });
+      this.doc.text(sanitizarTextoPdf(coluna), x, this.y, { maxWidth: larguras[indice] });
       x += larguras[indice];
     });
     this.y += 5;
@@ -279,10 +290,13 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
     "Este laudo é um apoio à organização documental e não constitui parecer contábil ou pericial formal. Valores, " +
       "critérios de rateio e categorizações devem ser conferidos por um contador ou perito habilitado antes de uso " +
       "em juízo. Divergências identificadas na seção de auditoria forense são indícios estatísticos, não conclusões — " +
-      "cada uma deve ser investigada contra o documento-fonte correspondente. Em síntese: a receita bruta recebida " +
-      "no período (seção 2) não equivale a capacidade contributiva, dado o reembolso de rateio sem natureza de " +
-      "renda, a despesa operacional necessária à manutenção dos imóveis, a alavancagem e o comprometimento de " +
-      "renda com dívida (seção 4) e o passivo de caução ainda a devolver (seção 6).",
+      "cada uma deve ser investigada contra o documento-fonte correspondente. As figuras de \"caixa disponível hoje\" " +
+      "(seções 4 e 6) somam todas as transações lançadas no sistema — são um proxy válido do saldo real apenas se o " +
+      "histórico bancário importado cobrir o período inteiro desde a abertura das contas; um mês faltando no meio " +
+      "do histórico distorce a liquidez corrente e a cobertura de caução mostradas. Em síntese: a receita bruta " +
+      "recebida no período (seção 2) não equivale a capacidade contributiva, dado o reembolso de rateio sem " +
+      "natureza de renda, a despesa operacional necessária à manutenção dos imóveis, a alavancagem e o " +
+      "comprometimento de renda com dívida (seção 4) e o passivo de caução ainda a devolver (seção 6).",
   );
 
   w.espaco(10);

@@ -3,7 +3,7 @@
 
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE contas_bancarias (
+CREATE TABLE IF NOT EXISTS contas_bancarias (
     id              INTEGER PRIMARY KEY,
     banco           TEXT NOT NULL,
     agencia         TEXT,
@@ -14,7 +14,7 @@ CREATE TABLE contas_bancarias (
     observacoes     TEXT
 );
 
-CREATE TABLE imoveis (
+CREATE TABLE IF NOT EXISTS imoveis (
     id              INTEGER PRIMARY KEY,
     apelido         TEXT NOT NULL,              -- ex: "Kitnet 302 - Ed. Aurora"
     tipo            TEXT NOT NULL CHECK (tipo IN ('apartamento', 'kitnet', 'outro')),
@@ -42,7 +42,7 @@ CREATE TABLE imoveis (
     proprietario_nome       TEXT                -- preenchido quando regime_patrimonial = 'gestao_terceiros'
 );
 
-CREATE TABLE financiamentos (
+CREATE TABLE IF NOT EXISTS financiamentos (
     id              INTEGER PRIMARY KEY,
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
     instituicao     TEXT NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE financiamentos (
 -- típica é um relatório Registrato/SCR do Bacen (autoatendimento do cidadão, sem API
 -- pública) ou fatura de cartão: o usuário relança o saldo devedor periodicamente a partir
 -- do próprio relatório, em vez do sistema recalcular amortização sozinho.
-CREATE TABLE dividas_consumo (
+CREATE TABLE IF NOT EXISTS dividas_consumo (
     id                      INTEGER PRIMARY KEY,
     tipo                    TEXT NOT NULL CHECK (tipo IN ('consignado', 'emprestimo_pessoal', 'cartao_parcelado', 'outro')),
     instituicao             TEXT NOT NULL,
@@ -70,7 +70,7 @@ CREATE TABLE dividas_consumo (
     observacoes             TEXT
 );
 
-CREATE TABLE obras (
+CREATE TABLE IF NOT EXISTS obras (
     id              INTEGER PRIMARY KEY,
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
     descricao       TEXT NOT NULL,
@@ -80,14 +80,14 @@ CREATE TABLE obras (
     valor_total     REAL
 );
 
-CREATE TABLE prestadores (
+CREATE TABLE IF NOT EXISTS prestadores (
     id              INTEGER PRIMARY KEY,
     nome            TEXT NOT NULL,
     cpf_cnpj        TEXT,
     servico         TEXT NOT NULL               -- faxina, portaria, gestão de Airbnb, reforma, etc.
 );
 
-CREATE TABLE contratos_locacao (
+CREATE TABLE IF NOT EXISTS contratos_locacao (
     id              INTEGER PRIMARY KEY,
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
     locatario       TEXT NOT NULL,               -- locatário principal; demais partes em contrato_locatarios
@@ -129,7 +129,7 @@ CREATE TABLE contratos_locacao (
 -- Histórico de reajustes efetivamente aplicados — prova documental de que o valor
 -- cobrado em cada período corresponde à regra contratual (fixo na 1ª renovação,
 -- índice nas seguintes), não um valor arbitrário.
-CREATE TABLE contrato_reajustes (
+CREATE TABLE IF NOT EXISTS contrato_reajustes (
     id                  INTEGER PRIMARY KEY,
     contrato_id         INTEGER NOT NULL REFERENCES contratos_locacao(id),
     data_vigencia       DATE NOT NULL,             -- a partir de quando o valor_novo passou a valer
@@ -143,7 +143,7 @@ CREATE TABLE contrato_reajustes (
 -- Locatários e responsáveis financeiros solidários adicionais além do locatário
 -- principal — comum em locação estudantil/compartilhada com múltiplos nomes no
 -- mesmo contrato e responsabilidade solidária integral (art. 275 do Código Civil).
-CREATE TABLE contrato_locatarios (
+CREATE TABLE IF NOT EXISTS contrato_locatarios (
     id              INTEGER PRIMARY KEY,
     contrato_id     INTEGER NOT NULL REFERENCES contratos_locacao(id),
     nome            TEXT NOT NULL,
@@ -154,7 +154,7 @@ CREATE TABLE contrato_locatarios (
 );
 
 -- Depósito caução (Lei do Inquilinato, art. 38 — limite de 3 meses de aluguel).
-CREATE TABLE caucoes (
+CREATE TABLE IF NOT EXISTS caucoes (
     id                  INTEGER PRIMARY KEY,
     contrato_id         INTEGER NOT NULL REFERENCES contratos_locacao(id),
     valor_inicial       REAL NOT NULL,
@@ -169,21 +169,21 @@ CREATE TABLE caucoes (
 
 -- Série mensal de índices para correção monetária (caução, reajuste de aluguel).
 -- Popule com valores reais do BACEN/IBGE antes de calcular em produção.
-CREATE TABLE indices_economicos (
+CREATE TABLE IF NOT EXISTS indices_economicos (
     indice          TEXT NOT NULL CHECK (indice IN ('poupanca', 'igpm', 'ipca')),
     mes_referencia  DATE NOT NULL,                -- primeiro dia do mês, ex: 2023-01-01
     taxa_mensal     REAL NOT NULL,                -- percentual do mês, ex: 0.62 (= 0,62%)
     PRIMARY KEY (indice, mes_referencia)
 );
 
-CREATE TABLE plano_de_contas (
+CREATE TABLE IF NOT EXISTS plano_de_contas (
     codigo          TEXT PRIMARY KEY,            -- ex: "3.1.02"
     descricao       TEXT NOT NULL,
     grupo           TEXT NOT NULL CHECK (grupo IN ('receita', 'despesa', 'pessoal', 'transferencia')),
     natureza        TEXT NOT NULL CHECK (natureza IN ('debito', 'credito'))
 );
 
-CREATE TABLE transacoes (
+CREATE TABLE IF NOT EXISTS transacoes (
     id                  INTEGER PRIMARY KEY,
     conta_id            INTEGER NOT NULL REFERENCES contas_bancarias(id),
     data                DATE NOT NULL,
@@ -200,7 +200,7 @@ CREATE TABLE transacoes (
     UNIQUE (conta_id, fitid)
 );
 
-CREATE TABLE rateios (
+CREATE TABLE IF NOT EXISTS rateios (
     id              INTEGER PRIMARY KEY,
     transacao_id    INTEGER NOT NULL REFERENCES transacoes(id),
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
@@ -211,7 +211,7 @@ CREATE TABLE rateios (
 
 -- Regras de categorização aprendidas a partir de categorizações manuais (ver
 -- src/domain/categorize/regrasAprendidas.ts no app web).
-CREATE TABLE regras_categorizacao (
+CREATE TABLE IF NOT EXISTS regras_categorizacao (
     id                  INTEGER PRIMARY KEY,
     padrao              TEXT NOT NULL,             -- regex aplicado a descricao_original (case-insensitive)
     plano_conta_codigo  TEXT NOT NULL REFERENCES plano_de_contas(codigo),
@@ -226,7 +226,7 @@ CREATE TABLE regras_categorizacao (
 -- arquivo (heurística determinística — regex sobre o texto extraído por PDF/OCR) e usados
 -- para sugerir o casamento com transações; nome_contraparte pode vir da extração ou ser
 -- preenchido manualmente.
-CREATE TABLE documentos (
+CREATE TABLE IF NOT EXISTS documentos (
     id                          INTEGER PRIMARY KEY,
     tipo                        TEXT NOT NULL CHECK (tipo IN ('contrato', 'recibo', 'fatura', 'nota_fiscal', 'pedido_comercial', 'boleto', 'outro')),
     arquivo_nome                TEXT NOT NULL,
@@ -244,7 +244,7 @@ CREATE TABLE documentos (
 -- A que imóvel(is) o documento se refere, com percentual quando o gasto/produto é
 -- compartilhado entre mais de um (ex: nota fiscal de material usado em 2 kitnets).
 -- percentual em 0-100 (não em fração 0-1, ao contrário de `rateios.percentual`).
-CREATE TABLE documento_imoveis (
+CREATE TABLE IF NOT EXISTS documento_imoveis (
     id              INTEGER PRIMARY KEY,
     documento_id    INTEGER NOT NULL REFERENCES documentos(id),
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
@@ -254,7 +254,7 @@ CREATE TABLE documento_imoveis (
 -- Vínculo sugerido/confirmado entre um documento e uma transação bancária — score é a
 -- confiança do casamento automático (valor/data/CNPJ), nunca aplicado sem confirmação
 -- explícita do usuário (status muda de 'sugerido' para 'confirmado' só nesse momento).
-CREATE TABLE documento_transacoes (
+CREATE TABLE IF NOT EXISTS documento_transacoes (
     id              INTEGER PRIMARY KEY,
     documento_id    INTEGER NOT NULL REFERENCES documentos(id),
     transacao_id    INTEGER NOT NULL REFERENCES transacoes(id),
@@ -263,13 +263,13 @@ CREATE TABLE documento_transacoes (
     UNIQUE (documento_id, transacao_id)
 );
 
-CREATE INDEX idx_transacoes_data ON transacoes(data);
-CREATE INDEX idx_transacoes_imovel ON transacoes(imovel_id);
-CREATE INDEX idx_transacoes_contrato ON transacoes(contrato_id);
-CREATE INDEX idx_caucoes_contrato ON caucoes(contrato_id);
-CREATE INDEX idx_contrato_locatarios_contrato ON contrato_locatarios(contrato_id);
-CREATE INDEX idx_contrato_reajustes_contrato ON contrato_reajustes(contrato_id);
-CREATE INDEX idx_documentos_data ON documentos(data_documento);
-CREATE INDEX idx_documento_imoveis_documento ON documento_imoveis(documento_id);
-CREATE INDEX idx_documento_transacoes_documento ON documento_transacoes(documento_id);
-CREATE INDEX idx_documento_transacoes_transacao ON documento_transacoes(transacao_id);
+CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);
+CREATE INDEX IF NOT EXISTS idx_transacoes_imovel ON transacoes(imovel_id);
+CREATE INDEX IF NOT EXISTS idx_transacoes_contrato ON transacoes(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_caucoes_contrato ON caucoes(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_locatarios_contrato ON contrato_locatarios(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_contrato_reajustes_contrato ON contrato_reajustes(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_data ON documentos(data_documento);
+CREATE INDEX IF NOT EXISTS idx_documento_imoveis_documento ON documento_imoveis(documento_id);
+CREATE INDEX IF NOT EXISTS idx_documento_transacoes_documento ON documento_transacoes(documento_id);
+CREATE INDEX IF NOT EXISTS idx_documento_transacoes_transacao ON documento_transacoes(transacao_id);
