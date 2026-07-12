@@ -1,0 +1,301 @@
+# Alerting Rules - Sistema de Gerenciamento de Aluguéis
+# Arquivo: backend/monitoring/alerts.yaml
+# Integrado com Prometheus e AlertManager
+
+groups:
+  - name: api-service
+    interval: 30s
+    rules:
+      # ========================================================================
+      # 1. ALERTAS DE LATÊNCIA
+      # ========================================================================
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, http_request_duration_seconds_bucket) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+          team: backend
+        annotations:
+          summary: "Latência P95 acima de 500ms"
+          description: "P95 latência de requisições HTTP está em {{ $value }}s (limite: 500ms) em {{ $labels.instance }}"
+          dashboard: "http://grafana:3000/d/api-latency"
+          runbook: "https://wiki.example.com/runbooks/high-latency"
+
+      - alert: CriticalLatencyP99
+        expr: histogram_quantile(0.99, http_request_duration_seconds_bucket) > 1.0
+        for: 3m
+        labels:
+          severity: critical
+          service: api
+          team: backend
+        annotations:
+          summary: "Latência P99 CRÍTICA acima de 1s"
+          description: "P99 latência está em {{ $value }}s (limite: 1000ms) em {{ $labels.instance }}"
+          dashboard: "http://grafana:3000/d/api-latency"
+          action: "Executar investigation script e escalate para oncall"
+
+      # ========================================================================
+      # 2. ALERTAS DE TAXA DE ERRO
+      # ========================================================================
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+          team: backend
+        annotations:
+          summary: "Taxa de erro acima de 1%"
+          description: "Taxa de erro em endpoints HTTP: {{ $value | humanizePercentage }} em {{ $labels.instance }}"
+          dashboard: "http://grafana:3000/d/error-rates"
+
+      - alert: CriticalErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: api
+          team: backend
+        annotations:
+          summary: "Taxa de erro CRÍTICA acima de 5%"
+          description: "{{ $value | humanizePercentage }} de requisições estão falhando"
+          action: "Iniciar incident response imediatamente"
+
+      # ========================================================================
+      # 3. ALERTAS DE THROUGHPUT
+      # ========================================================================
+
+      - alert: LowThroughput
+        expr: sum(rate(http_requests_total[5m])) < 10
+        for: 10m
+        labels:
+          severity: warning
+          service: api
+          team: backend
+        annotations:
+          summary: "Throughput baixo detectado"
+          description: "Throughput está apenas {{ $value | humanize }} req/s (limite mínimo: 10 req/s)"
+          dashboard: "http://grafana:3000/d/throughput"
+
+      # ========================================================================
+      # 4. ALERTAS DE BANCO DE DADOS
+      # ========================================================================
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_activity_active / pg_settings_max_connections > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          service: postgres
+          team: database
+        annotations:
+          summary: "Pool de conexões PostgreSQL quase esgotado"
+          description: "{{ $value | humanizePercentage }} de conexões estão em uso (limite: 90%)"
+          action: "Aumentar DATABASE_POOL_SIZE ou investigar conexões abertas"
+
+      - alert: SlowDatabaseQueries
+        expr: rate(pg_slow_queries_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: postgres
+          team: database
+        annotations:
+          summary: "Queries PostgreSQL lentas detectadas"
+          description: "{{ $value | humanize }} queries lentas por segundo"
+          action: "Revisar pg_stat_statements e implementar índices"
+
+      - alert: DatabaseDiskSpaceRunningOut
+        expr: pg_disk_free_bytes / 1024 / 1024 / 1024 < 10
+        for: 5m
+        labels:
+          severity: critical
+          service: postgres
+          team: database
+        annotations:
+          summary: "Espaço em disco PostgreSQL crítico"
+          description: "Menos de {{ $value }}GB livres no disco de dados"
+          action: "Executar vacuum, deletar logs antigos, ou aumentar espaço"
+
+      # ========================================================================
+      # 5. ALERTAS DE CACHE (REDIS)
+      # ========================================================================
+
+      - alert: RedisMemoryUsageHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          team: cache
+        annotations:
+          summary: "Uso de memória Redis acima de 85%"
+          description: "{{ $value | humanizePercentage }} de memória em uso"
+          action: "Revisar cache TTL ou aumentar memória Redis"
+
+      - alert: RedisEvictions
+        expr: rate(redis_evicted_keys_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          team: cache
+        annotations:
+          summary: "Redis está evictando chaves"
+          description: "{{ $value }} evictions/s detectadas"
+          action: "Aumentar maxmemory ou otimizar cache strategy"
+
+      - alert: RedisConnectionRefused
+        expr: redis_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: redis
+          team: cache
+        annotations:
+          summary: "Não consegue conectar ao Redis"
+          description: "Redis não está respondendo em {{ $labels.instance }}"
+          action: "Verificar status do Redis e reiniciar se necessário"
+
+      # ========================================================================
+      # 6. ALERTAS DE WORKERS (BULLMQ)
+      # ========================================================================
+
+      - alert: WorkerQueueBacklog
+        expr: bullmq_queue_size > 1000
+        for: 10m
+        labels:
+          severity: warning
+          service: workers
+          team: backend
+        annotations:
+          summary: "Fila de workers com backlog"
+          description: "Fila {{ $labels.queue_name }} possui {{ $value }} jobs pendentes"
+          action: "Aumentar número de workers ou investigar jobs travados"
+
+      - alert: WorkerProcessingFailures
+        expr: rate(worker_processing_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: workers
+          team: backend
+        annotations:
+          summary: "Failures em processamento de workers"
+          description: "{{ $value | humanize }} erros por segundo na fila {{ $labels.queue_name }}"
+          action: "Revisar logs de workers e implementar retry logic"
+
+      # ========================================================================
+      # 7. ALERTAS DE RESOURCE
+      # ========================================================================
+
+      - alert: HighCPUUsage
+        expr: node_cpu_usage_percent > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+          team: infrastructure
+        annotations:
+          summary: "CPU acima de 80%"
+          description: "CPU em {{ $labels.instance }} está em {{ $value }}%"
+          dashboard: "http://grafana:3000/d/node-exporter"
+
+      - alert: HighMemoryUsage
+        expr: node_memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+          team: infrastructure
+        annotations:
+          summary: "Memória acima de 85%"
+          description: "Memória em {{ $labels.instance }} está em {{ $value }}%"
+          action: "Investigar memory leaks ou aumentar servidor"
+
+      - alert: DiskSpaceRunningOut
+        expr: node_filesystem_free_percent < 10
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+          team: infrastructure
+        annotations:
+          summary: "Espaço em disco menor que 10%"
+          description: "Disco {{ $labels.device }} em {{ $labels.instance }} está {{ 100 - $value }}% cheio"
+          action: "Limpar espaço ou expandir disco"
+
+      # ========================================================================
+      # 8. ALERTAS DE DISPONIBILIDADE
+      # ========================================================================
+
+      - alert: ServiceDown
+        expr: up{job="api-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: api
+          team: backend
+        annotations:
+          summary: "Serviço API INDISPONÍVEL"
+          description: "{{ $labels.instance }} não está respondendo por mais de 2 minutos"
+          action: "Verificar logs, reiniciar serviço ou executar failover"
+
+      - alert: HealthCheckFailing
+        expr: health_check_status == 0
+        for: 3m
+        labels:
+          severity: critical
+          service: api
+          team: backend
+        annotations:
+          summary: "Health check FALHANDO"
+          description: "Health check em {{ $labels.instance }} está falhando"
+          action: "Escalate para on-call immediately"
+
+      # ========================================================================
+      # 9. ALERTAS DE PERFORMANCE
+      # ========================================================================
+
+      - alert: PerformanceDegradation
+        expr: |
+          (histogram_quantile(0.95, http_request_duration_seconds_bucket{endpoint="/properties"})
+           /
+           histogram_quantile(0.95, http_request_duration_seconds_bucket{endpoint="/properties"} offset 1h)) > 1.5
+        for: 15m
+        labels:
+          severity: warning
+          service: api
+          team: backend
+        annotations:
+          summary: "Performance degradou 50%+ em 1 hora"
+          description: "Endpoint {{ $labels.endpoint }} está 50% mais lento"
+          action: "Revisar recentes mudanças ou executar query optimization"
+
+# ============================================================================
+# INSTRUÇÕES PARA INTEGRAÇÃO
+# ============================================================================
+
+# 1. Copiar este arquivo para /etc/prometheus/alerts.yaml
+# 2. Certificar que prometheus.yml aponta para este arquivo
+# 3. Reiniciar Prometheus: systemctl restart prometheus
+# 4. Validar sintaxe: promtool check rules alerts.yaml
+# 5. Configurar AlertManager em /etc/alertmanager/alertmanager.yml
+# 6. Testar alert: curl -X POST http://localhost:9093/api/v1/alerts -H "Content-Type: application/json" -d '[...]'
+
+# ============================================================================
+# SEVERITY LEVELS
+# ============================================================================
+
+# Critical: Escalate immediately, page on-call
+# Warning: Monitor closely, escalate if persists
+# Info: Log for future analysis

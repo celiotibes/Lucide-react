@@ -1,0 +1,404 @@
+# Grafana Dashboards Configuration
+# Arquivo: backend/monitoring/grafana-dashboards-config.yaml
+# Usado para provisionar dashboards no Grafana automaticamente
+
+apiVersion: 1
+
+# List of dashboard providers to load dashboards from
+providers:
+  - name: 'Rental Sync Dashboards'
+    orgId: 1
+    folder: 'Rental Sync'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+
+# ============================================================================
+# DASHBOARDS DEFINIÇÃO
+# ============================================================================
+
+dashboards:
+  # Dashboard 1: Overview
+  - id: 'overview'
+    title: '📊 System Overview'
+    description: 'Overall system health and key metrics'
+    tags: ['production', 'overview', 'critical']
+    timezone: 'browser'
+    refresh: '30s'
+    time:
+      from: 'now-6h'
+      to: 'now'
+    panels:
+      # Row 1: Service Status
+      - title: 'Service Status'
+        type: 'stat'
+        targets:
+          - expr: 'up{job="api-backend"}'
+        colors:
+          - value: null
+            color: 'green'
+          - value: 0
+            color: 'red'
+
+      - title: 'Current Users'
+        type: 'stat'
+        targets:
+          - expr: 'rate(http_requests_total[5m])'
+
+      - title: 'Error Rate'
+        type: 'graph'
+        targets:
+          - expr: 'rate(http_requests_total{status=~"5.."}[5m]) * 100'
+        yaxes:
+          - format: 'percent'
+            label: 'Error %'
+
+      - title: 'P95 Latency'
+        type: 'graph'
+        targets:
+          - expr: 'histogram_quantile(0.95, http_request_duration_seconds_bucket)'
+        yaxes:
+          - format: 'ms'
+            label: 'Latency (ms)'
+
+  # Dashboard 2: API Performance
+  - id: 'api-performance'
+    title: '⚡ API Performance'
+    description: 'API latency, throughput, and error metrics'
+    tags: ['production', 'api', 'performance']
+    refresh: '15s'
+    panels:
+      - title: 'Latency Percentiles'
+        type: 'graph'
+        targets:
+          - expr: 'histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))'
+            legendFormat: 'P50'
+          - expr: 'histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))'
+            legendFormat: 'P95'
+          - expr: 'histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))'
+            legendFormat: 'P99'
+        yaxes:
+          - format: 'ms'
+            label: 'Latency'
+
+      - title: 'Requests per Second'
+        type: 'graph'
+        targets:
+          - expr: 'rate(http_requests_total[5m])'
+        yaxes:
+          - format: 'reqps'
+
+      - title: 'Status Code Distribution'
+        type: 'piechart'
+        targets:
+          - expr: 'sum by (status) (rate(http_requests_total[5m]))'
+
+      - title: 'Endpoint Performance'
+        type: 'table'
+        targets:
+          - expr: 'topk(10, histogram_quantile(0.95, http_request_duration_seconds_bucket) by (endpoint))'
+        transformations:
+          - id: 'organize'
+            options:
+              excludeByName:
+                Time: true
+
+  # Dashboard 3: Database
+  - id: 'database'
+    title: '🗄️ Database'
+    description: 'PostgreSQL performance and health'
+    tags: ['production', 'database']
+    refresh: '30s'
+    panels:
+      - title: 'Active Connections'
+        type: 'graph'
+        targets:
+          - expr: 'pg_stat_activity_active'
+
+      - title: 'Slow Queries'
+        type: 'graph'
+        targets:
+          - expr: 'rate(pg_slow_queries_total[5m])'
+
+      - title: 'Query Duration'
+        type: 'graph'
+        targets:
+          - expr: 'rate(pg_query_duration_seconds_sum[5m]) / rate(pg_query_duration_seconds_count[5m])'
+
+      - title: 'Cache Hit Ratio'
+        type: 'stat'
+        targets:
+          - expr: 'pg_cache_hit_ratio'
+        thresholds:
+          - value: 0.9
+            color: 'green'
+          - value: 0.7
+            color: 'yellow'
+          - value: 0
+            color: 'red'
+
+      - title: 'Disk Usage'
+        type: 'gauge'
+        targets:
+          - expr: '(pg_database_size_bytes / pg_database_max_size_bytes) * 100'
+        fieldConfig:
+          defaults:
+            unit: 'percent'
+            max: 100
+
+      - title: 'Replication Lag'
+        type: 'graph'
+        targets:
+          - expr: 'pg_replication_lag_seconds'
+        yaxes:
+          - format: 's'
+            label: 'Lag (seconds)'
+
+  # Dashboard 4: Redis Cache
+  - id: 'redis'
+    title: '💾 Redis Cache'
+    description: 'Redis performance and memory usage'
+    tags: ['production', 'cache']
+    refresh: '30s'
+    panels:
+      - title: 'Memory Usage'
+        type: 'gauge'
+        targets:
+          - expr: '(redis_memory_used_bytes / redis_memory_max_bytes) * 100'
+        fieldConfig:
+          defaults:
+            unit: 'percent'
+            max: 100
+            thresholds:
+              - value: 0
+                color: 'green'
+              - value: 80
+                color: 'yellow'
+              - value: 90
+                color: 'red'
+
+      - title: 'Cache Hit Rate'
+        type: 'stat'
+        targets:
+          - expr: 'redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total) * 100'
+
+      - title: 'Commands per Second'
+        type: 'graph'
+        targets:
+          - expr: 'rate(redis_commands_processed_total[5m])'
+
+      - title: 'Connected Clients'
+        type: 'stat'
+        targets:
+          - expr: 'redis_connected_clients'
+
+      - title: 'Evictions'
+        type: 'graph'
+        targets:
+          - expr: 'rate(redis_evicted_keys_total[5m])'
+
+  # Dashboard 5: Workers & Jobs
+  - id: 'workers'
+    title: '⚙️ Workers & Jobs'
+    description: 'BullMQ workers and job queue metrics'
+    tags: ['production', 'workers']
+    refresh: '30s'
+    panels:
+      - title: 'Queue Sizes'
+        type: 'graph'
+        targets:
+          - expr: 'bullmq_queue_size'
+            legendFormat: '{{queue_name}}'
+
+      - title: 'Jobs Processing'
+        type: 'graph'
+        targets:
+          - expr: 'rate(bullmq_jobs_processed_total[5m])'
+            legendFormat: '{{queue_name}}'
+
+      - title: 'Job Processing Time'
+        type: 'graph'
+        targets:
+          - expr: 'histogram_quantile(0.95, bullmq_job_duration_seconds_bucket)'
+            legendFormat: 'P95'
+
+      - title: 'Failed Jobs'
+        type: 'graph'
+        targets:
+          - expr: 'rate(bullmq_jobs_failed_total[5m])'
+            legendFormat: '{{queue_name}}'
+
+      - title: 'Job Success Rate'
+        type: 'stat'
+        targets:
+          - expr: '(rate(bullmq_jobs_processed_total[5m]) - rate(bullmq_jobs_failed_total[5m])) / rate(bullmq_jobs_processed_total[5m]) * 100'
+
+  # Dashboard 6: Infrastructure
+  - id: 'infrastructure'
+    title: '🖥️ Infrastructure'
+    description: 'System resources (CPU, Memory, Disk)'
+    tags: ['production', 'infrastructure']
+    refresh: '30s'
+    panels:
+      - title: 'CPU Usage'
+        type: 'graph'
+        targets:
+          - expr: 'node_cpu_usage_percent'
+            legendFormat: '{{instance}}'
+        yaxes:
+          - format: 'percent'
+            max: 100
+
+      - title: 'Memory Usage'
+        type: 'graph'
+        targets:
+          - expr: 'node_memory_usage_percent'
+            legendFormat: '{{instance}}'
+        yaxes:
+          - format: 'percent'
+            max: 100
+
+      - title: 'Disk Usage'
+        type: 'graph'
+        targets:
+          - expr: 'node_filesystem_usage_percent'
+            legendFormat: '{{device}}'
+        yaxes:
+          - format: 'percent'
+            max: 100
+
+      - title: 'Network I/O'
+        type: 'graph'
+        targets:
+          - expr: 'rate(node_network_bytes_total[5m])'
+            legendFormat: '{{device}} - {{direction}}'
+
+      - title: 'Disk I/O'
+        type: 'graph'
+        targets:
+          - expr: 'rate(node_disk_bytes_total[5m])'
+            legendFormat: '{{device}} - {{operation}}'
+
+  # Dashboard 7: Business Metrics
+  - id: 'business'
+    title: '📈 Business Metrics'
+    description: 'Application-level business metrics'
+    tags: ['production', 'business']
+    refresh: '5m'
+    panels:
+      - title: 'Properties Listed'
+        type: 'stat'
+        targets:
+          - expr: 'sum(properties_active_total)'
+
+      - title: 'Active Listings'
+        type: 'stat'
+        targets:
+          - expr: 'sum(listings_active_total)'
+
+      - title: 'Listings Synced (24h)'
+        type: 'stat'
+        targets:
+          - expr: 'increase(listings_synced_total[24h])'
+
+      - title: 'Leads Created (24h)'
+        type: 'stat'
+        targets:
+          - expr: 'increase(leads_created_total[24h])'
+
+      - title: 'Lead Conversion Rate'
+        type: 'stat'
+        targets:
+          - expr: '(sum(leads_closed_total) / sum(leads_inquiry_total)) * 100'
+        fieldConfig:
+          defaults:
+            unit: 'percent'
+
+      - title: 'Platform Distribution'
+        type: 'piechart'
+        targets:
+          - expr: 'sum by (platform) (listings_active_total)'
+
+  # Dashboard 8: Alerts Status
+  - id: 'alerts'
+    title: '🚨 Alerts Status'
+    description: 'Current active alerts'
+    tags: ['production', 'alerts']
+    refresh: '30s'
+    panels:
+      - title: 'Active Alerts (FIRING)'
+        type: 'table'
+        targets:
+          - expr: 'ALERTS{alertstate="firing"}'
+        transformations:
+          - id: 'organize'
+            options:
+              indexByName:
+                alertname: 0
+                severity: 1
+                instance: 2
+
+      - title: 'Alert Count by Severity'
+        type: 'barchart'
+        targets:
+          - expr: 'count by (severity) (ALERTS{alertstate="firing"})'
+
+# ============================================================================
+# ALERTS DASHBOARD
+# ============================================================================
+
+# Configuração de alertas a monitorar no Grafana
+
+alerting:
+  # Notificação para Slack
+  - name: 'Slack Notifications'
+    type: 'slack'
+    isDefault: true
+    settings:
+      url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+      channel: '#alerts'
+      mention_users: '["@on-call"]'
+
+  # Notificação para PagerDuty
+  - name: 'PagerDuty'
+    type: 'pagerduty'
+    settings:
+      integrationKey: 'YOUR_PAGERDUTY_KEY'
+
+  # Notificação para Email
+  - name: 'Email'
+    type: 'email'
+    settings:
+      addresses: 'team@example.com'
+
+# ============================================================================
+# SETUP INSTRUCTIONS
+# ============================================================================
+
+# 1. Copiar este arquivo para /etc/grafana/provisioning/dashboards/
+# 2. Reiniciar Grafana: systemctl restart grafana-server
+# 3. Dashboards serão provisionados automaticamente
+#
+# Para criar manualmente:
+# 1. Acessar http://localhost:3000 (padrão: admin/admin)
+# 2. Create -> Dashboard
+# 3. Add panels com queries Prometheus acima
+# 4. Save and share
+
+# ============================================================================
+# TROUBLESHOOTING
+# ============================================================================
+
+# Dashboard não aparece?
+# - Verificar logs: journalctl -u grafana-server -f
+# - Verificar permissões: ls -la /etc/grafana/provisioning/
+# - Validar YAML: yamllint grafana-dashboards-config.yaml
+
+# Gráfico não mostra dados?
+# - Verificar data source Prometheus
+# - Testar query em Prometheus UI
+# - Verificar labels das métricas
+# - Verificar date range selecionado

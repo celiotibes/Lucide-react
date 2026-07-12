@@ -1,0 +1,216 @@
+# AlertManager Configuration - Sistema de Gerenciamento de Aluguéis
+# Arquivo: backend/monitoring/alertmanager.yml
+
+global:
+  resolve_timeout: 5m
+  slack_api_url_file: '/etc/alertmanager/slack-webhook'
+
+# Controla como os alertas são agrupados
+route:
+  # Receptor padrão
+  receiver: 'devops-team'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  # Sub-routes para diferentes severidades e serviços
+  routes:
+    # CRÍTICO - Escalar imediatamente
+    - match:
+        severity: critical
+      receiver: 'critical-pagerduty'
+      group_wait: 0s
+      repeat_interval: 15m
+      continue: true
+
+    # PostgreSQL - Database team
+    - match:
+        service: postgres
+      receiver: 'database-team'
+      group_wait: 1m
+      continue: true
+
+    # Redis - Cache team
+    - match:
+        service: redis
+      receiver: 'cache-team'
+      group_wait: 1m
+      continue: true
+
+    # Workers - Backend team
+    - match:
+        service: workers
+      receiver: 'backend-team'
+      group_wait: 2m
+      continue: true
+
+    # System/Infrastructure
+    - match:
+        service: system
+      receiver: 'infrastructure-team'
+      group_wait: 5m
+      continue: true
+
+# Configuração de receptores
+receivers:
+  # DevOps Team - Warnings
+  - name: 'devops-team'
+    slack_configs:
+      - channel: '#devops-alerts'
+        title: '🚨 Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'View Dashboard'
+            url: '{{ .Alerts.Firing | first | .Annotations.dashboard }}'
+
+  # Critical - PagerDuty para escalação
+  - name: 'critical-pagerduty'
+    pagerduty_configs:
+      - service_key_file: '/etc/alertmanager/pagerduty-service-key'
+        description: '{{ .GroupLabels.alertname }}'
+        details:
+          severity: '{{ .GroupLabels.severity }}'
+          service: '{{ .GroupLabels.service }}'
+          instance: '{{ range .Alerts.Firing }}{{ .Labels.instance }}{{ end }}'
+          summary: '{{ .Alerts.Firing | first | .Annotations.summary }}'
+          action: '{{ .Alerts.Firing | first | .Annotations.action }}'
+    slack_configs:
+      - channel: '#critical-incidents'
+        title: '🔴 CRITICAL ALERT: {{ .GroupLabels.alertname }}'
+        text: '{{ .Alerts.Firing | first | .Annotations.description }}\n\n*Action:* {{ .Alerts.Firing | first | .Annotations.action }}'
+        send_resolved: true
+        color: 'danger'
+
+  # Database Team
+  - name: 'database-team'
+    slack_configs:
+      - channel: '#database-alerts'
+        title: '📊 Database Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ .Alerts.Firing | first | .Annotations.description }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'Runbook'
+            url: '{{ .Alerts.Firing | first | .Annotations.runbook }}'
+
+  # Cache Team (Redis)
+  - name: 'cache-team'
+    slack_configs:
+      - channel: '#cache-alerts'
+        title: '💾 Redis Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ .Alerts.Firing | first | .Annotations.description }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+
+  # Backend Team (Workers)
+  - name: 'backend-team'
+    slack_configs:
+      - channel: '#backend-alerts'
+        title: '⚙️ Worker Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ .Alerts.Firing | first | .Annotations.description }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+
+  # Infrastructure Team (System)
+  - name: 'infrastructure-team'
+    slack_configs:
+      - channel: '#infrastructure-alerts'
+        title: '🖥️ System Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ .Alerts.Firing | first | .Annotations.description }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+
+  # Webhook para integração customizada
+  - name: 'webhook-integration'
+    webhook_configs:
+      - url: 'http://localhost:3000/webhooks/alerts'
+        send_resolved: true
+        headers:
+          Authorization: 'Bearer {{ .Alerts.Firing | first | .ExternalURL }}'
+
+# Inhibition rules - regras para inibir alertas redundantes
+inhibit_rules:
+  # Não notificar sobre warnings se critical já foi notificado
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']
+
+  # Não notificar se serviço já está down
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match:
+      severity: 'warning'
+    equal: ['service']
+
+  # Não notificar sobre latência se database está down
+  - source_match:
+      alertname: 'DatabaseConnectionPoolExhausted'
+    target_match:
+      alertname: 'HighLatencyP95'
+    equal: ['service']
+
+# ============================================================================
+# INSTRUÇÕES DE SETUP
+# ============================================================================
+
+# 1. Instalar AlertManager:
+#    wget https://github.com/prometheus/alertmanager/releases/download/v0.24.0/alertmanager-0.24.0.linux-amd64.tar.gz
+#    tar xvfz alertmanager-0.24.0.linux-amd64.tar.gz
+#    sudo mv alertmanager-0.24.0.linux-amd64 /opt/alertmanager
+
+# 2. Criar arquivos de secrets:
+#    echo "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX" > /etc/alertmanager/slack-webhook
+#    echo "service_key_from_pagerduty" > /etc/alertmanager/pagerduty-service-key
+#    sudo chmod 600 /etc/alertmanager/*
+
+# 3. Iniciar AlertManager:
+#    /opt/alertmanager/alertmanager --config.file=/etc/alertmanager/alertmanager.yml
+
+# 4. Validar configuração:
+#    amtool config routes
+
+# ============================================================================
+# WEBHOOK PAYLOAD EXAMPLE
+# ============================================================================
+
+# POST http://localhost:3000/webhooks/alerts
+# {
+#   "status": "firing",
+#   "alerts": [
+#     {
+#       "status": "firing",
+#       "labels": {
+#         "alertname": "HighLatencyP95",
+#         "severity": "warning",
+#         "service": "api"
+#       },
+#       "annotations": {
+#         "summary": "Latência P95 acima de 500ms",
+#         "description": "P95 latência está em 0.523s (limite: 500ms)"
+#       }
+#     }
+#   ]
+# }
+
+# ============================================================================
+# TESTING ALERTS
+# ============================================================================
+
+# 1. Test Slack Integration:
+#    amtool alert add TestAlert warning "Test message"
+
+# 2. View alerts in AlertManager UI:
+#    http://localhost:9093
+
+# 3. Silence alerts temporarily:
+#    amtool silence add alertname=HighLatencyP95 duration=1h
+
+# 4. Verify rules are loaded:
+#    curl http://localhost:9090/api/v1/rules

@@ -1,0 +1,115 @@
+# Prometheus Configuration - Sistema de Gerenciamento de Aluguéis
+# Arquivo: backend/monitoring/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'rental-sync-monitor'
+    environment: 'staging'
+
+# Arquivo de alertas
+rule_files:
+  - 'alerts.yaml'
+
+scrape_configs:
+  # API Backend
+  - job_name: 'api-backend'
+    static_configs:
+      - targets: ['localhost:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Database (PostgreSQL)
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['localhost:9187']
+    scrape_interval: 15s
+
+  # Redis
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['localhost:9121']
+    scrape_interval: 15s
+
+  # Node Exporter (System Metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+    scrape_interval: 15s
+
+  # Worker Processes
+  - job_name: 'bullmq-workers'
+    static_configs:
+      - targets: ['localhost:3001']
+    metrics_path: '/metrics/workers'
+    scrape_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'localhost:9093'
+
+# ============================================================================
+# Métricas Customizadas para Aplicação
+# ============================================================================
+# Essas métricas devem ser expostas pela aplicação em /metrics
+
+# http_requests_total
+#   - Métrica Counter
+#   - Labels: method, endpoint, status
+#   - Propósito: Contar total de requisições
+
+# http_request_duration_seconds
+#   - Métrica Histogram
+#   - Labels: method, endpoint
+#   - Buckets: 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10
+#   - Propósito: Latência de requisições
+
+# db_query_duration_seconds
+#   - Métrica Histogram
+#   - Labels: query_type (select, insert, update, delete)
+#   - Propósito: Performance de queries
+
+# redis_operation_duration_seconds
+#   - Métrica Histogram
+#   - Labels: operation (get, set, del)
+#   - Propósito: Performance de Redis
+
+# active_connections
+#   - Métrica Gauge
+#   - Labels: type (database, redis, http)
+#   - Propósito: Conexões ativas
+
+# worker_queue_size
+#   - Métrica Gauge
+#   - Labels: queue_name (sync-listings, update-pricing, lead-management)
+#   - Propósito: Tamanho de filas de workers
+
+# worker_processing_duration_seconds
+#   - Métrica Histogram
+#   - Labels: queue_name, status (success, failed)
+#   - Propósito: Tempo de processamento de jobs
+
+# cache_hits_total
+#   - Métrica Counter
+#   - Labels: cache_type (property-dashboard, listing-performance)
+#   - Propósito: Taxa de acerto de cache
+
+# ============================================================================
+# Configuração de Remote Storage (Opcional - para produção)
+# ============================================================================
+
+# remote_write:
+#   - url: 'https://prometheus-blocks-prod-us-central1.grafana.net/api/prom/push'
+#     basic_auth:
+#       username: 'usuario'
+#       password_file: '/etc/prometheus/secrets/grafana-password'
+
+# remote_read:
+#   - url: 'https://prometheus-blocks-prod-us-central1.grafana.net/api/prom/read'
+#     basic_auth:
+#       username: 'usuario'
+#       password_file: '/etc/prometheus/secrets/grafana-password'
