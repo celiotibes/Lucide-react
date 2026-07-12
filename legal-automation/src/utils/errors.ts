@@ -1,6 +1,9 @@
 import { logger } from './logger';
 
 export class AppError extends Error {
+  public timestamp: string;
+  public traceId?: string;
+
   constructor(
     public statusCode: number,
     public message: string,
@@ -9,6 +12,7 @@ export class AppError extends Error {
   ) {
     super(message);
     this.name = this.constructor.name;
+    this.timestamp = new Date().toISOString();
     Error.captureStackTrace(this, this.constructor);
   }
 
@@ -18,7 +22,17 @@ export class AppError extends Error {
       code: this.code,
       message: this.message,
       details: this.details,
+      timestamp: this.timestamp,
+      traceId: this.traceId,
     };
+  }
+
+  /**
+   * Set trace ID for debugging
+   */
+  setTraceId(traceId: string): this {
+    this.traceId = traceId;
+    return this;
   }
 }
 

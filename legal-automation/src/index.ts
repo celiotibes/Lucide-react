@@ -10,6 +10,8 @@ import { AppError, handleError } from '@utils/errors';
 import { projudiSoapClient } from '@projudi/soapClient';
 import { initDatabase, closeDatabase } from '@/database/connection';
 import { verifyToken } from '@middlewares/authMiddleware';
+import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
+import { addTraceIdMiddleware, requestContextMiddleware, requestTimingMiddleware, traceContextMiddleware } from '@utils/tracing';
 import { webSocketManager } from '@services/WebSocketManager';
 
 // Controllers
@@ -78,6 +80,12 @@ import jurimetriaRouter from '@/api/routes/jurimetriaRouter';
 const app: Express = express();
 
 validateConfig();
+
+// Tracing & Request Context (must be early in middleware chain)
+app.use(traceContextMiddleware);
+app.use(addTraceIdMiddleware);
+app.use(requestContextMiddleware);
+app.use(requestTimingMiddleware);
 
 // Middleware de segurança
 app.use(helmet());
@@ -206,32 +214,11 @@ app.use('/api/v1/financial', verifyToken, financialRouter);
 // Phase 4: Jurimetry & Analytics
 app.use('/api/v1/jurimetria', verifyToken, jurimetriaRouter);
 
-// 404 Handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    statusCode: 404,
-    code: 'NOT_FOUND',
-    message: `Rota não encontrada: ${req.method} ${req.path}`,
-  });
-});
+// 404 Handler (must come before error handler)
+app.use(notFoundHandler);
 
-// Error Handler
-app.use((err: Error | AppError, req: Request, res: Response, next: NextFunction) => {
-  const appError = handleError(err);
-
-  logger.error(
-    {
-      statusCode: appError.statusCode,
-      code: appError.code,
-      message: appError.message,
-      path: req.path,
-      method: req.method,
-    },
-    `${appError.code}`,
-  );
-
-  res.status(appError.statusCode).json(appError.toJSON());
-});
+// Global Error Handler (must be last)
+app.use(errorHandler);
 
 // Initialize services
 async function initializeServices(): Promise<void> {
