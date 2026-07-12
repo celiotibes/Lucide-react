@@ -54,6 +54,8 @@ import healthRouter from '@/api/routes/healthRouter';
 import swaggerRouter from '@/api/routes/swaggerRouter';
 import webSocketRouter from '@/api/routes/webSocketRouter';
 import { webSocketEventService } from '@services/WebSocketEventService';
+import graphqlRouter from '@/api/routes/graphqlRouter';
+import { initializeApolloServer } from '@/api/graphql/apolloServer';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -214,6 +216,9 @@ app.use('/api/v1/financial', verifyToken, financialRouter);
 // Phase 4: Jurimetry & Analytics
 app.use('/api/v1/jurimetria', verifyToken, jurimetriaRouter);
 
+// Phase 4: GraphQL API
+app.use('/graphql', graphqlRouter);
+
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
 
@@ -259,6 +264,15 @@ async function startServer(): Promise<void> {
 
     const httpServer = createServer(app);
 
+    // Inicializar Apollo Server para GraphQL
+    try {
+      const apolloServer = await initializeApolloServer(app, httpServer);
+      logger.info('✓ Apollo Server inicializado com sucesso');
+    } catch (error) {
+      logger.error({ err: error }, 'Erro ao inicializar Apollo Server');
+      // Continue com o servidor mesmo se GraphQL falhar
+    }
+
     // Inicializar WebSocket
     await webSocketManager.initialize(httpServer);
 
@@ -280,6 +294,8 @@ async function startServer(): Promise<void> {
       logger.info(`🔐 Auth: http://localhost:${config.port}/api/v1/auth/login`);
       logger.info(`💚 Health check: http://localhost:${config.port}/health`);
       logger.info(`📡 WebSocket: ws://localhost:${config.port}?userId=USER_ID&token=TOKEN`);
+      logger.info(`📊 GraphQL IDE: http://localhost:${config.port}/graphql`);
+      logger.info(`📖 GraphQL Docs: http://localhost:${config.port}/graphql/docs/queries`);
     });
 
     // Graceful shutdown

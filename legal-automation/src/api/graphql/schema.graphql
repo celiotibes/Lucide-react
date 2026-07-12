@@ -1,0 +1,745 @@
+# GraphQL Schema for Legal Automation Platform
+# Queries for data retrieval, Mutations for changes, Subscriptions for real-time
+
+# ============================================================================
+# SCALAR TYPES
+# ============================================================================
+
+scalar DateTime
+scalar JSON
+
+# ============================================================================
+# ENUMS
+# ============================================================================
+
+enum ClientStatus {
+  PROSPECT
+  LEAD
+  CUSTOMER
+  INACTIVE
+}
+
+enum CaseStatus {
+  REGISTERED
+  IN_PROGRESS
+  CLOSED
+  ARCHIVED
+}
+
+enum CaseOutcome {
+  FAVORABLE
+  UNFAVORABLE
+  PARTIAL
+  DISMISSED
+  SETTLED
+  PENDING
+}
+
+enum ContractStatus {
+  DRAFT
+  REVIEW
+  PENDING_SIGNATURE
+  SIGNED
+  EXECUTED
+  ARCHIVED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  ARCHIVED
+}
+
+enum PaymentMethod {
+  TRANSFERENCIA
+  BOLETO
+  CARTAO
+  PIX
+  CHEQUE
+  OTHER
+}
+
+# ============================================================================
+# TYPES
+# ============================================================================
+
+type Client {
+  id: ID!
+  name: String!
+  email: String!
+  phone: String
+  cpf: String
+  cnpj: String
+  status: ClientStatus!
+  caseTypes: [String!]!
+  address: String
+  city: String
+  state: String
+  zipCode: String
+  contactPerson: String
+  industry: String
+  companySize: String
+  notes: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  cases: [LegalCase!]!
+  contracts: [Contract!]!
+  invoices: [Invoice!]!
+  caseCount: Int!
+  activeContractCount: Int!
+  totalInvoiced: Float!
+  totalPaid: Float!
+}
+
+type LegalCase {
+  id: ID!
+  caseNumber: String!
+  clientId: ID!
+  caseType: String!
+  courtName: String!
+  judgeName: String
+  processNumber: String
+  status: CaseStatus!
+  outcome: CaseOutcome
+  outcomeDescription: String
+  successRate: Float!
+  estimatedDuration: Int
+  filingDate: String!
+  hearingDate: String
+  deadlineDate: String!
+  amountClaimed: Float!
+  amountAwarded: Float
+  lawyerAssigned: String
+  notes: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  client: Client!
+  intimations: [Intimation!]!
+  analytics: CaseAnalytics
+  predictions: CasePredictions
+  invoices: [Invoice!]!
+}
+
+type Contract {
+  id: ID!
+  clientId: ID!
+  title: String!
+  description: String
+  content: String!
+  status: ContractStatus!
+  version: Int!
+  signatureRequired: Boolean!
+  signers: [ContractSigner!]!
+  signedAt: DateTime
+  executedAt: DateTime
+  archivedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  client: Client!
+}
+
+type ContractSigner {
+  id: ID!
+  name: String!
+  email: String!
+  signedAt: DateTime
+  signature: String
+}
+
+type Invoice {
+  id: ID!
+  invoiceNumber: String!
+  clientId: ID!
+  caseId: ID
+  amount: Float!
+  amountPaid: Float!
+  currency: String!
+  status: InvoiceStatus!
+  description: String
+  dueDate: String!
+  issuedDate: String!
+  paidDate: String
+  overdueDays: Int
+  paymentMethod: PaymentMethod
+  receiptUrl: String
+  notes: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  client: Client!
+  case: LegalCase
+}
+
+type Intimation {
+  id: ID!
+  caseId: ID!
+  documentType: String!
+  title: String!
+  content: String
+  receivedDate: DateTime!
+  deadlineDate: DateTime!
+  notificationMethod: String!
+  senderName: String!
+  documentUrl: String
+  isProcessed: Boolean!
+  processedAt: DateTime
+  notes: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  case: LegalCase!
+}
+
+type CaseAnalytics {
+  id: ID!
+  caseId: ID!
+  successRate: Float!
+  avgDurationDays: Int!
+  avgCost: Float
+  favorableOutcomes: Int!
+  unfavorableOutcomes: Int!
+  partialOutcomes: Int!
+  settledOutcomes: Int!
+  dismissedOutcomes: Int!
+  pendingOutcomes: Int!
+  predictedOutcome: String
+  predictionConfidence: Float
+  riskFactors: [String!]!
+  opportunityFactors: [String!]!
+  similarCasesCount: Int!
+  precedentCases: [String!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  # Relations
+  case: LegalCase!
+}
+
+type CasePredictions {
+  id: ID!
+  caseId: ID!
+  predictedOutcome: String!
+  confidenceScore: Float!
+  probabilityFavorable: Float!
+  probabilityUnfavorable: Float!
+  probabilitySettlement: Float!
+  estimatedDurationDays: Int
+  estimatedCost: Float
+  riskLevel: String!
+  recommendation: String
+  factorsPositive: [String!]!
+  factorsNegative: [String!]!
+  modelVersion: String!
+  predictionDate: DateTime!
+  createdAt: DateTime!
+
+  # Relations
+  case: LegalCase!
+}
+
+type CourtAnalytics {
+  id: ID!
+  courtName: String!
+  totalCases: Int!
+  favorableCases: Int!
+  unfavorableCases: Int!
+  successRate: Float!
+  avgDurationDays: Int!
+  avgCaseValue: Float!
+  totalValueProcessed: Float!
+  judges: [String!]!
+  recentDecisions: [String!]!
+  specialization: [String!]!
+  processingTimeDays: Int
+  backlogEstimate: Int
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type LawyerPerformance {
+  id: ID!
+  lawyerName: String!
+  totalCases: Int!
+  casesWon: Int!
+  casesLost: Int!
+  casesSettled: Int!
+  winRate: Float!
+  avgCaseDuration: Float!
+  avgSettlementTime: Float!
+  specializations: [String!]!
+  activeCases: Int!
+  totalValueHandled: Float!
+  clientSatisfactionScore: Float!
+  experienceYears: Int!
+  certifications: [String!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type FinancialAnalytics {
+  id: ID!
+  periodMonth: String!
+  totalInvoiced: Float!
+  totalReceived: Float!
+  collectionRate: Float!
+  overdueAmount: Float!
+  overdueCount: Int!
+  avgPaymentTimeDays: Int!
+  revenueByType: JSON
+  revenueByClient: JSON
+  topClients: [String!]!
+  paymentMethods: JSON
+  invoiceCount: Int!
+  createdAt: DateTime!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+  totalCount: Int!
+}
+
+type ClientEdge {
+  cursor: String!
+  node: Client!
+}
+
+type ClientConnection {
+  edges: [ClientEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CaseEdge {
+  cursor: String!
+  node: LegalCase!
+}
+
+type CaseConnection {
+  edges: [CaseEdge!]!
+  pageInfo: PageInfo!
+}
+
+type InvoiceEdge {
+  cursor: String!
+  node: Invoice!
+}
+
+type InvoiceConnection {
+  edges: [InvoiceEdge!]!
+  pageInfo: PageInfo!
+}
+
+# ============================================================================
+# QUERY
+# ============================================================================
+
+type Query {
+  # Clients
+  client(id: ID!): Client
+  clients(
+    status: ClientStatus
+    first: Int
+    after: String
+    search: String
+  ): ClientConnection!
+
+  # Cases
+  case(id: ID!): LegalCase
+  cases(
+    clientId: ID
+    status: CaseStatus
+    caseType: String
+    first: Int
+    after: String
+  ): CaseConnection!
+  casesByDeadline(
+    daysUntilDeadline: Int
+    first: Int
+  ): [LegalCase!]!
+
+  # Contracts
+  contract(id: ID!): Contract
+  contracts(
+    clientId: ID
+    status: ContractStatus
+    first: Int
+    after: String
+  ): [Contract!]!
+
+  # Invoices
+  invoice(id: ID!): Invoice
+  invoices(
+    clientId: ID
+    status: InvoiceStatus
+    first: Int
+    after: String
+  ): InvoiceConnection!
+  overdueInvoices(
+    first: Int
+  ): [Invoice!]!
+
+  # Intimations
+  intimation(id: ID!): Intimation
+  intimations(
+    caseId: ID
+    first: Int
+    after: String
+  ): [Intimation!]!
+  upcomingIntimations(
+    daysUntilDeadline: Int
+    first: Int
+  ): [Intimation!]!
+
+  # Analytics
+  courtAnalytics(courtName: String!): CourtAnalytics
+  lawyerPerformance(lawyerName: String!): LawyerPerformance
+  financialAnalytics(periodMonth: String!): FinancialAnalytics
+  caseAnalytics(caseId: ID!): CaseAnalytics
+  casePredictions(caseId: ID!): CasePredictions
+
+  # Dashboard
+  dashboard: DashboardMetrics!
+  metrics: SystemMetrics!
+}
+
+type DashboardMetrics {
+  totalClients: Int!
+  totalCases: Int!
+  activeCases: Int!
+  closedCases: Int!
+  totalInvoiced: Float!
+  totalCollected: Float!
+  collectionRate: Float!
+  upcomingDeadlines: Int!
+  overdueInvoices: Int!
+  caseSuccessRate: Float!
+  averageCaseDuration: Int!
+}
+
+type SystemMetrics {
+  activeConnections: Int!
+  requestsPerSecond: Float!
+  averageResponseTime: Float!
+  errorRate: Float!
+  uptime: Float!
+  databaseConnections: Int!
+  queuedMessages: Int!
+}
+
+# ============================================================================
+# MUTATIONS
+# ============================================================================
+
+type Mutation {
+  # Clients
+  createClient(input: CreateClientInput!): CreateClientPayload!
+  updateClient(id: ID!, input: UpdateClientInput!): UpdateClientPayload!
+  deleteClient(id: ID!): DeleteClientPayload!
+
+  # Cases
+  createCase(input: CreateCaseInput!): CreateCasePayload!
+  updateCase(id: ID!, input: UpdateCaseInput!): UpdateCasePayload!
+  deleteCase(id: ID!): DeleteCasePayload!
+  updateCaseStatus(id: ID!, status: CaseStatus!): UpdateCasePayload!
+  recordCaseOutcome(id: ID!, input: RecordOutcomeInput!): UpdateCasePayload!
+
+  # Contracts
+  createContract(input: CreateContractInput!): CreateContractPayload!
+  updateContract(id: ID!, input: UpdateContractInput!): UpdateContractPayload!
+  signContract(id: ID!, input: SignContractInput!): SignContractPayload!
+  deleteContract(id: ID!): DeleteContractPayload!
+
+  # Invoices
+  createInvoice(input: CreateInvoiceInput!): CreateInvoicePayload!
+  updateInvoice(id: ID!, input: UpdateInvoiceInput!): UpdateInvoicePayload!
+  recordPayment(invoiceId: ID!, input: RecordPaymentInput!): RecordPaymentPayload!
+  deleteInvoice(id: ID!): DeleteInvoicePayload!
+
+  # Intimations
+  createIntimation(input: CreateIntimationInput!): CreateIntimationPayload!
+  markIntimationProcessed(id: ID!): UpdateIntimationPayload!
+  deleteIntimation(id: ID!): DeleteIntimationPayload!
+}
+
+# Input Types
+input CreateClientInput {
+  name: String!
+  email: String!
+  phone: String
+  cpf: String
+  cnpj: String
+  status: ClientStatus!
+  caseTypes: [String!]!
+  address: String
+  city: String
+  state: String
+  zipCode: String
+  contactPerson: String
+  industry: String
+  companySize: String
+  notes: String
+}
+
+input UpdateClientInput {
+  name: String
+  phone: String
+  status: ClientStatus
+  caseTypes: [String!]
+  address: String
+  city: String
+  state: String
+  industry: String
+  notes: String
+}
+
+input CreateCaseInput {
+  clientId: ID!
+  caseNumber: String!
+  caseType: String!
+  courtName: String!
+  judgeName: String
+  processNumber: String
+  filingDate: String!
+  deadlineDate: String!
+  amountClaimed: Float!
+  lawyerAssigned: String
+  notes: String
+}
+
+input UpdateCaseInput {
+  caseType: String
+  courtName: String
+  judgeName: String
+  status: CaseStatus
+  notes: String
+}
+
+input RecordOutcomeInput {
+  outcome: CaseOutcome!
+  outcomeDescription: String
+  amountAwarded: Float
+}
+
+input CreateContractInput {
+  clientId: ID!
+  title: String!
+  description: String
+  content: String!
+  signatureRequired: Boolean!
+}
+
+input UpdateContractInput {
+  title: String
+  description: String
+  content: String
+  status: ContractStatus
+}
+
+input SignContractInput {
+  signerName: String!
+  signerEmail: String!
+  signatureData: String
+}
+
+input CreateInvoiceInput {
+  clientId: ID!
+  caseId: ID
+  invoiceNumber: String!
+  amount: Float!
+  description: String
+  dueDate: String!
+  issuedDate: String!
+  paymentMethod: PaymentMethod
+  notes: String
+}
+
+input UpdateInvoiceInput {
+  amount: Float
+  dueDate: String
+  paymentMethod: PaymentMethod
+  notes: String
+}
+
+input RecordPaymentInput {
+  amountPaid: Float!
+  paymentMethod: PaymentMethod!
+  receiptUrl: String
+  notes: String
+}
+
+input CreateIntimationInput {
+  caseId: ID!
+  documentType: String!
+  title: String!
+  content: String
+  receivedDate: DateTime!
+  deadlineDate: DateTime!
+  notificationMethod: String!
+  senderName: String!
+  documentUrl: String
+  notes: String
+}
+
+# Payloads
+type CreateClientPayload {
+  client: Client!
+  errors: [String!]!
+  success: Boolean!
+}
+
+type UpdateClientPayload {
+  client: Client
+  errors: [String!]!
+  success: Boolean!
+}
+
+type DeleteClientPayload {
+  success: Boolean!
+  errors: [String!]!
+}
+
+type CreateCasePayload {
+  case: LegalCase!
+  errors: [String!]!
+  success: Boolean!
+}
+
+type UpdateCasePayload {
+  case: LegalCase
+  errors: [String!]!
+  success: Boolean!
+}
+
+type DeleteCasePayload {
+  success: Boolean!
+  errors: [String!]!
+}
+
+type CreateContractPayload {
+  contract: Contract!
+  errors: [String!]!
+  success: Boolean!
+}
+
+type UpdateContractPayload {
+  contract: Contract
+  errors: [String!]!
+  success: Boolean!
+}
+
+type SignContractPayload {
+  contract: Contract
+  errors: [String!]!
+  success: Boolean!
+}
+
+type DeleteContractPayload {
+  success: Boolean!
+  errors: [String!]!
+}
+
+type CreateInvoicePayload {
+  invoice: Invoice!
+  errors: [String!]!
+  success: Boolean!
+}
+
+type UpdateInvoicePayload {
+  invoice: Invoice
+  errors: [String!]!
+  success: Boolean!
+}
+
+type RecordPaymentPayload {
+  invoice: Invoice
+  errors: [String!]!
+  success: Boolean!
+}
+
+type DeleteInvoicePayload {
+  success: Boolean!
+  errors: [String!]!
+}
+
+type CreateIntimationPayload {
+  intimation: Intimation!
+  errors: [String!]!
+  success: Boolean!
+}
+
+type UpdateIntimationPayload {
+  intimation: Intimation
+  errors: [String!]!
+  success: Boolean!
+}
+
+type DeleteIntimationPayload {
+  success: Boolean!
+  errors: [String!]!
+}
+
+# ============================================================================
+# SUBSCRIPTIONS
+# ============================================================================
+
+type Subscription {
+  # Case events
+  caseUpdated(caseId: ID!): LegalCase!
+  caseCreated: LegalCase!
+  caseStatusChanged(caseId: ID!): CaseStatusUpdate!
+
+  # Contract events
+  contractSigned(contractId: ID!): Contract!
+  contractCreated: Contract!
+
+  # Payment events
+  paymentReceived(invoiceId: ID!): Invoice!
+  invoiceCreated: Invoice!
+
+  # Deadline events
+  deadlineApproaching(daysUntilDeadline: Int!): DeadlineAlert!
+  intimationReceived(caseId: ID!): Intimation!
+
+  # System events
+  analyticsUpdated: AnalyticsUpdate!
+  systemAlert: SystemAlert!
+}
+
+type CaseStatusUpdate {
+  caseId: ID!
+  previousStatus: CaseStatus!
+  newStatus: CaseStatus!
+  timestamp: DateTime!
+}
+
+type DeadlineAlert {
+  type: String! # "CASE_DEADLINE" | "INTIMATION_DEADLINE" | "INVOICE_DUE"
+  entityId: ID!
+  daysRemaining: Int!
+  deadline: String!
+  timestamp: DateTime!
+}
+
+type AnalyticsUpdate {
+  timestamp: DateTime!
+  metrics: DashboardMetrics!
+}
+
+type SystemAlert {
+  level: String! # "INFO" | "WARNING" | "ERROR"
+  message: String!
+  timestamp: DateTime!
+}
