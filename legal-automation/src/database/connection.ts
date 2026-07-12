@@ -1,60 +1,32 @@
 import { Pool, PoolClient } from 'pg';
 import { logger } from '@utils/logger';
 import { config } from '@utils/config';
-import { allMigrations } from './models';
+import { poolManager } from '@database/poolManager';
+import { migrationRunner } from '@database/migrationRunner';
 
 let pool: Pool | null = null;
 
 export async function initDatabase(): Promise<Pool> {
-  if (pool) {
-    return pool;
-  }
-
   try {
-    pool = new Pool({
-      connectionString: config.database_url || 'postgresql://legaluser:legalpass@localhost:5432/legal_automation',
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+    await poolManager.initialize();
+    pool = poolManager.getPool();
 
-    pool.on('error', (error: Error) => {
-      logger.error({ err: error }, 'Erro não esperado no pool PostgreSQL');
-    });
+    logger.info('✓ Conectado ao PostgreSQL');
 
-    const client = await pool.connect();
-    try {
-      await client.query('SELECT NOW()');
-      logger.info('✓ Conectado ao PostgreSQL');
-    } finally {
-      client.release();
+    // Run migrations using migration runner
+    await migrationRunner.initialize();
+    const migrations = await migrationRunner.runPending();
+
+    if (migrations.length > 0) {
+      logger.info({ count: migrations.length }, '✓ Migrations completadas');
+    } else {
+      logger.info('✓ Database schema is up to date');
     }
-
-    await runMigrations(pool);
 
     return pool;
   } catch (error) {
     logger.error({ err: error }, 'Erro ao conectar com banco de dados');
     throw error;
-  }
-}
-
-async function runMigrations(pool: Pool): Promise<void> {
-  const client = await pool.connect();
-
-  try {
-    logger.info('Rodando migrations...');
-
-    for (const migration of allMigrations) {
-      await client.query(migration);
-    }
-
-    logger.info('✓ Migrations completadas');
-  } catch (error) {
-    logger.error({ err: error }, 'Erro ao rodar migrations');
-    throw error;
-  } finally {
-    client.release();
   }
 }
 
@@ -73,15 +45,13 @@ export async function query(text: string, params?: any[]): Promise<any> {
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (pool) {
-    await pool.end();
-    pool = null;
-    logger.info('Pool PostgreSQL fechado');
-  }
+  await poolManager.close();
+  pool = null;
+  logger.info('Pool PostgreSQL fechado');
 }
 
 export function getPool(): Pool | null {
-  return pool;
+  return pool || (poolManager.isInitialized() ? poolManager.getPool() : null);
 }
 
 // SQLite compatibility wrapper
@@ -93,11 +63,15 @@ export function prepare(sql: string) {
     },
     get: (...params: any[]) => {
       if (!pool) throw new Error('Pool não inicializado');
-      return pool.query(convertPlaceholders(sql), params).then((res: any) => res.rows[0]);
+      return pool
+        .query(convertPlaceholders(sql), params)
+        .then((res: any) => res.rows[0]);
     },
     all: (...params: any[]) => {
       if (!pool) throw new Error('Pool não inicializado');
-      return pool.query(convertPlaceholders(sql), params.length > 0 ? params : []).then((res: any) => res.rows);
+      return pool
+        .query(convertPlaceholders(sql), params.length > 0 ? params : [])
+        .then((res: any) => res.rows);
     },
   };
 }

@@ -138,53 +138,199 @@ export class InMemoryAdapter<T extends Entity> implements PersistenceAdapter<T> 
 }
 
 /**
- * PostgreSQL adapter (future implementation)
+ * PostgreSQL adapter (production implementation)
  */
 export class PostgreSQLAdapter<T extends Entity> implements PersistenceAdapter<T> {
   private connectionString: string;
   private tableName: string;
+  private pool: any;
 
-  constructor(connectionString: string, tableName: string) {
+  constructor(connectionString: string, tableName: string, pool?: any) {
     this.connectionString = connectionString;
     this.tableName = tableName;
+    this.pool = pool;
   }
 
   async create(entity: T): Promise<T> {
-    logger.info({ tableName: this.tableName, id: entity.id }, 'CREATE not yet implemented');
-    throw new Error('PostgreSQL adapter not yet implemented');
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
+    }
+
+    const columns = Object.keys(entity).filter((key) => key !== 'id');
+    const values = columns.map((col) => entity[col as keyof T]);
+    const placeholders = columns.map((_, i) => `$${i + 2}`).join(', ');
+    const columnList = columns.join(', ');
+
+    const sql = `
+      INSERT INTO ${this.tableName} (id, ${columnList}, "createdAt", "updatedAt")
+      VALUES ($1, ${placeholders}, NOW(), NOW())
+      RETURNING *
+    `;
+
+    try {
+      const result = await this.pool.query(sql, [entity.id, ...values]);
+      logger.debug({ tableName: this.tableName, id: entity.id }, 'Entity created in PostgreSQL');
+      return this.mapRowToEntity(result.rows[0]);
+    } catch (error) {
+      logger.error({ tableName: this.tableName, error }, 'Failed to create entity');
+      throw error;
+    }
   }
 
   async read(id: string): Promise<T | null> {
-    logger.info({ tableName: this.tableName, id }, 'READ not yet implemented');
-    throw new Error('PostgreSQL adapter not yet implemented');
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
+    }
+
+    const sql = `SELECT * FROM ${this.tableName} WHERE id = $1`;
+
+    try {
+      const result = await this.pool.query(sql, [id]);
+      if (result.rows.length === 0) {
+        return null;
+      }
+      return this.mapRowToEntity(result.rows[0]);
+    } catch (error) {
+      logger.error({ tableName: this.tableName, id, error }, 'Failed to read entity');
+      throw error;
+    }
   }
 
   async update(id: string, updates: Partial<T>): Promise<T> {
-    logger.info({ tableName: this.tableName, id }, 'UPDATE not yet implemented');
-    throw new Error('PostgreSQL adapter not yet implemented');
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
+    }
+
+    const updateEntries = Object.entries(updates).filter(([key]) => key !== 'id' && key !== 'createdAt');
+    if (updateEntries.length === 0) {
+      const existing = await this.read(id);
+      if (!existing) throw new Error(`Entity with id ${id} not found`);
+      return existing;
+    }
+
+    const setClause = updateEntries.map(([, ], i) => `"${updateEntries[i][0]}" = $${i + 2}`).join(', ');
+    const values = updateEntries.map(([, v]) => v);
+
+    const sql = `
+      UPDATE ${this.tableName}
+      SET ${setClause}, "updatedAt" = NOW()
+      WHERE id = $1
+      RETURNING *
+    `;
+
+    try {
+      const result = await this.pool.query(sql, [id, ...values]);
+      if (result.rows.length === 0) {
+        throw new Error(`Entity with id ${id} not found`);
+      }
+      logger.debug({ tableName: this.tableName, id }, 'Entity updated in PostgreSQL');
+      return this.mapRowToEntity(result.rows[0]);
+    } catch (error) {
+      logger.error({ tableName: this.tableName, id, error }, 'Failed to update entity');
+      throw error;
+    }
   }
 
   async delete(id: string): Promise<boolean> {
-    logger.info({ tableName: this.tableName, id }, 'DELETE not yet implemented');
-    throw new Error('PostgreSQL adapter not yet implemented');
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
+    }
+
+    const sql = `DELETE FROM ${this.tableName} WHERE id = $1`;
+
+    try {
+      const result = await this.pool.query(sql, [id]);
+      const deleted = result.rowCount > 0;
+      if (deleted) {
+        logger.debug({ tableName: this.tableName, id }, 'Entity deleted from PostgreSQL');
+      }
+      return deleted;
+    } catch (error) {
+      logger.error({ tableName: this.tableName, id, error }, 'Failed to delete entity');
+      throw error;
+    }
   }
 
-  async list(filter?: Record<string, any>, limit?: number, offset?: number): Promise<T[]> {
-    logger.info({ tableName: this.tableName }, 'LIST not yet implemented');
-    throw new Error('PostgreSQL adapter not yet implemented');
+  async list(filter?: Record<string, any>, limit: number = 100, offset: number = 0): Promise<T[]> {
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
+    }
+
+    let sql = `SELECT * FROM ${this.tableName}`;
+    const values: any[] = [];
+
+    if (filter && Object.keys(filter).length > 0) {
+      const whereClauses = Object.entries(filter).map(([key, value], i) => {
+        values.push(value);
+        return `"${key}" = $${i + 1}`;
+      });
+      sql += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    sql += ` LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+    values.push(limit, offset);
+
+    try {
+      const result = await this.pool.query(sql, values);
+      return result.rows.map((row) => this.mapRowToEntity(row));
+    } catch (error) {
+      logger.error({ tableName: this.tableName, error }, 'Failed to list entities');
+      throw error;
+    }
   }
 
   async count(filter?: Record<string, any>): Promise<number> {
-    logger.info({ tableName: this.tableName }, 'COUNT not yet implemented');
-    throw new Error('PostgreSQL adapter not yet implemented');
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
+    }
+
+    let sql = `SELECT COUNT(*) as count FROM ${this.tableName}`;
+    const values: any[] = [];
+
+    if (filter && Object.keys(filter).length > 0) {
+      const whereClauses = Object.entries(filter).map(([key, value], i) => {
+        values.push(value);
+        return `"${key}" = $${i + 1}`;
+      });
+      sql += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    try {
+      const result = await this.pool.query(sql, values);
+      return parseInt(result.rows[0].count, 10);
+    } catch (error) {
+      logger.error({ tableName: this.tableName, error }, 'Failed to count entities');
+      throw error;
+    }
   }
 
   async flush(): Promise<void> {
-    logger.info({ tableName: this.tableName }, 'FLUSH not yet implemented');
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
+    }
+
+    try {
+      await this.pool.query(`TRUNCATE TABLE ${this.tableName} CASCADE`);
+      logger.debug({ tableName: this.tableName }, 'PostgreSQL table truncated');
+    } catch (error) {
+      logger.error({ tableName: this.tableName, error }, 'Failed to flush table');
+      throw error;
+    }
   }
 
   async close(): Promise<void> {
-    logger.info({ tableName: this.tableName }, 'PostgreSQL adapter closed');
+    if (this.pool) {
+      await this.pool.end();
+      logger.info({ tableName: this.tableName }, 'PostgreSQL adapter closed');
+    }
+  }
+
+  private mapRowToEntity(row: any): T {
+    return {
+      ...row,
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt),
+    } as T;
   }
 }
 
