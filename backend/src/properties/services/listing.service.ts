@@ -112,6 +112,9 @@ export class ListingService {
     highlights: string[],
     amenitiesText: string
   ): Promise<Listing> {
+    const startTime = Date.now();
+    Logger.debug('listing-service', 'Updating listing content', { id, titleLength: title.length });
+
     const result = await this.pool.query(
       `UPDATE listings SET
         title = $1, description = $2, highlights = $3, amenities_text = $4,
@@ -121,14 +124,19 @@ export class ListingService {
     );
 
     if (result.rows.length === 0) {
+      Logger.error('listing-service', 'Listing not found for content update', new Error(`Listing ${id} not found`));
       throw new Error(`Listing ${id} not found`);
     }
 
-    Logger.info('listing-service', 'Updated listing content', { id });
+    const duration = Date.now() - startTime;
+    Logger.time('listing-service', 'Listing content updated', duration, { id });
     return result.rows[0];
   }
 
   async updateListingPricing(id: string, basePrice: number, strategy: 'static' | 'dynamic' | 'seasonal'): Promise<Listing> {
+    const startTime = Date.now();
+    Logger.debug('listing-service', 'Updating listing pricing', { id, basePrice, strategy });
+
     const result = await this.pool.query(
       `UPDATE listings SET
         base_price = $1, price_strategy = $2, updated_at = NOW(), sync_status = 'pending'
@@ -137,9 +145,12 @@ export class ListingService {
     );
 
     if (result.rows.length === 0) {
+      Logger.error('listing-service', 'Listing not found for pricing update', new Error(`Listing ${id} not found`));
       throw new Error(`Listing ${id} not found`);
     }
 
+    const duration = Date.now() - startTime;
+    Logger.time('listing-service', 'Listing pricing updated', duration, { id, basePrice, strategy });
     return result.rows[0];
   }
 
@@ -232,6 +243,9 @@ export class ListingService {
   }
 
   async getListingPerformance(id: string): Promise<Record<string, unknown>> {
+    const startTime = Date.now();
+    Logger.debug('listing-service', 'Getting listing performance metrics', { id });
+
     const result = await this.pool.query(
       `SELECT
         views_count,
@@ -244,7 +258,7 @@ export class ListingService {
       [id]
     );
 
-    return result.rows[0] || {
+    const performance = result.rows[0] || {
       views_count: 0,
       clicks_count: 0,
       bookings_count: 0,
@@ -252,6 +266,11 @@ export class ListingService {
       conversion_rate: 0,
       booking_rate: 0,
     };
+
+    const duration = Date.now() - startTime;
+    Logger.time('listing-service', 'Performance metrics retrieved', duration, { id });
+
+    return performance;
   }
 
   async deleteListing(id: string): Promise<void> {

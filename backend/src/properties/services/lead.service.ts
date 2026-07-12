@@ -195,6 +195,9 @@ export class LeadService {
   }
 
   async getFunnelStats(propertyId?: string): Promise<LeadFunnelStats> {
+    const startTime = Date.now();
+    Logger.info('lead-service', 'Calculating funnel statistics', { propertyId });
+
     let query = 'SELECT stage, COUNT(*) as count FROM leads WHERE is_active = true';
     const params: unknown[] = [];
 
@@ -247,13 +250,22 @@ export class LeadService {
     const closureResult = await this.pool.query(closureQuery, propertyId ? [propertyId] : []);
     const avgDaysToClose = closureResult.rows[0]?.days_to_close || 0;
 
-    return {
+    const result = {
       total_leads: totalLeads,
       by_stage: byStage,
       conversion_rate_inquiry_to_close: parseFloat(conversionRate.toFixed(2)),
       average_days_to_close: Math.round(avgDaysToClose),
       by_channel: byChannel,
     };
+
+    const duration = Date.now() - startTime;
+    Logger.time('lead-service', 'Funnel statistics calculated', duration, {
+      propertyId,
+      totalLeads,
+      conversionRate: result.conversion_rate_inquiry_to_close,
+    });
+
+    return result;
   }
 
   async getLeadsNeedingFollowUp(hoursAgo = 24): Promise<Lead[]> {

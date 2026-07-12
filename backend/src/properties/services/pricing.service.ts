@@ -16,6 +16,7 @@ export class PricingService {
   constructor(private pool: Pool) {}
 
   async calculateOptimalPrice(input: PricingInput): Promise<number> {
+    const startTime = Date.now();
     const {
       occupancyRate,
       basePrice,
@@ -24,6 +25,8 @@ export class PricingService {
       seasonalPeriod,
       marketSegment,
     } = input;
+
+    Logger.debug('pricing-service', 'Calculating optimal price', { input });
 
     let multiplier = 1.0;
 
@@ -63,7 +66,15 @@ export class PricingService {
     // Round to nearest 5
     optimizedPrice = Math.round(optimizedPrice / 5) * 5;
 
-    return Math.max(minPrice, optimizedPrice);
+    const finalPrice = Math.max(minPrice, optimizedPrice);
+    const duration = Date.now() - startTime;
+    Logger.time('pricing-service', 'Optimal price calculated', duration, {
+      basePrice,
+      finalPrice,
+      multiplier: parseFloat(multiplier.toFixed(3)),
+    });
+
+    return finalPrice;
   }
 
   async updateListingDynamicPrice(listingId: string, newPrice: number, changePercentage: number): Promise<Listing> {
@@ -88,6 +99,9 @@ export class PricingService {
   }
 
   async analyzePricing(propertyId: string): Promise<Record<string, unknown>> {
+    const startTime = Date.now();
+    Logger.info('pricing-service', 'Analyzing pricing for property', { propertyId });
+
     // Get property data
     const propertyResult = await this.pool.query(
       'SELECT base_monthly_rent FROM properties WHERE id = $1',
@@ -95,6 +109,7 @@ export class PricingService {
     );
 
     if (propertyResult.rows.length === 0) {
+      Logger.error('pricing-service', 'Property not found for pricing analysis', new Error(`Property ${propertyId} not found`));
       throw new Error(`Property ${propertyId} not found`);
     }
 
@@ -137,13 +152,21 @@ export class PricingService {
       };
     });
 
-    return {
+    const result = {
       propertyId,
       baseNightlyRate: parseFloat(nightlyBase.toFixed(2)),
       currentOccupancy: parseFloat((occupancyRate * 100).toFixed(1)),
       recommendations,
       lastUpdated: new Date().toISOString(),
     };
+
+    const duration = Date.now() - startTime;
+    Logger.time('pricing-service', 'Pricing analysis completed', duration, {
+      propertyId,
+      recommendationsCount: recommendations.length,
+    });
+
+    return result;
   }
 
   private recommendPrice(nightlyBase: number, occupancyRate: number): number {
@@ -205,6 +228,9 @@ export class PricingService {
   }
 
   async getCompetitiveAnalysis(propertyId: string, city: string): Promise<Record<string, unknown>> {
+    const startTime = Date.now();
+    Logger.info('pricing-service', 'Running competitive analysis', { propertyId, city });
+
     // Get properties in same city
     const competitorResult = await this.pool.query(
       `SELECT
@@ -226,7 +252,7 @@ export class PricingService {
     const ourPrice = propertyResult.rows[0]?.base_price || 0;
     const competitorData = competitorResult.rows[0];
 
-    return {
+    const result = {
       propertyId,
       city,
       ourPrice: parseFloat(ourPrice.toFixed(2)),
@@ -237,6 +263,15 @@ export class PricingService {
       pricePosition: ourPrice > competitorData.avg_price ? 'premium' : 'competitive',
       recommendedAdjustment: this.calculatePriceAdjustment(ourPrice, competitorData.avg_price),
     };
+
+    const duration = Date.now() - startTime;
+    Logger.time('pricing-service', 'Competitive analysis completed', duration, {
+      propertyId,
+      competitorCount: competitorData.competitor_count || 0,
+      pricePosition: result.pricePosition,
+    });
+
+    return result;
   }
 
   private calculatePriceAdjustment(ourPrice: number, competitorAvg: number): string {

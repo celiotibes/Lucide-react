@@ -14,6 +14,7 @@ export function createLeadManagementWorker(pool: Pool, redisConnection: unknown)
   const worker = new Worker(
     'lead-management',
     async (job) => {
+      const startTime = Date.now();
       Logger.info('lead-management-worker', 'Processing lead management task', {
         jobId: job.id,
         leadId: job.data.leadId,
@@ -28,20 +29,29 @@ export function createLeadManagementWorker(pool: Pool, redisConnection: unknown)
           throw new Error(`Lead ${leadId} not found`);
         }
 
-        switch (action) {
-          case 'respond':
-            return await handleLeadResponse(leadService, lead);
-          case 'follow_up':
-            return await handleFollowUp(leadService, lead);
-          case 'qualify':
-            return await handleQualification(leadService, lead);
-          case 'route':
-            return await routeLead(leadService, lead);
-          default:
-            throw new Error(`Unknown action: ${action}`);
-        }
+        const result = await (async () => {
+          switch (action) {
+            case 'respond':
+              return await handleLeadResponse(leadService, lead);
+            case 'follow_up':
+              return await handleFollowUp(leadService, lead);
+            case 'qualify':
+              return await handleQualification(leadService, lead);
+            case 'route':
+              return await routeLead(leadService, lead);
+            default:
+              throw new Error(`Unknown action: ${action}`);
+          }
+        })();
+
+        const duration = Date.now() - startTime;
+        Logger.time('lead-management-worker', `Lead management action completed: ${action}`, duration, {
+          leadId: lead.id,
+        });
+
+        return result;
       } catch (error) {
-        Logger.error('lead-management-worker', 'Failed to process lead management task', error);
+        Logger.error('lead-management-worker', 'Failed to process lead management task', error as Error);
         throw error;
       }
     },
@@ -53,10 +63,7 @@ export function createLeadManagementWorker(pool: Pool, redisConnection: unknown)
 
   worker.on('failed', (job, err) => {
     if (job) {
-      Logger.error('lead-management-worker', 'Job failed', {
-        jobId: job.id,
-        error: err.message,
-      });
+      Logger.error('lead-management-worker', 'Job failed', err, { jobId: job.id });
     }
   });
 

@@ -18,6 +18,7 @@ export function createUpdatePricingWorker(pool: Pool, redisConnection: unknown):
   const worker = new Worker(
     'update-pricing',
     async (job) => {
+      const startTime = Date.now();
       Logger.info('update-pricing-worker', 'Processing pricing update', {
         jobId: job.id,
         propertyId: job.data.propertyId,
@@ -96,6 +97,13 @@ export function createUpdatePricingWorker(pool: Pool, redisConnection: unknown):
           }
         }
 
+        const duration = Date.now() - startTime;
+        Logger.time('update-pricing-worker', 'Pricing update completed', duration, {
+          propertyId,
+          updatedListings: listings.length,
+          occupancyRate: parseFloat((occupancyRate * 100).toFixed(1)),
+        });
+
         return {
           success: true,
           propertyId,
@@ -103,7 +111,7 @@ export function createUpdatePricingWorker(pool: Pool, redisConnection: unknown):
           occupancyRate: parseFloat((occupancyRate * 100).toFixed(1)),
         };
       } catch (error) {
-        Logger.error('update-pricing-worker', 'Failed to update pricing', error);
+        Logger.error('update-pricing-worker', 'Failed to update pricing', error as Error);
         throw error;
       }
     },
@@ -115,10 +123,7 @@ export function createUpdatePricingWorker(pool: Pool, redisConnection: unknown):
 
   worker.on('failed', (job, err) => {
     if (job) {
-      Logger.error('update-pricing-worker', 'Job failed', {
-        jobId: job.id,
-        error: err.message,
-      });
+      Logger.error('update-pricing-worker', 'Job failed', err, { jobId: job.id });
     }
   });
 

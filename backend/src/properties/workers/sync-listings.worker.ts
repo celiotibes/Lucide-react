@@ -15,6 +15,7 @@ export function createSyncListingsWorker(pool: Pool, redisConnection: unknown): 
   const worker = new Worker(
     'sync-listings',
     async (job) => {
+      const startTime = Date.now();
       Logger.info('sync-listings-worker', 'Processing listing sync', {
         jobId: job.id,
         listingId: job.data.listingId,
@@ -35,7 +36,8 @@ export function createSyncListingsWorker(pool: Pool, redisConnection: unknown): 
         if (syncResult.success) {
           // Update sync status to synced
           await listingService.updateSyncStatus(listingId, 'synced');
-          Logger.info('sync-listings-worker', 'Listing synced successfully', {
+          const duration = Date.now() - startTime;
+          Logger.time('sync-listings-worker', 'Listing synced successfully', duration, {
             listingId,
             platform,
           });
@@ -51,7 +53,7 @@ export function createSyncListingsWorker(pool: Pool, redisConnection: unknown): 
 
         return { success: true, listingId, platform };
       } catch (error) {
-        Logger.error('sync-listings-worker', 'Failed to sync listing', error);
+        Logger.error('sync-listings-worker', 'Failed to sync listing', error as Error);
         throw error;
       }
     },
@@ -63,10 +65,7 @@ export function createSyncListingsWorker(pool: Pool, redisConnection: unknown): 
 
   worker.on('failed', (job, err) => {
     if (job) {
-      Logger.error('sync-listings-worker', 'Job failed', {
-        jobId: job.id,
-        error: err.message,
-      });
+      Logger.error('sync-listings-worker', 'Job failed', err, { jobId: job.id });
     }
   });
 
