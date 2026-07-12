@@ -2,6 +2,8 @@
 // SWAGGER/OPENAPI DOCUMENTATION - API Contract & Developer Experience
 // ============================================================================
 
+import { swaggerExamples, httpErrorCodes, rateLimitingConfig, authenticationRequirements, validationRules } from './swagger-examples';
+
 export const swaggerConfig = {
   openapi: '3.0.0',
   info: {
@@ -41,54 +43,77 @@ export const swaggerConfig = {
           id: { type: 'string' },
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
-          status: { type: 'string', enum: ['prospect', 'lead', 'qualified', 'customer', 'inactive'] },
+          phone: { type: 'string' },
+          cpf: { type: 'string' },
+          status: { type: 'string', enum: ['prospect', 'lead', 'customer', 'inactive'] },
+          case_types: { type: 'array', items: { type: 'string' } },
+          city: { type: 'string' },
+          state: { type: 'string' },
+          industry: { type: 'string' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
+        example: swaggerExamples.clientCreate.response,
       },
       Contract: {
         type: 'object',
         properties: {
           id: { type: 'string' },
-          clientId: { type: 'string' },
-          templateId: { type: 'string' },
+          client_id: { type: 'string' },
           title: { type: 'string' },
+          description: { type: 'string' },
+          content: { type: 'string' },
           status: {
             type: 'string',
             enum: ['draft', 'review', 'pending_signature', 'signed', 'executed', 'archived'],
           },
           version: { type: 'integer' },
+          signature_required: { type: 'boolean' },
+          signed_at: { type: 'string', format: 'date-time' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
+        example: swaggerExamples.contractCreate.response,
       },
       Invoice: {
         type: 'object',
         properties: {
           id: { type: 'string' },
-          clientId: { type: 'string' },
+          invoice_number: { type: 'string' },
+          client_id: { type: 'string' },
+          case_id: { type: 'string' },
           amount: { type: 'number' },
+          amount_paid: { type: 'number' },
+          currency: { type: 'string' },
           status: {
             type: 'string',
             enum: ['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'archived'],
           },
-          dueDate: { type: 'string', format: 'date' },
+          due_date: { type: 'string', format: 'date' },
+          issued_date: { type: 'string', format: 'date' },
           createdAt: { type: 'string', format: 'date-time' },
         },
+        example: swaggerExamples.invoiceCreate.response,
       },
       Case: {
         type: 'object',
         properties: {
-          caseId: { type: 'string' },
-          clientId: { type: 'string' },
-          caseType: { type: 'string' },
+          id: { type: 'string' },
+          case_number: { type: 'string' },
+          client_id: { type: 'string' },
+          case_type: { type: 'string' },
+          court_name: { type: 'string' },
           status: { type: 'string' },
           outcome: {
             type: 'string',
             enum: ['pending', 'favorable', 'unfavorable', 'partial', 'dismissed', 'settled'],
           },
+          amount_claimed: { type: 'number' },
+          amount_awarded: { type: 'number' },
+          success_rate: { type: 'number', format: 'double' },
           createdAt: { type: 'string', format: 'date-time' },
         },
+        example: swaggerExamples.caseCreate.response,
       },
       Error: {
         type: 'object',
@@ -96,8 +121,11 @@ export const swaggerConfig = {
           statusCode: { type: 'integer' },
           code: { type: 'string' },
           message: { type: 'string' },
+          details: { type: 'object' },
           timestamp: { type: 'string', format: 'date-time' },
+          traceId: { type: 'string' },
         },
+        example: swaggerExamples.errorValidation,
       },
     },
   },
@@ -120,6 +148,7 @@ export const swaggerConfig = {
       post: {
         tags: ['CRM'],
         summary: 'Create a new client',
+        description: 'Create a new client in the CRM system. Email must be unique and valid.',
         requestBody: {
           required: true,
           content: {
@@ -128,13 +157,18 @@ export const swaggerConfig = {
                 type: 'object',
                 properties: {
                   name: { type: 'string' },
-                  email: { type: 'string', format: 'email' },
+                  email: { type: 'string', format: 'email', description: 'Unique email address' },
                   phone: { type: 'string' },
-                  cpf: { type: 'string' },
-                  caseTypes: { type: 'array', items: { type: 'string' } },
+                  cpf: { type: 'string', description: validationRules.cpf.description },
+                  status: { type: 'string', enum: ['prospect', 'lead', 'customer', 'inactive'] },
+                  case_types: { type: 'array', items: { type: 'string' } },
+                  city: { type: 'string' },
+                  state: { type: 'string' },
+                  industry: { type: 'string' },
                 },
                 required: ['name', 'email'],
               },
+              example: swaggerExamples.clientCreate.request,
             },
           },
         },
@@ -151,20 +185,27 @@ export const swaggerConfig = {
                     message: { type: 'string' },
                   },
                 },
+                example: {
+                  statusCode: 201,
+                  data: swaggerExamples.clientCreate.response,
+                  message: 'Client created successfully',
+                },
               },
             },
           },
-          400: { description: 'Invalid request' },
-          401: { description: 'Unauthorized' },
+          400: { description: httpErrorCodes['400'].description },
+          401: { description: httpErrorCodes['401'].description },
+          409: { description: httpErrorCodes['409'].description },
         },
       },
       get: {
         tags: ['CRM'],
         summary: 'List all clients',
+        description: 'Retrieve a paginated list of clients, optionally filtered by status.',
         parameters: [
-          { name: 'status', in: 'query', schema: { type: 'string' } },
-          { name: 'limit', in: 'query', schema: { type: 'integer', default: 100 } },
-          { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['prospect', 'lead', 'customer', 'inactive'] }, description: 'Filter by client status' },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 100 }, description: 'Maximum number of results' },
+          { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 }, description: 'Number of results to skip' },
         ],
         responses: {
           200: {
@@ -177,11 +218,16 @@ export const swaggerConfig = {
                     statusCode: { type: 'integer' },
                     data: { type: 'array', items: { $ref: '#/components/schemas/Client' } },
                     total: { type: 'integer' },
+                    limit: { type: 'integer' },
+                    offset: { type: 'integer' },
                   },
                 },
+                example: swaggerExamples.clientList.response,
               },
             },
           },
+          401: { description: httpErrorCodes['401'].description },
+          429: { description: httpErrorCodes['429'].description },
         },
       },
     },
@@ -592,4 +638,159 @@ export const swaggerConfig = {
       },
     },
   },
+};
+
+/**
+ * Export comprehensive documentation for developers
+ */
+export const swaggerDocumentation = {
+  errorCodes: httpErrorCodes,
+  rateLimiting: rateLimitingConfig,
+  authentication: authenticationRequirements,
+  validation: validationRules,
+  examples: swaggerExamples,
+};
+
+/**
+ * Error Handling Guide
+ * All API endpoints return standardized error responses with these HTTP status codes
+ */
+export const errorHandlingGuide = {
+  description: 'Comprehensive guide for handling API errors',
+
+  statusCodeReference: {
+    400: {
+      title: 'Bad Request - Validation Failed',
+      usage: 'Input validation error (invalid CPF, email format, missing field)',
+      retryable: false,
+      clientAction: 'Fix the data and retry'
+    },
+    401: {
+      title: 'Unauthorized - Authentication Failed',
+      usage: 'Missing, invalid, or expired JWT token',
+      retryable: true,
+      clientAction: 'Refresh token or login again'
+    },
+    403: {
+      title: 'Forbidden - Insufficient Permissions',
+      usage: 'User lacks required scopes for this operation',
+      retryable: false,
+      clientAction: 'Request elevated permissions from admin'
+    },
+    404: {
+      title: 'Not Found - Resource Does Not Exist',
+      usage: 'Requested resource not found in database',
+      retryable: false,
+      clientAction: 'Verify resource ID exists'
+    },
+    409: {
+      title: 'Conflict - Data Integrity Violation',
+      usage: 'Duplicate email, constraint violation, or concurrent update',
+      retryable: false,
+      clientAction: 'Modify data to resolve conflict'
+    },
+    429: {
+      title: 'Too Many Requests - Rate Limited',
+      usage: 'Exceeded requests per minute/hour limit',
+      retryable: true,
+      clientAction: 'Wait before retrying (see Retry-After header)'
+    },
+    500: {
+      title: 'Internal Server Error',
+      usage: 'Unexpected server error',
+      retryable: true,
+      clientAction: 'Retry after delay or contact support'
+    },
+    503: {
+      title: 'Service Unavailable - Database Down',
+      usage: 'PostgreSQL connection pool exhausted or database offline',
+      retryable: true,
+      clientAction: 'Retry after delay; contact ops if persistent'
+    }
+  },
+
+  commonErrors: {
+    invalidEmail: {
+      code: 400,
+      scenario: 'POST /api/v1/crm/clients with email: "invalid-email"',
+      response: swaggerExamples.errorValidation,
+      fix: 'Use valid email format: user@domain.com'
+    },
+    duplicateEmail: {
+      code: 409,
+      scenario: 'POST /api/v1/crm/clients with existing email',
+      response: swaggerExamples.errorConflict,
+      fix: 'Check if client already exists before creating'
+    },
+    expiredToken: {
+      code: 401,
+      scenario: 'Any request with expired JWT in Authorization header',
+      response: swaggerExamples.errorAuth,
+      fix: 'Call POST /auth/refresh to get new token'
+    },
+    insufficientPermission: {
+      code: 403,
+      scenario: 'DELETE /api/v1/crm/clients/:id without admin role',
+      response: swaggerExamples.errorForbidden,
+      fix: 'Request admin to grant "client.delete" scope'
+    },
+    rateLimitExceeded: {
+      code: 429,
+      scenario: 'More than 100 requests per minute from same IP',
+      response: swaggerExamples.errorRateLimit,
+      fix: 'Wait X-RateLimit-Reset seconds before retrying'
+    },
+    databaseUnavailable: {
+      code: 503,
+      scenario: 'PostgreSQL connection pool saturated',
+      response: swaggerExamples.errorServiceUnavailable,
+      fix: 'Retry after 30-60 seconds (exponential backoff)'
+    }
+  },
+
+  retryStrategy: {
+    description: 'Recommended retry logic for client implementations',
+    retryableStatusCodes: [401, 429, 500, 503],
+    backoffAlgorithm: 'Exponential backoff: 1s, 2s, 4s, 8s, 16s (max 5 retries)',
+    clientExample: `
+      async function apiCallWithRetry(url, options, maxRetries = 5) {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            const response = await fetch(url, options);
+
+            if (!response.ok) {
+              // Only retry on specific status codes
+              if (![401, 429, 500, 503].includes(response.status)) {
+                throw new Error(\`HTTP \${response.status}\`);
+              }
+
+              // For 401, refresh token first
+              if (response.status === 401) {
+                await refreshToken();
+                continue;
+              }
+
+              // For rate limit, respect Retry-After header
+              if (response.status === 429) {
+                const retryAfter = response.headers.get('Retry-After') || 60;
+                await delay(retryAfter * 1000);
+                continue;
+              }
+
+              // For server errors, use exponential backoff
+              const backoffMs = Math.pow(2, attempt) * 1000;
+              await delay(backoffMs);
+              continue;
+            }
+
+            return response.json();
+          } catch (error) {
+            if (attempt === maxRetries - 1) throw error;
+            const backoffMs = Math.pow(2, attempt) * 1000;
+            await delay(backoffMs);
+          }
+        }
+      }
+    `
+  }
 };

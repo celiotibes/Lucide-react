@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { swaggerConfig } from '@utils/swagger';
+import { swaggerConfig, swaggerDocumentation, errorHandlingGuide } from '@utils/swagger';
 
 const router = Router();
 
@@ -21,6 +21,36 @@ servers:
   - url: http://localhost:3000
   - url: https://api.example.com
 `);
+});
+
+// Error codes and HTTP status documentation
+router.get('/error-codes', (req: Request, res: Response) => {
+  res.json(swaggerDocumentation.errorCodes);
+});
+
+// Rate limiting configuration
+router.get('/rate-limiting', (req: Request, res: Response) => {
+  res.json(swaggerDocumentation.rateLimiting);
+});
+
+// Authentication requirements
+router.get('/authentication', (req: Request, res: Response) => {
+  res.json(swaggerDocumentation.authentication);
+});
+
+// Validation rules
+router.get('/validation-rules', (req: Request, res: Response) => {
+  res.json(swaggerDocumentation.validation);
+});
+
+// Example payloads
+router.get('/examples', (req: Request, res: Response) => {
+  res.json(swaggerDocumentation.examples);
+});
+
+// Comprehensive error handling guide
+router.get('/error-handling-guide', (req: Request, res: Response) => {
+  res.json(errorHandlingGuide);
 });
 
 // Swagger UI embedded HTML

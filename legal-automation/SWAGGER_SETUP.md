@@ -19,9 +19,10 @@ GET http://localhost:3000/api-docs
 ```
 Browser-based, read-only API explorer with:
 - Full endpoint documentation
-- Request/response schemas
+- Request/response schemas with real-world examples
 - Authentication details
 - Code examples
+- Error handling guide
 
 ### OpenAPI JSON Specification
 ```
@@ -33,10 +34,90 @@ Machine-readable spec for:
 - API testing tools
 - Third-party service integration
 
-### OpenAPI YAML Specification (Future)
+### OpenAPI YAML Specification
 ```
 GET http://localhost:3000/api-docs/openapi.yaml
 ```
+
+## Additional Documentation Endpoints
+
+### HTTP Status Code Reference
+```
+GET http://localhost:3000/api-docs/error-codes
+```
+Complete documentation of all HTTP status codes with:
+- Error description (what it means)
+- Common causes (why it happens)
+- Resolution steps (how to fix)
+- Example error responses
+
+**Example:** 
+```json
+{
+  "400": {
+    "title": "Bad Request - Validação falhou",
+    "description": "A requisição contém dados inválidos ou mal formatados",
+    "commonCauses": [
+      "CPF/CNPJ inválido (checksum ou formato)",
+      "Email duplicado no sistema",
+      "Campo obrigatório ausente"
+    ],
+    "resolution": "Verifique os dados enviados e corrija os erros"
+  }
+}
+```
+
+### Error Handling Guide
+```
+GET http://localhost:3000/api-docs/error-handling-guide
+```
+Comprehensive guide for developers implementing error handling:
+- Retryable vs non-retryable errors
+- Retry strategy with exponential backoff
+- Common error scenarios with solutions
+- Client-side implementation examples
+
+### Rate Limiting Info
+```
+GET http://localhost:3000/api-docs/rate-limiting
+```
+Rate limiting configuration and headers:
+- Limits per minute, hour, day
+- Response headers (X-RateLimit-*)
+- Handling 429 Too Many Requests
+
+### Authentication Requirements
+```
+GET http://localhost:3000/api-docs/authentication
+```
+JWT authentication details:
+- Header format
+- Token lifetime
+- Required scopes
+- Example authorization header
+
+### Validation Rules
+```
+GET http://localhost:3000/api-docs/validation-rules
+```
+Input validation rules for common fields:
+- CPF format and validation
+- CNPJ format and validation
+- Email format
+- Phone format
+- Case number (CNJ padrão)
+- Date format (ISO 8601)
+
+### Example Payloads
+```
+GET http://localhost:3000/api-docs/examples
+```
+Real-world request/response examples for all major operations:
+- Client creation request/response
+- Contract signing examples
+- Invoice payment processing
+- Case updates
+- Analytics queries
 
 ## Endpoints Documented
 
