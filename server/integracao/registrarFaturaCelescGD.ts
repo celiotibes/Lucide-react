@@ -1,9 +1,8 @@
-// Lançamento manual da fatura de Geração Distribuída (GD) da Celesc —
-// sem uma fatura real em mãos para confirmar o layout exato dos campos,
-// um parser automático seria adivinhar (mesmo cuidado de docs/10/11:
-// nunca codificar formato de documento sem ver o documento real).
-// `docs/30-auditoria-geracao-solar.md` documenta o plano de evoluir para
-// parser de texto assim que houver 2-3 faturas reais para conferir.
+// Lançamento da fatura de Geração Distribuída (GD) da Celesc — recebe os
+// valores já extraídos (seja de formulário manual, seja do parser
+// `../relatorios/celescGD.ts#parsearFaturaCelescGD`, validado contra uma
+// fatura real em docs/30). Esta função não decide a origem dos dados, só
+// valida e persiste.
 //
 // Sempre nasce `pendente_confirmacao` — mesmo padrão de `leituras_energia`
 // e `geracao_solar`: dado de origem externa nunca vira número oficial sem
