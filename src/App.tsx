@@ -25,6 +25,7 @@ import { OutcomePredictorPanel } from './components/prediction/OutcomePredictorP
 import { TemplateMatchingPanel } from './components/templates/TemplateMatchingPanel'
 import { AdvancedSearchUI } from './components/search/AdvancedSearchUI'
 import { AIProviderStats } from './components/aiOptimization/AIProviderStats'
+import { BudgetDashboard } from './components/aiOptimization/BudgetDashboard'
 import { ImportExportPanel } from './components/documents/ImportExportPanel'
 import { TemplateManager } from './components/templates/TemplateManager'
 import { DocumentSharingManager } from './components/sharing/DocumentSharingManager'
@@ -56,7 +57,7 @@ function App() {
 
   // FASE 8: Budget tracking e alertas de custo
   useBudgetAlerts()
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -155,7 +156,9 @@ function App() {
                                                             ? '🔎 Gerenciador de Buscas'
                                                             : paginaAtiva === 'ai-optimization'
                                                               ? '⚡ Otimização de Provedores IA'
-                                                              : 'Busca Avançada Jurídica'}
+                                                              : paginaAtiva === 'budget-dashboard'
+                                                                ? '💰 Controle de Orçamento'
+                                                                : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -210,7 +213,9 @@ function App() {
                                                             ? 'Gerencie buscas salvas, histórico e estatísticas de pesquisa'
                                                             : paginaAtiva === 'ai-optimization'
                                                               ? 'Otimize custos de IA com roteamento automático por provedor'
-                                                              : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                                              : paginaAtiva === 'budget-dashboard'
+                                                                ? 'Rastreie gastos mensais e controle seu orçamento de IA em tempo real'
+                                                                : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -457,6 +462,15 @@ function App() {
           >
             ⚡ IA Otimizada
           </button>
+          <button
+            onClick={() => setPaginaAtiva('budget-dashboard')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'budget-dashboard' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            💰 Orçamento
+          </button>
         </div>
         <div style={styles.versao}>
           <span style={{ display: 'block', marginBottom: '4px' }}>FASE 4.2 - Frontend LLM</span>
@@ -693,6 +707,12 @@ function App() {
         {paginaAtiva === 'ai-optimization' && (
           <main style={styles.mainFullWidth}>
             <AIProviderStats />
+          </main>
+        )}
+
+        {paginaAtiva === 'budget-dashboard' && (
+          <main style={styles.mainFullWidth}>
+            <BudgetDashboard />
           </main>
         )}
       </div>
