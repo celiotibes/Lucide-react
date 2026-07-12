@@ -22,8 +22,22 @@ Se preferir manter o agendamento dentro do n8n (decisão de arquitetura: "n8n or
 
 **Use uma opção OU a outra, não as duas** — rodar os dois agendadores ativos ao mesmo tempo chamaria a rota duas vezes no mesmo mês (inofensivo, porque `gerarFaturaMensal` é idempotente, mas redundante sem necessidade).
 
+## Outros 4 crons (mesmo padrão, adicionados depois)
+
+O mesmo desenho (rota fina + segredo compartilhado + `vercel.json`) foi replicado para os outros 4 processos em lote que existiam como função testada mas nunca eram disparados por nada:
+
+| Rota | Função | Frequência | Motivo do horário |
+|---|---|---|---|
+| `/api/cron/faturar-energia` | `faturarEnergiaConfirmada` (docs/11) | Mensal, dia 2 | Um dia depois da fatura de aluguel (dia 1), para não competir pelo mesmo lock de conexão no mesmo instante |
+| `/api/cron/regua-cobranca` | `processarReguaCobranca` (docs/04) | Diário | Precisa rodar todo dia para pegar a fatura no dia exato em que cruza D5/D15/D30 |
+| `/api/cron/gerar-os-preventivas` | `gerarOrdensServicoPreventivas` (docs/14) | Diário | Mesmo raciocínio: recupera atraso gradualmente, uma ocorrência por vez, então precisa rodar todo dia |
+| `/api/cron/calcular-auditoria-energia-solar` | `calcularAuditoriaEnergiaSolarDoResidencial` (docs/30) | Mensal, dia 5 | Dá margem para a fatura Celesc GD do mês anterior chegar e ser confirmada antes do cálculo rodar; por isso, ao contrário dos outros, o parâmetro `competencia` default é o **mês anterior**, não o corrente |
+
+**Atenção ao plano da Vercel**: com esses 4 o projeto passa a ter 8 crons declarados em `vercel.json`. O plano Hobby da Vercel limita a quantidade de cron jobs por projeto (histórico: 2) além de só permitir granularidade diária — os 4 novos respeitam a granularidade diária, mas a contagem total pode exigir o plano Pro. Confirmar o limite vigente no painel da Vercel antes do deploy (não documentado aqui como fixo porque a Vercel já mudou esse número mais de uma vez).
+
 ## O que falta para isto rodar de verdade
 
 - Projeto Supabase de homologação (bloqueio já documentado em `docs/09`) — sem ele, não há `DATABASE_URL` de produção para a rota apontar.
 - Deploy do Next.js (Vercel ou outro) com `DATABASE_URL` e `CRON_SECRET` configurados como variáveis de ambiente.
 - Decisão de qual das duas opções de agendador usar (Vercel Cron por padrão, a não ser que já exista uma instância de n8n rodando por outro motivo).
+- Confirmar o limite de cron jobs do plano Vercel contratado (ver tabela acima) antes do deploy dos 8 crons.

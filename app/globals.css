@@ -203,6 +203,14 @@ tbody tr:last-child td {
   color: var(--cor-alerta);
 }
 
+.aviso {
+  padding: 0.75rem 1rem;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
 .section-hint {
   font-size: 0.85rem;
   color: #666;

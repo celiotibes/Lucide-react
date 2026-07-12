@@ -23,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/quebras-contrato">Quebras de Contrato</Link>
               <Link href="/extratos">Extratos</Link>
               <Link href="/conciliacao-bancaria">Conciliação Bancária</Link>
+              <Link href="/energia-solar">Energia Solar</Link>
               <Link href="/relatorios">Relatórios</Link>
             </nav>
           </aside>

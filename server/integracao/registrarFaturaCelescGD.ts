@@ -48,7 +48,12 @@ export async function registrarFaturaCelescGD(
   }
 }
 
-export async function confirmarFaturaCelescGD(pool: Pool, id: string, confirmadoPorPessoaId: string): Promise<void> {
+// `confirmadoPorPessoaId` aceita null porque nenhuma tela do sistema tem
+// sessão de usuário autenticado ainda (docs/09) — mesma situação de
+// `app/quebras-contrato/actions.ts` (`analisado_por` fica null pelo mesmo
+// motivo). A coluna já era nullable no schema; o parâmetro só passou a
+// refletir isso.
+export async function confirmarFaturaCelescGD(pool: Pool, id: string, confirmadoPorPessoaId: string | null): Promise<void> {
   await pool.query(
     `update faturas_celesc_gd set status = 'confirmada', confirmado_por = $2, confirmado_em = now() where id = $1`,
     [id, confirmadoPorPessoaId],

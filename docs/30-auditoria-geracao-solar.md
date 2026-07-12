@@ -64,8 +64,9 @@ As duas fazem sentido contábil, com uma ressalva:
 
 - **Rodar `GrowattClient` contra a API real** — bloqueado neste ambiente por política de rede, não por credencial (ver acima).
 - **Testar `parsearFaturaCelescGD` contra mais faturas reais** (2-3 no mínimo) antes de confiar nele em produção — hoje validado contra 1 amostra só.
-- **Telas de back-office** — cadastro de fatura Celesc GD, visualização da auditoria mensal, dashboard (métricas ShinePhone/Celesc/interna/área comum pedidas no requisito) — nenhuma ainda, backend pronto primeiro.
-- **Cron mensal** disparando o cálculo automaticamente, e um job diário chamando `GrowattClient` para popular `leituras_geracao_solar_diaria` — mesmo padrão dos outros 4 crons já existentes, fácil de adicionar depois que o client estiver validado contra a API real.
+- **Job diário chamando `GrowattClient`** para popular `leituras_geracao_solar_diaria` — só depois que o client estiver validado contra a API real (item acima). Sem ele, `geracao_solar` continua sendo alimentada manualmente.
+
+**Resolvido na revisão de ponta a ponta seguinte (`docs/31`)**: telas de back-office (`app/energia-solar` — lançar/confirmar fatura Celesc GD, calcular auditoria sob demanda) e o cron mensal (`app/api/cron/calcular-auditoria-energia-solar`).
 
 ## Verificação
 

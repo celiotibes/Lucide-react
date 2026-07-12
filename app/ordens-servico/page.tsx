@@ -77,7 +77,12 @@ export default async function PaginaOrdensServico() {
 
   return (
     <>
-      <h2>Ordens de Serviço ({ordens.length})</h2>
+      <div className="cabecalho-lista">
+        <h2>Ordens de Serviço ({ordens.length})</h2>
+        <Link href="/ordens-servico/novo" className="botao-link">
+          + Nova solicitação
+        </Link>
+      </div>
       {ordens.length === 0 ? (
         <p className="vazio">Nenhuma ordem de serviço aberta ainda.</p>
       ) : (
