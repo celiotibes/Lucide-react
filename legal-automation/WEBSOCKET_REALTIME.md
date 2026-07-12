@@ -558,15 +558,380 @@ curl http://localhost:3000/api/v1/ws/active-users
 DEBUG=websocket:* npm start
 ```
 
+## Client-Side Robustness (Phase 3 Enhancement)
+
+### WebSocket Client Library
+
+Robust TypeScript WebSocket client with enterprise-grade features:
+
+**File**: `src/client/WebSocketClient.ts`
+
+#### Features
+
+1. **Auto-Reconnection**
+   - Exponential backoff strategy
+   - Configurable max retries
+   - Random jitter to prevent thundering herd
+   - Automatic reconnection on connection loss
+
+2. **Heartbeat/Keepalive**
+   - Periodic ping messages (default: every 30 seconds)
+   - Automatic pong response handling
+   - Timeout detection and reconnection on heartbeat failure
+
+3. **Offline Message Queuing**
+   - Queues messages when disconnected
+   - Automatically drains queue on reconnection
+   - Configurable queue size (default: 100 messages)
+
+4. **Connection State Management**
+   - Tracks connection state: disconnected, connecting, connected, closing, closed
+   - State change events for UI updates
+   - Statistics tracking (attempts, queue size, etc.)
+
+5. **Event Subscription Pattern**
+   - Type-safe event subscription
+   - Automatic unsubscribe for cleanup
+   - Support for custom event handlers
+
+#### Usage
+
+```typescript
+import { createLegalAutomationWSClient } from '@client/WebSocketClient';
+
+// Create client
+const ws = createLegalAutomationWSClient(authToken);
+
+// Subscribe to events
+const unsubscribe = ws.subscribe('CASE_UPDATED', (data) => {
+  console.log('Case updated:', data);
+});
+
+// Connect
+await ws.connect();
+
+// Send message
+ws.send('REQUEST_UPDATE', { caseId: '123' });
+
+// Get status
+console.log(ws.getStats());
+// Output: {
+//   state: 'connected',
+//   reconnectionAttempts: 0,
+//   queuedMessages: 0,
+//   isConnected: true
+// }
+
+// Disconnect
+ws.disconnect();
+
+// Cleanup
+unsubscribe();
+```
+
+#### Configuration
+
+```typescript
+import { WebSocketClient } from '@client/WebSocketClient';
+
+const ws = new WebSocketClient({
+  url: 'wss://api.example.com/ws',
+  token: 'jwt-token',
+  
+  // Reconnection strategy
+  reconnection: {
+    initialDelay: 1000,      // Start with 1 second
+    maxDelay: 30000,         // Cap at 30 seconds
+    exponentialBackoff: true, // 2^n * initialDelay
+    maxRetries: 10,          // Try up to 10 times
+    jitter: true,            // Add randomness
+  },
+  
+  // Heartbeat configuration
+  heartbeat: {
+    interval: 30000,  // Ping every 30 seconds
+    timeout: 5000,    // Expect pong within 5 seconds
+  },
+  
+  // Message queue
+  messageQueueSize: 100,      // Max 100 queued messages
+  enableOfflineQueue: true,   // Queue messages when offline
+  enableCompression: false,   // Future: message compression
+  debug: false,               // Enable debug logging
+});
+```
+
+### React Integration
+
+**File**: `src/client/useWebSocket.ts`
+
+React hooks for seamless WebSocket integration:
+
+#### `useWebSocket` Hook
+
+Main hook for WebSocket connection management:
+
+```typescript
+import { useWebSocket } from '@client/useWebSocket';
+
+function CaseMonitor() {
+  const {
+    connected,
+    connecting,
+    reconnecting,
+    error,
+    stats,
+    send,
+    subscribe,
+  } = useWebSocket(authToken);
+
+  useEffect(() => {
+    // Subscribe to case updates
+    const unsubscribe = subscribe('CASE_UPDATED', (event) => {
+      console.log('Case updated:', event);
+    });
+
+    return unsubscribe;
+  }, [subscribe]);
+
+  return (
+    <div>
+      {connected && <div>✅ Connected ({stats.state})</div>}
+      {connecting && <div>🔄 Connecting...</div>}
+      {reconnecting && <div>🔁 Reconnecting...</div>}
+      {error && <div>❌ Error: {error.message}</div>}
+    </div>
+  );
+}
+```
+
+#### `useWebSocketEvent` Hook
+
+Subscribe to specific event type:
+
+```typescript
+function RecentCaseUpdates() {
+  const { connected } = useWebSocket(authToken);
+  const caseUpdate = useWebSocketEvent('CASE_UPDATED', wsClient);
+
+  return (
+    <div>
+      {caseUpdate && (
+        <div>
+          Latest update: {JSON.stringify(caseUpdate, null, 2)}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+#### `useWebSocketEvents` Hook
+
+Subscribe to multiple event types with history:
+
+```typescript
+function Dashboard() {
+  const { connected } = useWebSocket(authToken);
+  const events = useWebSocketEvents(wsClient, [
+    'CASE_UPDATED',
+    'PAYMENT_RECEIVED',
+    'DEADLINE_APPROACHING',
+  ], 10); // Keep last 10 of each
+
+  return (
+    <div>
+      <h3>Recent Events</h3>
+      {Object.entries(events).map(([type, eventList]) => (
+        <div key={type}>
+          <h4>{type}</h4>
+          {eventList.map((event, i) => (
+            <div key={i}>{JSON.stringify(event)}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+#### `useSendWebSocketMessage` Hook
+
+Send messages with loading state:
+
+```typescript
+function UpdateCaseButton() {
+  const { send, loading, error } = useSendWebSocketMessage(wsClient);
+
+  const handleUpdate = async () => {
+    try {
+      const response = await send('UPDATE_CASE', {
+        caseId: '123',
+        status: 'closed',
+      });
+      console.log('Update response:', response);
+    } catch (err) {
+      console.error('Update failed:', err);
+    }
+  };
+
+  return (
+    <button onClick={handleUpdate} disabled={loading}>
+      {loading ? 'Updating...' : 'Update Case'}
+    </button>
+  );
+}
+```
+
+### Connection State Transitions
+
+```
+disconnected ──→ connecting ──→ connected
+     ↑                                │
+     └────────────────┬───────────────┘
+                    (reconnection)
+                    
+connected ──→ closing ──→ closed
+```
+
+### Event Flow Diagram
+
+```
+User Action
+    │
+    ↓
+send('EVENT_TYPE', data)
+    │
+    ├─→ Connected? 
+    │   ├─ Yes: Send immediately
+    │   └─ No:  Queue message
+    │
+    ↓
+Server receives & processes
+    │
+    ↓
+Server broadcasts event
+    │
+    ├─→ Broadcast event
+    │   └─→ WebSocketClient receives
+    │       └─→ Parse & emit event
+    │           └─→ React component updates
+    │
+    └─→ Queue recovery on reconnect
+
+Heartbeat (every 30s)
+    │
+    ├─→ Send 'ping'
+    │   └─→ Wait for 'pong' (5s timeout)
+    │       ├─ Received: Continue
+    │       └─ Timeout: Reconnect
+```
+
+### Reconnection Strategy
+
+**Exponential Backoff Example**:
+```
+Attempt 1: 1 second   (2^0 * 1000)
+Attempt 2: 2 seconds  (2^1 * 1000)
+Attempt 3: 4 seconds  (2^2 * 1000)
+Attempt 4: 8 seconds  (2^3 * 1000)
+Attempt 5: 16 seconds (2^4 * 1000)
+Attempt 6: 30 seconds (capped at maxDelay)
+...
+Attempt 10: 30 seconds
+Max retries reached → emit 'max_reconnection_attempts_reached'
+```
+
+**With Jitter** (prevents thundering herd):
+```
+Attempt 1: 900-1100ms (±10%)
+Attempt 2: 1800-2200ms
+Attempt 3: 3600-4400ms
+...
+```
+
+### Error Handling Examples
+
+#### Handle Connection Errors
+
+```typescript
+function App() {
+  const { error, connected } = useWebSocket(token);
+
+  useEffect(() => {
+    if (error) {
+      // Log error for debugging
+      console.error('WebSocket error:', error);
+      
+      // Could show user notification
+      showNotification('Connection error, retrying...');
+    }
+  }, [error]);
+
+  return (
+    <div>
+      {!connected && <ConnectionStatus />}
+    </div>
+  );
+}
+```
+
+#### Handle Offline Messages
+
+```typescript
+function ChatApp() {
+  const ws = useWebSocket(token);
+
+  const handleSendMessage = () => {
+    ws.send('SEND_MESSAGE', { text: 'Hello' });
+    // Message is queued if offline, sent when reconnected
+  };
+
+  useEffect(() => {
+    ws.wsClient.on('message_queued', (msg) => {
+      showNotification('Message queued (offline)');
+    });
+
+    ws.wsClient.on('message_sent_from_queue', (msg) => {
+      showNotification('Queued message sent');
+    });
+
+    ws.wsClient.on('message_dropped', (msg) => {
+      showNotification('Queue full, message dropped');
+    });
+  }, []);
+}
+```
+
+### Performance Considerations
+
+1. **Message Queue Size**: Default 100 messages
+   - Increase for critical applications
+   - Monitor queue size via `stats.queuedMessages`
+
+2. **Heartbeat Interval**: Default 30 seconds
+   - Shorter interval = faster failure detection
+   - Longer interval = less bandwidth usage
+
+3. **Reconnection Delays**: Default exponential backoff
+   - Prevents overwhelming server during outages
+   - Jitter prevents thundering herd
+
+4. **Event Listeners**: Cleanup with unsubscribe
+   - Memory leaks possible with many listeners
+   - Always clean up in useEffect return
+
 ## Future Enhancements
 
-- [ ] Message persistence for offline users
-- [ ] Selective event subscriptions
-- [ ] Rooms/channels pattern
-- [ ] Message compression
-- [ ] Heartbeat/keepalive optimization
+- [x] Auto-reconnection with exponential backoff ✅ Phase 3
+- [x] Heartbeat/keepalive mechanism ✅ Phase 3
+- [x] Offline message queueing ✅ Phase 3
+- [x] Connection state management ✅ Phase 3
+- [x] React hooks integration ✅ Phase 3
+- [ ] Message compression (deflate)
 - [ ] Redis pub/sub for multi-server support
 - [ ] Message replay capability
+- [ ] Selective event subscriptions (rooms/channels)
 - [ ] Analytics on event patterns
 
 ## References
