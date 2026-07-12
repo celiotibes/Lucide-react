@@ -5,14 +5,12 @@ import { consultar } from "../db/connection";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
 import { calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";
 import type { Caucao, ContratoLocacao, Imovel } from "../domain/types";
+import { formatarMoeda } from "../domain/formatarMoeda";
+import { KpiTile } from "./KpiTile";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 export function CaucaoView() {
   const { db, versao } = useDb();
   const hoje = hojeIso();
@@ -55,20 +53,13 @@ export function CaucaoView() {
             meio, a cobertura mostrada aqui pode estar errada.
           </p>
           <div className="kpi-grid" style={{ marginBottom: 10 }}>
-            <div className="kpi-tile">
-              <div className="label">Passivo de caução retido (corrigido)</div>
-              <div className="value">{formatarMoeda(passivoCaucaoRetido)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Caixa disponível hoje</div>
-              <div className="value">{formatarMoeda(saldoCaixaAtual)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Cobertura</div>
-              <div className={`value ${caucaoCobertaPeloCaixa ? "good" : "critical"}`}>
-                {caucaoCobertaPeloCaixa ? "coberto" : "descoberto"}
-              </div>
-            </div>
+            <KpiTile label="Passivo de caução retido (corrigido)" value={formatarMoeda(passivoCaucaoRetido)} />
+            <KpiTile label="Caixa disponível hoje" value={formatarMoeda(saldoCaixaAtual)} />
+            <KpiTile
+              label="Cobertura"
+              value={caucaoCobertaPeloCaixa ? "coberto" : "descoberto"}
+              variant={caucaoCobertaPeloCaixa ? "good" : "critical"}
+            />
           </div>
           {!caucaoCobertaPeloCaixa && (
             <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 24 }}>

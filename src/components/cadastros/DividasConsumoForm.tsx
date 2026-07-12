@@ -4,6 +4,7 @@ import { useDb } from "../../db/DbContext";
 import { consultar, executar } from "../../db/connection";
 import { ROTULO_TIPO_DIVIDA } from "../../domain/patrimonio/balancoPatrimonial";
 import type { DividaConsumo, TipoDividaConsumo } from "../../domain/types";
+import { formatarMoeda } from "../../domain/formatarMoeda";
 
 interface Formulario {
   id: number | null;
@@ -22,10 +23,6 @@ function hojeIso(): string {
 
 function formVazio(): Formulario {
   return { id: null, tipo: "consignado", instituicao: "", valor_contratado: "", saldo_devedor_atual: "", parcela_mensal: "", data_referencia_saldo: hojeIso(), observacoes: "" };
-}
-
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 export function DividasConsumoForm() {

@@ -14,6 +14,7 @@ import {
 } from "../domain/documentos/documentos";
 import { sugerirTransacoesParaDocumento, vincularDocumento, rejeitarSugestao, type SugestaoTransacao } from "../domain/documentos/matching";
 import type { Documento, Imovel, PlanoConta, TipoDocumento } from "../domain/types";
+import { formatarMoeda } from "../domain/formatarMoeda";
 
 const ROTULO_TIPO: Record<TipoDocumento, string> = {
   contrato: "Contrato",
@@ -24,10 +25,6 @@ const ROTULO_TIPO: Record<TipoDocumento, string> = {
   boleto: "Boleto",
   outro: "Outro",
 };
-
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 interface RascunhoDocumento {
   arquivoNome: string;

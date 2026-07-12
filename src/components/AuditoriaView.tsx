@@ -4,14 +4,11 @@ import { CopyCheck, TrendingUp, CalendarX2 } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { detectarDuplicatas, detectarOutliers, detectarLacunasMensais, testeBenford } from "../domain/auditoria/auditoriaForense";
+import { formatarMoeda } from "../domain/formatarMoeda";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 const CATEGORIAS_VARIAVEIS = ["2.1.02", "2.1.03", "2.1.04"]; // manutenção, obra, prestadores — não aluguel/financiamento fixos
 
 export function AuditoriaView() {

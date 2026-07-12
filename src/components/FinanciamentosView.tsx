@@ -4,10 +4,8 @@ import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { compararComTransacoes, type Financiamento } from "../domain/financiamento/amortizacao";
 import type { Imovel } from "../domain/types";
-
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { formatarMoeda } from "../domain/formatarMoeda";
+import { KpiTile } from "./KpiTile";
 
 export function FinanciamentosView() {
   const { db, versao } = useDb();
@@ -54,22 +52,10 @@ export function FinanciamentosView() {
       {financiamentoAtivo && (
         <>
           <div className="kpi-grid">
-            <div className="kpi-tile">
-              <div className="label">Valor contratado</div>
-              <div className="value">{formatarMoeda(financiamentoAtivo.valor_contratado)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Taxa contratada</div>
-              <div className="value">{financiamentoAtivo.taxa_juros_mensal.toFixed(2)}% a.m.</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Sistema</div>
-              <div className="value">{financiamentoAtivo.sistema}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Meses com divergência</div>
-              <div className={`value ${alertas.length > 0 ? "critical" : "good"}`}>{alertas.length}</div>
-            </div>
+            <KpiTile label="Valor contratado" value={formatarMoeda(financiamentoAtivo.valor_contratado)} />
+            <KpiTile label="Taxa contratada" value={`${financiamentoAtivo.taxa_juros_mensal.toFixed(2)}% a.m.`} />
+            <KpiTile label="Sistema" value={financiamentoAtivo.sistema} />
+            <KpiTile label="Meses com divergência" value={alertas.length} variant={alertas.length > 0 ? "critical" : "good"} />
           </div>
 
           {alertas.length > 0 && (

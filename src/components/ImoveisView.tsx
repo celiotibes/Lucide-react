@@ -3,16 +3,13 @@ import { Plus, Pencil, Home, Users } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar, executar } from "../db/connection";
 import type { Imovel, RegimePatrimonial, TipoImovel } from "../domain/types";
+import { formatarMoeda } from "../domain/formatarMoeda";
 
 const ROTULO_TIPO: Record<TipoImovel, string> = {
   apartamento: "Apartamento",
   kitnet: "Kitnet",
   outro: "Outro",
 };
-
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 interface FormularioImovel {
   id: number | null;

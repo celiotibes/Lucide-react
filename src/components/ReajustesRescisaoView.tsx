@@ -4,14 +4,12 @@ import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { listarReajustes, sugerirProximoReajuste, registrarReajuste, calcularMultaRescisoria } from "../domain/contratos/reajustes";
 import type { ContratoLocacao, Imovel } from "../domain/types";
+import { formatarMoeda } from "../domain/formatarMoeda";
+import { KpiTile } from "./KpiTile";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 export function ReajustesRescisaoView() {
   const { db, versao, persistir } = useDb();
   const hoje = hojeIso();
@@ -71,22 +69,19 @@ export function ReajustesRescisaoView() {
       {contratoAtivo && (
         <>
           <div className="kpi-grid">
-            <div className="kpi-tile">
-              <div className="label">Valor vigente</div>
-              <div className="value">{sugestao ? formatarMoeda(sugestao.valorAtual) : "—"}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Próximo reajuste</div>
-              <div className="value">{sugestao?.ehPrimeiraRenovacao ? "1ª renovação (fixo)" : `índice ${sugestao?.criterioSugerido ?? "—"}`}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Percentual sugerido</div>
-              <div className="value">{sugestao?.percentualSugerido !== null && sugestao?.percentualSugerido !== undefined ? `${sugestao.percentualSugerido.toFixed(2)}%` : "sem índice suficiente"}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Valor sugerido</div>
-              <div className="value">{sugestao?.valorSugerido !== null && sugestao?.valorSugerido !== undefined ? formatarMoeda(sugestao.valorSugerido) : "—"}</div>
-            </div>
+            <KpiTile label="Valor vigente" value={sugestao ? formatarMoeda(sugestao.valorAtual) : "—"} />
+            <KpiTile
+              label="Próximo reajuste"
+              value={sugestao?.ehPrimeiraRenovacao ? "1ª renovação (fixo)" : `índice ${sugestao?.criterioSugerido ?? "—"}`}
+            />
+            <KpiTile
+              label="Percentual sugerido"
+              value={sugestao?.percentualSugerido !== null && sugestao?.percentualSugerido !== undefined ? `${sugestao.percentualSugerido.toFixed(2)}%` : "sem índice suficiente"}
+            />
+            <KpiTile
+              label="Valor sugerido"
+              value={sugestao?.valorSugerido !== null && sugestao?.valorSugerido !== undefined ? formatarMoeda(sugestao.valorSugerido) : "—"}
+            />
           </div>
 
           {sugestao?.valorSugerido !== null && sugestao?.valorSugerido !== undefined && (
@@ -153,22 +148,14 @@ export function ReajustesRescisaoView() {
 
           {multa && (
             <div className="kpi-grid">
-              <div className="kpi-tile">
-                <div className="label">Duração do ciclo</div>
-                <div className="value">{multa.duracaoCicloMeses} meses</div>
-              </div>
-              <div className="kpi-tile">
-                <div className="label">Meses restantes</div>
-                <div className="value">{multa.mesesRestantes}</div>
-              </div>
-              <div className="kpi-tile">
-                <div className="label">Teto da multa</div>
-                <div className="value">{formatarMoeda(multa.tetoMulta)}</div>
-              </div>
-              <div className="kpi-tile">
-                <div className="label">Multa proporcional</div>
-                <div className={`value ${multa.multaProporcional > 0 ? "critical" : "good"}`}>{formatarMoeda(multa.multaProporcional)}</div>
-              </div>
+              <KpiTile label="Duração do ciclo" value={`${multa.duracaoCicloMeses} meses`} />
+              <KpiTile label="Meses restantes" value={multa.mesesRestantes} />
+              <KpiTile label="Teto da multa" value={formatarMoeda(multa.tetoMulta)} />
+              <KpiTile
+                label="Multa proporcional"
+                value={formatarMoeda(multa.multaProporcional)}
+                variant={multa.multaProporcional > 0 ? "critical" : "good"}
+              />
             </div>
           )}
           <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginTop: 10 }}>

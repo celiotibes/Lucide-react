@@ -12,6 +12,7 @@ import { calcularAnaliseVertical, calcularAnaliseHorizontal } from "../domain/re
 import { calcularPatrimonioLiquido, calcularLiquidezCorrente, calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";
 import { calcularDesempenhoPorImovel } from "../domain/reports/desempenhoPorImovel";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
+import { KpiTile } from "./KpiTile";
 import type { Caucao } from "../domain/types";
 
 function hojeIso(): string {
@@ -99,22 +100,10 @@ export function LaudoView() {
       </div>
 
       <div className="kpi-grid">
-        <div className="kpi-tile">
-          <div className="label">Linhas de DRE</div>
-          <div className="value">{linhasDre.length}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Competências em aberto</div>
-          <div className="value">{statusInadimplencia.filter((s) => s.diasAtraso > 0).length}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Duplicidades</div>
-          <div className="value">{duplicatas.length}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Outliers / lacunas</div>
-          <div className="value">{outliers.length} / {lacunas.length}</div>
-        </div>
+        <KpiTile label="Linhas de DRE" value={linhasDre.length} />
+        <KpiTile label="Competências em aberto" value={statusInadimplencia.filter((s) => s.diasAtraso > 0).length} />
+        <KpiTile label="Duplicidades" value={duplicatas.length} />
+        <KpiTile label="Outliers / lacunas" value={`${outliers.length} / ${lacunas.length}`} />
       </div>
 
       <button className="btn primary" onClick={gerar}>

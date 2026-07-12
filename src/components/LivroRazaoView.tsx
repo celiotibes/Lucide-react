@@ -1,14 +1,11 @@
 import { useMemo, useState } from "react";
 import { useDb } from "../db/DbContext";
 import { gerarLancamentos, gerarBalancete, gerarRazaoDaConta } from "../domain/contabilidade/livroRazao";
+import { formatarMoeda } from "../domain/formatarMoeda";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 export function LivroRazaoView() {
   const { db, versao } = useDb();
   const hoje = hojeIso();

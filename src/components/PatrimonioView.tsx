@@ -8,14 +8,12 @@ import {
   calcularLiquidezCorrente,
   calcularVPLDoEndividamento,
 } from "../domain/patrimonio/balancoPatrimonial";
+import { formatarMoeda } from "../domain/formatarMoeda";
+import { KpiTile } from "./KpiTile";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 export function PatrimonioView() {
   const { db, versao } = useDb();
   const hoje = hojeIso();
@@ -51,24 +49,14 @@ export function PatrimonioView() {
       {patrimonioLiquido && (
         <>
           <div className="kpi-grid" style={{ marginBottom: 10 }}>
-            <div className="kpi-tile">
-              <div className="label">Ativo (valor venal, imóveis próprios)</div>
-              <div className="value">{formatarMoeda(patrimonioLiquido.ativoImobiliario)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Passivo financiamentos</div>
-              <div className="value critical">{formatarMoeda(patrimonioLiquido.passivoFinanciamentos)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Passivo dívidas de consumo</div>
-              <div className="value critical">{formatarMoeda(patrimonioLiquido.passivoConsumo)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Patrimônio líquido</div>
-              <div className={`value ${patrimonioLiquido.patrimonioLiquido >= 0 ? "good" : "critical"}`}>
-                {formatarMoeda(patrimonioLiquido.patrimonioLiquido)}
-              </div>
-            </div>
+            <KpiTile label="Ativo (valor venal, imóveis próprios)" value={formatarMoeda(patrimonioLiquido.ativoImobiliario)} />
+            <KpiTile label="Passivo financiamentos" value={formatarMoeda(patrimonioLiquido.passivoFinanciamentos)} variant="critical" />
+            <KpiTile label="Passivo dívidas de consumo" value={formatarMoeda(patrimonioLiquido.passivoConsumo)} variant="critical" />
+            <KpiTile
+              label="Patrimônio líquido"
+              value={formatarMoeda(patrimonioLiquido.patrimonioLiquido)}
+              variant={patrimonioLiquido.patrimonioLiquido >= 0 ? "good" : "critical"}
+            />
           </div>
           {patrimonioLiquido.imoveisSemValorVenal.length > 0 && (
             <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 24 }}>
@@ -116,24 +104,14 @@ export function PatrimonioView() {
       {liquidez && (
         <>
           <div className="kpi-grid" style={{ marginBottom: 10 }}>
-            <div className="kpi-tile">
-              <div className="label">Caixa disponível hoje</div>
-              <div className="value">{formatarMoeda(liquidez.saldoCaixaAtual)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Cauções a devolver</div>
-              <div className="value">{formatarMoeda(liquidez.cauçõesADevolverProximos12Meses)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Parcelas de dívida (12 meses)</div>
-              <div className="value">{formatarMoeda(liquidez.parcelasDividaProximos12Meses)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Índice de liquidez corrente</div>
-              <div className={`value ${liquidez.indiceLiquidezCorrente !== null && liquidez.indiceLiquidezCorrente < 1 ? "critical" : "good"}`}>
-                {liquidez.indiceLiquidezCorrente !== null ? liquidez.indiceLiquidezCorrente.toFixed(2) : "—"}
-              </div>
-            </div>
+            <KpiTile label="Caixa disponível hoje" value={formatarMoeda(liquidez.saldoCaixaAtual)} />
+            <KpiTile label="Cauções a devolver" value={formatarMoeda(liquidez.cauçõesADevolverProximos12Meses)} />
+            <KpiTile label="Parcelas de dívida (12 meses)" value={formatarMoeda(liquidez.parcelasDividaProximos12Meses)} />
+            <KpiTile
+              label="Índice de liquidez corrente"
+              value={liquidez.indiceLiquidezCorrente !== null ? liquidez.indiceLiquidezCorrente.toFixed(2) : "—"}
+              variant={liquidez.indiceLiquidezCorrente !== null && liquidez.indiceLiquidezCorrente < 1 ? "critical" : "good"}
+            />
           </div>
           <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginBottom: 24 }}>
             Abaixo de 1,00: o caixa disponível hoje não cobre as parcelas de dívida e cauções exigíveis nos próximos
@@ -152,24 +130,14 @@ export function PatrimonioView() {
       </div>
       {comprometimento && (
         <div className="kpi-grid" style={{ marginBottom: 28 }}>
-          <div className="kpi-tile">
-            <div className="label">Parcelas financiamentos</div>
-            <div className="value">{formatarMoeda(comprometimento.parcelasFinanciamentos)}</div>
-          </div>
-          <div className="kpi-tile">
-            <div className="label">Parcelas dívidas de consumo</div>
-            <div className="value">{formatarMoeda(comprometimento.parcelasConsumo)}</div>
-          </div>
-          <div className="kpi-tile">
-            <div className="label">Total parcelas/mês</div>
-            <div className="value">{formatarMoeda(comprometimento.totalParcelas)}</div>
-          </div>
-          <div className="kpi-tile">
-            <div className="label">% da renda comprometida</div>
-            <div className={`value ${comprometimento.percentualComprometido !== null && comprometimento.percentualComprometido > 30 ? "critical" : "good"}`}>
-              {comprometimento.percentualComprometido !== null ? `${comprometimento.percentualComprometido.toFixed(1)}%` : "—"}
-            </div>
-          </div>
+          <KpiTile label="Parcelas financiamentos" value={formatarMoeda(comprometimento.parcelasFinanciamentos)} />
+          <KpiTile label="Parcelas dívidas de consumo" value={formatarMoeda(comprometimento.parcelasConsumo)} />
+          <KpiTile label="Total parcelas/mês" value={formatarMoeda(comprometimento.totalParcelas)} />
+          <KpiTile
+            label="% da renda comprometida"
+            value={comprometimento.percentualComprometido !== null ? `${comprometimento.percentualComprometido.toFixed(1)}%` : "—"}
+            variant={comprometimento.percentualComprometido !== null && comprometimento.percentualComprometido > 30 ? "critical" : "good"}
+          />
         </div>
       )}
 

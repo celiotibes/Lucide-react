@@ -6,14 +6,18 @@ import { gerarSerieMensal, gerarDre, resultadoLiquido } from "../domain/reports/
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia, agingPorFaixa } from "../domain/reconcile/inadimplencia";
 import { calcularDesempenhoPorImovel, agruparDesempenhoPorCidade } from "../domain/reports/desempenhoPorImovel";
+import { formatarMoeda as formatarMoedaCompleta } from "../domain/formatarMoeda";
+import { KpiTile } from "./KpiTile";
 import type { Imovel } from "../domain/types";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// KPIs compactos do painel dispensam centavos — só aqui, no resto do app formatarMoeda()
+// usa 2 casas decimais (padrão de formatarMoeda() em domain/formatarMoeda.ts).
 function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  return formatarMoedaCompleta(valor, 0);
 }
 
 function TooltipSerie({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
@@ -92,22 +96,10 @@ export function Dashboard() {
         </p>
       )}
       <div className="kpi-grid">
-        <div className="kpi-tile">
-          <div className="label">Receita</div>
-          <div className="value">{formatarMoeda(receitaTotal)}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Despesa</div>
-          <div className="value">{formatarMoeda(Math.abs(despesaTotal))}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Resultado líquido</div>
-          <div className={`value ${resultado >= 0 ? "good" : "critical"}`}>{formatarMoeda(resultado)}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Em aberto (inadimplência)</div>
-          <div className={`value ${totalEmAberto > 0 ? "critical" : "good"}`}>{formatarMoeda(totalEmAberto)}</div>
-        </div>
+        <KpiTile label="Receita" value={formatarMoeda(receitaTotal)} />
+        <KpiTile label="Despesa" value={formatarMoeda(Math.abs(despesaTotal))} />
+        <KpiTile label="Resultado líquido" value={formatarMoeda(resultado)} variant={resultado >= 0 ? "good" : "critical"} />
+        <KpiTile label="Em aberto (inadimplência)" value={formatarMoeda(totalEmAberto)} variant={totalEmAberto > 0 ? "critical" : "good"} />
       </div>
 
       <div className="grid-2">

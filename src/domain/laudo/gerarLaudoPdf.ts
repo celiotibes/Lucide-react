@@ -6,6 +6,7 @@ import type { CapacidadeContributiva } from "../reports/capacidadeContributiva";
 import type { LinhaAnaliseVertical, LinhaAnaliseHorizontal } from "../reports/analiseVerticalHorizontal";
 import type { PatrimonioLiquido, LiquidezCorrente } from "../patrimonio/balancoPatrimonial";
 import type { DesempenhoImovel } from "../reports/desempenhoPorImovel";
+import { formatarMoeda } from "../formatarMoeda";
 
 export interface DadosLaudo {
   periodoInicio: string;
@@ -23,10 +24,6 @@ export interface DadosLaudo {
   passivoCaucaoRetido: number;
   saldoCaixaAtual: number;
   desempenhoImoveis: DesempenhoImovel[];
-}
-
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 /** Substitui variantes Unicode de hífen/menos (ex: MINUS SIGN "−" U+2212) por hífen ASCII

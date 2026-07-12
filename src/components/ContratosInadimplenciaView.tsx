@@ -5,14 +5,11 @@ import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia } from "../domain/reconcile/inadimplencia";
 import { listarPartes } from "../domain/contratos/locatarios";
 import type { ContratoLocacao, Imovel } from "../domain/types";
+import { formatarMoeda } from "../domain/formatarMoeda";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 export function ContratosInadimplenciaView() {
   const { db, versao } = useDb();
   const hoje = hojeIso();

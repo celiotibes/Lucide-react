@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
@@ -10,12 +10,32 @@ import { calcularCarneLeaoPorImovel, CATEGORIAS_DEDUTIVEIS_CANDIDATAS } from "..
 import { gerarDss } from "../domain/reports/dss";
 import { sugerirAjusteRateio, aplicarAjusteRateio } from "../domain/rateio/ajusteAnual";
 import type { ContratoLocacao, Imovel } from "../domain/types";
+import { formatarMoeda } from "../domain/formatarMoeda";
+import { KpiTile } from "./KpiTile";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const CHAVE_CATEGORIAS_DEDUTIVEIS = "carne-leao-categorias-dedutiveis-v1";
+
+/** Lê a seleção de categorias dedutíveis salva no navegador (localStorage) — sem isso, o
+ * usuário perderia a escolha (ex: desmarcar condomínio/IPTU para evitar dupla dedução)
+ * toda vez que recarregasse a página ou trocasse de aba. Cai no default de
+ * CATEGORIAS_DEDUTIVEIS_CANDIDATAS se não houver nada salvo ou o valor salvo for
+ * inválido (formato antigo, corrompido, ou código de categoria que não existe mais). */
+function lerCategoriasDedutiveisSalvas(): string[] {
+  const padrao = CATEGORIAS_DEDUTIVEIS_CANDIDATAS.filter((c) => c.padraoSelecionada).map((c) => c.codigo);
+  try {
+    const bruto = localStorage.getItem(CHAVE_CATEGORIAS_DEDUTIVEIS);
+    if (!bruto) return padrao;
+    const salvo = JSON.parse(bruto);
+    if (!Array.isArray(salvo) || !salvo.every((c) => typeof c === "string")) return padrao;
+    const codigosValidos = new Set(CATEGORIAS_DEDUTIVEIS_CANDIDATAS.map((c) => c.codigo));
+    return salvo.filter((c) => codigosValidos.has(c));
+  } catch {
+    return padrao;
+  }
 }
 
 export function RendaTributavelView() {
@@ -35,9 +55,10 @@ export function RendaTributavelView() {
     [db, versao, inicio12m, hoje],
   );
 
-  const [codigosDedutiveis, setCodigosDedutiveis] = useState<string[]>(
-    CATEGORIAS_DEDUTIVEIS_CANDIDATAS.filter((c) => c.padraoSelecionada).map((c) => c.codigo),
-  );
+  const [codigosDedutiveis, setCodigosDedutiveis] = useState<string[]>(lerCategoriasDedutiveisSalvas);
+  useEffect(() => {
+    localStorage.setItem(CHAVE_CATEGORIAS_DEDUTIVEIS, JSON.stringify(codigosDedutiveis));
+  }, [codigosDedutiveis]);
   const carneLeaoPorImovel = useMemo(
     () => (db ? calcularCarneLeaoPorImovel(db, inicio12m, hoje, codigosDedutiveis) : []),
     [db, versao, inicio12m, hoje, codigosDedutiveis],
@@ -83,24 +104,14 @@ export function RendaTributavelView() {
 
       {capacidade && (
         <div className="kpi-grid" style={{ marginBottom: 10 }}>
-          <div className="kpi-tile">
-            <div className="label">Total recebido bruto (12m)</div>
-            <div className="value">{formatarMoeda(capacidade.totalRecebidoBruto)}</div>
-          </div>
-          <div className="kpi-tile">
-            <div className="label">(−) Reembolso de rateio</div>
-            <div className="value">{formatarMoeda(capacidade.reembolsoNaoTributavel)}</div>
-          </div>
-          <div className="kpi-tile">
-            <div className="label">(−) Despesa operacional</div>
-            <div className="value">{formatarMoeda(capacidade.despesaOperacionalTotal)}</div>
-          </div>
-          <div className="kpi-tile">
-            <div className="label">= Resultado líquido real</div>
-            <div className={`value ${capacidade.resultadoLiquidoReal >= 0 ? "good" : "critical"}`}>
-              {formatarMoeda(capacidade.resultadoLiquidoReal)}
-            </div>
-          </div>
+          <KpiTile label="Total recebido bruto (12m)" value={formatarMoeda(capacidade.totalRecebidoBruto)} />
+          <KpiTile label="(−) Reembolso de rateio" value={formatarMoeda(capacidade.reembolsoNaoTributavel)} />
+          <KpiTile label="(−) Despesa operacional" value={formatarMoeda(capacidade.despesaOperacionalTotal)} />
+          <KpiTile
+            label="= Resultado líquido real"
+            value={formatarMoeda(capacidade.resultadoLiquidoReal)}
+            variant={capacidade.resultadoLiquidoReal >= 0 ? "good" : "critical"}
+          />
         </div>
       )}
       {capacidade && capacidade.percentualDisponivelSobreRecebido !== null && (
@@ -213,22 +224,10 @@ export function RendaTributavelView() {
       </p>
 
       <div className="kpi-grid">
-        <div className="kpi-tile">
-          <div className="label">Total recebido (12m)</div>
-          <div className="value">{formatarMoeda(totais.totalRecebido)}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Renda tributável</div>
-          <div className="value">{formatarMoeda(totais.rendaTributavel)}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">Reembolso não tributável</div>
-          <div className="value">{formatarMoeda(totais.reembolsoNaoTributavel)}</div>
-        </div>
-        <div className="kpi-tile">
-          <div className="label">% do recebido que é renda</div>
-          <div className="value">{percentualTributavel.toFixed(1)}%</div>
-        </div>
+        <KpiTile label="Total recebido (12m)" value={formatarMoeda(totais.totalRecebido)} />
+        <KpiTile label="Renda tributável" value={formatarMoeda(totais.rendaTributavel)} />
+        <KpiTile label="Reembolso não tributável" value={formatarMoeda(totais.reembolsoNaoTributavel)} />
+        <KpiTile label="% do recebido que é renda" value={`${percentualTributavel.toFixed(1)}%`} />
       </div>
 
       <div className="table-wrap" style={{ marginBottom: 28 }}>
@@ -348,20 +347,13 @@ export function RendaTributavelView() {
           {dss && (
             <div className="card">
               <div className="kpi-grid" style={{ marginBottom: 16 }}>
-                <div className="kpi-tile">
-                  <div className="label">Arrecadado (rateio)</div>
-                  <div className="value">{formatarMoeda(dss.totalArrecadadoRateio)}</div>
-                </div>
-                <div className="kpi-tile">
-                  <div className="label">Despendido (custeio coletivo)</div>
-                  <div className="value">{formatarMoeda(dss.totalDespendido)}</div>
-                </div>
-                <div className="kpi-tile">
-                  <div className="label">Saldo do período</div>
-                  <div className={`value ${dss.saldo === "deficit" ? "critical" : "good"}`}>
-                    {formatarMoeda(dss.saldoValor)} ({dss.saldo})
-                  </div>
-                </div>
+                <KpiTile label="Arrecadado (rateio)" value={formatarMoeda(dss.totalArrecadadoRateio)} />
+                <KpiTile label="Despendido (custeio coletivo)" value={formatarMoeda(dss.totalDespendido)} />
+                <KpiTile
+                  label="Saldo do período"
+                  value={`${formatarMoeda(dss.saldoValor)} (${dss.saldo})`}
+                  variant={dss.saldo === "deficit" ? "critical" : "good"}
+                />
               </div>
               <div className="table-wrap">
                 <table className="data-table">
@@ -388,22 +380,10 @@ export function RendaTributavelView() {
                 sozinho, só sugere; aplicar é uma decisão sua.
               </p>
               <div className="kpi-grid" style={{ marginBottom: 14 }}>
-                <div className="kpi-tile">
-                  <div className="label">Rateio atual</div>
-                  <div className="value">{sugestaoRateio.percentualRateioAtual.toFixed(1)}%</div>
-                </div>
-                <div className="kpi-tile">
-                  <div className="label">Rateio sugerido</div>
-                  <div className="value">{sugestaoRateio.percentualRateioSugerido.toFixed(1)}%</div>
-                </div>
-                <div className="kpi-tile">
-                  <div className="label">Aluguel efetivo atual</div>
-                  <div className="value">{sugestaoRateio.percentualAluguelEfetivoAtual.toFixed(1)}%</div>
-                </div>
-                <div className="kpi-tile">
-                  <div className="label">Aluguel efetivo sugerido</div>
-                  <div className="value">{sugestaoRateio.percentualAluguelEfetivoSugerido.toFixed(1)}%</div>
-                </div>
+                <KpiTile label="Rateio atual" value={`${sugestaoRateio.percentualRateioAtual.toFixed(1)}%`} />
+                <KpiTile label="Rateio sugerido" value={`${sugestaoRateio.percentualRateioSugerido.toFixed(1)}%`} />
+                <KpiTile label="Aluguel efetivo atual" value={`${sugestaoRateio.percentualAluguelEfetivoAtual.toFixed(1)}%`} />
+                <KpiTile label="Aluguel efetivo sugerido" value={`${sugestaoRateio.percentualAluguelEfetivoSugerido.toFixed(1)}%`} />
               </div>
               <button
                 className="btn"
