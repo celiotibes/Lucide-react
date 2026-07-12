@@ -47,6 +47,7 @@ import tribunalPollingController from '@/api/controllers/tribunalPollingControll
 import contractRouter from '@/api/routes/contractRouter';
 import auditRouter from '@/api/routes/auditRouter';
 import eventRouter from '@/api/routes/eventRouter';
+import cacheRouter from '@/api/routes/cacheRouter';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -176,6 +177,9 @@ app.use('/api/v1/audit', verifyToken, auditRouter);
 
 // Improvements: Event-Driven Architecture & Webhooks
 app.use('/api/v1/events', verifyToken, eventRouter);
+
+// Improvements: Performance & Caching
+app.use('/api/v1/cache', verifyToken, cacheRouter);
 
 // Phase 5: AI Optimization & Monitoring Routes
 app.use('/api/v1/ab-testing', verifyToken, abTestingRouter);
