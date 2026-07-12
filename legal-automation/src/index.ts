@@ -50,6 +50,8 @@ import eventRouter from '@/api/routes/eventRouter';
 import cacheRouter from '@/api/routes/cacheRouter';
 import healthRouter from '@/api/routes/healthRouter';
 import swaggerRouter from '@/api/routes/swaggerRouter';
+import webSocketRouter from '@/api/routes/webSocketRouter';
+import { webSocketEventService } from '@services/WebSocketEventService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -179,6 +181,9 @@ app.use('/api/v1/events', verifyToken, eventRouter);
 // Improvements: Performance & Caching
 app.use('/api/v1/cache', verifyToken, cacheRouter);
 
+// Real-time Updates via WebSocket
+app.use('/api/v1/ws', verifyToken, webSocketRouter);
+
 // Phase 5: AI Optimization & Monitoring Routes
 app.use('/api/v1/ab-testing', verifyToken, abTestingRouter);
 app.use('/api/v1/rate-limiting', verifyToken, rateLimitingRouter);
@@ -250,6 +255,16 @@ async function initializeServices(): Promise<void> {
   }
 }
 
+// Initialize real-time features
+function initializeRealtimeFeatures(): void {
+  try {
+    webSocketEventService.initialize();
+    logger.info('✓ WebSocket Event Service inicializado');
+  } catch (error) {
+    logger.error({ err: error }, 'Erro ao inicializar WebSocket Event Service');
+  }
+}
+
 // Start server
 async function startServer(): Promise<void> {
   try {
@@ -259,6 +274,9 @@ async function startServer(): Promise<void> {
 
     // Inicializar WebSocket
     await webSocketManager.initialize(httpServer);
+
+    // Inicializar recursos em tempo real
+    initializeRealtimeFeatures();
 
     const server = httpServer.listen(config.port, () => {
       logger.info(
