@@ -45,6 +45,8 @@ import paymentController from '@/api/controllers/paymentController';
 import reportingController from '@/api/controllers/reportingController';
 import tribunalPollingController from '@/api/controllers/tribunalPollingController';
 import contractRouter from '@/api/routes/contractRouter';
+import auditRouter from '@/api/routes/auditRouter';
+import eventRouter from '@/api/routes/eventRouter';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -168,6 +170,12 @@ app.use('/api/v1/tribunal-polling', verifyToken, tribunalPollingController);
 
 // Phase 5: Contract Lifecycle Management
 app.use('/api/v1/contracts', verifyToken, contractRouter);
+
+// Improvements: Audit Trail & Compliance
+app.use('/api/v1/audit', verifyToken, auditRouter);
+
+// Improvements: Event-Driven Architecture & Webhooks
+app.use('/api/v1/events', verifyToken, eventRouter);
 
 // Phase 5: AI Optimization & Monitoring Routes
 app.use('/api/v1/ab-testing', verifyToken, abTestingRouter);
