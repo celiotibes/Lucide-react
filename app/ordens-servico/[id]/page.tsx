@@ -2,8 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { obterPool } from '@/server/integracao/db';
 import { formatarData, formatarDataHora } from '@/lib/formatacao';
+import { FormularioAndamento } from './FormularioAndamento';
 
 export const dynamic = 'force-dynamic';
+
+const ESTADOS_FINAIS = new Set(['concluido', 'cancelado']);
 
 interface OrdemServico {
   id: string;
@@ -95,15 +98,28 @@ async function buscarAndamentos(id: string): Promise<Andamento[]> {
   return rows;
 }
 
+async function buscarPrestadores(): Promise<{ id: string; nome: string }[]> {
+  const pool = obterPool();
+  const { rows } = await pool.query<{ id: string; nome: string }>(
+    `select distinct p.id, p.nome
+     from pessoas p
+     join pessoa_papeis pp on pp.pessoa_id = p.id
+     where pp.papel in ('prestador_fixo', 'prestador_eventual')
+     order by p.nome`,
+  );
+  return rows;
+}
+
 export default async function PaginaDetalheOrdemServico({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   let os: OrdemServico | null = null;
   let andamentos: Andamento[] = [];
+  let prestadores: { id: string; nome: string }[] = [];
   let erro: string | null = null;
 
   try {
-    [os, andamentos] = await Promise.all([buscarOrdemServico(id), buscarAndamentos(id)]);
+    [os, andamentos, prestadores] = await Promise.all([buscarOrdemServico(id), buscarAndamentos(id), buscarPrestadores()]);
   } catch {
     erro = 'Não foi possível conectar ao banco (DATABASE_URL não configurada ou banco fora do ar).';
   }
@@ -204,6 +220,13 @@ export default async function PaginaDetalheOrdemServico({ params }: { params: Pr
             </li>
           ))}
         </ol>
+      )}
+
+      <h3>Registrar andamento</h3>
+      {ESTADOS_FINAIS.has(os.status) ? (
+        <p className="vazio">Esta OS já está em estado final ({RUBRICA_STATUS[os.status] ?? os.status}) — não aceita novo andamento.</p>
+      ) : (
+        <FormularioAndamento ordemServicoId={os.id} prestadores={prestadores} />
       )}
     </>
   );

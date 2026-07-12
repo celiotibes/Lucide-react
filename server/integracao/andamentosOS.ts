@@ -43,6 +43,8 @@ export interface RegistrarAndamentoInput {
   descricao?: string | null;
   fotosUrls?: string[];
   registradoPorPessoaId?: string | null;
+  /** Quando informado, atualiza `ordens_servico.prestador_id` junto — uso típico é o tipo `atribuida`, mas não é reforçado como regra rígida (nenhum pedido do cliente especificou isso). */
+  prestadorPessoaId?: string | null;
 }
 
 export interface ResultadoAndamento {
@@ -93,6 +95,13 @@ export async function registrarAndamentoOS(pool: Pool, input: RegistrarAndamento
     [input.ordemServicoId, input.tipo, input.descricao ?? null, input.fotosUrls ?? [], input.registradoPorPessoaId ?? null],
   );
   const andamentoId = andamentoRows[0].id;
+
+  if (input.prestadorPessoaId !== undefined) {
+    await pool.query(`update ordens_servico set prestador_id = $1, atualizado_em = now() where id = $2`, [
+      input.prestadorPessoaId,
+      input.ordemServicoId,
+    ]);
+  }
 
   const novoStatus = STATUS_POR_TIPO[input.tipo];
   let statusAtualizado: string | null = null;

@@ -43,13 +43,22 @@ Verificado ponta a ponta com um script chamando a Server Action diretamente cont
 
 Verificado ponta a ponta da mesma forma que o achado 2 (chamada direta da Server Action contra Postgres real): lançar fatura → confirmar → calcular auditoria sem geração solar confirmada (devolve o motivo, não grava nada) → confirmar geração solar → calcular de novo (grava a auditoria com os valores certos).
 
+## Achado 4: `app/ordens-servico/[id]` só lia a timeline, não escrevia nela
+
+A tela de detalhe da OS mostrava o histórico de andamentos, mas não havia formulário nenhum para registrar um novo — só existia `server/integracao/andamentosOS.ts`, testada, sem UI. Junto disso, achei uma segunda lacuna dentro da mesma função: não havia como **atribuir um prestador** a uma OS em lugar nenhum do código (nem função, nem UI) — `ordens_servico.prestador_id` só era gravado no fixture de teste ou manualmente.
+
+- `registrarAndamentoOS` ganhou um parâmetro opcional `prestadorPessoaId` — quando informado, atualiza `ordens_servico.prestador_id` na mesma chamada que registra o andamento (tipicamente usado com o tipo `atribuida`, mas sem regra rígida de acoplamento — nenhum pedido do cliente especificou isso, e travar demais aqui seria inventar processo). 1 teste de integração novo.
+- `app/ordens-servico/[id]` ganha o formulário "Registrar andamento": tipo, prestador (opcional — "não alterar" por padrão) e descrição. Some quando a OS já está em estado final (`concluido`/`cancelado`), mostrando a mensagem em vez do formulário — mesma regra que a função já impõe no banco, só refletida na tela para não deixar o usuário preencher um formulário que vai ser rejeitado.
+
+Verificado ponta a ponta chamando a Server Action diretamente contra Postgres real: atribuir prestador (grava `prestador_id` e muda status para `alocado`) → concluir (muda status, dispara notificação/pesquisa quando há `aberto_por_pessoa_id`) → tentar um novo andamento (rejeitado com a mensagem de estado final, mesma verificada nos testes de `andamentosOS.ts`).
+
 ## O que continua pendente
 
 - Portal de autenticação do inquilino/investidor/prestador — bloqueio de sempre (docs/09), por isso as telas novas são operadas pela gestão, não self-service ainda.
 - `server/growatt/client.ts` continua sem poder ser validado contra a API real neste ambiente sandbox (docs/30) — a tela de energia solar já avisa isso no próprio texto da página.
-- `app/ordens-servico/[id]` continua só leitura — não há formulário para registrar um novo andamento pela tela (só existe a função `server/integracao/andamentosOS.ts`, testada, sem UI). Não entrou nesta rodada por escopo; é o próximo candidato óbvio de uma futura auditoria "o que falta".
 - Confirmar o limite de crons do plano Vercel antes do deploy (achado 1).
+- Upload de fotos nos andamentos (`fotos_urls`) continua sem campo na UI — depende de um provedor de storage (Supabase Storage, bloqueado por credencial em docs/09), mesma situação de anexos em outras telas.
 
 ## Verificação
 
-Schema sem alteração nesta rodada (nenhuma tabela nova). Typecheck, lint e build limpos. 15 testes novos de rota de cron + verificação end-to-end das duas telas novas por chamada direta de Server Action contra Postgres real (não Playwright desta vez — script direto, mesmo rigor, sem a dependência pesada do navegador). Contagem de testes e execução da suíte completa registradas no commit desta rodada.
+Schema sem alteração nesta rodada (nenhuma tabela nova). Typecheck, lint e build limpos. 15 testes novos de rota de cron + 1 teste novo de `registrarAndamentoOS` (atribuição de prestador) + verificação end-to-end das três telas novas/alteradas por chamada direta de Server Action contra Postgres real (não Playwright desta vez — script direto, mesmo rigor, sem a dependência pesada do navegador). Contagem de testes e execução da suíte completa registradas no commit desta rodada.

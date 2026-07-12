@@ -100,6 +100,32 @@ describe.skipIf(!DATABASE_URL)('registrarAndamentoOS (integração real com Post
     await expect(registrarAndamentoOS(pool, { ordemServicoId, tipo: 'iniciada' })).rejects.toThrow(/estado final/);
   });
 
+  it('prestadorPessoaId informado: atribui o prestador à OS junto com o andamento', async () => {
+    const cidade = await pool.query(`select id from cidades limit 1`);
+    const imovel = await pool.query(
+      `insert into imoveis (cidade_id, identificacao, tipo) values ($1, $2, 'kitnet') returning id`,
+      [cidade.rows[0].id, `Teste OS Sem Prestador ${randomUUID()}`],
+    );
+    const osSemPrestador = await pool.query(
+      `insert into ordens_servico (imovel_id, categoria, descricao, status) values ($1, 'eletricista', 'Troca de lâmpada', 'aberto') returning id`,
+      [imovel.rows[0].id],
+    );
+    const outroPrestador = await pool.query(`insert into pessoas (nome) values ('Encanador Teste') returning id`);
+
+    const resultado = await registrarAndamentoOS(pool, {
+      ordemServicoId: osSemPrestador.rows[0].id,
+      tipo: 'atribuida',
+      prestadorPessoaId: outroPrestador.rows[0].id,
+    });
+
+    expect(resultado.statusAtualizado).toBe('alocado');
+    const { rows } = await pool.query(`select prestador_id, status from ordens_servico where id = $1`, [
+      osSemPrestador.rows[0].id,
+    ]);
+    expect(rows[0].prestador_id).toBe(outroPrestador.rows[0].id);
+    expect(rows[0].status).toBe('alocado');
+  });
+
   it('ordem de serviço inexistente: lança erro claro', async () => {
     await expect(registrarAndamentoOS(pool, { ordemServicoId: randomUUID(), tipo: 'iniciada' })).rejects.toThrow(
       /não encontrada/,
