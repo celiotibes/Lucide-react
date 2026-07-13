@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import type { Imovel } from "../types";
+import { percentualTributavel } from "./rendaTributavel";
 
 export interface FaixaIrpf {
   ateValor: number | null; // null = última faixa ("acima de")
@@ -110,13 +111,11 @@ export function calcularCarneLeaoPorImovel(
        )`,
       [imovel.id, dataInicio, dataFim, imovel.id, dataInicio, dataFim],
     );
-    // Mesma regra de rendaTributavel.ts: só o código de aluguel (1.1.01) tem o percentual
-    // do contrato aplicado — qualquer outra receita (multas, créditos jurídicos, Airbnb)
+    // Mesma regra de rendaTributavel.ts::percentualTributavel: só o código de aluguel
+    // (1.1.01) tem o percentual do contrato aplicado, reembolso de consumo individualizado
+    // (1.1.02) é sempre 0%, e qualquer outra receita (multas, créditos jurídicos, Airbnb)
     // é 100% tributável, mesmo que vinculada a um contrato com rateio embutido.
-    const rendaTributavelBruta = receitaAluguel.reduce((acc, l) => {
-      const percentual = l.codigo === "1.1.01" && l.percentual !== null ? l.percentual : 100;
-      return acc + l.valor * (percentual / 100);
-    }, 0);
+    const rendaTributavelBruta = receitaAluguel.reduce((acc, l) => acc + l.valor * (percentualTributavel(l.codigo, l.percentual) / 100), 0);
 
     let despesaDedutivel = 0;
     if (codigosDedutiveis.length > 0) {
