@@ -60,6 +60,10 @@ import searchRouter from '@/api/routes/searchRouter';
 import { elasticsearchService } from '@services/ElasticsearchService';
 import cacheManagementRouter from '@/api/routes/cacheManagementRouter';
 import { redisCacheService } from '@services/RedisCacheService';
+import apiKeyRouter from '@/api/routes/apiKeyRouter';
+import { encryptionService } from '@services/EncryptionService';
+import { auditLogService } from '@services/AuditLogService';
+import { apiKeyService } from '@services/ApiKeyService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -229,6 +233,9 @@ app.use('/api/v1/search', searchRouter);
 // Phase 6: Cache Management (Redis + In-Memory)
 app.use('/api/v1/cache', cacheManagementRouter);
 
+// Phase 7: Security Hardening (API Keys, Encryption, Audit Logging)
+app.use('/api/v1', apiKeyRouter);
+
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
 
@@ -325,6 +332,8 @@ async function startServer(): Promise<void> {
       logger.info(`📖 GraphQL Docs: http://localhost:${config.port}/graphql/docs/queries`);
       logger.info(`🔍 Advanced Search: http://localhost:${config.port}/api/v1/search`);
       logger.info(`💾 Cache Management: http://localhost:${config.port}/api/v1/cache`);
+      logger.info(`🔑 API Keys: http://localhost:${config.port}/api/v1/apikeys`);
+      logger.info(`📋 Audit Logs: http://localhost:${config.port}/api/v1/audit-logs`);
     });
 
     // Graceful shutdown
