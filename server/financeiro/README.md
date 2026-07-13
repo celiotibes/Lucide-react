@@ -22,6 +22,9 @@ Rendimento do depósito caução pro rata die. Recebe a taxa mensal da poupança
 ## `../energia/calcularFaturaEnergia.ts`
 Franquia mínima (30 ou 50 kWh conforme a data do contrato), taxa administrativa de 25% sempre discriminada como item separado (nunca embutida sem descrição — auditoria item 1), e rejeição explícita de leitura atual menor que a anterior (medidor resetado/erro) em vez de faturar consumo negativo.
 
+## `patrimonioLiquido.ts`
+Patrimônio líquido por imóvel (valor de avaliação − saldo devedor dos financiamentos ativos) e a despesa fixa mensal que os financiamentos representam para o negócio (soma das parcelas ativas) — pedido direto do cliente ao revisar a cobertura do portfólio de Curitiba, docs/33. Sem `valorAvaliacao` cadastrado, patrimônio líquido é `null`, nunca estimado. `calcularPatrimonioLiquidoConsolidado` soma só os imóveis com avaliação, mas conta explicitamente quantos ainda não têm, para sinalizar quando o total está incompleto.
+
 ## Testes
 
 ```

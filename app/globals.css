@@ -202,6 +202,39 @@ tbody tr:last-child td {
   color: var(--cor-alerta);
 }
 
+.resumo-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.card-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: white;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  min-width: 220px;
+}
+
+.card-resumo .rotulo {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.card-resumo .valor {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.card-resumo .aviso-pequeno {
+  font-size: 0.78rem;
+  color: var(--cor-alerta);
+}
+
 .vazio {
   padding: 2rem;
   text-align: center;

@@ -2554,3 +2554,65 @@ create policy investidor_ve_auditoria_do_proprio_residencial on auditorias_energ
 create trigger trg_audit_auditorias_energia_solar
   after insert or update or delete on auditorias_energia_solar
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 31. FINANCIAMENTO/HIPOTECA POR IMÓVEL E PATRIMÔNIO LÍQUIDO
+-- ============================================================================
+-- Pedido direto do cliente ao revisar a cobertura do portfólio de Curitiba
+-- (docs/33): todos os imóveis de Curitiba são financiados, um deles (Apto
+-- 151A, Edifício Vega to Live) por consórcio com hipoteca — regime
+-- diferente de financiamento bancário tradicional, daí `tipo` distinguir
+-- os dois. Um imóvel pode ter mais de um financiamento ao longo do tempo
+-- (quitado um, contratado outro), por isso é tabela própria, não colunas
+-- em `imoveis` — mesmo padrão de `garantias` (várias linhas por contrato).
+--
+-- Uso pedido explicitamente: (1) apurar patrimônio líquido mensal por
+-- imóvel e consolidado — `imoveis.valor_avaliacao` (nova coluna) menos o
+-- saldo devedor somado dos financiamentos ativos daquele imóvel; (2)
+-- entrar como despesa fixa recorrente do negócio — soma de
+-- `valor_parcela` de todos os financiamentos ativos, por imóvel e total.
+-- Nenhum dos dois cálculos vive aqui: schema só guarda o dado; o cálculo
+-- é código testado (server/financeiro/patrimonioLiquido.ts), mesma
+-- separação de sempre (docs/03).
+--
+-- NÃO inclui valor_avaliacao nem saldo_devedor nem valor_parcela reais
+-- de nenhum imóvel específico — só quem tem os números (o cliente) pode
+-- preenchê-los; inventar um valor aqui seria o mesmo erro que este
+-- projeto evita desde docs/10.
+alter table imoveis add column valor_avaliacao numeric(14,2) check (valor_avaliacao is null or valor_avaliacao >= 0);
+
+create table financiamentos_imoveis (
+  id uuid primary key default gen_random_uuid(),
+  imovel_id uuid not null references imoveis(id) on delete cascade,
+  tipo text not null check (tipo in ('financiamento_bancario', 'consorcio_hipoteca')),
+  instituicao text,
+  valor_financiado numeric(14,2) check (valor_financiado is null or valor_financiado >= 0),
+  valor_parcela numeric(14,2) not null check (valor_parcela >= 0),
+  saldo_devedor numeric(14,2) check (saldo_devedor is null or saldo_devedor >= 0),
+  data_inicio date,
+  numero_parcelas smallint check (numero_parcelas is null or numero_parcelas > 0),
+  status text not null default 'ativo' check (status in ('ativo', 'quitado')),
+  observacao text,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
+);
+
+create index idx_financiamentos_imoveis_imovel on financiamentos_imoveis(imovel_id) where status = 'ativo';
+
+-- Dado financeiro sensível do proprietário/CRMT (saldo devedor, valor de
+-- avaliação) — mesmo tratamento de garantias/investidor_ledger: admin/
+-- economista têm acesso total; investidor vê os financiamentos dos
+-- imóveis dos quais é proprietário (mesmo padrão de imovel_propriedade).
+alter table financiamentos_imoveis enable row level security;
+create policy admin_full_access_financiamentos_imoveis on financiamentos_imoveis
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create policy investidor_ve_financiamento_do_proprio_imovel on financiamentos_imoveis
+  for select using (
+    exists (
+      select 1 from imovel_propriedade ip
+      where ip.imovel_id = financiamentos_imoveis.imovel_id and ip.proprietario_pessoa_id = fn_minha_pessoa_id()
+    )
+  );
+create trigger trg_audit_financiamentos_imoveis
+  after insert or update or delete on financiamentos_imoveis
+  for each row execute function fn_audit_trigger();
