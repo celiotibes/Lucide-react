@@ -105,6 +105,12 @@ a {
   font-weight: 600;
 }
 
+.formulario label.rotulo-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .formulario input,
 .formulario select,
 .formulario textarea {

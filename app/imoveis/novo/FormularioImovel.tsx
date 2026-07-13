@@ -61,6 +61,21 @@ export function FormularioImovel({ cidades, residenciais }: { cidades: Opcao[]; 
         </select>
       </label>
 
+      <label>
+        Endereço (opcional)
+        <input name="endereco" placeholder="Rua, número, bairro, cidade" />
+      </label>
+
+      <label className="rotulo-checkbox">
+        <input name="permite_coliving" type="checkbox" />
+        Permite co-living (locação por cômodo)
+      </label>
+
+      <label>
+        Valor de avaliação (R$, opcional)
+        <input name="valor_avaliacao" type="number" min={0} step="0.01" />
+      </label>
+
       <button type="submit" disabled={pendente}>
         {pendente ? 'Salvando…' : 'Salvar imóvel'}
       </button>

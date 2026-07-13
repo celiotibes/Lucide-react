@@ -27,6 +27,40 @@ describe.skipIf(!DATABASE_URL)('inserirImovel (integração real com Postgres)',
     expect(rows[0].status).toBe('disponivel'); // default do schema
   });
 
+  it('grava endereço, permite_coliving e valor_avaliacao quando informados', async () => {
+    const cidade = await pool.query(`select id from cidades limit 1`);
+    const resultado = await inserirImovel(pool, {
+      identificacao: 'Kitnet Co-living Teste',
+      tipo: 'kitnet',
+      cidadeId: cidade.rows[0].id,
+      endereco: 'Rua Teste, 100',
+      permiteColiving: true,
+      valorAvaliacao: 350000,
+    });
+
+    expect(resultado.sucesso).toBe(true);
+    if (!resultado.sucesso) throw new Error('esperava sucesso');
+
+    const { rows } = await pool.query(
+      `select endereco, permite_coliving, valor_avaliacao from imoveis where id = $1`,
+      [resultado.id],
+    );
+    expect(rows[0].endereco).toBe('Rua Teste, 100');
+    expect(rows[0].permite_coliving).toBe(true);
+    expect(Number(rows[0].valor_avaliacao)).toBe(350000);
+  });
+
+  it('rejeita valor de avaliação negativo', async () => {
+    const cidade = await pool.query(`select id from cidades limit 1`);
+    const resultado = await inserirImovel(pool, {
+      identificacao: 'Teste Avaliação Negativa',
+      tipo: 'kitnet',
+      cidadeId: cidade.rows[0].id,
+      valorAvaliacao: -100,
+    });
+    expect(resultado.sucesso).toBe(false);
+  });
+
   it('rejeita identificação vazia sem tocar o banco', async () => {
     const cidade = await pool.query(`select id from cidades limit 1`);
     const antes = await pool.query(`select count(*)::int as total from imoveis`);

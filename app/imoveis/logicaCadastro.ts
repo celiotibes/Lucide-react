@@ -10,6 +10,9 @@ export interface DadosNovoImovel {
   tipo: string;
   cidadeId: string;
   residencialId?: string | null;
+  endereco?: string | null;
+  permiteColiving?: boolean;
+  valorAvaliacao?: number | null;
 }
 
 export type ResultadoCadastro = { sucesso: true; id: string } | { sucesso: false; erro: string };
@@ -28,11 +31,23 @@ export async function inserirImovel(pool: Pool, dados: DadosNovoImovel): Promise
   if (!dados.cidadeId) {
     return { sucesso: false, erro: 'Selecione a cidade.' };
   }
+  if (dados.valorAvaliacao !== null && dados.valorAvaliacao !== undefined && !(dados.valorAvaliacao >= 0)) {
+    return { sucesso: false, erro: 'Valor de avaliação deve ser zero ou positivo.' };
+  }
 
   try {
     const { rows } = await pool.query<{ id: string }>(
-      `insert into imoveis (identificacao, tipo, cidade_id, residencial_id) values ($1, $2, $3, $4) returning id`,
-      [identificacao, dados.tipo, dados.cidadeId, dados.residencialId ?? null],
+      `insert into imoveis (identificacao, tipo, cidade_id, residencial_id, endereco, permite_coliving, valor_avaliacao)
+       values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+      [
+        identificacao,
+        dados.tipo,
+        dados.cidadeId,
+        dados.residencialId ?? null,
+        dados.endereco?.trim() || null,
+        dados.permiteColiving ?? false,
+        dados.valorAvaliacao ?? null,
+      ],
     );
     return { sucesso: true, id: rows[0].id };
   } catch (e) {

@@ -79,7 +79,9 @@ export default async function PaginaImoveis() {
           <tbody>
             {imoveis.map((imovel) => (
               <tr key={imovel.id}>
-                <td>{imovel.identificacao}</td>
+                <td>
+                  <Link href={`/imoveis/${imovel.id}`}>{imovel.identificacao}</Link>
+                </td>
                 <td>{imovel.cidade}</td>
                 <td>{imovel.residencial ?? '—'}</td>
                 <td>{imovel.tipo}</td>
