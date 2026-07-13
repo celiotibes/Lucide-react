@@ -130,6 +130,11 @@ export const config = {
   jusbrasil_api_url: process.env.JUSBRASIL_API_URL,
   jusbrasil_api_key: process.env.JUSBRASIL_API_KEY,
 
+  // Elasticsearch
+  elasticsearch_url: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+  elasticsearch_username: process.env.ELASTICSEARCH_USERNAME,
+  elasticsearch_password: process.env.ELASTICSEARCH_PASSWORD,
+
   // Validators
   isDev: process.env.NODE_ENV === 'development',
   isProd: process.env.NODE_ENV === 'production',

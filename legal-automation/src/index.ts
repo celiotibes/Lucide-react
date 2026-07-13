@@ -56,6 +56,8 @@ import webSocketRouter from '@/api/routes/webSocketRouter';
 import { webSocketEventService } from '@services/WebSocketEventService';
 import graphqlRouter from '@/api/routes/graphqlRouter';
 import { initializeApolloServer } from '@/api/graphql/apolloServer';
+import searchRouter from '@/api/routes/searchRouter';
+import { elasticsearchService } from '@services/ElasticsearchService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -219,6 +221,9 @@ app.use('/api/v1/jurimetria', verifyToken, jurimetriaRouter);
 // Phase 4: GraphQL API
 app.use('/graphql', graphqlRouter);
 
+// Phase 5: Advanced Search (Elasticsearch)
+app.use('/api/v1/search', searchRouter);
+
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
 
@@ -233,6 +238,14 @@ async function initializeServices(): Promise<void> {
     // Inicializar banco de dados
     await initDatabase();
     logger.info('✓ PostgreSQL conectado');
+
+    // Inicializar Elasticsearch
+    try {
+      await elasticsearchService.initialize();
+      logger.info('✓ Elasticsearch inicializado');
+    } catch (error) {
+      logger.warn({ error }, 'Elasticsearch não disponível - busca avançada desabilitada');
+    }
 
     // Inicialize Projudi SOAP client
     if (config.projudi_wsdl_url) {
