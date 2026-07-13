@@ -853,6 +853,9 @@ create policy inquilino_ve_proprias_cobrancas on cobrancas_asaas
       where u.id = auth.uid() and u.papel = 'inquilino' and f.id = cobrancas_asaas.fatura_id
     )
   );
+create trigger trg_audit_cobrancas_asaas
+  after insert or update or delete on cobrancas_asaas
+  for each row execute function fn_audit_trigger();
 
 -- ---- garantias (caução/fiador/seguro — "Auditoria de Caução Exibida", gap 8-D) ----
 create policy admin_full_access_garantias on garantias
@@ -903,6 +906,9 @@ create policy investidor_ve_proprio_extrato on extratos_mensais_proprietario
       where u.id = auth.uid() and u.papel = 'investidor' and u.pessoa_id = extratos_mensais_proprietario.pessoa_id
     )
   );
+create trigger trg_audit_extratos_mensais_proprietario
+  after insert or update or delete on extratos_mensais_proprietario
+  for each row execute function fn_audit_trigger();
 
 -- ---- extrato_mensal_itens (tabela filha — RLS NÃO herda da tabela pai,
 -- por isso precisa de política própria; esquecer isso é o mesmo tipo de
@@ -1093,6 +1099,14 @@ create policy admin_full_access_imovel_propriedade on imovel_propriedade
   for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
 create policy investidor_ve_propria_participacao on imovel_propriedade
   for select using (proprietario_pessoa_id = fn_minha_pessoa_id());
+-- Auditoria encontrada faltando (docs/35): mudança de propriedade/percentual
+-- é exatamente o tipo de alteração que database/README.md já descreve como
+-- "manual e deve ter um documentos_gerados correspondente assinado" — mas
+-- nunca tinha o trg_audit_trigger que o resto das tabelas dessa mesma
+-- classe (garantias, contratos, split_pagamento) já tem.
+create trigger trg_audit_imovel_propriedade
+  after insert or update or delete on imovel_propriedade
+  for each row execute function fn_audit_trigger();
 
 alter table reajustes_contrato enable row level security;
 create policy admin_full_access_reajustes on reajustes_contrato
@@ -1150,6 +1164,9 @@ create policy inquilino_ve_propria_confissao on confissoes_divida
   for select using (
     exists (select 1 from contrato_partes cp where cp.contrato_id = confissoes_divida.contrato_id and cp.pessoa_id = fn_minha_pessoa_id())
   );
+create trigger trg_audit_confissoes_divida
+  after insert or update or delete on confissoes_divida
+  for each row execute function fn_audit_trigger();
 
 alter table assinaturas enable row level security;
 create policy admin_full_access_assinaturas on assinaturas
@@ -1289,6 +1306,13 @@ create policy admin_full_access_contas on contas_bancarias
 alter table transacoes_bancarias enable row level security;
 create policy admin_full_access_transacoes on transacoes_bancarias
   for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+-- server/integracao/importarExtratoBancarioOFX.ts já documenta que
+-- status = 'aprovado' "só deve mudar por ação humana explícita na tela
+-- de conciliação" (database/README.md) — a mesma classe de decisão
+-- financeira irreversível que já tem trigger em garantias/contratos.
+create trigger trg_audit_transacoes_bancarias
+  after insert or update or delete on transacoes_bancarias
+  for each row execute function fn_audit_trigger();
 
 alter table ativos_comodato enable row level security;
 create policy admin_full_access_ativos on ativos_comodato
@@ -2522,19 +2546,27 @@ create trigger trg_audit_faturas_celesc_gd
 -- que já foi cobrado dos inquilinos (fatura_itens, já existente via
 -- faturarEnergia.ts) para isolar o consumo de área comum e o resultado
 -- financeiro (lucro ou custo absorvido pela administração).
+-- Checks de não-negatividade abaixo: docs/35 encontrou essa tabela sem
+-- eles, mesma classe de lacuna que a auditoria stress-test (docs/08) já
+-- havia corrigido em 10 outras tabelas de uma vez. A função pura que
+-- grava aqui (server/energia/auditoriaGeracaoSolar.ts) já garante isso
+-- em código — o constraint é defesa em profundidade, não substitui a
+-- validação. `resultado_financeiro_valor` é a única exceção deliberada:
+-- pode ser negativo por design (custo absorvido pela administração
+-- quando o consumo real custa mais do que o cobrado dos inquilinos).
 create table auditorias_energia_solar (
   id uuid primary key default gen_random_uuid(),
   residencial_id uuid not null references residenciais(id),
   competencia date not null,
-  energia_gerada_total_kwh numeric(10,2) not null,
-  energia_injetada_kwh numeric(10,2) not null,
-  consumo_proprio_instantaneo_kwh numeric(10,2) not null,
-  energia_consumida_rede_kwh numeric(10,2) not null,
-  total_consumido_kwh numeric(10,2) not null,
-  total_cobrado_inquilinos_kwh numeric(10,2) not null,
-  total_cobrado_inquilinos_valor numeric(14,2) not null,
-  area_comum_kwh numeric(10,2) not null,
-  area_comum_valor numeric(14,2) not null,
+  energia_gerada_total_kwh numeric(10,2) not null check (energia_gerada_total_kwh >= 0),
+  energia_injetada_kwh numeric(10,2) not null check (energia_injetada_kwh >= 0),
+  consumo_proprio_instantaneo_kwh numeric(10,2) not null check (consumo_proprio_instantaneo_kwh >= 0),
+  energia_consumida_rede_kwh numeric(10,2) not null check (energia_consumida_rede_kwh >= 0),
+  total_consumido_kwh numeric(10,2) not null check (total_consumido_kwh >= 0),
+  total_cobrado_inquilinos_kwh numeric(10,2) not null check (total_cobrado_inquilinos_kwh >= 0),
+  total_cobrado_inquilinos_valor numeric(14,2) not null check (total_cobrado_inquilinos_valor >= 0),
+  area_comum_kwh numeric(10,2) not null check (area_comum_kwh >= 0),
+  area_comum_valor numeric(14,2) not null check (area_comum_valor >= 0),
   resultado_financeiro_valor numeric(14,2) not null,
   calculado_em timestamptz not null default now(),
   unique (residencial_id, competencia)
