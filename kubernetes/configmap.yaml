@@ -1,0 +1,173 @@
+# Kubernetes ConfigMap para configurações da aplicação
+# Arquivo: kubernetes/configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rental-sync-config
+  namespace: rental-sync
+  labels:
+    app: rental-sync-api
+    component: config
+data:
+  # Configurações de logging
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  
+  # Configurações de performance
+  NODE_ENV: "production"
+  NODE_OPTIONS: "--max-old-space-size=1024"
+  
+  # Configurações de timeout
+  DB_QUERY_TIMEOUT: "30000"
+  REDIS_TIMEOUT: "5000"
+  API_TIMEOUT: "60000"
+  
+  # Configurações de limite de rate
+  RATE_LIMIT_WINDOW: "60"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  
+  # Configurações de cache
+  CACHE_TTL_DEFAULT: "3600"
+  CACHE_TTL_LISTINGS: "1800"
+  CACHE_TTL_PRICING: "900"
+  
+  # Configurações de worker/jobs
+  WORKER_CONCURRENCY: "10"
+  JOB_ATTEMPTS: "3"
+  JOB_BACKOFF: "5000"
+  
+  # Configurações de API externas
+  SYNC_INTERVAL_AIRBNB: "3600"
+  SYNC_INTERVAL_BOOKING: "3600"
+  SYNC_INTERVAL_VRBO: "3600"
+  
+  # Configurações de métrica/observabilidade
+  METRICS_ENABLED: "true"
+  PROMETHEUS_PORT: "3000"
+  PROMETHEUS_PATH: "/metrics"
+  
+  # Configurações de segurança
+  CORS_ENABLED: "true"
+  HELMET_ENABLED: "true"
+  
+  # prometheus.yml para scrape config
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: 'rental-sync-api'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - rental-sync
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+---
+# ConfigMap para healthcheck scripts
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rental-sync-scripts
+  namespace: rental-sync
+  labels:
+    app: rental-sync-api
+    component: scripts
+data:
+  health-check.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Verifica liveness
+    curl -f http://localhost:3000/api/health || exit 1
+    
+    # Verifica readiness
+    curl -f http://localhost:3000/api/health/ready || exit 1
+    
+    exit 0
+  
+  startup-check.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Aguarda aplicação estar pronta
+    max_attempts=30
+    attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+      if curl -f http://localhost:3000/api/health 2>/dev/null; then
+        echo "Application is ready"
+        exit 0
+      fi
+      
+      echo "Waiting for application... (attempt $attempt/$max_attempts)"
+      sleep 1
+      attempt=$((attempt + 1))
+    done
+    
+    echo "Application startup timeout"
+    exit 1
+---
+# ConfigMap para alertas do Prometheus
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rental-sync-alerts
+  namespace: rental-sync
+  labels:
+    app: rental-sync-api
+    component: alerts
+data:
+  alerts.yaml: |
+    groups:
+    - name: rental-sync
+      interval: 15s
+      rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+      
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical error rate"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+      
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 latency"
+          description: "P95 latency is {{ $value }}s"
+      
+      - alert: ServiceDown
+        expr: up{job="rental-sync-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "Service has been down for 2 minutes"

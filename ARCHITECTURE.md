@@ -1,557 +1,465 @@
-# System Architecture - Rental Listing Sync
+# Arquitetura do Sistema de Gerenciamento de Aluguéis
 
-Complete technical architecture documentation for the Rental Listing Sync platform.
+## 1. Visão Geral
 
-## System Overview
+Sistema distribuído para sincronização de listagens de propriedades de aluguel entre múltiplas plataformas (Airbnb, Booking, VRBO) com gestão de preços dinâmicos, leads e análise de desempenho.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    FRONTEND (React 18)                      │
-│  - Property Calendar (180-day rolling window)              │
-│  - Booking Form (guest information collection)             │
-│  - Admin Dashboard (property management)                   │
-└────────────────────────────────────────────────────────────┘
-                            ↓ (HTTPS)
-┌─────────────────────────────────────────────────────────────┐
-│                  API GATEWAY & Load Balancing                │
-│  - Rate Limiting (100 req/min per IP)                      │
-│  - CORS Middleware                                          │
-│  - Request Validation                                       │
-└────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                 BACKEND (Node.js + Express)                │
-│                                                             │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │         Authentication Layer (JWT)                │     │
-│  │  - Login/Signup Endpoints                         │     │
-│  │  - Token Generation & Validation                  │     │
-│  │  - Password Hashing (Bcrypt 12 rounds)           │     │
-│  └──────────────────────────────────────────────────┘     │
-│                            ↓                                │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │         Application Logic Layer                   │     │
-│  │  - Booking Management                            │     │
-│  │  - Calendar Synchronization                      │     │
-│  │  - Dynamic Pricing                               │     │
-│  │  - AI Task Processing                            │     │
-│  └──────────────────────────────────────────────────┘     │
-│                            ↓                                │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │         OTA Integration Layer                     │     │
-│  │  - Booking.com (XML-RPC)                         │     │
-│  │  - VRBO (REST API)                               │     │
-│  │  - Expedia (SFTP)                                │     │
-│  │  - Webhook Listeners                             │     │
-│  └──────────────────────────────────────────────────┘     │
-└────────────────────────────────────────────────────────────┘
-          ↓              ↓              ↓
-     ┌────────┐    ┌──────────┐    ┌──────┐
-     │PostgreSQL   │  Redis   │    │Gemini│
-     │(Database)   │(Cache)   │    │(AI)  │
-     └────────┘    └──────────┘    └──────┘
-```
+## 2. Componentes Principais
 
-## Component Architecture
+### 2.1 Frontend (React)
 
-### Frontend (React 18 + TypeScript)
+**Stack:**
+- React 18.x
+- TypeScript
+- TailwindCSS
+- Context API / Redux (state management)
+- React Query (data fetching)
+- Vite (bundler)
 
+**Features:**
+- Dashboard com estatísticas em tempo real
+- CRUD de propriedades
+- Sincronização de listagens
+- Gestão de preços
+- Visualização de leads
+- Relatórios e analytics
+
+**Performance:**
+- Code splitting por rota
+- Lazy loading de componentes
+- Memoization com React.memo
+- Virtual scrolling para listas grandes
+- Service workers para PWA
+
+### 2.2 API Backend (Node.js/Express)
+
+**Stack:**
+- Node.js 18.x
+- TypeScript
+- Express.js
+- PostgreSQL 15
+- Redis 7
+- BullMQ (job queue)
+
+**Estrutura:**
 ```
 src/
-├── App.tsx
-│   ├── Login Page (public)
-│   └── Home Page (protected)
-├── components/
-│   ├── PropertyCalendar.tsx
-│   │   ├── Date Range Selection
-│   │   ├── Availability Display (available/booked/blocked)
-│   │   └── Night Count Calculation
-│   └── BookingForm.tsx
-│       ├── Guest Information
-│       ├── Form Validation (React Hook Form)
-│       ├── Pricing Display
-│       └── Booking Submission
-├── store/
-│   └── auth.ts (Zustand)
-│       ├── User State
-│       ├── Token Management
-│       └── Auth Methods
-├── api.ts
-│   ├── Axios Client Configuration
-│   ├── Request/Response Interceptors
-│   └── API Endpoint Definitions
-└── index.css (Tailwind CSS)
+├── routes/          # Definição de rotas e endpoints
+├── controllers/     # Lógica de negócio
+├── services/        # Serviços (sync, pricing, etc)
+├── models/          # Schemas e tipos
+├── middleware/      # Auth, validation, error handling
+├── db/              # Pool, migrations
+├── cache/           # Redis helpers
+├── workers/         # BullMQ workers
+├── integrations/    # APIs externas (Airbnb, Booking, etc)
+├── shared/          # Utilidades comuns
+└── health/          # Health checks
 ```
 
-### Backend (Express.js + Node.js)
+**Endpoints Principais:**
+- GET /api/properties - Listar propriedades
+- POST /api/properties - Criar propriedade
+- GET /api/listings - Listar listagens sincronizadas
+- POST /api/sync/trigger - Trigger de sincronização
+- GET /api/leads - Listar leads
+- GET /api/health - Health check
 
-```
-src/
-├── index.ts (Main Server)
-│   ├── Express Setup
-│   ├── Middleware Stack
-│   ├── Route Registration
-│   └── WebSocket/Event Handlers
-│
-├── middleware/
-│   ├── auth.ts (JWT Verification)
-│   ├── rate-limit.ts (IP-based limiting)
-│   └── webhook-verification.ts (HMAC-SHA256)
-│
-├── routes/
-│   ├── auth.ts (signup, login, me)
-│   ├── ai.ts (inquiry analysis, damage reports)
-│   └── pricing.ts (dynamic pricing endpoints)
-│
-├── services/
-│   ├── booking-xmlrpc.ts (Booking.com client)
-│   ├── vrbo-api.ts (VRBO REST client)
-│   ├── gemini-ai.ts (AI services)
-│   └── pricing-engine.ts (Dynamic pricing)
-│
-├── workers/
-│   ├── booking-calendar-sync.ts (1hr polling)
-│   ├── vrbo-calendar-sync.ts (1hr polling)
-│   └── ai-task-processor.ts (async AI tasks)
-│
-├── db.ts (Database Connection & Transactions)
-├── redis.ts (Redis Client)
-├── auth/
-│   └── crypto.ts (JWT, Bcrypt, Webhooks)
-│
-└── migrations/
-    └── 001_initial_schema.sql
-        ├── 11 Tables
-        ├── 12 Indexes
-        ├── 2 Triggers
-        └── Foreign Keys & Constraints
-```
+### 2.3 Banco de Dados (PostgreSQL)
 
-## Database Schema
-
-### Core Tables
-
+**Schema Principal:**
 ```sql
-users
-├── id (UUID) PRIMARY KEY
-├── email UNIQUE
-├── password_hash
-├── full_name
-└── created_at, updated_at
+-- Tabelas core
+properties              -- Propriedades do usuário
+listings                -- Listagens em plataformas
+pricing                 -- Histórico de preços
+leads                   -- Leads gerados
+sync_history            -- Histórico de sincronizações
+users                   -- Usuários da aplicação
 
-properties
-├── id (UUID) PRIMARY KEY
-├── user_id FOREIGN KEY
-├── name
-├── address, city, country
-├── bedrooms, bathrooms, max_guests
-└── created_at, updated_at
+-- Tabelas de relacionamento
+user_integrations       -- Conexões com APIs externas
+platform_credentials    -- Credenciais criptografadas
+property_features       -- Amenidades da propriedade
 
-ota_listings
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── ota_name (booking, vrbo, expedia)
-├── external_property_id
-├── sync_enabled BOOLEAN
-└── last_sync_at
-
-calendar_slots
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── slot_date DATE
-├── status (available/booked/blocked)
-├── booking_id FOREIGN KEY
-├── sync_hash (idempotency)
-└── source (ota_name)
-
-bookings
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── ota_listing_id FOREIGN KEY
-├── external_booking_id (idempotency)
-├── guest_name, guest_email, guest_phone
-├── check_in, check_out (DATE)
-├── total_price, currency
-├── status (confirmed/cancelled)
-└── source (ota_name)
+-- Materialized Views
+lead_funnel_stats       -- Estatísticas do funil
+property_performance    -- Performance por propriedade
 ```
 
-### Supporting Tables
-
+**Índices Estratégicos:**
 ```sql
-pricing_rules
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── rule_type (base/seasonal/promotion)
-├── start_date, end_date
-├── price_per_night, minimum_stay, maximum_stay
-└── active BOOLEAN
-
-inquiries
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── guest_name, guest_email, guest_phone
-├── message TEXT
-├── status (new/replied/archived)
-└── response TEXT
-
-ai_tasks
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── task_type (categorize_inquiry/analyze_damage/generate_checkin)
-├── input JSON
-├── output JSON
-├── status (pending/completed/failed)
-├── error_message
-
-ota_sync_log
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── ota_name
-├── sync_type (pull/push)
-├── status (success/failed)
-├── items_processed, conflicts_detected
-└── error_message
-
-revenue_transactions
-├── id (UUID) PRIMARY KEY
-├── property_id FOREIGN KEY
-├── booking_id FOREIGN KEY
-├── transaction_type (booking_confirmed/refund)
-├── amount, platform_fee
-├── net_amount (GENERATED ALWAYS)
-└── status (completed/pending)
+CREATE INDEX idx_properties_user_id ON properties(user_id);
+CREATE INDEX idx_listings_property_id ON listings(property_id);
+CREATE INDEX idx_listings_platform ON listings(platform);
+CREATE INDEX idx_listings_sync_status ON listings(sync_status);
+CREATE INDEX idx_leads_property_id ON leads(property_id);
+CREATE INDEX idx_leads_created_at ON leads(created_at DESC);
+CREATE INDEX idx_pricing_property_id_date ON pricing(property_id, date);
+CREATE INDEX idx_sync_history_user_id ON sync_history(user_id, created_at DESC);
 ```
 
-### Indexes
+**Replicação:**
+- PostgreSQL primary + read replica
+- Streaming replication
+- Failover automático com pg_auto_failover
 
-```sql
--- Query Optimization
-├── calendar_slots(property_id, slot_date)  -- Calendar queries
-├── calendar_slots(status)  -- Availability filtering
-├── bookings(property_id)  -- Property bookings
-├── bookings(status)  -- Status filtering
-├── ota_listings(ota_name)  -- OTA filtering
-├── ota_sync_log(property_id, ota_name)  -- Sync history
-├── pricing_rules(property_id)  -- Pricing lookup
-├── inquiries(property_id)  -- Inquiry listing
-├── ai_tasks(status)  -- Task queue
-└── revenue_transactions(property_id)  -- Financial queries
+### 2.4 Cache (Redis)
+
+**Uso:**
+- Session storage (2h TTL)
+- Cache de listagens (30min TTL)
+- Cache de preços (15min TTL)
+- Rate limiting buckets
+- Real-time updates via pub/sub
+
+**Estrutura de Keys:**
+```
+session:{session_id}              # Sessions
+listings:property:{id}            # Cache de listagens
+pricing:property:{id}:date        # Preços
+rate:{ip}                         # Rate limiting
+sync:queue:{queue_name}           # Job queue
+notifications:user:{id}           # Real-time updates
 ```
 
-### Triggers
+### 2.5 Message Queue (BullMQ)
 
-```sql
--- Automatic date blocking on confirmed booking
-block_dates_on_booking()
-├── Trigger: AFTER INSERT/UPDATE on bookings
-├── Action: Inserts calendar_slots for check_in to check_out
-└── Status: Automatically set to 'blocked'
+**Queues:**
+- `sync-listings` - Sincronização com plataformas
+- `update-pricing` - Atualização de preços
+- `lead-management` - Processamento de leads
+- `analytics` - Cálculo de métricas
+- `notifications` - Envio de notificações
+- `webhooks` - Entrega de webhooks
 
--- Real-time event notifications
-notify_booking_change()
-├── Trigger: AFTER INSERT/UPDATE on bookings
-├── Action: pg_notify('booking_change', JSON payload)
-└── Listener: Backend can listen for changes
+**Exemplo Worker:**
+```typescript
+// Sync listings worker
+const syncQueue = new Queue('sync-listings', redisConnection);
+
+syncQueue.process(async (job) => {
+  const { propertyId, platform } = job.data;
+  
+  // Sincronizar listagem
+  const result = await syncListingWithPlatform(propertyId, platform);
+  
+  // Atualizar status
+  await updateSyncStatus(propertyId, result.status);
+  
+  return result;
+});
 ```
 
-## Data Flow
+## 3. Fluxos de Dados Principais
 
-### Booking Creation Flow
-
-```
-1. Guest submits booking via website
-   └─ POST /api/properties/:id/bookings
-   └─ Validation: email, dates, guests
-   └─ Create booking record (status='pending')
-
-2. Payment processing (Stripe)
-   └─ Generate payment intent
-   └─ Webhook: payment_intent.succeeded
-   └─ Update booking status='confirmed'
-
-3. Database trigger activates
-   └─ block_dates_on_booking() trigger
-   └─ INSERT calendar_slots (status='blocked')
-   └─ For each night from check_in to check_out
-
-4. Notification emitted
-   └─ notify_booking_change() trigger
-   └─ pg_notify event published
-   └─ Backend listening clients notified
-
-5. OTA synchronization
-   └─ Bull queue job: sync_booking_to_ota
-   └─ PUSH update to all enabled OTAs
-   └─ Mark blocked dates in Booking.com, VRBO, etc.
-
-6. Revenue tracking
-   └─ INSERT revenue_transactions
-   └─ Calculate platform fees (10-20%)
-   └─ Track net revenue (gross - fees)
-
-7. Guest communication
-   └─ Trigger AI task: generate_confirmation
-   └─ Gemini API: generate welcome message
-   └─ SendGrid: send confirmation + checkin instructions
-```
-
-### Calendar Synchronization Flow
+### 3.1 Sincronização de Listagens
 
 ```
-1. Polling (every 1 hour)
-   └─ Bull queue job: fetch_calendar_from_ota
-   └─ For each OTA (Booking.com, VRBO)
-   └─ Rate limited: 2 req/sec (Booking), 10 req/sec (VRBO)
-
-2. Fetch availability
-   └─ Booking.com: XML-RPC getAvailability
-   └─ VRBO: REST GET /availability
-   └─ Period: today + 180 days
-   └─ Response: availability blocks per date
-
-3. Transform to daily slots
-   └─ Parse OTA response
-   └─ Convert to calendar_slots format
-   └─ Generate sync_hash (idempotency)
-
-4. Conflict detection
-   └─ Check for overlaps with existing bookings
-   └─ Flag if dates already blocked
-   └─ Log conflicts in ota_sync_log
-
-5. Database upsert
-   └─ UPSERT calendar_slots (ON CONFLICT DO UPDATE)
-   └─ Update status based on OTA data
-   └─ Mark source = 'booking'/'vrbo'
-
-6. Audit logging
-   └─ INSERT ota_sync_log
-   └─ Status: success/failed
-   └─ Items processed: count
-   └─ Conflicts detected: count
+1. Usuário clica "Sincronizar" no dashboard
+   ↓
+2. POST /api/sync/trigger
+   ↓
+3. Criar job em sync-listings queue
+   ↓
+4. Worker recebe job
+   ├─ Fetch credenciais de user_integrations
+   ├─ Chamar API da plataforma (Airbnb, Booking, etc)
+   ├─ Parsear resposta
+   ├─ Inserir/update em listings table
+   ├─ Invalidar cache
+   └─ Atualizar sync_history
+   ↓
+5. WebSocket notifica cliente com status
+   ↓
+6. Frontend atualiza UI em tempo real
 ```
 
-## Security Architecture
-
-### Authentication Flow
+### 3.2 Atualização de Preços Dinâmicos
 
 ```
-1. User submits credentials
-   └─ POST /auth/signup or POST /auth/login
-   └─ Password validation (Bcrypt)
-
-2. JWT token generation
-   └─ Payload: { userId, email }
-   └─ Secret: HS256 signature
-   └─ TTL: 7 days
-
-3. Token storage
-   └─ Frontend: localStorage (secure HTTP-only in production)
-   └─ Backend: verify on each request
-
-4. Protected endpoints
-   └─ authMiddleware checks Bearer token
-   └─ Returns 401 if invalid/expired
-   └─ Attaches userId to req.userId
+1. Agenda dispara daily (1x por dia)
+   ↓
+2. Criar jobs em update-pricing queue para cada propriedade
+   ↓
+3. Worker recebe job
+   ├─ Calcular preço recomendado
+   │  ├─ Analisar demanda (leads últimos 7 dias)
+   │  ├─ Comparar competidores (nearby properties)
+   │  ├─ Considerar sazonalidade
+   │  └─ Aplicar markup configurado
+   ├─ Atualizar tabela pricing
+   ├─ Sincronizar para plataformas
+   └─ Cache + notificação
+   ↓
+4. Histórico preservado para analytics
 ```
 
-### Webhook Security
+### 3.3 Processamento de Leads
 
 ```
-1. OTA sends webhook
-   └─ POST /webhooks/booking-com
-   └─ Includes X-Booking-Signature header
-
-2. Signature verification
-   └─ Recreate HMAC-SHA256(payload, secret)
-   └─ Compare with header signature
-   └─ Timing-safe comparison (prevent timing attacks)
-
-3. Threat prevention
-   └─ Rejects tampered payloads (401)
-   └─ Requires valid signature (MUST match exactly)
-   └─ Prevents payload injection
+1. Webhook entra em /api/webhooks/leads
+   ↓
+2. Validar assinatura HMAC
+   ↓
+3. Criar job em lead-management queue
+   ↓
+4. Worker processa:
+   ├─ Deduplica (mesma pessoa, mesma propriedade)
+   ├─ Enriquece dados
+   ├─ Classifica lead (A/B/C)
+   ├─ Atribui agente (round-robin)
+   ├─ Notifica via email/SMS
+   └─ Log para analytics
+   ↓
+5. Dados disponíveis em dashboard/API
 ```
 
-### Rate Limiting
+## 4. Padrões de Comunicação
+
+### 4.1 Síncrono (REST API)
+
+Operações que precisam resposta imediata:
+- CRUD de recursos
+- Queries de dados
+- Health checks
+- Autenticação
+
+### 4.2 Assíncrono (Message Queue)
+
+Operações que podem ser processadas depois:
+- Sincronização com plataformas (timeout alto)
+- Cálculo de preços (demanda computacional)
+- Processamento de leads (histórico)
+- Envio de notificações (retry automático)
+
+### 4.3 Real-time (WebSocket)
+
+Atualizações em tempo real:
+- Status de sincronização
+- Novos leads chegando
+- Notificações de sistema
+- Dashboard updates
+
+## 5. Escalabilidade
+
+### 5.1 Horizontal Scaling (API)
 
 ```
-1. Per-IP limiting
-   └─ Redis counter: rate-limit:IP
-   └─ Window: 60 seconds
-   └─ Limit: 100 requests/window
-
-2. OTA-specific limiting
-   └─ Booking.com: 2 requests/second (enforced)
-   └─ VRBO: 10 requests/second (enforced)
-   └─ Token bucket algorithm
-
-3. AI API limiting
-   └─ Gemini free tier: 15 RPM
-   └─ Implemented: 1 request/second
-   └─ Fallback: template responses if quota exceeded
+Load Balancer (ALB)
+    ├─ API Pod 1 (3000)
+    ├─ API Pod 2 (3000)
+    └─ API Pod 3 (3000)
 ```
 
-## Performance Architecture
+**Auto-scaling:**
+- Min replicas: 3
+- Max replicas: 10
+- Trigger: CPU > 70% or Memory > 80%
 
-### Caching Strategy
-
-```
-1. Database query cache (Redis)
-   └─ calendar_slots (< 30 min)
-   └─ pricing_rules (< 1 hour)
-   └─ property details (< 1 hour)
-   └─ user auth (session)
-
-2. Session management
-   └─ Redis: key = user_id
-   └─ Value: auth token + metadata
-   └─ TTL: 7 days (matches JWT)
-
-3. Queue processing
-   └─ Bull queue on Redis
-   └─ Jobs: sync_booking, process_ai_task
-   └─ Retry: exponential backoff (3 attempts)
-```
-
-### Query Optimization
+### 5.2 Horizontal Scaling (Workers)
 
 ```
-1. Index strategy
-   └─ Composite indexes for common filters
-   └─ GIST index for date range (tsrange)
-   └─ Single-column indexes for status/flags
-
-2. Pagination
-   └─ LIMIT 50 on list endpoints
-   └─ Cursor-based pagination for large datasets
-   └─ Avoid OFFSET (expensive on large tables)
-
-3. Denormalization
-   └─ Store OTA name in calendar_slots (avoid JOIN)
-   └─ Store property_id in sync_log (avoid JOIN)
-   └─ Calculated columns for revenue (net_amount GENERATED)
+BullMQ Queue
+    ├─ Worker 1 (concurrency: 10)
+    ├─ Worker 2 (concurrency: 10)
+    └─ Worker 3 (concurrency: 10)
 ```
 
-## Integration Points
+**Queue Management:**
+- Priority jobs (leads > sync > analytics)
+- Retries exponenciais (1s, 2s, 4s, 8s, 16s)
+- Dead letter queue para failed jobs
+- Monitoring de queue size
 
-### OTA APIs
+### 5.3 Database Scaling
 
-```
-Booking.com
-├── Protocol: XML-RPC
-├── Auth: Username/Password
-├── Methods: getProperties, getAvailability, updateAvailability
-├── Rate limit: 2 req/sec (critical: violation = ban)
-└── Sync: Bi-directional (pull + push)
+**Read Replicas:**
+- Queries de leitura (analytics, reports) → replica
+- Writes → primary
+- Replication lag < 100ms
 
-VRBO
-├── Protocol: REST (JSON)
-├── Auth: Bearer token
-├── Methods: GET/PUT availability, GET bookings
-├── Rate limit: 10 req/sec
-└── Sync: Bi-directional (pull + push)
+**Sharding (Futuro):**
+- Shard por user_id para tables grandes
+- Consistent hashing para distribuição
 
-Expedia
-├── Protocol: SFTP (XML feeds)
-├── Auth: Credentials
-├── Feeds: availability.xml, bookings.xml
-├── Frequency: Daily full + 4h incremental
-└── Sync: PULL only (one-way)
+## 6. Segurança
 
-Website
-├── Protocol: Internal API
-├── Auth: JWT
-├── Methods: All CRUD operations
-├── Rate limit: 100 req/min
-└── Sync: Direct (no external dependency)
-```
+### 6.1 Autenticação
+- JWT tokens (24h expiry)
+- Refresh tokens (7 days)
+- MFA opcional
 
-### External Services
+### 6.2 Autorização
+- RBAC (admin, property_manager, support_agent, viewer)
+- Row-level security (usuários só acessam seus dados)
+- Audit logging de acessos
 
-```
-Stripe
-├── Purpose: Payment processing
-├── Integration: Webhook + REST API
-└── Security: Webhook signature verification
+### 6.3 Criptografia
+- TLS 1.2+ para transmissão
+- AES-256-GCM para dados em repouso (API keys)
+- bcrypt para senhas (salt rounds: 10)
 
-SendGrid
-├── Purpose: Email notifications
-├── Integration: REST API
-└── Use: Booking confirmation, checkin/checkout
+### 6.4 API Security
+- Rate limiting: 100 req/min por IP
+- CORS restritivo
+- CSRF protection
+- XSS prevention (input sanitization)
+- SQL injection protection (parameterized queries)
 
-Twilio
-├── Purpose: SMS notifications
-├── Integration: REST API
-└── Use: Booking reminders, checkin codes
+## 7. Observabilidade
 
-Gemini API
-├── Purpose: AI task processing
-├── Integration: REST API (async)
-└── Features: Categorization, reply generation, analysis
+### 7.1 Logging
 
-Google Analytics
-├── Purpose: Usage tracking
-├── Integration: Client-side SDK
-└── Metrics: User behavior, conversion funnels
+**Estruturado (JSON):**
+```json
+{
+  "timestamp": "2024-01-15T10:30:45Z",
+  "level": "info",
+  "service": "api",
+  "message": "property_synced",
+  "propertyId": "123",
+  "platform": "airbnb",
+  "duration_ms": 1250,
+  "status": "success"
+}
 ```
 
----
+**Agregação:** ELK Stack ou Grafana Loki
 
-## Deployment Architecture
-
-### Infrastructure Layers
+### 7.2 Metrics (Prometheus)
 
 ```
-Tier 1: Edge/CDN
-└─ CloudFlare (optional)
-└─ Caches static assets
-└─ DDoS protection
+# API
+http_requests_total{method="GET",endpoint="/api/listings",status="200"}
+http_request_duration_seconds{quantile="0.95"}
+active_connections{type="database"}
 
-Tier 2: Application
-├─ Render.com (Backend)
-│  └─ Deployed via Docker
-│  └─ Auto-scaling enabled
-│  └─ Health checks every 30s
-└─ Vercel (Frontend)
-   └─ Deployed via Git
-   └─ Edge functions
-   └─ Auto-scaling enabled
+# Database
+pg_stat_statements_total{query="SELECT * FROM listings"}
+db_query_duration_seconds{quantile="0.99"}
 
-Tier 3: Data
-├─ Neon.tech (PostgreSQL)
-│  └─ Multi-AZ replication
-│  └─ Automated backups (daily)
-│  └─ Connection pooling enabled
-└─ Upstash (Redis)
-   └─ High availability
-   └─ Automatic failover
-   └─ TLS encryption
+# Cache
+redis_keys_total
+redis_commands_processed_total
+cache_hits_total
+
+# Workers
+bullmq_queue_size{queue="sync-listings"}
+bullmq_job_duration_seconds{quantile="0.95"}
 ```
 
-### Monitoring Stack
+### 7.3 Tracing (Jaeger/Zipkin)
+
+- Trace distribuído entre serviços
+- Identify bottlenecks
+- Latency analysis
+
+### 7.4 Alertas
+
+**Críticos (página on-call):**
+- API downtime (up == 0)
+- Error rate > 5%
+- Database unreachable
+- Redis memory > 85%
+
+**Warnings:**
+- Latency P95 > 500ms
+- Error rate > 1%
+- Queue backlog > 1000 jobs
+
+## 8. Disaster Recovery
+
+### 8.1 RTO/RPO
+
+| Component | RTO | RPO |
+|-----------|-----|-----|
+| API | 5 min | 0 (stateless) |
+| Database | 15 min | 5 min |
+| Redis | 10 min | 0 (rebuild) |
+| S3/GCS | 1 hour | 1 day |
+
+### 8.2 Backup Strategy
+
+**Database:**
+- Diário via pg_basebackup
+- Snapshot de volume EBS/GCS
+- Armazenado em região diferente
+- Restore test mensal
+
+**Application:**
+- Code sempre no git
+- Docker images no registry
+- IaC (Terraform/CloudFormation) versionado
+
+### 8.3 Failover
+
+**Database:**
+- Active-passive com pg_auto_failover
+- Automatic detection of primary failure
+- Replica promoted in < 30s
+
+**API:**
+- Stateless design
+- Multi-region deployment
+- DNS failover
+- Load balancer health checks
+
+## 9. Deployment Pipeline
 
 ```
-Metrics
-├─ Render: Built-in (CPU, Memory, Requests)
-├─ Vercel: Built-in (Function duration, Error rate)
-└─ Custom: CloudWatch (database, Redis)
-
-Logging
-├─ Render: Stdout → CloudWatch
-├─ Vercel: Function logs
-└─ Custom: Application logs to CloudWatch
-
-Alerting
-├─ CloudWatch: High error rate, High latency
-├─ PagerDuty: Critical alerts (opt-in)
-└─ Slack: Notifications via webhooks
+commit push
+  ↓
+GitHub Actions CI
+  ├─ Lint + Format
+  ├─ Unit tests
+  ├─ Integration tests
+  ├─ Security scan
+  ├─ Performance test
+  └─ Build Docker image
+  ↓
+Push to ECR/Docker Hub
+  ↓
+Deploy to Staging (automatic)
+  ├─ Run smoke tests
+  ├─ Performance validation
+  └─ Manual approval
+  ↓
+Deploy to Production (Canary)
+  ├─ 5% traffic (5 min)
+  ├─ 25% traffic (10 min)
+  ├─ 50% traffic (10 min)
+  └─ 100% traffic (final)
+  ↓
+Monitoring (24h)
+  ├─ Error rate < 1%
+  ├─ Latency P95 < 500ms
+  └─ No resource exhaustion
 ```
 
----
+## 10. Stack Tecnológico Completo
 
-**Architecture Version:** 1.0  
-**Last Updated:** July 2026  
-**Status:** Production Ready  
-**Scalability:** Supports 200+ properties with current design
+| Componente | Tecnologia | Versão |
+|------------|-----------|---------|
+| Runtime | Node.js | 18.x LTS |
+| Language | TypeScript | 5.x |
+| Framework | Express.js | 4.x |
+| Database | PostgreSQL | 15 |
+| Cache | Redis | 7 |
+| Queue | BullMQ | 3.x |
+| Containerization | Docker | 20.x |
+| Orchestration | Kubernetes | 1.25+ |
+| Monitoring | Prometheus | 2.x |
+| Visualization | Grafana | 9.x |
+| Logging | Loki/ELK | Latest |
+| Ingress | Nginx | 1.x |
+| CI/CD | GitHub Actions | Native |
+| Infrastructure | AWS/GCP/Azure | Latest |
+
+## Referências
+
+- Node.js Best Practices: https://github.com/goldbergyoni/nodebestpractices
+- PostgreSQL Documentation: https://www.postgresql.org/docs/
+- Kubernetes Best Practices: https://kubernetes.io/docs/concepts/
+- Microservices Patterns: https://microservices.io/patterns/index.html
+

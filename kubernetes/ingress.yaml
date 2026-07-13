@@ -1,0 +1,129 @@
+# Kubernetes Ingress para roteamento HTTP/HTTPS
+# Arquivo: kubernetes/ingress.yaml
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rental-sync-api
+  namespace: rental-sync
+  labels:
+    app: rental-sync-api
+    component: network
+  annotations:
+    # Ingress controller
+    kubernetes.io/ingress.class: "nginx"
+    
+    # SSL/TLS
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    
+    # Headers de segurança
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/strict-transport-security: "max-age=31536000; includeSubDomains; preload"
+    
+    # CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "false"
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+    
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    
+    # Body size
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    
+    # Rewrite rules
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  tls:
+  - hosts:
+    - api.rental-sync.com
+    - api-staging.rental-sync.com
+    secretName: rental-sync-tls
+  
+  rules:
+  # Produção
+  - host: api.rental-sync.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rental-sync-api
+            port:
+              number: 80
+  
+  # Staging
+  - host: api-staging.rental-sync.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rental-sync-api-staging
+            port:
+              number: 80
+  
+  # Health checks endpoint
+  - host: api.rental-sync.com
+    http:
+      paths:
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: rental-sync-api
+            port:
+              number: 80
+  
+  # Metrics endpoint (restrito via network policy)
+  - host: metrics.rental-sync.com
+    http:
+      paths:
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: rental-sync-api
+            port:
+              number: 80
+---
+# Certificate para HTTPS via cert-manager
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: rental-sync-tls
+  namespace: rental-sync
+spec:
+  secretName: rental-sync-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - api.rental-sync.com
+  - api-staging.rental-sync.com
+  - metrics.rental-sync.com
+---
+# ClusterIssuer para Let's Encrypt
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@rental-sync.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
