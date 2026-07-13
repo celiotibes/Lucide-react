@@ -1,0 +1,58 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+dist
+build
+.next
+out
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Tests
+coverage
+.nyc_output
+*.test.js
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CI/CD
+.github
+.gitlab-ci.yml
+Jenkinsfile
+
+# Documentation
+docs
+README.md
+CHANGELOG.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Other
+.editorconfig
+.eslintignore
+.prettierrc
+EOFBUG
+
+# OS
+Thumbs.db
+.DS_Store

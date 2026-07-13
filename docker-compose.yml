@@ -1,23 +1,64 @@
 version: '3.8'
 
 services:
+  # ============================================================================
+  # API Backend (Node.js)
+  # ============================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rental-sync-api
+    ports:
+      - "3000:3000"
+      - "9229:9229" # Debug port
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://${DB_USER:-rental_user}:${DB_PASSWORD:-rental_pass}@postgres:5432/${DB_NAME:-rental_sync}
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/backend/src
+      - ./backend/package.json:/app/backend/package.json
+    command: npm run dev
+    networks:
+      - rental-sync-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
   postgres:
-    image: postgres:16-alpine
+    image: postgres:15-alpine
     container_name: rental-sync-postgres
     environment:
-      POSTGRES_USER: rental_user
-      POSTGRES_PASSWORD: rental_password
-      POSTGRES_DB: rental_sync
+      - POSTGRES_USER=${DB_USER:-rental_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-rental_pass}
+      - POSTGRES_DB=${DB_NAME:-rental_sync}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - rental-sync-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rental_user"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ============================================================================
+  # Redis Cache
+  # ============================================================================
   redis:
     image: redis:7-alpine
     container_name: rental-sync-redis
@@ -25,59 +66,49 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - rental-sync-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: rental-sync-backend
+  # ============================================================================
+  # Prometheus (Monitoring)
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rental-sync-prometheus
     ports:
-      - "3000:3000"
-    environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://rental_user:rental_password@postgres:5432/rental_sync
-      DATABASE_POOL_SIZE: 20
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-secret-key-change-in-production
-      JWT_EXPIRATION: 7d
-      BOOKING_ACCOUNT_ID: ${BOOKING_ACCOUNT_ID}
-      BOOKING_API_KEY: ${BOOKING_API_KEY}
-      VRBO_API_KEY: ${VRBO_API_KEY}
-      STRIPE_API_KEY: ${STRIPE_API_KEY}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - "9090:9090"
     volumes:
-      - ./backend/src:/app/src
-    command: npm run dev
+      - ./backend/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - rental-sync-network
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    container_name: rental-sync-frontend
+  # ============================================================================
+  # Grafana (Visualization)
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rental-sync-grafana
     ports:
-      - "5173:5173"
+      - "3001:3000"
     environment:
-      VITE_API_URL: http://localhost:3000
-    depends_on:
-      - backend
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
-      - ./frontend/src:/app/src
-    command: npm run dev
+      - grafana_data:/var/lib/grafana
+    networks:
+      - rental-sync-network
 
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
-  default:
-    name: rental-sync-network
+  rental-sync-network:
+    driver: bridge
