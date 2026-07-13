@@ -34,6 +34,10 @@ export function valorVigente(db: Database, contratoId: number, dataReferencia: s
   return contrato?.valor_referencia ?? 0;
 }
 
+/** `ehReajusteAnual = false` registra uma mudança de valor que NÃO é o reajuste anual do
+ * ciclo — ex: recomposição por variação de lotação (contrato "valor único mensal" que muda
+ * de valor conforme o número de moradores, sem seguir índice e sem abrir novo ciclo de
+ * 12 meses). Ver registrarRecomposicaoValor() abaixo para o caso de uso direto. */
 export function registrarReajuste(
   db: Database,
   contratoId: number,
@@ -41,15 +45,27 @@ export function registrarReajuste(
   valorNovo: number,
   criterio: CriterioReajuste,
   observacoes?: string,
+  ehReajusteAnual = true,
 ): void {
   const valorAnterior = valorVigente(db, contratoId, somarMeses(dataVigencia, -1));
   const percentualAplicado = valorAnterior > 0 ? ((valorNovo - valorAnterior) / valorAnterior) * 100 : 0;
   executar(
     db,
-    `INSERT INTO contrato_reajustes (contrato_id, data_vigencia, valor_anterior, valor_novo, percentual_aplicado, criterio, observacoes)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [contratoId, dataVigencia, valorAnterior, valorNovo, percentualAplicado, criterio, observacoes ?? null],
+    `INSERT INTO contrato_reajustes (contrato_id, data_vigencia, valor_anterior, valor_novo, percentual_aplicado, criterio, eh_reajuste_anual, observacoes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [contratoId, dataVigencia, valorAnterior, valorNovo, percentualAplicado, criterio, ehReajusteAnual ? 1 : 0, observacoes ?? null],
   );
+}
+
+/** Registra uma mudança de valor por motivo diferente do reajuste anual (ex: recomposição
+ * por variação de lotação — 2 → 3 pessoas — prevista em cláusula própria do contrato "valor
+ * único mensal"). Não conta como a "1ª renovação" para fins de percentual_reajuste_primeira_
+ * renovacao, não desloca a base de cálculo do índice acumulado, e não fecha/abre um novo
+ * ciclo de duracao_minima_meses para a multa rescisória — só muda o valor efetivamente
+ * devido a partir da data informada. `criterio` fica registrado como "fixo" (não segue
+ * índice); o motivo real vai em `observacoes`. */
+export function registrarRecomposicaoValor(db: Database, contratoId: number, dataVigencia: string, valorNovo: number, motivo: string): void {
+  registrarReajuste(db, contratoId, dataVigencia, valorNovo, "fixo", motivo, false);
 }
 
 export interface SugestaoReajuste {
@@ -63,9 +79,11 @@ export interface SugestaoReajuste {
 /** Aplica a regra de reajuste não uniforme comum em contratos reais: 1ª renovação com
  * percentual fixo pré-acordado (se `percentual_reajuste_primeira_renovacao` estiver definido),
  * renovações seguintes pela variação acumulada do índice desde o último reajuste (ou desde
- * o início do contrato, se nenhum reajuste ainda foi registrado). */
+ * o início do contrato, se nenhum reajuste ainda foi registrado). Recomposições de valor por
+ * outro motivo (eh_reajuste_anual = 0, ex: mudança de lotação) são ignoradas nesta contagem —
+ * não contam como a "1ª renovação" nem deslocam a base de cálculo do índice acumulado. */
 export function sugerirProximoReajuste(db: Database, contrato: ContratoLocacao, dataReferencia: string): SugestaoReajuste {
-  const reajustes = listarReajustes(db, contrato.id);
+  const reajustes = listarReajustes(db, contrato.id).filter((r) => r.eh_reajuste_anual);
   const ehPrimeiraRenovacao = reajustes.length === 0;
   const valorAtual = valorVigente(db, contrato.id, dataReferencia);
 
@@ -112,10 +130,13 @@ export interface ResultadoMultaRescisoria {
 /** Multa rescisória por quebra antecipada do prazo determinado (art. 4º Lei 8.245/91):
  * teto de N meses do valor vigente, proporcional aos meses restantes do ciclo atual —
  * mesma fórmula do art. 11.2 de um contrato real: "dividindo-se o teto fixado pelo número
- * de meses totais do prazo determinado e multiplicando pelo número de meses restantes". */
+ * de meses totais do prazo determinado e multiplicando pelo número de meses restantes". O
+ * início do ciclo é sempre o último REAJUSTE ANUAL (eh_reajuste_anual = 1) — uma recomposição
+ * de valor por outro motivo (ex: mudança de lotação) não abre um novo ciclo de
+ * duracao_minima_meses, só muda o valor vigente usado no teto. */
 export function calcularMultaRescisoria(db: Database, contrato: ContratoLocacao, dataRescisao: string): ResultadoMultaRescisoria {
-  const reajustes = listarReajustes(db, contrato.id);
-  const inicioCicloAtual = [...reajustes].reverse().find((r) => r.data_vigencia <= dataRescisao)?.data_vigencia ?? contrato.data_inicio;
+  const reajustesAnuais = listarReajustes(db, contrato.id).filter((r) => r.eh_reajuste_anual);
+  const inicioCicloAtual = [...reajustesAnuais].reverse().find((r) => r.data_vigencia <= dataRescisao)?.data_vigencia ?? contrato.data_inicio;
   const duracaoCicloMeses = contrato.duracao_minima_meses;
   const fimCicloPrevisto = somarMeses(inicioCicloAtual, duracaoCicloMeses);
 

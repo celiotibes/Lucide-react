@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
-import { listarReajustes, sugerirProximoReajuste, registrarReajuste, calcularMultaRescisoria } from "../domain/contratos/reajustes";
+import { listarReajustes, sugerirProximoReajuste, registrarReajuste, registrarRecomposicaoValor, calcularMultaRescisoria } from "../domain/contratos/reajustes";
 import type { ContratoLocacao, Imovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
@@ -15,6 +15,7 @@ export function ReajustesRescisaoView() {
   const hoje = hojeIso();
   const [contratoSelecionadoId, setContratoSelecionadoId] = useState<number | null>(null);
   const [dataRescisao, setDataRescisao] = useState(hoje);
+  const [recomposicao, setRecomposicao] = useState({ data: hoje, valorNovo: "", motivo: "" });
 
   const contratos = useMemo<ContratoLocacao[]>(
     () => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE tipo = 'residencial_fixo' ORDER BY id") : []),
@@ -41,6 +42,15 @@ export function ReajustesRescisaoView() {
     if (!db || !contratoAtivo || !sugestao || sugestao.valorSugerido === null) return;
     registrarReajuste(db, contratoAtivo.id, hoje, sugestao.valorSugerido, sugestao.criterioSugerido, sugestao.ehPrimeiraRenovacao ? "1ª renovação — percentual fixo pré-acordado" : "renovação por índice");
     await persistir();
+  };
+
+  const registrarRecomposicao = async () => {
+    if (!db || !contratoAtivo || recomposicao.data === "" || recomposicao.valorNovo.trim() === "") return;
+    const valorNovo = Number.parseFloat(recomposicao.valorNovo.replace(",", "."));
+    if (Number.isNaN(valorNovo)) return;
+    registrarRecomposicaoValor(db, contratoAtivo.id, recomposicao.data, valorNovo, recomposicao.motivo.trim() || "recomposição de valor (não é reajuste anual)");
+    await persistir();
+    setRecomposicao({ data: hoje, valorNovo: "", motivo: "" });
   };
 
   return (
@@ -97,7 +107,7 @@ export function ReajustesRescisaoView() {
           )}
 
           <h3 style={{ fontSize: 15, marginBottom: 10 }}>Histórico de reajustes aplicados</h3>
-          <div className="table-wrap" style={{ marginBottom: 28 }}>
+          <div className="table-wrap" style={{ marginBottom: 12 }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -106,6 +116,7 @@ export function ReajustesRescisaoView() {
                   <th className="num">Valor novo</th>
                   <th className="num">Percentual</th>
                   <th>Critério</th>
+                  <th>Tipo</th>
                   <th>Observações</th>
                 </tr>
               </thead>
@@ -117,18 +128,54 @@ export function ReajustesRescisaoView() {
                     <td className="num">{formatarMoeda(r.valor_novo)}</td>
                     <td className="num">{r.percentual_aplicado.toFixed(2)}%</td>
                     <td>{r.criterio}</td>
+                    <td>
+                      {r.eh_reajuste_anual ? (
+                        <span className="pill good">reajuste anual</span>
+                      ) : (
+                        <span className="pill warning" title="Não conta como 1ª renovação nem fecha o ciclo da multa rescisória">recomposição</span>
+                      )}
+                    </td>
                     <td style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{r.observacoes ?? "—"}</td>
                   </tr>
                 ))}
                 {reajustes.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                    <td colSpan={7} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                       Nenhum reajuste registrado ainda para este contrato — vale o valor de referência original.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Registrar recomposição de valor (não é o reajuste anual)</div>
+            <p style={{ fontSize: 11.5, color: "var(--ink-soft)", maxWidth: "68ch", margin: "0 0 8px" }}>
+              Use para mudança de valor por outro motivo contratual — ex: variação de lotação (2 → 3 moradores) em
+              contrato de "valor único mensal". Não segue índice, não conta como a 1ª renovação e não abre um novo
+              ciclo de {contratoAtivo.duracao_minima_meses} meses para a multa rescisória.
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input type="date" className="btn" value={recomposicao.data} onChange={(e) => setRecomposicao({ ...recomposicao, data: e.target.value })} />
+              <input
+                className="btn"
+                style={{ cursor: "text", width: 140 }}
+                placeholder="Novo valor (R$)"
+                value={recomposicao.valorNovo}
+                onChange={(e) => setRecomposicao({ ...recomposicao, valorNovo: e.target.value })}
+              />
+              <input
+                className="btn"
+                style={{ cursor: "text", width: 260 }}
+                placeholder="Motivo (ex: 3º morador a partir de agosto/2026)"
+                value={recomposicao.motivo}
+                onChange={(e) => setRecomposicao({ ...recomposicao, motivo: e.target.value })}
+              />
+              <button className="btn" disabled={recomposicao.data === "" || recomposicao.valorNovo.trim() === ""} onClick={registrarRecomposicao}>
+                Registrar
+              </button>
+            </div>
           </div>
 
           <h3 style={{ fontSize: 15, marginBottom: 10 }}>Multa rescisória (quebra antecipada do prazo determinado)</h3>

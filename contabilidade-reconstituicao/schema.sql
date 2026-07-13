@@ -147,6 +147,13 @@ CREATE TABLE IF NOT EXISTS contrato_reajustes (
     valor_novo          REAL NOT NULL,
     percentual_aplicado REAL NOT NULL,
     criterio            TEXT NOT NULL CHECK (criterio IN ('fixo', 'igpm', 'ipca')),
+    -- 1 = reajuste anual de fato (conta para "1ª renovação" e fecha o ciclo de
+    -- duracao_minima_meses para fins de multa rescisória). 0 = mudança de valor por outro
+    -- motivo contratual (ex: recomposição por variação de lotação — 2 → 3 pessoas — prevista
+    -- em cláusula própria, sem seguir índice nem contar como o reajuste anual do contrato).
+    -- Default 1 preserva o comportamento de todo histórico já registrado antes deste campo
+    -- existir (só havia um jeito de registrar reajuste, sempre um reajuste anual de fato).
+    eh_reajuste_anual   INTEGER NOT NULL DEFAULT 1 CHECK (eh_reajuste_anual IN (0, 1)),
     observacoes         TEXT
 );
 

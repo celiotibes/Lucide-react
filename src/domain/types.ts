@@ -74,6 +74,7 @@ export interface ContratoReajuste {
   valor_novo: number;
   percentual_aplicado: number;
   criterio: CriterioReajuste;
+  eh_reajuste_anual: number; // 0/1 (SQLite boolean) — 1 = reajuste anual de fato, 0 = recomposição por outro motivo (ex: mudança de lotação)
   observacoes?: string;
 }
 
