@@ -64,6 +64,8 @@ import apiKeyRouter from '@/api/routes/apiKeyRouter';
 import { encryptionService } from '@services/EncryptionService';
 import { auditLogService } from '@services/AuditLogService';
 import { apiKeyService } from '@services/ApiKeyService';
+import analyticsRouter from '@/api/routes/analyticsRouter';
+import { analyticsService } from '@services/AnalyticsService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -236,6 +238,9 @@ app.use('/api/v1/cache', cacheManagementRouter);
 // Phase 7: Security Hardening (API Keys, Encryption, Audit Logging)
 app.use('/api/v1', apiKeyRouter);
 
+// Phase 8: Analytics & Reporting (KPIs, Metrics, Dashboard)
+app.use('/api/v1/analytics', verifyToken, analyticsRouter);
+
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
 
@@ -334,6 +339,7 @@ async function startServer(): Promise<void> {
       logger.info(`💾 Cache Management: http://localhost:${config.port}/api/v1/cache`);
       logger.info(`🔑 API Keys: http://localhost:${config.port}/api/v1/apikeys`);
       logger.info(`📋 Audit Logs: http://localhost:${config.port}/api/v1/audit-logs`);
+      logger.info(`📊 Analytics: http://localhost:${config.port}/api/v1/analytics/dashboard`);
     });
 
     // Graceful shutdown
