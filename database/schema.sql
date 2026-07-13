@@ -2648,3 +2648,365 @@ create policy investidor_ve_financiamento_do_proprio_imovel on financiamentos_im
 create trigger trg_audit_financiamentos_imoveis
   after insert or update or delete on financiamentos_imoveis
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 32. PRESTADORES DE SERVIÇO (Zelador, Serviços Gerais, Eventuais)
+-- ============================================================================
+-- Contexto: Paulo (Zelador) e Cristiano (Serviços Gerais) são prestadores de
+-- serviço com contrato fixo que geram NFS-e. Não são empregados CLT.
+-- Fechamento: Paulo mensal (dia 10, referente mês anterior),
+--             Cristiano semanal (sexta-feira).
+-- Reajuste: IPCA, data base julho, efeito em agosto.
+-- Dados: integrados com personas existente, RLS por papel, rateio por residencial.
+-- Retroativo: 01/2023 em diante (migração de dados históricos).
+--
+-- Documentação completa: docs/36-prestadores-servico.md
+
+create table prestadores_servico (
+  id uuid primary key default gen_random_uuid(),
+  pessoa_id uuid unique references pessoas(id),
+  nome_completo text not null,
+  cpf_cnpj text not null unique,
+  tipo text not null check (tipo in ('fixo', 'eventual')),
+  categoria text not null check (categoria in ('zelador', 'servicos_gerais', 'manutencao', 'limpeza', 'outro')),
+
+  -- Dados bancários para PIX
+  chave_pix text,
+  instituicao_bancaria text,
+  tipo_conta text,
+  agencia text,
+  conta text,
+
+  -- Contato
+  email text,
+  telefone text,
+
+  status text not null default 'ativo' check (status in ('ativo', 'inativo', 'suspenso')),
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  unique (cpf_cnpj)
+);
+
+-- Contrato de prestação de serviços (histórico + ativo)
+create table contratos_prestador (
+  id uuid primary key default gen_random_uuid(),
+  prestador_id uuid not null references prestadores_servico(id) on delete cascade,
+
+  data_inicio date not null,
+  data_fim date,
+
+  tipo_contrato text not null check (tipo_contrato in ('fixo', 'eventual')),
+  tipo_remuneracao text not null check (tipo_remuneracao in (
+    'diaria_fixa',
+    'hora_fixa',
+    'por_servico'
+  )),
+  valor_base numeric(10,2) not null check (valor_base > 0),
+  valor_hora numeric(10,2),
+
+  -- Reajuste automático (IPCA para Paulo e Cristiano)
+  reajuste_indice text check (reajuste_indice in ('ipca', 'manual', 'none')),
+  data_base_reajuste date,
+  percentual_reajuste_ultimo numeric(5,2),
+  data_ultimo_reajuste date,
+
+  -- Frequência de fechamento
+  frequencia_fechamento text not null check (frequencia_fechamento in (
+    'semanal',
+    'mensal',
+    'por_servico'
+  )),
+  dia_fechamento_semana smallint check (dia_fechamento_semana between 1 and 7),
+  dia_fechamento_mes smallint check (dia_fechamento_mes between 1 and 31),
+
+  observacoes text,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  constraint data_fim_maior_inicio check (data_fim is null or data_fim > data_inicio)
+);
+
+-- Regras específicas por contrato (JSON para flexibilidade)
+create table regras_prestador (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null unique references contratos_prestador(id) on delete cascade,
+
+  -- JSON com configurações por prestador
+  -- Paulo: {"diaria": 121.63, "valor_hora": 14.53, "combustivel_diario_litros": 3,
+  --         "combustivel_valor_litro": 7.20, "combustivel_base_mensal_litros": 25,
+  --         "combustivel_base_mensal": 219.59, "adicional_comunicacao": 244.10, ...}
+  -- Cristiano: {"diaria": 200.00, "valor_hora": 25.00, "horario_inicio": "08:00",
+  --            "horario_saida": "17:00", "intervalo_almoco_minutos": 60, ...}
+  regras jsonb not null,
+
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
+);
+
+-- Alocação de prestador por residencial (para rateio contábil)
+create table alocacao_prestador_residencial (
+  id uuid primary key default gen_random_uuid(),
+  prestador_id uuid not null references prestadores_servico(id) on delete cascade,
+  residencial_id uuid not null references residenciais(id) on delete cascade,
+
+  data_inicio date not null default current_date,
+  data_fim date,
+
+  ativo boolean not null default true,
+  criado_em timestamptz not null default now(),
+
+  unique (prestador_id, residencial_id, data_inicio),
+  constraint data_fim_maior_inicio check (data_fim is null or data_fim > data_inicio)
+);
+
+-- Apontamento diário (calendário de horas, atividades, quilometragem)
+create table apontamentos_prestador (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos_prestador(id) on delete cascade,
+  data date not null,
+
+  hora_inicio time,
+  hora_saida time,
+  intervalo_almoco_minutos smallint default 60,
+  horas_trabalhadas numeric(4,2),
+
+  descricao_atividades text,
+  categoria_atividade text,
+
+  quilometragem_extra numeric(6,2),
+  tipo_deslocamento text,
+  valor_deslocamento numeric(10,2),
+
+  -- Kits Airbnb (Cristiano)
+  quantidade_kits_pos_hospedagem smallint default 0,
+  quantidade_kits_dentro_horario smallint default 0,
+
+  eh_emergencia boolean default false,
+
+  -- Residenciais visitados (rateio)
+  residenciais_ids text,
+
+  observacoes text,
+  enviado_para_fechamento boolean default false,
+  foi_importado_retroativo boolean default false,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  constraint hora_range check (hora_inicio is null or hora_saida is null or hora_saida > hora_inicio)
+);
+
+-- Detalhamento de apontamento por residencial (rateio)
+create table apontamentos_residencial_detalhe (
+  id uuid primary key default gen_random_uuid(),
+  apontamento_id uuid not null references apontamentos_prestador(id) on delete cascade,
+  residencial_id uuid not null references residenciais(id) on delete cascade,
+  horas_trabalhadas numeric(5,2) not null,
+  foi_rateado_automatico boolean default false,
+  criado_em timestamptz not null default now()
+);
+
+-- Adiantamentos, vales, parcelamentos, empréstimos
+create table adiantamentos_prestador (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos_prestador(id) on delete cascade,
+
+  data_lancamento date not null,
+  tipo text not null check (tipo in (
+    'vale_adiantamento',
+    'compra_intermediada',
+    'emprestimo',
+    'gasto_ressarcimento',
+    'outro'
+  )),
+
+  descricao text not null,
+  valor_total numeric(14,2) not null,
+
+  numero_parcelas smallint,
+  valor_parcela numeric(14,2),
+  parcelas_restantes smallint,
+
+  status text not null default 'ativo' check (status in ('ativo', 'suspenso', 'quitado')),
+  data_quitacao date,
+
+  comprovante_url text,
+  observacoes text,
+  foi_importado_retroativo boolean default false,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  constraint parcelas_positivas check (numero_parcelas is null or numero_parcelas > 0),
+  constraint valor_positivo check (valor_total > 0)
+);
+
+-- Fechamento (semanal ou mensal)
+create table fechamentos_prestador (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos_prestador(id) on delete cascade,
+
+  data_inicio date not null,
+  data_fim date not null,
+  frequencia text not null check (frequencia in ('semanal', 'mensal')),
+
+  valor_diarias numeric(14,2) not null default 0,
+  valor_horas_adicionais numeric(14,2) not null default 0,
+  valor_deslocamentos numeric(14,2) not null default 0,
+  valor_kits numeric(14,2) not null default 0,
+  valor_emergencias numeric(14,2) not null default 0,
+  valor_combustivel numeric(14,2) not null default 0,
+  valor_adicionais_outros numeric(14,2) not null default 0,
+  total_proventos numeric(14,2) not null default 0,
+
+  valor_adiantamentos_descontados numeric(14,2) not null default 0,
+  valor_parcelas_descontadas numeric(14,2) not null default 0,
+  total_deducoes numeric(14,2) not null default 0,
+
+  valor_liquido numeric(14,2) not null default 0,
+
+  status text not null default 'rascunho' check (status in (
+    'rascunho',
+    'enviado_para_gestao',
+    'aprovado',
+    'devolvido',
+    'pago',
+    'cancelado'
+  )),
+
+  observacoes_gestor text,
+  data_pagamento date,
+  comprovante_pix text,
+  nota_fiscal_url text,
+
+  foi_importado_retroativo boolean default false,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  constraint data_fim_maior_inicio check (data_fim >= data_inicio),
+  constraint liquido_coerente check (valor_liquido = total_proventos - total_deducoes)
+);
+
+-- Detalhamento de cada fechamento (item a item)
+create table fechamento_itens_prestador (
+  id uuid primary key default gen_random_uuid(),
+  fechamento_id uuid not null references fechamentos_prestador(id) on delete cascade,
+
+  data date not null,
+  tipo_item text not null,
+  descricao text,
+  quantidade numeric(6,2),
+  valor_unitario numeric(10,2),
+  valor_total numeric(14,2) not null,
+
+  residencial_id uuid references residenciais(id),
+  observacoes text,
+  criado_em timestamptz not null default now()
+);
+
+-- Solicitações de prestador eventual (orçamento → agendamento → execução)
+create table solicitacoes_prestador_eventual (
+  id uuid primary key default gen_random_uuid(),
+  residencial_id uuid not null references residenciais(id) on delete cascade,
+
+  tipo_servico text not null,
+  descricao_detalhada text not null,
+
+  valor_orcado numeric(14,2),
+  observacoes_orcamento text,
+
+  data_agendada date,
+  hora_agendada time,
+  observacoes_agendamento text,
+
+  data_execucao date,
+  hora_inicio time,
+  hora_saida time,
+
+  descricao_execucao text,
+  valor_final numeric(14,2),
+
+  nota_fiscal_url text,
+  recibo_url text,
+  fotos_url text,
+
+  feedback_gestor text,
+  aprovado_para_pagamento boolean default false,
+
+  status text not null default 'orcamento' check (status in (
+    'orcamento',
+    'agendado',
+    'em_execucao',
+    'concluido',
+    'pago',
+    'cancelado'
+  )),
+
+  foi_importado_retroativo boolean default false,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+
+  constraint data_exec_maior_agenda check (data_execucao is null or data_agendada is null or data_execucao >= data_agendada)
+);
+
+-- Pagamento de prestador eventual
+create table pagamentos_prestador_eventual (
+  id uuid primary key default gen_random_uuid(),
+  solicitacao_id uuid not null unique references solicitacoes_prestador_eventual(id) on delete cascade,
+
+  cpf_cnpj_prestador text not null,
+  nome_prestador text not null,
+  chave_pix_prestador text not null,
+
+  valor_pago numeric(14,2) not null,
+  data_pagamento date not null,
+  comprovante_pix text,
+
+  criado_em timestamptz not null default now()
+);
+
+-- ============================================================================
+-- RLS: PRESTADORES DE SERVIÇO
+-- ============================================================================
+
+alter table prestadores_servico enable row level security;
+alter table contratos_prestador enable row level security;
+alter table regras_prestador enable row level security;
+alter table alocacao_prestador_residencial enable row level security;
+alter table apontamentos_prestador enable row level security;
+alter table apontamentos_residencial_detalhe enable row level security;
+alter table adiantamentos_prestador enable row level security;
+alter table fechamentos_prestador enable row level security;
+alter table fechamento_itens_prestador enable row level security;
+alter table solicitacoes_prestador_eventual enable row level security;
+alter table pagamentos_prestador_eventual enable row level security;
+
+-- Admin vê tudo
+create policy admin_full_access_prestadores on prestadores_servico
+  for all using (fn_eh_admin_ou_economista());
+
+create policy admin_full_access_contratos_prestador on contratos_prestador
+  for all using (fn_eh_admin_ou_economista());
+
+-- Prestador vê apenas seus dados (via pessoa_id)
+create policy prestador_ve_proprios_apontamentos on apontamentos_prestador
+  for select using (
+    exists (
+      select 1 from prestadores_servico ps
+      join personas p on ps.pessoa_id = p.id
+      join auth.users u on p.email = u.email
+      where ps.id = (select prestador_id from contratos_prestador where id = apontamentos_prestador.contrato_id)
+        and u.id = auth.uid()
+    )
+  );
+
+-- ============================================================================
+-- INDEXES
+-- ============================================================================
+
+create index idx_apontamentos_prestador_contrato_data on apontamentos_prestador(contrato_id, data);
+create index idx_apontamentos_prestador_nao_enviados on apontamentos_prestador(contrato_id) where not enviado_para_fechamento;
+create index idx_adiantamentos_prestador_ativo on adiantamentos_prestador(contrato_id) where status = 'ativo';
+create index idx_fechamentos_prestador_status on fechamentos_prestador(contrato_id, status);
+create index idx_fechamentos_prestador_data on fechamentos_prestador(data_inicio, data_fim);
+create index idx_solicitacoes_eventual_status on solicitacoes_prestador_eventual(status, residencial_id);
+create index idx_alocacao_prestador_ativo on alocacao_prestador_residencial(prestador_id) where ativo = true;
