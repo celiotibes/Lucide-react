@@ -61,9 +61,18 @@ export interface LinhaCarneLeaoImovel {
   rendaTributavelBruta: number;
   despesaDedutivel: number;
   baseTributavel: number;
-  aliquotaMarginal: number;
-  impostoEstimado: number;
+  impostoEstimado: number; // fatia do imposto AGREGADO alocada a este imóvel, proporcional à sua base tributável — ver nota em calcularCarneLeaoPorImovel
   resultadoLiquidoPosImposto: number;
+}
+
+export interface ResultadoCarneLeaoConsolidado {
+  linhas: LinhaCarneLeaoImovel[];
+  rendaTributavelBrutaTotal: number;
+  despesaDedutivelTotal: number;
+  baseTributavelTotal: number;
+  aliquotaMarginalConsolidada: number; // a faixa real do contribuinte, aplicada sobre a soma de todos os imóveis
+  impostoEstimadoTotal: number;
+  resultadoLiquidoPosImpostoTotal: number;
 }
 
 function contarMeses(dataInicio: string, dataFim: string): number {
@@ -72,24 +81,30 @@ function contarMeses(dataInicio: string, dataFim: string): number {
   return Math.max(1, (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth()) + 1);
 }
 
-/** Simula o Carnê-Leão por imóvel: renda tributável (já líquida do reembolso de
- * rateio, mesma regra de rendaTributavel.ts) menos despesa dedutível selecionada,
- * imposto aplicado sobre a MÉDIA MENSAL do período e multiplicado de volta pelo
- * número de meses — aproximação para visão consolidada, não substitui a apuração
- * mês a mês real (a tabela é progressiva e não linear; um mês de pico de receita
- * paga alíquota mais alta que a média, então isto tende a subestimar levemente o
- * imposto de períodos com receita muito irregular mês a mês). */
+/** Simula o Carnê-Leão: o IRPF do Carnê-Leão é um imposto PESSOAL do contribuinte,
+ * apurado sobre a SOMA de todos os rendimentos tributáveis recebidos de pessoas físicas
+ * no mês (todos os imóveis juntos) — nunca imóvel por imóvel. Um locador com muitas
+ * unidades pequenas pode ter cada uma isoladamente abaixo da faixa de isenção mensal
+ * (R$ 2.259,20) enquanto a soma de todas cai na faixa de 27,5%; aplicar a tabela
+ * progressiva a cada imóvel separadamente subestimaria drasticamente o imposto devido
+ * e inflaria artificialmente a renda líquida pós-imposto aparente. Por isso o imposto é
+ * calculado UMA VEZ sobre a base agregada (renda tributável de todos os imóveis menos
+ * despesa dedutível de todos, média mensal do período x nº de meses — mesma aproximação
+ * linear de antes, agora aplicada à base certa) e depois distribuído de volta a cada
+ * imóvel proporcionalmente à sua fatia da base tributável total, só para fins de leitura
+ * "quanto cada imóvel contribui" — a alíquota marginal exibida é sempre a do agregado,
+ * porque é essa a faixa real em que o contribuinte se encontra. */
 export function calcularCarneLeaoPorImovel(
   db: Database,
   dataInicio: string,
   dataFim: string,
   codigosDedutiveis: string[],
   tabela: FaixaIrpf[] = TABELA_IRPF_MENSAL_PADRAO,
-): LinhaCarneLeaoImovel[] {
+): ResultadoCarneLeaoConsolidado {
   const imoveis = consultar<Imovel>(db, "SELECT * FROM imoveis WHERE uso_pessoal = 0 ORDER BY apelido");
   const numeroMeses = contarMeses(dataInicio, dataFim);
 
-  return imoveis.map((imovel): LinhaCarneLeaoImovel => {
+  const porImovel = imoveis.map((imovel) => {
     // Une transações diretas do imóvel com a fatia de transações rateadas entre vários
     // imóveis (mesmo padrão de gerarDre em dre.ts) — sem isso, receita/despesa rateada
     // (ex.: condomínio coletivo) fica de fora do cálculo para todo imóvel participante.
@@ -136,17 +151,33 @@ export function calcularCarneLeaoPorImovel(
     }
 
     const baseTributavel = Math.max(0, rendaTributavelBruta - despesaDedutivel);
-    const resultadoMensal = calcularImpostoMensal(baseTributavel / numeroMeses, tabela);
-    const impostoEstimado = resultadoMensal.imposto * numeroMeses;
-
-    return {
-      imovel,
-      rendaTributavelBruta,
-      despesaDedutivel,
-      baseTributavel,
-      aliquotaMarginal: resultadoMensal.aliquotaPercentual,
-      impostoEstimado,
-      resultadoLiquidoPosImposto: baseTributavel - impostoEstimado,
-    };
+    return { imovel, rendaTributavelBruta, despesaDedutivel, baseTributavel };
   });
+
+  const rendaTributavelBrutaTotal = porImovel.reduce((acc, l) => acc + l.rendaTributavelBruta, 0);
+  const despesaDedutivelTotal = porImovel.reduce((acc, l) => acc + l.despesaDedutivel, 0);
+  const baseTributavelTotal = porImovel.reduce((acc, l) => acc + l.baseTributavel, 0);
+
+  // Imposto calculado UMA ÚNICA VEZ sobre a base agregada de todos os imóveis (ver nota
+  // acima) — nunca por imóvel isoladamente.
+  const resultadoMensalConsolidado = calcularImpostoMensal(baseTributavelTotal / numeroMeses, tabela);
+  const impostoEstimadoTotal = resultadoMensalConsolidado.imposto * numeroMeses;
+
+  const linhas: LinhaCarneLeaoImovel[] = porImovel.map((l): LinhaCarneLeaoImovel => {
+    // Fatia do imposto agregado proporcional à participação deste imóvel na base
+    // tributável total — puramente informativo (quanto cada imóvel "pesa" no imposto do
+    // contribuinte), não um imposto calculado independentemente para ele.
+    const impostoEstimado = baseTributavelTotal > 0 ? impostoEstimadoTotal * (l.baseTributavel / baseTributavelTotal) : 0;
+    return { ...l, impostoEstimado, resultadoLiquidoPosImposto: l.baseTributavel - impostoEstimado };
+  });
+
+  return {
+    linhas,
+    rendaTributavelBrutaTotal,
+    despesaDedutivelTotal,
+    baseTributavelTotal,
+    aliquotaMarginalConsolidada: resultadoMensalConsolidado.aliquotaPercentual,
+    impostoEstimadoTotal,
+    resultadoLiquidoPosImpostoTotal: baseTributavelTotal - impostoEstimadoTotal,
+  };
 }

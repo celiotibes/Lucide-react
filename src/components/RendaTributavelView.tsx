@@ -59,8 +59,8 @@ export function RendaTributavelView() {
   useEffect(() => {
     localStorage.setItem(CHAVE_CATEGORIAS_DEDUTIVEIS, JSON.stringify(codigosDedutiveis));
   }, [codigosDedutiveis]);
-  const carneLeaoPorImovel = useMemo(
-    () => (db ? calcularCarneLeaoPorImovel(db, inicio12m, hoje, codigosDedutiveis) : []),
+  const carneLeao = useMemo(
+    () => (db ? calcularCarneLeaoPorImovel(db, inicio12m, hoje, codigosDedutiveis) : null),
     [db, versao, inicio12m, hoje, codigosDedutiveis],
   );
   function alternarCategoriaDedutivel(codigo: string) {
@@ -260,15 +260,20 @@ export function RendaTributavelView() {
         </table>
       </div>
 
-      <h2 className="section-title">Simulador de Carnê-Leão por imóvel</h2>
+      <h2 className="section-title">Simulador de Carnê-Leão</h2>
       <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 14 }}>
         <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
         <span>
           Simulação, não apuração oficial. Usa a tabela progressiva mensal do IRPF vigente desde 05/2024 (Lei nº
           14.848/2024) — pode ter mudado desde então; confira a tabela atual em gov.br/receitafederal antes de usar
-          para qualquer finalidade oficial ou pericial. O imposto é calculado sobre a média mensal do período e
-          multiplicado de volta pelos meses — não substitui a apuração mês a mês real. Confirme com um contador as
-          categorias de despesa realmente dedutíveis no seu caso antes de apresentar este número em juízo.
+          para qualquer finalidade oficial ou pericial. O imposto do Carnê-Leão é PESSOAL do contribuinte: é
+          calculado uma única vez sobre a soma da base tributável de TODOS os imóveis (média mensal do período,
+          multiplicada de volta pelos meses — não substitui a apuração mês a mês real), nunca imóvel por imóvel —
+          um locador com muitas unidades pequenas pode ter cada uma isoladamente abaixo da faixa de isenção
+          mensal enquanto a soma de todas cai numa faixa bem mais alta. A coluna "imposto" de cada imóvel abaixo é
+          só a fatia desse imposto único alocada proporcionalmente, para leitura de quanto cada imóvel pesa — não
+          um imposto calculado à parte para ele. Confirme com um contador as categorias de despesa realmente
+          dedutíveis no seu caso antes de apresentar este número em juízo.
         </span>
       </div>
       <p style={{ maxWidth: "70ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 10 }}>
@@ -289,6 +294,20 @@ export function RendaTributavelView() {
         Financiamento, obra/capex, inadimplência e despesas administrativas não aparecem como opção: são custo de
         aquisição, capital ou não classicamente dedutíveis no Carnê-Leão mensal.
       </p>
+
+      {carneLeao && (
+        <div className="kpi-grid" style={{ marginBottom: 18 }}>
+          <KpiTile label="Base tributável total (todos os imóveis)" value={formatarMoeda(carneLeao.baseTributavelTotal)} />
+          <KpiTile label="Alíquota marginal do contribuinte" value={`${carneLeao.aliquotaMarginalConsolidada.toFixed(1)}%`} />
+          <KpiTile label="Imposto estimado total" value={formatarMoeda(carneLeao.impostoEstimadoTotal)} variant="critical" />
+          <KpiTile
+            label="Resultado líquido pós-imposto"
+            value={formatarMoeda(carneLeao.resultadoLiquidoPosImpostoTotal)}
+            variant={carneLeao.resultadoLiquidoPosImpostoTotal >= 0 ? "good" : "critical"}
+          />
+        </div>
+      )}
+
       <div className="table-wrap" style={{ marginBottom: 28 }}>
         <table className="data-table">
           <thead>
@@ -297,27 +316,25 @@ export function RendaTributavelView() {
               <th className="num">Renda tributável bruta</th>
               <th className="num">Despesa dedutível</th>
               <th className="num">Base tributável</th>
-              <th className="num">Alíquota marginal</th>
-              <th className="num">Imposto estimado</th>
+              <th className="num">Imposto (fatia alocada)</th>
               <th className="num">Resultado pós-imposto</th>
             </tr>
           </thead>
           <tbody>
-            {carneLeaoPorImovel.map((l) => (
+            {(carneLeao?.linhas ?? []).map((l) => (
               <tr key={l.imovel.id}>
                 <td>{l.imovel.apelido}</td>
                 <td className="num">{formatarMoeda(l.rendaTributavelBruta)}</td>
                 <td className="num">{formatarMoeda(l.despesaDedutivel)}</td>
                 <td className="num">{formatarMoeda(l.baseTributavel)}</td>
-                <td className="num">{l.aliquotaMarginal.toFixed(1)}%</td>
                 <td className="num" style={{ color: "var(--viz-despesa)" }}>{formatarMoeda(l.impostoEstimado)}</td>
                 <td className="num" style={{ color: l.resultadoLiquidoPosImposto >= 0 ? "var(--viz-good)" : "var(--viz-despesa)" }}>
                   {formatarMoeda(l.resultadoLiquidoPosImposto)}
                 </td>
               </tr>
             ))}
-            {carneLeaoPorImovel.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum imóvel cadastrado.</td></tr>
+            {(carneLeao?.linhas.length ?? 0) === 0 && (
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum imóvel cadastrado.</td></tr>
             )}
           </tbody>
         </table>
