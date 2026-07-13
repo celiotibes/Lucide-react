@@ -342,19 +342,21 @@ function ContratoLinha({
                     {c.valor_inicial.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em {c.data_deposito} ({c.indice_correcao})
                   </div>
                 ))}
-                {caucoes.length === 0 && (
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <input className="btn" style={{ cursor: "text", width: 100 }} placeholder="Valor" value={novaCaucao.valor_inicial} onChange={(e) => setNovaCaucao({ ...novaCaucao, valor_inicial: e.target.value })} />
-                    <input type="date" className="btn" value={novaCaucao.data_deposito} onChange={(e) => setNovaCaucao({ ...novaCaucao, data_deposito: e.target.value })} />
-                    <select className="btn" value={novaCaucao.indice_correcao} onChange={(e) => setNovaCaucao({ ...novaCaucao, indice_correcao: e.target.value as Caucao["indice_correcao"] })}>
-                      <option value="poupanca">Poupança</option>
-                      <option value="igpm">IGP-M</option>
-                      <option value="ipca">IPCA</option>
-                      <option value="nenhum">Nenhum</option>
-                    </select>
-                    <button className="btn" onClick={adicionarCaucao}><Plus size={13} /></button>
-                  </div>
-                )}
+                <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "4px 0 8px" }}>
+                  Caução parcelada (ex: 50% na entrada, 50% no 2º boleto): lance uma linha por parcela — cada uma
+                  corrige a partir da sua própria data de depósito.
+                </p>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input className="btn" style={{ cursor: "text", width: 100 }} placeholder="Valor" value={novaCaucao.valor_inicial} onChange={(e) => setNovaCaucao({ ...novaCaucao, valor_inicial: e.target.value })} />
+                  <input type="date" className="btn" value={novaCaucao.data_deposito} onChange={(e) => setNovaCaucao({ ...novaCaucao, data_deposito: e.target.value })} />
+                  <select className="btn" value={novaCaucao.indice_correcao} onChange={(e) => setNovaCaucao({ ...novaCaucao, indice_correcao: e.target.value as Caucao["indice_correcao"] })}>
+                    <option value="poupanca">Poupança</option>
+                    <option value="igpm">IGP-M</option>
+                    <option value="ipca">IPCA</option>
+                    <option value="nenhum">Nenhum</option>
+                  </select>
+                  <button className="btn" onClick={adicionarCaucao}><Plus size={13} /></button>
+                </div>
               </div>
             </div>
           </td>

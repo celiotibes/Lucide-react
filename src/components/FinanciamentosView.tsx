@@ -33,6 +33,9 @@ export function FinanciamentosView() {
         Cronograma teórico gerado localmente pelo sistema {financiamentoAtivo?.sistema ?? "SAC"} — sem juros sobre
         juros — comparado mês a mês com o que foi de fato lançado nas transações do imóvel. Divergência de juros
         acima de 5% é sinalizada como possível encargo indevido, para investigar contra o contrato original.
+        Financiamento "Outro" (ex: hipoteca por consórcio) não tem fórmula bancária conhecida — não há cronograma
+        teórico nem comparação de anatocismo para ele; saldo devedor e parcela vêm do que for lançado manualmente
+        no cadastro.
       </p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
@@ -53,7 +56,22 @@ export function FinanciamentosView() {
         <>
           <div className="kpi-grid">
             <KpiTile label="Valor contratado" value={formatarMoeda(financiamentoAtivo.valor_contratado)} />
-            <KpiTile label="Taxa contratada" value={`${financiamentoAtivo.taxa_juros_mensal.toFixed(2)}% a.m.`} />
+            {financiamentoAtivo.sistema === "OUTRO" ? (
+              <>
+                <KpiTile
+                  label="Saldo devedor (informado)"
+                  value={financiamentoAtivo.saldo_devedor_manual !== null ? formatarMoeda(financiamentoAtivo.saldo_devedor_manual) : "não informado"}
+                  variant={financiamentoAtivo.saldo_devedor_manual !== null ? undefined : "critical"}
+                />
+                <KpiTile
+                  label="Parcela mensal (informada)"
+                  value={financiamentoAtivo.parcela_mensal_manual !== null ? formatarMoeda(financiamentoAtivo.parcela_mensal_manual) : "não informada"}
+                  variant={financiamentoAtivo.parcela_mensal_manual !== null ? undefined : "critical"}
+                />
+              </>
+            ) : (
+              <KpiTile label="Taxa contratada" value={`${financiamentoAtivo.taxa_juros_mensal.toFixed(2)}% a.m.`} />
+            )}
             <KpiTile label="Sistema" value={financiamentoAtivo.sistema} />
             <KpiTile label="Meses com divergência" value={alertas.length} variant={alertas.length > 0 ? "critical" : "good"} />
           </div>
@@ -99,7 +117,9 @@ export function FinanciamentosView() {
                 {divergencias.length === 0 && (
                   <tr>
                     <td colSpan={7} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
-                      Nenhuma transação lançada para este imóvel dentro da janela do cronograma.
+                      {financiamentoAtivo.sistema === "OUTRO"
+                        ? "Sistema \"Outro\" não tem cronograma teórico SAC/Price — não há base de comparação de anatocismo para ele."
+                        : "Nenhuma transação lançada para este imóvel dentro da janela do cronograma."}
                     </td>
                   </tr>
                 )}

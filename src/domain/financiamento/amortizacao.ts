@@ -90,9 +90,18 @@ export interface Financiamento {
   taxa_juros_mensal: number;
   data_contrato: string;
   parcelas_total: number;
+  saldo_devedor_manual: number | null;
+  parcela_mensal_manual: number | null;
+  data_referencia_saldo_manual: string | null;
 }
 
+/** SAC/Price pressupõem amortização por juros bancários compostos sobre saldo devedor —
+ * fórmula que não se aplica a um financiamento 'OUTRO' (ex: hipoteca por consórcio, cuja
+ * parcela e saldo dependem do extrato da administradora, não de uma taxa de juros
+ * contratada). Para 'OUTRO', não há cronograma teórico a gerar — ver saldoDevedorFinanciamento
+ * e parcelaMensalFinanciamento, que usam os campos manuais em vez deste cronograma. */
 export function gerarCronograma(financiamento: Financiamento): ParcelaAmortizacao[] {
+  if (financiamento.sistema === "OUTRO") return [];
   const gerador = financiamento.sistema === "PRICE" ? gerarCronogramaPrice : gerarCronogramaSAC;
   return gerador(financiamento.valor_contratado, financiamento.taxa_juros_mensal, financiamento.parcelas_total, financiamento.data_contrato);
 }

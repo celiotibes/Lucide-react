@@ -67,6 +67,16 @@ export function PatrimonioView() {
               </span>
             </div>
           )}
+          {patrimonioLiquido.financiamentosSemSaldoDevedor.length > 0 && (
+            <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 24 }}>
+              <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span>
+                Financiamento "Outro" sem saldo devedor informado, fora da soma do passivo (o sistema não fabrica
+                esse número por SAC/Price): {patrimonioLiquido.financiamentosSemSaldoDevedor.join(", ")}. Cadastre em
+                Cadastros → Financiamentos → "Saldo devedor atual" para incluir no cálculo.
+              </span>
+            </div>
+          )}
         </>
       )}
 
@@ -81,7 +91,10 @@ export function PatrimonioView() {
               <tr key={l.imovel.id}>
                 <td>{l.imovel.apelido}</td>
                 <td className="num">{l.valorVenal !== null ? formatarMoeda(l.valorVenal) : "—"}</td>
-                <td className="num">{formatarMoeda(l.saldoDevedor)}</td>
+                <td className="num">
+                  {formatarMoeda(l.saldoDevedor)}
+                  {l.saldoDevedorIncompleto && <span title="Financiamento 'Outro' sem saldo devedor informado — valor subestimado" style={{ color: "var(--viz-critical)" }}> *</span>}
+                </td>
                 <td className="num">
                   {l.percentualAlavancagem !== null ? (
                     <span className={`pill ${l.percentualAlavancagem > 70 ? "critical" : l.percentualAlavancagem > 40 ? "warning" : "good"}`}>
@@ -129,16 +142,27 @@ export function PatrimonioView() {
         <input id="salario-mensal" className="btn" style={{ cursor: "text", width: 120 }} value={salarioMensal} onChange={(e) => setSalarioMensal(e.target.value)} />
       </div>
       {comprometimento && (
-        <div className="kpi-grid" style={{ marginBottom: 28 }}>
-          <KpiTile label="Parcelas financiamentos" value={formatarMoeda(comprometimento.parcelasFinanciamentos)} />
-          <KpiTile label="Parcelas dívidas de consumo" value={formatarMoeda(comprometimento.parcelasConsumo)} />
-          <KpiTile label="Total parcelas/mês" value={formatarMoeda(comprometimento.totalParcelas)} />
-          <KpiTile
-            label="% da renda comprometida"
-            value={comprometimento.percentualComprometido !== null ? `${comprometimento.percentualComprometido.toFixed(1)}%` : "—"}
-            variant={comprometimento.percentualComprometido !== null && comprometimento.percentualComprometido > 30 ? "critical" : "good"}
-          />
-        </div>
+        <>
+          <div className="kpi-grid" style={{ marginBottom: 10 }}>
+            <KpiTile label="Parcelas financiamentos" value={formatarMoeda(comprometimento.parcelasFinanciamentos)} />
+            <KpiTile label="Parcelas dívidas de consumo" value={formatarMoeda(comprometimento.parcelasConsumo)} />
+            <KpiTile label="Total parcelas/mês" value={formatarMoeda(comprometimento.totalParcelas)} />
+            <KpiTile
+              label="% da renda comprometida"
+              value={comprometimento.percentualComprometido !== null ? `${comprometimento.percentualComprometido.toFixed(1)}%` : "—"}
+              variant={comprometimento.percentualComprometido !== null && comprometimento.percentualComprometido > 30 ? "critical" : "good"}
+            />
+          </div>
+          {comprometimento.financiamentosSemParcelaMensal.length > 0 && (
+            <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 28 }}>
+              <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span>
+                Financiamento "Outro" sem parcela mensal informada, fora da soma acima: {comprometimento.financiamentosSemParcelaMensal.join(", ")}.
+                Cadastre em Cadastros → Financiamentos → "Parcela mensal atual" para incluir no cálculo.
+              </span>
+            </div>
+          )}
+        </>
       )}
 
       <h3 style={{ fontSize: 15, marginBottom: 10 }}>Demonstrativo de endividamento global</h3>

@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS financiamentos (
     taxa_juros_mensal REAL NOT NULL DEFAULT 0.8,   -- percentual ao mês do contrato, ex: 0.8 (= 0,8% a.m.)
     data_contrato   DATE NOT NULL,
     parcelas_total  INTEGER NOT NULL,
+
+    -- 'OUTRO' cobre financiamentos sem fórmula de amortização bancária conhecida (ex:
+    -- hipoteca por consórcio — parcela e saldo devedor não seguem SAC/PRICE, dependem do
+    -- extrato da administradora). Para esses, saldo/parcela vêm exclusivamente destes
+    -- campos manuais (mesmo padrão de dividas_consumo: usuário relança o valor, o sistema
+    -- não calcula uma fórmula que não se aplica). Ignorados quando sistema = SAC/PRICE.
+    saldo_devedor_manual        REAL,
+    parcela_mensal_manual       REAL,
+    data_referencia_saldo_manual DATE,
+
     observacoes     TEXT
 );
 
