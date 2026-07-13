@@ -58,6 +58,8 @@ import graphqlRouter from '@/api/routes/graphqlRouter';
 import { initializeApolloServer } from '@/api/graphql/apolloServer';
 import searchRouter from '@/api/routes/searchRouter';
 import { elasticsearchService } from '@services/ElasticsearchService';
+import cacheManagementRouter from '@/api/routes/cacheManagementRouter';
+import { redisCacheService } from '@services/RedisCacheService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -224,6 +226,9 @@ app.use('/graphql', graphqlRouter);
 // Phase 5: Advanced Search (Elasticsearch)
 app.use('/api/v1/search', searchRouter);
 
+// Phase 6: Cache Management (Redis + In-Memory)
+app.use('/api/v1/cache', cacheManagementRouter);
+
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
 
@@ -245,6 +250,15 @@ async function initializeServices(): Promise<void> {
       logger.info('✓ Elasticsearch inicializado');
     } catch (error) {
       logger.warn({ error }, 'Elasticsearch não disponível - busca avançada desabilitada');
+    }
+
+    // Inicializar Redis Cache
+    if (config.redis_url) {
+      if (redisCacheService.isReady()) {
+        logger.info('✓ Redis Cache inicializado');
+      } else {
+        logger.warn('Redis não disponível - usando apenas cache em memória');
+      }
     }
 
     // Inicialize Projudi SOAP client
@@ -309,6 +323,8 @@ async function startServer(): Promise<void> {
       logger.info(`📡 WebSocket: ws://localhost:${config.port}?userId=USER_ID&token=TOKEN`);
       logger.info(`📊 GraphQL IDE: http://localhost:${config.port}/graphql`);
       logger.info(`📖 GraphQL Docs: http://localhost:${config.port}/graphql/docs/queries`);
+      logger.info(`🔍 Advanced Search: http://localhost:${config.port}/api/v1/search`);
+      logger.info(`💾 Cache Management: http://localhost:${config.port}/api/v1/cache`);
     });
 
     // Graceful shutdown
