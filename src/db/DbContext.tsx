@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Database } from "sql.js";
 import { abrirBanco, salvarBanco, reiniciarBanco } from "./connection";
+import { registrarUltimaAlteracao } from "../domain/backupIntegridade";
 
 interface DbContextValor {
   db: Database | null;
@@ -26,6 +27,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
   const persistir = useCallback(async () => {
     if (!db) return;
     await salvarBanco(db);
+    registrarUltimaAlteracao();
     setVersao((v) => v + 1);
   }, [db]);
 

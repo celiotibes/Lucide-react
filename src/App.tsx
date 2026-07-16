@@ -1,9 +1,10 @@
-import { useCallback, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
 import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
+import { registrarBackup, calcularStatusBackup, type RegistroBackup } from "./domain/backupIntegridade";
 import { Dashboard } from "./components/Dashboard";
 import { ImportarView } from "./components/ImportarView";
 import { TransacoesView } from "./components/TransacoesView";
@@ -45,10 +46,17 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
 ];
 
 function Conteudo() {
-  const { db, carregando, persistir, reiniciar } = useDb();
+  const { db, versao, carregando, persistir, reiniciar } = useDb();
   const [aba, setAba] = useState<Aba>("dashboard");
   const [mensagemSeed, setMensagemSeed] = useState<string | null>(null);
+  const [ultimoRegistroBackup, setUltimoRegistroBackup] = useState<RegistroBackup | null>(null);
+  const [hashCopiado, setHashCopiado] = useState(false);
+  const [backupTick, setBackupTick] = useState(0);
   const inputImportarRef = useRef<HTMLInputElement>(null);
+
+  // Recalculado a cada persistência real (versao muda) e a cada backup exportado
+  // (backupTick muda) — os dois únicos eventos que afetam o status.
+  const statusBackup = useMemo(() => calcularStatusBackup(), [versao, backupTick]);
 
   const carregarDemonstracao = useCallback(async () => {
     if (!db) return;
@@ -60,16 +68,35 @@ function Conteudo() {
     );
   }, [db, persistir]);
 
-  const exportarBanco = useCallback(() => {
+  const exportarBanco = useCallback(async () => {
     if (!db) return;
     const blob = exportarArquivo(db);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const nomeArquivo = `contabilidade-${new Date().toISOString().slice(0, 10)}.sqlite`;
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `contabilidade-${new Date().toISOString().slice(0, 10)}.sqlite`;
+    a.download = nomeArquivo;
     a.click();
     URL.revokeObjectURL(url);
+
+    const registro = await registrarBackup(bytes, nomeArquivo);
+    setUltimoRegistroBackup(registro);
+    setHashCopiado(false);
+    setBackupTick((t) => t + 1);
   }, [db]);
+
+  const copiarHash = useCallback(async () => {
+    if (!ultimoRegistroBackup) return;
+    try {
+      await navigator.clipboard.writeText(ultimoRegistroBackup.hashSha256);
+      setHashCopiado(true);
+    } catch {
+      // clipboard indisponível (permissão negada, contexto não seguro) — o hash continua
+      // visível na tela para cópia manual, só o botão de atalho não funciona.
+    }
+  }, [ultimoRegistroBackup]);
 
   const importarBanco = useCallback(
     async (arquivo: File) => {
@@ -105,6 +132,18 @@ function Conteudo() {
           <button className="btn" onClick={exportarBanco}>
             <Download size={14} /> Exportar backup
           </button>
+          {statusBackup.ultimoBackupEm === null ? (
+            <span className="pill warning" title="Nenhum backup exportado ainda nesta instalação">nunca fez backup</span>
+          ) : statusBackup.existeAlteracaoNaoBackupeada ? (
+            <span
+              className={`pill ${statusBackup.diasDesdeUltimoBackup !== null && statusBackup.diasDesdeUltimoBackup > 7 ? "critical" : "warning"}`}
+              title="Há alterações feitas depois do último backup exportado"
+            >
+              backup desatualizado{statusBackup.diasDesdeUltimoBackup !== null && statusBackup.diasDesdeUltimoBackup > 0 ? ` (${statusBackup.diasDesdeUltimoBackup}d)` : ""}
+            </span>
+          ) : (
+            <span className="pill good" title="Todas as alterações já estão refletidas no último backup exportado">backup em dia</span>
+          )}
           <button className="btn" onClick={() => inputImportarRef.current?.click()}>
             <UploadIcon size={14} /> Importar backup
           </button>
@@ -138,6 +177,24 @@ function Conteudo() {
       </nav>
 
       <main className="app-main">
+        {ultimoRegistroBackup && (
+          <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 20 }}>
+            <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ marginBottom: 4 }}>
+                Backup exportado: <strong>{ultimoRegistroBackup.arquivo}</strong> ({(ultimoRegistroBackup.tamanhoBytes / 1024).toFixed(0)} KB). Guarde o hash
+                SHA-256 abaixo — é a prova de que o arquivo apresentado depois (num laudo, numa petição) é exatamente
+                este, sem alteração posterior.
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <code style={{ fontSize: 12, wordBreak: "break-all" }}>{ultimoRegistroBackup.hashSha256}</code>
+                <button className="btn" style={{ padding: "3px 8px", fontSize: 12 }} onClick={copiarHash}>
+                  {hashCopiado ? <><Check size={12} /> copiado</> : <><Copy size={12} /> copiar hash</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {mensagemSeed && (
           <div className="aviso-caixa" style={{ background: "var(--accent-soft)", color: "var(--accent)", borderColor: "var(--accent)", marginBottom: 20 }}>
             {mensagemSeed}
