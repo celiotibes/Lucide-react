@@ -197,3 +197,16 @@ export interface DividaConsumo {
   data_referencia_saldo: string;
   observacoes?: string;
 }
+
+export type TipoDeclaracaoFiscal = "dirpf_anual" | "carne_leao_mensal";
+
+export interface DeclaracaoFiscal {
+  id: number;
+  ano_calendario: number;
+  tipo: TipoDeclaracaoFiscal;
+  mes_referencia?: string; // obrigatório quando tipo = 'carne_leao_mensal'
+  rendimento_tributavel_declarado: number;
+  imposto_pago?: number;
+  fonte_documento?: string;
+  observacoes?: string;
+}

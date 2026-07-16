@@ -7,6 +7,7 @@ import { calcularCapacidadeContributiva, calcularCapacidadeContributivaMensal } 
 import { calcularAnaliseVertical, calcularAnaliseHorizontal } from "../domain/reports/analiseVerticalHorizontal";
 import { compararReceitaCaixaXCompetencia } from "../domain/reports/dreCompetencia";
 import { calcularCarneLeaoPorImovel, CATEGORIAS_DEDUTIVEIS_CANDIDATAS } from "../domain/reports/irpfCarneLeao";
+import { compararDeclaradoXReconstituido } from "../domain/reports/comparativoFiscal";
 import { gerarDss } from "../domain/reports/dss";
 import { sugerirAjusteRateio, aplicarAjusteRateio } from "../domain/rateio/ajusteAnual";
 import type { ContratoLocacao, Imovel } from "../domain/types";
@@ -42,6 +43,13 @@ export function RendaTributavelView() {
   const { db, versao, persistir } = useDb();
   const hoje = hojeIso();
   const inicio12m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 12)).toISOString().slice(0, 10);
+  // Comparativo declarado × reconstituído olha por ano-calendário, não pela janela rolante
+  // de 12 meses usada no resto da tela — precisa cobrir vários anos inteiros de histórico.
+  const inicioHistoricoFiscal = new Date(new Date(hoje).setFullYear(new Date(hoje).getFullYear() - 6, 0, 1)).toISOString().slice(0, 10);
+  const comparativoFiscal = useMemo(
+    () => (db ? compararDeclaradoXReconstituido(db, inicioHistoricoFiscal, hoje) : []),
+    [db, versao, inicioHistoricoFiscal, hoje],
+  );
 
   const linhas = useMemo(() => (db ? gerarRendaTributavel(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
   const totais = useMemo(() => totalizarRendaTributavel(linhas), [linhas]);
@@ -335,6 +343,56 @@ export function RendaTributavelView() {
             ))}
             {(carneLeao?.linhas.length ?? 0) === 0 && (
               <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum imóvel cadastrado.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="section-title">Comparativo: declarado × reconstituído</h2>
+      <p style={{ maxWidth: "70ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 14 }}>
+        Cruza a renda tributável reconstituída acima (extratos bancários reais) contra o que foi de fato
+        declarado/pago à Receita Federal — o mesmo tipo de auditoria que plataformas de conciliação fiscal fazem
+        entre livros/extratos e obrigações declaradas. Lance a DIRPF anual ou os DARFs de Carnê-Leão mensal em
+        Cadastros → Declarações fiscais; sem nada lançado, a coluna "declarado" fica em branco (nunca se assume
+        zero nem "igual ao reconstituído").
+      </p>
+      <div className="table-wrap" style={{ marginBottom: 28 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Ano-calendário</th>
+              <th className="num">Renda reconstituída</th>
+              <th className="num">Renda declarada</th>
+              <th>Origem do declarado</th>
+              <th className="num">Diferença</th>
+              <th className="num">% não declarado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {comparativoFiscal.map((l) => (
+              <tr key={l.anoCalendario}>
+                <td>{l.anoCalendario}</td>
+                <td className="num">{formatarMoeda(l.rendaReconstituida)}</td>
+                <td className="num">{l.rendaDeclarada !== null ? formatarMoeda(l.rendaDeclarada) : "—"}</td>
+                <td style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+                  {l.origemDeclarado === "dirpf_anual" && "DIRPF anual"}
+                  {l.origemDeclarado === "carne_leao_mensal" && `Carnê-Leão (${l.mesesComCarneLeaoLancado}/12 meses lançados)`}
+                  {l.origemDeclarado === "nenhum" && "nada lançado"}
+                </td>
+                <td className="num" style={{ color: l.diferenca !== null && l.diferenca > 0.01 ? "var(--viz-despesa)" : undefined }}>
+                  {l.diferenca !== null ? formatarMoeda(l.diferenca) : "—"}
+                </td>
+                <td className="num">
+                  {l.percentualNaoDeclarado !== null ? (
+                    <span className={`pill ${l.percentualNaoDeclarado > 20 ? "critical" : l.percentualNaoDeclarado > 0.5 ? "warning" : "good"}`}>
+                      {l.percentualNaoDeclarado.toFixed(1)}%
+                    </span>
+                  ) : "—"}
+                </td>
+              </tr>
+            ))}
+            {comparativoFiscal.length === 0 && (
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Sem dados suficientes (renda reconstituída ou declaração lançada) para nenhum ano.</td></tr>
             )}
           </tbody>
         </table>

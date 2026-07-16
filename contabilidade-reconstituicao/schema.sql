@@ -193,6 +193,23 @@ CREATE TABLE IF NOT EXISTS indices_economicos (
     PRIMARY KEY (indice, mes_referencia)
 );
 
+-- Cruzamento fiscal: o que foi de fato declarado/pago à Receita Federal (DIRPF anual ou
+-- DARF de Carnê-Leão mensal) versus a renda tributável RECONSTITUÍDA a partir dos extratos
+-- bancários reais (gerarRendaTributavel/calcularCarneLeaoPorImovel). Sem essa comparação,
+-- o sistema mostra "quanto deveria ter sido pago" mas nunca "quanto foi de fato declarado" —
+-- lançamento manual porque não há API pública da Receita Federal para consultar declarações
+-- já entregues (mesma limitação de Registrato/SCR já documentada em dividas_consumo).
+CREATE TABLE IF NOT EXISTS declaracoes_fiscais (
+    id                              INTEGER PRIMARY KEY,
+    ano_calendario                  INTEGER NOT NULL,
+    tipo                            TEXT NOT NULL CHECK (tipo IN ('dirpf_anual', 'carne_leao_mensal')),
+    mes_referencia                  DATE,           -- obrigatório quando tipo = 'carne_leao_mensal' (1º dia do mês); NULL para dirpf_anual
+    rendimento_tributavel_declarado REAL NOT NULL,  -- valor de aluguéis (rendimento tributável de PF) efetivamente declarado
+    imposto_pago                    REAL,           -- DARF pago, quando disponível
+    fonte_documento                 TEXT,           -- ex: "DIRPF 2025 - ficha rendimentos recebidos de PF", "DARF Carnê-Leão 06/2025"
+    observacoes                     TEXT
+);
+
 CREATE TABLE IF NOT EXISTS plano_de_contas (
     codigo          TEXT PRIMARY KEY,            -- ex: "3.1.02"
     descricao       TEXT NOT NULL,
