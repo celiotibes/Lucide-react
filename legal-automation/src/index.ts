@@ -66,6 +66,8 @@ import { auditLogService } from '@services/AuditLogService';
 import { apiKeyService } from '@services/ApiKeyService';
 import analyticsRouter from '@/api/routes/analyticsRouter';
 import { analyticsService } from '@services/AnalyticsService';
+import { petitionPollingService } from '@services/PetitionPollingService';
+import { notificationService } from '@services/NotificationService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -277,6 +279,13 @@ async function initializeServices(): Promise<void> {
     if (config.projudi_wsdl_url) {
       await projudiSoapClient.initialize();
       logger.info('✓ Projudi SOAP Client inicializado');
+    }
+
+    // Inicialize Notification Service
+    try {
+      logger.info('✓ Notification Service inicializado');
+    } catch (error) {
+      logger.warn({ error }, 'Erro ao inicializar Notification Service');
     }
 
     logger.info('✓ Todos os serviços inicializados');

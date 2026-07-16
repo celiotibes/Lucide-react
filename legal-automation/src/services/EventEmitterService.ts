@@ -266,6 +266,11 @@ export const EVENTS = {
   CASE_REGISTERED: 'case.registered',
   CASE_CLOSED: 'case.closed',
   CASE_PREDICTED: 'case.predicted',
+  PETITION_SUBMITTED: 'petition.submitted',
+  PETITION_ACKNOWLEDGED: 'petition.acknowledged',
+  PETITION_JUNTADA: 'petition.juntada',
+  PETITION_POLLING_TIMEOUT: 'petition.polling_timeout',
+  PETITION_REJECTED: 'petition.rejected',
   SYSTEM_ERROR: 'system.error',
   SYSTEM_WARNING: 'system.warning',
 };

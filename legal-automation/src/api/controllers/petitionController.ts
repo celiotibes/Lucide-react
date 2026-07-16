@@ -7,6 +7,8 @@ import { AppError, ValidationError } from '@utils/errors';
 import { petitionValidator } from '@services/PetitionValidatorService';
 import { petitionFormatter } from '@services/PetitionFormatterService';
 import { petitionSubmissionService } from '@services/PetitionSubmissionService';
+import { petitionPollingService } from '@services/PetitionPollingService';
+import { eventService, EVENTS } from '@services/EventEmitterService';
 import { DocumentSignatureService } from '@services/DocumentSignatureService';
 import { petitionCacheService } from '@services/PetitionCacheService';
 
@@ -514,7 +516,59 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
       validation_score: validation.score,
     });
 
-    // Step 6: Notify user
+    // Step 6: Emitir evento petition.submitted
+    if (result.success) {
+      const lawyerId = (req as any).user?.id || 'unknown';
+
+      eventService.emit(
+        EVENTS.PETITION_SUBMITTED,
+        'petition-controller',
+        {
+          petitionId: id,
+          caseId: petition.case_id,
+          processNumber: petition.process_number,
+          protocolNumber: result.protocolo,
+          tribunal,
+          submittedAt: result.timestamp,
+        },
+        lawyerId,
+      );
+
+      // Step 7: Registrar para polling automático pós-envio
+      const caseId = petition.case_id || 'unknown';
+      const lawyerId_polling = (req as any).user?.id || 'unknown';
+
+      try {
+        await petitionPollingService.registerPetitionForPolling(
+          id,
+          caseId,
+          petition.process_number,
+          tribunal,
+          result.protocolo,
+          lawyerId_polling,
+        );
+
+        // Iniciar polling automático
+        await petitionPollingService.startPolling(id);
+
+        logger.info(
+          {
+            petitionId: id,
+            processNumber: petition.process_number,
+            protocolNumber: result.protocolo,
+          },
+          'Polling pós-envio registrado e iniciado',
+        );
+      } catch (pollingError) {
+        logger.error(
+          { error: pollingError, petitionId: id },
+          'Erro ao registrar polling pós-envio',
+        );
+        // Não falha a submissão se polling tiver erro
+      }
+    }
+
+    // Step 8: Notify user
     if (result.success) {
       logger.info(`✓ Petição ${id} enviada com protocolo ${result.protocolo}`);
     } else {
