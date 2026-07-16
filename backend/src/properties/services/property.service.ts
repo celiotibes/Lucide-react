@@ -3,6 +3,8 @@ import { Property, PropertyWithListings, PropertyDashboard } from '../types';
 import { Logger } from '../../shared/logger';
 
 export class PropertyService {
+  private logger = Logger.getLogger('PropertyService');
+
   constructor(private pool: Pool) {}
 
   async getPropertyById(id: string): Promise<Property | null> {
@@ -10,7 +12,7 @@ export class PropertyService {
       'SELECT * FROM properties WHERE id = $1',
       [id]
     );
-    Logger.info('property-service', 'Retrieved property', { id, found: result.rows.length > 0 });
+    this.logger.info('Retrieved property', { id, found: result.rows.length > 0 });
     return result.rows[0] || null;
   }
 
@@ -19,7 +21,7 @@ export class PropertyService {
       'SELECT * FROM properties WHERE owner_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
       [ownerId, limit, offset]
     );
-    Logger.info('property-service', 'Retrieved properties by owner', { ownerId, count: result.rows.length });
+    this.logger.info('Retrieved properties by owner', { ownerId, count: result.rows.length });
     return result.rows;
   }
 
@@ -92,7 +94,7 @@ export class PropertyService {
       ]
     );
 
-    Logger.info('property-service', 'Created property', { id: result.rows[0].id, code: internal_code });
+    this.logger.info('Created property', { id: result.rows[0].id, code: internal_code, city, bedrooms });
     return result.rows[0];
   }
 

@@ -70,12 +70,19 @@ async function syncSingleApartment(
   propertyId: string,
   bookingApartments: BookingApartmentsClient
 ) {
+  logger.debug('syncSingleApartment start', { userId, propertyId });
+
   const property = await getProperty(userId, propertyId);
-  if (!property) throw new Error('Property not found');
+  if (!property) {
+    logger.error('Property not found', new Error('Missing property'), { userId, propertyId });
+    throw new Error('Property not found');
+  }
 
   let listing = await getPropertyListing(propertyId, 'booking-apartments');
 
   if (!listing) {
+    logger.info('Creating new Booking.com apartment listing', { propertyId, title: property.title, minStay: property.minimum_stay });
+
     // Criar novo
     const result = await bookingApartments.createApartment({
       id: '',
@@ -106,9 +113,13 @@ async function syncSingleApartment(
       minimum_stay: property.minimum_stay,
       status: 'published',
     });
+    logger.info('Booking.com apartment listing created', { propertyId, externalId: result.id });
+  } else {
+    logger.debug('Booking.com apartment listing already exists', { propertyId, externalId: listing.external_id });
   }
 
   // Sincronizar calendário
+  logger.info('Syncing calendar with Booking.com', { propertyId });
   await syncCalendarWithBooking(propertyId, listing.external_id);
 }
 
@@ -127,13 +138,18 @@ async function syncCalendarWithBooking(
   propertyId: string,
   bookingApartmentId: string
 ) {
+  logger.debug('Fetching calendar blocks', { propertyId });
   const bookingApartments = new BookingApartmentsClient('');
   const blocks = await getCalendarBlocks(propertyId);
   const blockedDates = blocks
     .flatMap(b => getDateRange(b.start_date, b.end_date));
 
   if (blockedDates.length > 0) {
+    logger.info('Syncing blocked dates to Booking.com', { propertyId, blockedDatesCount: blockedDates.length });
     await bookingApartments.syncCalendar(bookingApartmentId, blockedDates);
+    logger.debug('Calendar sync completed', { propertyId });
+  } else {
+    logger.debug('No blocked dates to sync', { propertyId });
   }
 }
 

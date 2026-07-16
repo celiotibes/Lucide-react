@@ -3,6 +3,8 @@ import { Lead, LeadCreateInput, LeadUpdateInput, LeadFunnelStats } from '../type
 import { Logger } from '../../shared/logger';
 
 export class LeadService {
+  private logger = Logger.getLogger('LeadService');
+
   constructor(private pool: Pool) {}
 
   async getLeadById(id: string): Promise<Lead | null> {
@@ -74,10 +76,11 @@ export class LeadService {
     );
 
     const lead = result.rows[0];
-    Logger.info('lead-service', 'Created new lead', {
+    this.logger.info('Created new lead', {
       id: lead.id,
       name,
       source: source_channel,
+      propertyId: property_id,
     });
 
     return lead;
@@ -107,7 +110,7 @@ export class LeadService {
       throw new Error(`Lead ${id} not found`);
     }
 
-    Logger.info('lead-service', 'Updated lead', { id, stage: data.stage });
+    this.logger.info('Updated lead', { id, stage: data.stage });
     return result.rows[0];
   }
 
@@ -259,7 +262,7 @@ export class LeadService {
     };
 
     const duration = Date.now() - startTime;
-    Logger.time('lead-service', 'Funnel statistics calculated', duration, {
+    this.logger.time('Funnel statistics calculated', duration, {
       propertyId,
       totalLeads,
       conversionRate: result.conversion_rate_inquiry_to_close,

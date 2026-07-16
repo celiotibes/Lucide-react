@@ -37,15 +37,19 @@ const worker = new Worker(
       }
 
       // Buscar ratings
+      logger.debug('Fetching TripAdvisor ratings', { propertyId, externalId: listing.external_id });
       const ratings = await tripadvisor.getPropertyRatings(listing.external_id);
+      logger.info('TripAdvisor ratings fetched', { propertyId, rating: ratings.overall_rating, reviewCount: ratings.review_count });
 
       // Salvar ratings
       await saveRatings(propertyId, 'tripadvisor', ratings);
 
       // Atualizar listing com novo rating
+      logger.debug('Updating property listing rating', { propertyId });
       await updatePropertyListingRating(listing.id, ratings.overall_rating, ratings.review_count);
 
       // Enfileirar recálculo de dynamic pricing
+      logger.info('Enqueueing dynamic pricing update', { propertyId });
       await enqueuePricingUpdate(userId, propertyId);
 
       const duration = Date.now() - startTime;

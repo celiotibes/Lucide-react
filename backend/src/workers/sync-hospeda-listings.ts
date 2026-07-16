@@ -68,12 +68,19 @@ const worker = new Worker(
 );
 
 async function syncSingleProperty(userId: string, propertyId: string, hospeda: HospedaClient) {
+  logger.debug(`syncSingleProperty start`, { userId, propertyId });
+
   const property = await getProperty(userId, propertyId);
-  if (!property) throw new Error('Property not found');
+  if (!property) {
+    logger.error('Property not found', new Error('Missing property'), { userId, propertyId });
+    throw new Error('Property not found');
+  }
 
   let listing = await getPropertyListing(propertyId, 'hospeda');
 
   if (!listing) {
+    logger.info('Creating new Hospeda listing', { propertyId, title: property.title });
+
     // Criar novo
     const result = await hospeda.createProperty({
       id: '',
@@ -99,16 +106,21 @@ async function syncSingleProperty(userId: string, propertyId: string, hospeda: H
       url: result.url,
       status: 'draft',
     });
+    logger.info('Hospeda listing created', { propertyId, externalId: result.id });
 
     // Upload imagens
     if (property.images && property.images.length > 0) {
+      logger.info(`Uploading ${property.images.length} images`, { propertyId });
       await hospeda.uploadImages(result.id, property.images);
     }
 
     // Publicar
+    logger.info('Publishing Hospeda listing', { propertyId });
     await hospeda.publishProperty(result.id);
     await updatePropertyListingStatus(listing.id, 'published');
   } else {
+    logger.info('Updating existing Hospeda listing', { propertyId, externalId: listing.external_id });
+
     // Atualizar
     await hospeda.updateProperty(listing.external_id, {
       title: property.title,
@@ -118,16 +130,19 @@ async function syncSingleProperty(userId: string, propertyId: string, hospeda: H
     });
 
     if (property.images && property.images.length > 0) {
+      logger.info(`Uploading ${property.images.length} updated images`, { propertyId });
       await hospeda.uploadImages(listing.external_id, property.images);
     }
   }
 
   // Buscar stats
+  logger.debug('Fetching Hospeda property stats', { propertyId });
   const stats = await hospeda.getPropertyStats(listing.external_id);
   await updatePropertyListingStats(listing.id, {
     rating: stats.avg_rating,
     review_count: stats.reviews_count,
   });
+  logger.info('Hospeda property stats updated', { propertyId, rating: stats.avg_rating, reviewCount: stats.reviews_count });
 }
 
 async function syncAllProperties(userId: string, hospeda: HospedaClient) {

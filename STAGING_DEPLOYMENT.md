@@ -1,604 +1,237 @@
-# Staging Deployment Guide - Rental Listing Sync
-
-**Last Updated**: 2026-07-06  
-**Status**: 📋 Staging Deployment Ready  
-**Phase**: Phase 2 Logger Integration + Deployment Configuration
-
----
+# Staging Deployment Configuration Guide
 
 ## Overview
 
-This guide documents the process for deploying the Rental Listing Sync application to a staging environment. The application includes:
+This guide provides comprehensive instructions for deploying the rental property management platform to a staging environment with Logger integration, environment configuration, and monitoring.
 
-- Node.js/Express backend with PostgreSQL database
-- React frontend with TypeScript
-- Real-time calendar synchronization (Booking.com, VRBO)
-- AI-powered inquiry categorization and damage analysis
-- Dynamic pricing engine
-- Structured logging with Logger integration
-
----
-
-## Pre-Deployment Checklist
-
-### 1. Environment Preparation
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd Lucide-react
+# 1. Environment Setup
+cp .env.example .env.staging
+# Edit .env.staging with staging credentials
 
-# Install dependencies
-npm install --legacy-peer-deps  # Due to bullmq/redis peer dependency
+# 2. Database Setup
+createdb lucide_staging
+npm run migrate up
 
-# Build frontend (if not in dev mode)
-cd frontend
-npm run build
-cd ..
-
-# Build backend (if using TypeScript compilation)
-cd backend
-npm run build
-cd ..
+# 3. Start Services
+npm run workers:start:staging &
+npm start
 ```
 
-### 2. Database Setup
+## Logger Integration
 
-#### Local Staging (SQLite/PostgreSQL)
-```bash
-# Run migrations (if configured)
-npm run db:migrate
+The platform integrates structured logging into 3 workers and 3 services:
 
-# Seed initial data (if applicable)
-npm run db:seed
-```
+### Workers with Logging:
+1. **sync-hospeda-listings** - Property sync with detailed logging
+2. **sync-booking-apartments** - Apartment sync with calendar tracking
+3. **sync-tripadvisor-ratings** - Rating updates affecting pricing
 
-#### Cloud Staging (AWS RDS, Google Cloud SQL, etc.)
-```bash
-# Update DATABASE_URL in .env with cloud database connection
-# Example for AWS RDS:
-DATABASE_URL=postgresql://username:password@rental-sync-staging.c123abc.us-east-1.rds.amazonaws.com:5432/rental_sync_staging
+### Services with Logging:
+1. **lead.service** - Lead creation, stage updates, funnel stats
+2. **pricing-engine** - Dynamic price calculations with detailed adjustments
+3. **property.service** - Property CRUD operations and bulk updates
 
-# Run migrations against cloud database
-npm run db:migrate
-```
-
-### 3. Environment Configuration
-
-#### Create .env file in backend directory
-
-```bash
-cd backend
-cp .env.example .env
-```
-
-#### Edit .env with staging values
-
-**Critical Variables (MUST be set):**
+### Log Configuration
 
 ```env
-# Database (required)
-DATABASE_URL=postgresql://user:password@staging-db:5432/rental_sync_staging
-DATABASE_POOL_SIZE=20
-
-# Redis (required for job queue)
-REDIS_URL=redis://staging-redis:6379
-
-# JWT Security (MUST change from example)
-JWT_SECRET=<generate-strong-random-string-min-32-chars>
-JWT_EXPIRATION=7d
-
-# OTA Webhooks (MUST be set for integrations)
-BOOKING_WEBHOOK_SECRET=<get-from-booking-com-console>
-VRBO_WEBHOOK_SECRET=<get-from-vrbo-partner-portal>
-
-# API Keys (required for integrations)
-BOOKING_ACCOUNT_ID=<your-booking-account-id>
-BOOKING_API_KEY=<your-booking-api-key>
-VRBO_API_KEY=<your-vrbo-api-key>
-GEMINI_API_KEY=<your-gemini-api-key>
-
-# Stripe (if payments enabled)
-STRIPE_API_KEY=<your-stripe-test-key>
-STRIPE_WEBHOOK_SECRET=<your-stripe-webhook-secret>
+LOG_LEVEL=DEBUG  # DEBUG, INFO, WARN, ERROR (default: INFO)
+LOG_FORMAT=text  # text or json format
+LOG_RETENTION_DAYS=7
 ```
 
-**Logging Configuration:**
+### Usage Example
+
+```typescript
+// In any worker/service
+import { Logger } from '../shared/logger';
+
+const logger = Logger.getLogger('ComponentName');
+
+logger.info('Operation started', { userId, propertyId });
+logger.debug('Debug details', { data });
+logger.warn('Warning message', error, { context });
+logger.error('Error occurred', error, { details });
+logger.time('Operation name', duration_ms, { metadata });
+```
+
+## Environment Configuration
+
+### Required Variables
 
 ```env
-# Logging (defaults to console in dev, structured in production)
-LOG_LEVEL=info
+# Database & Cache
 NODE_ENV=staging
+DATABASE_URL=postgresql://staging_user:password@localhost:5432/lucide_staging
+REDIS_URL=redis://localhost:6379
 
-# CloudWatch (optional, for centralized logging)
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=<your-aws-key>
-AWS_SECRET_ACCESS_KEY=<your-aws-secret>
-CLOUDWATCH_LOG_GROUP=/rental-sync/staging
-CLOUDWATCH_LOG_STREAM=staging-backend
+# Platform APIs
+HOSPEDA_API_KEY=staging_key
+HOSPEDA_WEBHOOK_SECRET=staging_secret
+HOSPEDA_WEBHOOK_URL=https://staging.yourdomain.com/webhooks/hospeda
+BOOKING_API_KEY=staging_key
+TRIPADVISOR_API_KEY=staging_key
+
+# Logging
+LOG_LEVEL=DEBUG
+LOG_FORMAT=text
+
+# Workers
+SYNC_HOSPEDA_SCHEDULE=0 */6 * * *
+SYNC_BOOKING_APARTMENTS_SCHEDULE=0 */6 * * *
+SYNC_TRIPADVISOR_RATINGS_SCHEDULE=0 */24 * * *
+
+# Feature Flags
+ENABLE_HOSPEDA_SYNC=true
+ENABLE_BOOKING_APARTMENTS_SYNC=true
+ENABLE_TRIPADVISOR_RATINGS_SYNC=true
 ```
 
-**Rate Limiting:**
+## Deployment Steps
 
-```env
-RATE_LIMIT_WINDOW_MS=60000
-RATE_LIMIT_MAX_REQUESTS=100
-```
-
-### 4. Secrets Management
-
-#### Option A: Environment Variables (Simple)
+### 1. Pre-Deployment Validation
 ```bash
-# Create secure .env file (not committed to git)
-# Ensure .env is in .gitignore
-echo ".env" >> .gitignore
-echo ".env.local" >> .gitignore
+npm run validate:env:staging
+npm run db:test:staging
+npm run redis:test:staging
 ```
 
-#### Option B: AWS Secrets Manager (Recommended for Cloud)
+### 2. Database Migration
 ```bash
-# Store secrets in AWS Secrets Manager
-aws secretsmanager create-secret \
-  --name rental-sync/staging \
-  --secret-string '{"DATABASE_URL":"...", "JWT_SECRET":"..."}'
-
-# Update application to load from Secrets Manager
-npm install aws-sdk
+npm run migrate status
+npm run migrate up
 ```
 
-#### Option C: Docker Secrets (for Kubernetes/Docker Swarm)
+### 3. Build & Test
 ```bash
-# Create secret file
-echo "your-secret-value" > jwt_secret.txt
-
-# In docker-compose.yml
-secrets:
-  jwt_secret:
-    file: jwt_secret.txt
+cd backend
+npm run build
+npm run test
+npm run type-check
 ```
 
----
-
-## Deployment Methods
-
-### Method 1: Docker Container (Recommended)
-
-#### Build Docker Image
-
+### 4. Start Services
 ```bash
-# Build backend image
-docker build -t rental-sync-backend:staging-v1 ./backend
+# Terminal 1: Workers
+npm run workers:start:staging
 
-# Build frontend image
-docker build -t rental-sync-frontend:staging-v1 ./frontend
-
-# Tag for registry (e.g., Docker Hub, ECR, GCR)
-docker tag rental-sync-backend:staging-v1 your-registry/rental-sync-backend:staging-v1
-docker push your-registry/rental-sync-backend:staging-v1
+# Terminal 2: Application
+npm start
 ```
 
-#### Deploy with Docker Compose
+### 5. Verify Integrations
+```bash
+curl -X POST http://localhost:3000/api/test/hospeda
+curl -X POST http://localhost:3000/api/test/booking-apartments
+curl -X POST http://localhost:3000/api/test/tripadvisor
+```
+
+## Health Checks
 
 ```bash
-# Start all services
-docker-compose -f docker-compose.staging.yml up -d
-
-# Verify services are running
-docker-compose -f docker-compose.staging.yml ps
-
-# Check logs
-docker-compose -f docker-compose.staging.yml logs -f backend
-```
-
-#### Sample docker-compose.staging.yml
-
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    image: your-registry/rental-sync-backend:staging-v1
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgres://user:pass@db:5432/rental_sync_staging
-      - REDIS_URL=redis://redis:6379
-      - NODE_ENV=staging
-      - LOG_LEVEL=info
-    depends_on:
-      - db
-      - redis
-    networks:
-      - rental-sync
-
-  frontend:
-    image: your-registry/rental-sync-frontend:staging-v1
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://localhost:3000/api
-    networks:
-      - rental-sync
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=rental_sync
-      - POSTGRES_PASSWORD=staging_password_change_me
-      - POSTGRES_DB=rental_sync_staging
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - rental-sync
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - rental-sync
-
-volumes:
-  postgres_data:
-
-networks:
-  rental-sync:
-```
-
-### Method 2: Kubernetes Deployment
-
-```bash
-# Create namespace
-kubectl create namespace rental-sync-staging
-
-# Create secrets from .env
-kubectl create secret generic rental-sync-secrets \
-  --from-env-file=backend/.env \
-  -n rental-sync-staging
-
-# Deploy using manifests (create k8s/ directory with manifests)
-kubectl apply -f k8s/backend-deployment.yaml -n rental-sync-staging
-kubectl apply -f k8s/frontend-deployment.yaml -n rental-sync-staging
-kubectl apply -f k8s/db-statefulset.yaml -n rental-sync-staging
-kubectl apply -f k8s/redis-deployment.yaml -n rental-sync-staging
-
-# Check deployment status
-kubectl get pods -n rental-sync-staging
-kubectl get svc -n rental-sync-staging
-```
-
-### Method 3: Manual Server Deployment
-
-```bash
-# SSH into staging server
-ssh ubuntu@staging-server.example.com
-
-# Navigate to app directory
-cd /var/www/rental-sync
-
-# Pull latest code
-git pull origin main
-
-# Install/update dependencies
-npm install --legacy-peer-deps
-
-# Build frontend
-cd frontend && npm run build && cd ..
-
-# Set environment variables
-export $(cat backend/.env | grep -v '#' | xargs)
-
-# Start services using PM2
-pm2 start backend/src/index.ts --name "rental-sync-backend"
-pm2 start worker processes...
-pm2 save
-
-# Verify running
-pm2 list
-pm2 logs rental-sync-backend
-```
-
----
-
-## Post-Deployment Validation
-
-### 1. Health Checks
-
-```bash
-# Check backend health
+# Application health
 curl http://localhost:3000/health
 
-# Expected response:
-# {"status":"ok","timestamp":"2026-07-06T...","environment":"staging"}
+# Worker status
+curl http://localhost:3000/api/workers/status
+
+# Integration status
+curl http://localhost:3000/api/integrations/status
 ```
 
-### 2. Database Connection
+## Monitoring
 
+### Database Queries
 ```bash
-# Test database connection
-psql $DATABASE_URL -c "SELECT 1;"
+# Sync success rate
+psql -U staging_user -d lucide_staging -c "
+  SELECT platform, status, COUNT(*) 
+  FROM sync_history WHERE synced_at > NOW() - INTERVAL '24 hours'
+  GROUP BY platform, status;"
 
-# Should return: 1
+# Last sync times
+psql -U staging_user -d lucide_staging -c "
+  SELECT platform, last_sync_at, last_sync_status 
+  FROM user_integrations;"
 ```
 
-### 3. Redis Connection
-
+### Log Monitoring
 ```bash
-# Test Redis connection
-redis-cli -u $REDIS_URL ping
+# Real-time logs
+npm run logs:tail:staging
 
-# Should return: PONG
+# Errors only
+npm run logs:errors:staging
+
+# Specific component
+grep "SyncHospedaWorker" logs/application.log
 ```
-
-### 4. Frontend Access
-
-```bash
-# Open browser
-# http://localhost:5173 (dev)
-# or http://staging.example.com (production server)
-
-# Verify pages load:
-# - Login page
-# - Dashboard after login
-# - Calendar component
-# - Booking form
-```
-
-### 5. API Endpoint Tests
-
-```bash
-# Test authentication
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password123"}'
-
-# Test properties endpoint (with auth token)
-curl -X GET http://localhost:3000/api/properties \
-  -H "Authorization: Bearer <token>"
-
-# Test webhook endpoint
-curl -X POST http://localhost:3000/webhooks/booking-com \
-  -H "X-Booking-Signature: <signature>" \
-  -H "Content-Type: application/json" \
-  -d '{...booking webhook payload...}'
-```
-
-### 6. Logging Verification
-
-```bash
-# Check that logs are being written correctly
-tail -f /var/log/rental-sync/backend.log
-
-# Verify structured logging format:
-# [2026-07-06T10:30:45.123Z] INFO [HTTP] POST /api/properties {status:200, duration:145ms}
-
-# For CloudWatch:
-aws logs tail /rental-sync/staging --follow
-```
-
-### 7. Worker Processes
-
-```bash
-# Verify workers are running
-ps aux | grep "node.*worker"
-
-# Check Redis queue status
-redis-cli -u $REDIS_URL LLEN "booking:calendar:sync"
-
-# Monitor job processing
-npm run monitor:jobs  # If script exists
-```
-
----
-
-## Configuration for Different Environments
-
-### Staging Configuration
-
-**Characteristics:**
-- Smaller dataset for testing
-- Less restrictive rate limits
-- Detailed logging (INFO level)
-- Can test destructive operations
-
-**.env for Staging:**
-
-```env
-NODE_ENV=staging
-LOG_LEVEL=info
-DATABASE_POOL_SIZE=10  # Lower than production
-RATE_LIMIT_MAX_REQUESTS=200  # More lenient
-```
-
-### Production Configuration
-
-**Characteristics:**
-- Full real data
-- Strict rate limits
-- Error-level logging only
-- Webhook verification enabled
-
-**.env for Production:**
-
-```env
-NODE_ENV=production
-LOG_LEVEL=error
-DATABASE_POOL_SIZE=50
-RATE_LIMIT_MAX_REQUESTS=100
-```
-
----
 
 ## Troubleshooting
 
 ### Database Connection Issues
-
 ```bash
-# Test connection with verbose output
-psql -v ON_ERROR_STOP=1 \
-  -h $DB_HOST \
-  -U $DB_USER \
-  -d $DB_NAME \
-  -c "SELECT version();"
-
-# If fails, check:
-# 1. DATABASE_URL format
-# 2. Network connectivity
-# 3. Database server running
-# 4. Credentials correct
+psql $DATABASE_URL -c "SELECT 1"
+pg_isready -h localhost -p 5432
 ```
 
 ### Redis Connection Issues
-
 ```bash
-# Test Redis connection
-redis-cli -u "$REDIS_URL" PING
-
-# If fails, check:
-# 1. REDIS_URL format
-# 2. Redis server running
-# 3. Network connectivity
-# 4. No firewall blocking port 6379
+redis-cli ping
+redis-cli INFO memory
 ```
 
-### Webhook Signature Verification Failures
-
+### Workers Not Processing
 ```bash
-# Verify webhook secret is set
-echo $BOOKING_WEBHOOK_SECRET
-
-# Check logs for signature validation
-grep "signature" /var/log/rental-sync/backend.log
-
-# Common causes:
-# 1. BOOKING_WEBHOOK_SECRET not set
-# 2. Secret doesn't match Booking.com console
-# 3. Webhook payload modified in transit
+redis-cli KEYS "bull:*"
+npm run workers:debug:staging
+npm run workers:stop:staging && npm run workers:start:staging
 ```
 
-### Logger Not Writing Logs
-
+### Webhook Issues
 ```bash
-# Check log directory exists and is writable
-ls -la /var/log/rental-sync/
+# Test webhook
+curl -X POST http://localhost:3000/webhooks/hospeda \
+  -H "X-Hospeda-Signature: test"
 
-# Check file permissions
-chmod 755 /var/log/rental-sync/
-chmod 644 /var/log/rental-sync/*.log
-
-# Restart services
-pm2 restart all
-
-# Check for logger errors
-pm2 logs rental-sync-backend | grep -i "error"
+# Check registration
+npm run webhooks:list:staging
 ```
-
----
-
-## Monitoring & Observability
-
-### Health Dashboard
-
-The application includes health check endpoints:
-
-```bash
-# Backend health
-GET /health
-
-# Database health
-GET /health/database
-
-# Redis health
-GET /health/redis
-
-# Full system health
-GET /health/system
-```
-
-### Structured Logging
-
-All logs are in structured format:
-
-```
-[2026-07-06T10:30:45.123Z] INFO [HTTP] POST /api/properties {status:200, duration:145ms}
-[2026-07-06T10:30:46.456Z] ERROR [Database] Connection timeout - {retries: 3, error: "..."}
-```
-
-### Recommended Monitoring Tools
-
-- **Logs**: CloudWatch, DataDog, Papertrail
-- **Metrics**: Prometheus, CloudWatch Metrics
-- **Tracing**: Jaeger, AWS X-Ray
-- **Alerts**: PagerDuty, Opsgenie
-- **Dashboard**: Grafana, AWS CloudWatch
-
----
 
 ## Rollback Procedures
 
-### Docker-based Rollback
-
 ```bash
-# Switch to previous image version
-docker-compose -f docker-compose.staging.yml down
-docker pull your-registry/rental-sync-backend:staging-v0
-docker-compose -f docker-compose.staging.yml up -d
+# Stop services
+npm run stop:all
 
-# Verify running version
-curl http://localhost:3000/health
+# Revert code
+git checkout <previous_commit>
+
+# Rollback database
+npm run migrate down
+
+# Restart
+npm run workers:start:staging & npm start
 ```
 
-### Kubernetes Rollback
+## Verification Checklist
 
-```bash
-# View rollout history
-kubectl rollout history deployment/rental-sync-backend -n rental-sync-staging
-
-# Rollback to previous version
-kubectl rollout undo deployment/rental-sync-backend -n rental-sync-staging
-
-# Verify status
-kubectl rollout status deployment/rental-sync-backend -n rental-sync-staging
-```
-
-### Manual Deployment Rollback
-
-```bash
-# Revert to previous commit
-git checkout v1.0.0
-
-# Reinstall and restart
-npm install --legacy-peer-deps
-pm2 restart rental-sync-backend
-```
-
----
+- [ ] Health endpoint returns healthy status
+- [ ] All database tables created
+- [ ] Redis connected
+- [ ] All 3 workers running (concurrency: 5, 5, 10)
+- [ ] Platform connectivity verified
+- [ ] Webhooks registered
+- [ ] Logs show proper context and metadata
+- [ ] No critical errors
+- [ ] Migrations applied successfully
 
 ## Next Steps
 
-1. ✅ Complete Logger Integration Phase 2 (DONE)
-2. ⏳ Deploy to staging environment
-3. ⏳ Execute manual testing checklist (FRONTEND_TEST_PLAN.md)
-4. ⏳ Run performance baseline tests (k6 performance tests)
-5. ⏳ Execute security audit Phase 2 (npm audit, Trivy, OWASP ZAP)
-6. ⏳ Monitor logs and fix any issues
-7. ⏳ Production deployment
-
----
-
-## Support & Reference
-
-- **Backend**: Node.js 18+, Express.js
-- **Database**: PostgreSQL 13+
-- **Queue**: Redis 6+
-- **Frontend**: React 18+, TypeScript
-- **Container**: Docker 20.10+
-- **Orchestration**: Kubernetes 1.24+ (optional)
-
-**Logger Integration**: See `backend/src/logger.ts` and integrated services for structured logging format.
-
----
-
-**Document Version**: 1.0  
-**Last Updated**: 2026-07-06 17:30 UTC  
-**Status**: ✅ READY FOR STAGING DEPLOYMENT
+1. Performance baseline testing
+2. Load testing (100 concurrent users)
+3. Integration testing workflows
+4. Security scanning
+5. Production readiness review

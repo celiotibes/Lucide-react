@@ -1,4 +1,5 @@
 import { query } from "../db.js";
+import { Logger } from "../shared/logger";
 
 interface PricingRule {
   id: string;
@@ -35,9 +36,11 @@ interface PricingAnalysis {
 class PricingEngine {
   private propertyId: string;
   private basePrice: number = 150; // Default
+  private logger = Logger.getLogger('PricingEngine');
 
   constructor(propertyId: string) {
     this.propertyId = propertyId;
+    this.logger.debug('PricingEngine initialized', { propertyId });
   }
 
   async getHistoricalOccupancy(
@@ -133,6 +136,12 @@ class PricingEngine {
     checkOutDate: string,
     currentDate: string = new Date().toISOString().split("T")[0]
   ): Promise<PricingAnalysis> {
+    this.logger.debug('Calculating dynamic price', {
+      propertyId: this.propertyId,
+      checkInDate,
+      checkOutDate
+    });
+
     const occupancy = await this.getHistoricalOccupancy(90);
     const totalOccupied = Array.from(occupancy.values()).reduce(
       (sum, val) => sum + val,
@@ -158,6 +167,18 @@ class PricingEngine {
     );
 
     const confidence = 0.75 + avgOccupancy * 0.25; // Higher confidence with more data
+
+    this.logger.info('Dynamic price calculated', {
+      propertyId: this.propertyId,
+      checkInDate,
+      nights,
+      avgOccupancy: avgOccupancy.toFixed(2),
+      basePrice: this.basePrice,
+      finalPrice,
+      seasonalMultiplier: seasonal.toFixed(2),
+      demandMultiplier: demand.toFixed(2),
+      confidence: confidence.toFixed(2),
+    });
 
     return {
       basePrice: this.basePrice,
@@ -211,6 +232,14 @@ class PricingEngine {
   }
 
   async createPricingRule(rule: Omit<PricingRule, "id">): Promise<string> {
+    this.logger.info('Creating pricing rule', {
+      propertyId: rule.propertyId,
+      ruleType: rule.ruleType,
+      startDate: rule.startDate,
+      endDate: rule.endDate,
+      pricePerNight: rule.pricePerNight,
+    });
+
     const result = await query(
       `INSERT INTO pricing_rules (
         property_id, rule_type, start_date, end_date,
@@ -229,7 +258,9 @@ class PricingEngine {
       ]
     );
 
-    return result.rows[0].id;
+    const ruleId = result.rows[0].id;
+    this.logger.debug('Pricing rule created', { propertyId: rule.propertyId, ruleId });
+    return ruleId;
   }
 
   async getPricingRules(): Promise<PricingRule[]> {

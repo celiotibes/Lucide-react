@@ -111,6 +111,16 @@ class LoggerService {
     const formatted = this.formatEntry(entry);
     console.log(formatted);
   }
+
+  static getLogger(context: string) {
+    return {
+      info: (message: string, data?: Record<string, unknown>) => this.info(context, message, data),
+      warn: (message: string, error?: Error | string, data?: Record<string, unknown>) => this.warn(context, message, error, data),
+      error: (message: string, error?: Error | string, data?: Record<string, unknown>) => this.error(context, message, error, data),
+      debug: (message: string, data?: Record<string, unknown>) => this.debug(context, message, data),
+      time: (message: string, duration: number, data?: Record<string, unknown>) => this.time(context, message, duration, data),
+    };
+  }
 }
 
 export const Logger = LoggerService;
