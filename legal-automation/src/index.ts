@@ -68,6 +68,8 @@ import analyticsRouter from '@/api/routes/analyticsRouter';
 import { analyticsService } from '@services/AnalyticsService';
 import { petitionPollingService } from '@services/PetitionPollingService';
 import { notificationService } from '@services/NotificationService';
+import legisRouter from '@/api/routes/legisRouter';
+import { legisIntegrationService } from '@services/LegisIntegrationService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -242,6 +244,9 @@ app.use('/api/v1', apiKeyRouter);
 
 // Phase 8: Analytics & Reporting (KPIs, Metrics, Dashboard)
 app.use('/api/v1/analytics', verifyToken, analyticsRouter);
+
+// Jurisprudence Search (Legis Integration)
+app.use('/api/v1/legis', verifyToken, legisRouter);
 
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
