@@ -70,6 +70,8 @@ import { petitionPollingService } from '@services/PetitionPollingService';
 import { notificationService } from '@services/NotificationService';
 import legisRouter from '@/api/routes/legisRouter';
 import { legisIntegrationService } from '@services/LegisIntegrationService';
+import advancedCertificationRouter from '@/api/routes/advancedCertificationRouter';
+import { advancedCertificationService } from '@services/AdvancedCertificationService';
 
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
@@ -247,6 +249,9 @@ app.use('/api/v1/analytics', verifyToken, analyticsRouter);
 
 // Jurisprudence Search (Legis Integration)
 app.use('/api/v1/legis', verifyToken, legisRouter);
+
+// Advanced Digital Certification (ICP-Brasil)
+app.use('/api/v1/certification', verifyToken, advancedCertificationRouter);
 
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
