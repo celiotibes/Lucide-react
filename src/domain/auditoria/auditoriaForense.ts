@@ -167,3 +167,133 @@ export function testeBenford(valores: number[]): ResultadoBenford[] {
     };
   });
 }
+
+// ============================================================================
+// Consistência entre módulos: o mesmo fato financeiro é registrado em dois lugares
+// independentes (o cadastro formal — caução, financiamento — e a transação bancária real
+// importada do extrato). Um sem o outro é sinal de documento perdido, lançamento por fora,
+// ou cadastro que nunca foi de fato cumprido — o tipo de cruzamento que ferramentas de
+// conciliação bancária (Simetrik) e auditoria fiscal (SCI/Makrosystem) chamam de "alerta de
+// inconsistência entre contas".
+// ============================================================================
+
+const JANELA_CONCILIACAO_DIAS = 30;
+
+function diferencaEmDiasAbsoluta(dataA: string, dataB: string): number {
+  const a = new Date(dataA + "T00:00:00").getTime();
+  const b = new Date(dataB + "T00:00:00").getTime();
+  return Math.abs(Math.round((a - b) / (1000 * 60 * 60 * 24)));
+}
+
+export interface CaucaoSemTransacao {
+  caucaoId: number;
+  imovelApelido: string;
+  locatario: string;
+  valorInicial: number;
+  dataDeposito: string;
+}
+
+/** Cauções cadastradas (Cadastros → Contratos → Depósito caução) sem nenhuma transação
+ * bancária código 9.0.02 lançada para o mesmo imóvel dentro de ±30 dias da data de
+ * depósito informada — o cadastro existe, mas não há prova de que o dinheiro de fato
+ * entrou na conta. Não exige valor exatamente igual (a caução pode ter sido parcelada em
+ * mais de um depósito, cada um menor que o total) — só que exista ALGUM lançamento 9.0.02
+ * próximo à data informada. */
+export function detectarCaucoesSemTransacao(db: Database): CaucaoSemTransacao[] {
+  const caucoes = consultar<{ id: number; contrato_id: number; valor_inicial: number; data_deposito: string; imovel_id: number; locatario: string; imovel_apelido: string }>(
+    db,
+    `SELECT c.id, c.contrato_id, c.valor_inicial, c.data_deposito, ct.imovel_id, ct.locatario, i.apelido AS imovel_apelido
+     FROM caucoes c
+     JOIN contratos_locacao ct ON ct.id = c.contrato_id
+     JOIN imoveis i ON i.id = ct.imovel_id`,
+  );
+
+  return caucoes
+    .filter((c) => {
+      const transacoesProximas = consultar<{ data: string }>(
+        db,
+        `SELECT data FROM transacoes WHERE imovel_id = ? AND plano_conta_codigo = '9.0.02'`,
+        [c.imovel_id],
+      );
+      return !transacoesProximas.some((t) => diferencaEmDiasAbsoluta(t.data, c.data_deposito) <= JANELA_CONCILIACAO_DIAS);
+    })
+    .map((c) => ({ caucaoId: c.id, imovelApelido: c.imovel_apelido, locatario: c.locatario, valorInicial: c.valor_inicial, dataDeposito: c.data_deposito }));
+}
+
+export interface TransacaoCaucaoSemRegistro {
+  transacaoId: number;
+  imovelApelido: string;
+  valor: number;
+  data: string;
+}
+
+/** O inverso de detectarCaucoesSemTransacao: transações código 9.0.02 lançadas para um
+ * imóvel sem nenhuma caução cadastrada com data_deposito próxima (±30 dias) para aquele
+ * mesmo imóvel — dinheiro que transitou como caução no extrato, mas nunca virou um
+ * registro formal em Cadastros → Contratos → Depósito caução (esquecimento comum quando a
+ * caução é lançada direto na categorização de transações, sem passar pelo formulário). */
+export function detectarTransacoesCaucaoSemRegistro(db: Database): TransacaoCaucaoSemRegistro[] {
+  const transacoes = consultar<{ id: number; valor: number; data: string; imovel_id: number; imovel_apelido: string }>(
+    db,
+    `SELECT t.id, t.valor, t.data, t.imovel_id, i.apelido AS imovel_apelido
+     FROM transacoes t
+     JOIN imoveis i ON i.id = t.imovel_id
+     WHERE t.plano_conta_codigo = '9.0.02'`,
+  );
+
+  return transacoes
+    .filter((t) => {
+      const caucoesDoImovel = consultar<{ data_deposito: string }>(
+        db,
+        `SELECT c.data_deposito FROM caucoes c JOIN contratos_locacao ct ON ct.id = c.contrato_id WHERE ct.imovel_id = ?`,
+        [t.imovel_id],
+      );
+      return !caucoesDoImovel.some((c) => diferencaEmDiasAbsoluta(c.data_deposito, t.data) <= JANELA_CONCILIACAO_DIAS);
+    })
+    .map((t) => ({ transacaoId: t.id, imovelApelido: t.imovel_apelido, valor: t.valor, data: t.data }));
+}
+
+export interface FinanciamentoSemLancamento {
+  financiamentoId: number;
+  imovelApelido: string;
+  instituicao: string;
+  dataContrato: string;
+}
+
+function somarMeses(dataIso: string, meses: number): string {
+  const data = new Date(dataIso + "T00:00:00");
+  data.setMonth(data.getMonth() + meses);
+  return data.toISOString().slice(0, 10);
+}
+
+/** Financiamentos SAC/Price cadastrados (Cadastros → Financiamentos) sem NENHUMA
+ * transação de juros (2.1.05) ou amortização (2.1.06) lançada para o imóvel — a dívida
+ * está no cadastro (entra no passivo/patrimônio), mas a despesa correspondente nunca
+ * apareceu no DRE. Sintoma típico de extrato ainda não importado ou parcela paga por
+ * conta não cadastrada no sistema: sem isso, o lucro do imóvel fica superestimado porque
+ * uma despesa real e recorrente está ausente. Não se aplica a financiamento 'OUTRO' (ex:
+ * consórcio) — esse usa saldo/parcela manuais, não um cronograma esperado para comparar.
+ * Só considera financiamentos cuja 1ª parcela já venceu (data_contrato + 1 mês <=
+ * dataReferencia) — um financiamento contratado semana passada legitimamente ainda não
+ * tem nenhuma parcela lançada, e isso não é inconsistência. */
+export function detectarFinanciamentosSemLancamento(db: Database, dataReferencia: string): FinanciamentoSemLancamento[] {
+  const financiamentos = consultar<{ id: number; instituicao: string; data_contrato: string; imovel_id: number; imovel_apelido: string }>(
+    db,
+    `SELECT f.id, f.instituicao, f.data_contrato, f.imovel_id, i.apelido AS imovel_apelido
+     FROM financiamentos f
+     JOIN imoveis i ON i.id = f.imovel_id
+     WHERE f.sistema IN ('SAC', 'PRICE')`,
+  );
+
+  return financiamentos
+    .filter((f) => somarMeses(f.data_contrato, 1) <= dataReferencia)
+    .filter((f) => {
+      const [{ total }] = consultar<{ total: number }>(
+        db,
+        `SELECT COUNT(*) AS total FROM transacoes WHERE imovel_id = ? AND plano_conta_codigo IN ('2.1.05', '2.1.06')`,
+        [f.imovel_id],
+      );
+      return total === 0;
+    })
+    .map((f) => ({ financiamentoId: f.id, imovelApelido: f.imovel_apelido, instituicao: f.instituicao, dataContrato: f.data_contrato }));
+}

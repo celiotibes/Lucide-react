@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { CopyCheck, TrendingUp, CalendarX2 } from "lucide-react";
+import { CopyCheck, TrendingUp, CalendarX2, Link2Off } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
-import { detectarDuplicatas, detectarOutliers, detectarLacunasMensais, testeBenford } from "../domain/auditoria/auditoriaForense";
+import {
+  detectarDuplicatas, detectarOutliers, detectarLacunasMensais, testeBenford,
+  detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento,
+} from "../domain/auditoria/auditoriaForense";
 import { formatarMoeda } from "../domain/formatarMoeda";
 
 function hojeIso(): string {
@@ -34,6 +37,10 @@ export function AuditoriaView() {
 
   const benford = useMemo(() => testeBenford(valoresVariaveis), [valoresVariaveis]);
   const desvioBenfordMaximo = Math.max(0, ...benford.map((b) => Math.abs(b.frequenciaObservada - b.frequenciaEsperada)));
+
+  const caucoesSemTransacao = useMemo(() => (db ? detectarCaucoesSemTransacao(db) : []), [db, versao]);
+  const transacoesCaucaoSemRegistro = useMemo(() => (db ? detectarTransacoesCaucaoSemRegistro(db) : []), [db, versao]);
+  const financiamentosSemLancamento = useMemo(() => (db ? detectarFinanciamentosSemLancamento(db, hoje) : []), [db, versao, hoje]);
 
   return (
     <div>
@@ -109,6 +116,60 @@ export function AuditoriaView() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="section-title"><Link2Off size={14} /> Consistência entre módulos ({caucoesSemTransacao.length + transacoesCaucaoSemRegistro.length + financiamentosSemLancamento.length})</div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
+          Cruza o cadastro formal (caução, financiamento) contra a transação bancária real correspondente — o mesmo
+          fato financeiro deveria aparecer nos dois lugares. Um sem o outro é sinal de documento perdido, extrato
+          ainda não importado, ou cadastro que nunca foi de fato cumprido.
+        </p>
+        {caucoesSemTransacao.length === 0 && transacoesCaucaoSemRegistro.length === 0 && financiamentosSemLancamento.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhuma inconsistência encontrada entre cadastros e transações.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {caucoesSemTransacao.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
+                  Cauções cadastradas sem depósito correspondente no extrato ({caucoesSemTransacao.length})
+                </div>
+                {caucoesSemTransacao.map((c) => (
+                  <div key={c.caucaoId} style={{ fontSize: 13, marginBottom: 4 }}>
+                    <strong>{c.imovelApelido}</strong> · {c.locatario} — {formatarMoeda(c.valorInicial)} em {c.dataDeposito}
+                    <span className="pill warning" style={{ marginLeft: 8 }}>sem lançamento em ±30 dias</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {transacoesCaucaoSemRegistro.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
+                  Transações de caução sem registro formal em Cadastros ({transacoesCaucaoSemRegistro.length})
+                </div>
+                {transacoesCaucaoSemRegistro.map((t) => (
+                  <div key={t.transacaoId} style={{ fontSize: 13, marginBottom: 4 }}>
+                    <strong>{t.imovelApelido}</strong> — {formatarMoeda(t.valor)} em {t.data}
+                    <span className="pill warning" style={{ marginLeft: 8 }}>sem caução cadastrada em ±30 dias</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {financiamentosSemLancamento.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
+                  Financiamentos sem nenhuma parcela lançada nas transações ({financiamentosSemLancamento.length})
+                </div>
+                {financiamentosSemLancamento.map((f) => (
+                  <div key={f.financiamentoId} style={{ fontSize: 13, marginBottom: 4 }}>
+                    <strong>{f.imovelApelido}</strong> · {f.instituicao} — contrato de {f.dataContrato}
+                    <span className="pill critical" style={{ marginLeft: 8 }}>lucro do imóvel pode estar superestimado no DRE</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
