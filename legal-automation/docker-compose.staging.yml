@@ -1,0 +1,161 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: legal-automation-staging-db
+    environment:
+      POSTGRES_DB: legal_automation_staging
+      POSTGRES_USER: legal_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-staging_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - ./src/database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legal_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - legal-automation-staging
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: legal-automation-staging-redis
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-staging_redis}
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - legal-automation-staging
+
+  # Application Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: legal-automation-staging-api
+    environment:
+      NODE_ENV: staging
+      PORT: 3000
+      API_BASE_URL: http://localhost:3000
+
+      # Database
+      DATABASE_URL: postgresql://legal_user:${DB_PASSWORD:-staging_password}@postgres:5432/legal_automation_staging
+      TEST_DATABASE_URL: postgresql://legal_user:${DB_PASSWORD:-staging_password}@postgres:5432/legal_automation_staging_test
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staging_redis}@redis:6379
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-staging_jwt_secret_change_in_production}
+      JWT_EXPIRES_IN: 24h
+
+      # DataJud API
+      DATAJUD_API_KEY: ${DATAJUD_API_KEY:-test_key}
+      DATAJUD_API_URL: https://apipublica.cnj.jus.br/api/v2
+
+      # Projudi TJPR (Test Environment)
+      PROJUDI_WSDL_URL: https://tst.tjpr.jus.br/projudi/webservices/projudiIntercomunicacaoWebService222?wsdl
+      PROJUDI_USERNAME: ${PROJUDI_USERNAME:-test_user}
+      PROJUDI_PASSWORD: ${PROJUDI_PASSWORD:-test_pass}
+
+      # eProc TJSC
+      EPROC_API_URL: https://eproc.tjsc.jus.br/api
+      EPROC_2FA_TIMEOUT: 300
+
+      # Certificado Digital
+      CERT_STORAGE_PATH: ./certs
+      CERT_ENCRYPTION_KEY: ${CERT_ENCRYPTION_KEY:-staging_cert_key}
+
+      # SMTP
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-staging@test.local}
+      SMTP_PASS: ${SMTP_PASS:-test_pass}
+      SMTP_FROM: ${SMTP_FROM:-noreply@legal-automation-staging.local}
+
+      # Rate Limiting
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 200
+
+      # CORS
+      CORS_ORIGIN: "http://localhost:3000,http://localhost:5173,http://api:3000"
+
+      # File Upload
+      MAX_FILE_SIZE: 52428800
+      UPLOAD_DIR: ./uploads
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FILE: ./logs/app.log
+
+      # AI Configuration
+      AI_PRIMARY_MODEL: ${AI_PRIMARY_MODEL:-claude}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-3-5-sonnet-20241022}
+      AI_CACHE_TTL: 604800
+
+      # TSA Configuration (Staging)
+      TSA_PROVIDERS: "sincronize,certinf"
+      TSA_TIMEOUT_MS: 5000
+      TSA_RETRY_MAX: 3
+
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      - ./certs:/app/certs
+    networks:
+      - legal-automation-staging
+    restart: unless-stopped
+
+  # Elasticsearch (Optional - for advanced search)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: legal-automation-staging-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9201:9200"
+    volumes:
+      - elasticsearch_staging_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - legal-automation-staging
+    restart: unless-stopped
+
+volumes:
+  postgres_staging_data:
+    driver: local
+  redis_staging_data:
+    driver: local
+  elasticsearch_staging_data:
+    driver: local
+
+networks:
+  legal-automation-staging:
+    driver: bridge

@@ -1,0 +1,258 @@
+name: Staging Deployment
+
+on:
+  push:
+    branches:
+      - staging
+      - claude/eproc-projudi-automation-4cx0tt
+  pull_request:
+    branches:
+      - staging
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/legal-automation
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./legal-automation
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: legal_automation_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'legal-automation/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./legal-automation
+        run: npm ci
+
+      - name: Run linter
+        working-directory: ./legal-automation
+        run: npm run lint
+
+      - name: Run type check
+        working-directory: ./legal-automation
+        run: npm run type-check
+
+      - name: Run tests
+        working-directory: ./legal-automation
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/legal_automation_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_secret_key_minimum_32_characters_long
+          NODE_ENV: test
+        run: npm run test:coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./legal-automation/coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+      - name: Build application
+        working-directory: ./legal-automation
+        run: npm run build
+
+  load-test:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: legal_automation_staging
+          POSTGRES_USER: legal_user
+          POSTGRES_PASSWORD: staging_pass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6380:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'legal-automation/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./legal-automation
+        run: npm ci
+
+      - name: Start application server
+        working-directory: ./legal-automation
+        env:
+          DATABASE_URL: postgresql://legal_user:staging_pass@localhost:5433/legal_automation_staging
+          REDIS_URL: redis://localhost:6380
+          JWT_SECRET: test_secret_key_minimum_32_characters_long
+          NODE_ENV: staging
+          PORT: 3000
+        run: |
+          npm run build
+          node dist/index.js &
+          sleep 10
+
+      - name: Run load test (small)
+        working-directory: ./legal-automation
+        env:
+          API_BASE_URL: http://localhost:3000
+          TEST_AUTH_TOKEN: test-token
+        run: npx ts-node src/scripts/load-test.ts --concurrency 10 --duration 60 --rps 10
+
+      - name: Run load test (medium)
+        working-directory: ./legal-automation
+        env:
+          API_BASE_URL: http://localhost:3000
+          TEST_AUTH_TOKEN: test-token
+        run: npx ts-node src/scripts/load-test.ts --concurrency 50 --duration 120 --rps 50
+
+      - name: Health check
+        run: curl -f http://localhost:3000/health || exit 1
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build, test, load-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Staging
+        env:
+          DEPLOY_KEY: ${{ secrets.STAGING_DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.STAGING_HOST }}
+          DEPLOY_USER: ${{ secrets.STAGING_USER }}
+          DEPLOY_PATH: /opt/legal-automation
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" << 'DEPLOY_SCRIPT'
+            cd ${{ env.DEPLOY_PATH }}
+            git pull origin staging
+            docker-compose -f docker-compose.staging.yml --env-file .env.staging pull
+            docker-compose -f docker-compose.staging.yml --env-file .env.staging up -d
+            docker-compose -f docker-compose.staging.yml exec api npm run db:migrate
+            curl -f http://localhost:3000/health || exit 1
+          DEPLOY_SCRIPT
+
+          rm ~/.ssh/deploy_key
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build, test, deploy-staging]
+    if: always()
+
+    steps:
+      - name: Notify deployment status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ job.status }}';
+            const conclusion = status === 'success' ? '✅ Succeeded' : '❌ Failed';
+            const message = `Staging deployment ${conclusion}\n\nCommit: ${{ github.sha }}\nBranch: ${{ github.ref }}`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            }).catch(() => {
+              console.log('No PR associated with this push');
+            });
