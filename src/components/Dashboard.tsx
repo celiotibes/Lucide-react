@@ -41,18 +41,32 @@ function formatarMoeda(valor: number): string {
 
 const CORES_COLUNA_FLUXO = ["var(--viz-receita)", "var(--viz-muted)", "var(--viz-despesa)"]; // coluna 0=origem, 1=conta, 2=categoria de destino
 
-function NoSankeyFluxo({ x, y, width, height, payload }: SankeyNodeProps) {
+interface NoSankeyFluxoProps extends SankeyNodeProps {
+  aoDrillDown?: (filtro: FiltroTransacoesInicial) => void;
+  dataInicio?: string;
+  dataFim?: string;
+}
+
+function NoSankeyFluxo({ x, y, width, height, payload, aoDrillDown, dataInicio, dataFim }: NoSankeyFluxoProps) {
   // payload.coluna vem de fluxoFinanceiro.ts (0/1/2, decidido pelo papel do nó no grafo) —
   // não usamos payload.depth (calculado pelo recharts a partir da topologia): uma conta sem
   // nenhuma origem roteada por ela nesta janela viraria "raiz" e ficaria com a cor/posição
   // erradas se a classificação dependesse só da profundidade automática.
-  const coluna = (payload as unknown as NoFluxo).coluna;
-  const cor = CORES_COLUNA_FLUXO[coluna] ?? "var(--viz-muted)";
-  const aoLadoDireito = coluna < 2; // colunas 0/1 escrevem o rótulo à direita do bloco; a última (destino), à esquerda
+  const no = payload as unknown as NoFluxo;
+  const cor = CORES_COLUNA_FLUXO[no.coluna] ?? "var(--viz-muted)";
+  const aoLadoDireito = no.coluna < 2; // colunas 0/1 escrevem o rótulo à direita do bloco; a última (destino), à esquerda
+  // Só há alvo de drill-down em nós de origem ligados a um imóvel ou categoria própria (não em
+  // "Outras origens/despesas", que agregam mais de um, nem em nós de conta bancária, sem filtro
+  // equivalente ainda em Transações).
+  const filtro: FiltroTransacoesInicial | null =
+    no.imovelId !== null ? { imovelId: no.imovelId, dataInicio, dataFim } : no.codigo !== null ? { planoContaCodigo: no.codigo, dataInicio, dataFim } : null;
   return (
-    <g>
+    <g
+      onClick={() => filtro && aoDrillDown?.(filtro)}
+      style={{ cursor: filtro && aoDrillDown ? "pointer" : "default" }}
+    >
       <Rectangle x={x} y={y} width={width} height={height} fill={cor} fillOpacity={0.85} radius={2}>
-        <title>{`${payload.name}: ${formatarMoeda(Number(payload.value))}`}</title>
+        <title>{`${payload.name}: ${formatarMoeda(Number(payload.value))}${filtro && aoDrillDown ? " (clique para ver as transações)" : ""}`}</title>
       </Rectangle>
       <text
         x={aoLadoDireito ? x + width + 8 : x - 8}
@@ -403,6 +417,7 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
           pessoal. Portfólios grandes têm as maiores origens/despesas nomeadas e o resto agrupado em "Outras", para
           o diagrama continuar legível. Exclui transferência entre contas próprias e caução — mudar de conta não é
           "receber" nem "gastar".
+          {aoDrillDown && " Clique num bloco de origem ou destino para ver as transações que o compõem."}
         </p>
         {fluxoFinanceiro.links.length > 0 ? (
           <div style={{ width: "100%", height: 460 }}>
@@ -413,7 +428,7 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
                 nodePadding={18}
                 margin={{ top: 8, right: 160, bottom: 8, left: 160 }}
                 link={LigacaoSankeyFluxo}
-                node={NoSankeyFluxo}
+                node={(props: SankeyNodeProps) => <NoSankeyFluxo {...props} aoDrillDown={aoDrillDown} dataInicio={dataInicio12m} dataFim={hoje} />}
               >
                 <Tooltip formatter={(valor) => formatarMoeda(Number(valor))} />
               </Sankey>

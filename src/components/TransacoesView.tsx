@@ -212,9 +212,15 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                 <X size={13} /> Limpar filtros
               </button>
             )}
-            {filtroCategoria !== "" && (
-              <span className="pill good" title="Filtro aplicado a partir de um clique na cascata ou no mapa de calor do Painel">
-                filtrando: {planoContasPorCodigo.get(filtroCategoria)?.descricao ?? filtroCategoria}
+            {(filtroCategoria !== "" || filtroImovel !== "") && (
+              <span className="pill good" title="Filtro aplicado a partir de um clique no Painel ou na Auditoria forense">
+                filtrando:{" "}
+                {[
+                  filtroCategoria !== "" ? (planoContasPorCodigo.get(filtroCategoria)?.descricao ?? filtroCategoria) : null,
+                  filtroImovel !== "" ? imoveis.find((i) => i.id === filtroImovel)?.apelido : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             )}
           </>
