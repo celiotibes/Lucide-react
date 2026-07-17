@@ -55,7 +55,17 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   Nunca classifica sozinho: toda sugestão precisa de confirmação explícita.
 - **Painel**: DRE dos últimos 12 meses, série mensal de receita/despesa/resultado
   (36 meses), gráfico de inadimplência por faixa de atraso, ranking de resultado
-  líquido por imóvel e DRE agregado por cidade/centro de custo (Floripa × Curitiba).
+  líquido por imóvel, DRE agregado por cidade/centro de custo (Floripa × Curitiba)
+  e um diagrama de fluxo (Sankey) mostrando de onde o dinheiro entra (imóvel/salário)
+  → por qual conta bancária passa → para onde sai (categoria de despesa) — o ponto
+  forense do diagrama é evidenciar visualmente que receita de locação e renda
+  pessoal atravessam as mesmas contas de onde saem despesas pessoais.
+- **Pendências**: worklist consolidado — reúne, ordenado por severidade, tudo que
+  já é detectado nas outras abas (transação sem categoria, competência em atraso,
+  possível duplicidade, lacuna em despesa recorrente, caução sem depósito
+  correspondente, financiamento sem lançamento ou sem saldo/parcela informada,
+  divergência entre renda declarada e reconstituída, backup desatualizado) — sem
+  precisar visitar aba por aba para saber o que falta revisar.
 - **Transações**: fila de revisão e categorização manual pelo plano de contas, com
   coluna PF × Negócio (derivada do grupo da conta: `pessoal` é PF, `receita`/`despesa`
   é a atividade de locação, `transferencia` — entre contas próprias, caução — fica à
@@ -93,8 +103,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   parcelas futuras "vale" menos hoje do que parece, mas ainda é exigibilidade
   presente sobre o patrimônio.
 - **Auditoria forense**: duplicidade de lançamento, outliers estatísticos (z-score)
-  por categoria, lacunas em despesas recorrentes e teste da Lei de Benford — tudo
-  local, sem IA paga.
+  por categoria, lacunas em despesas recorrentes, teste da Lei de Benford e
+  consistência entre módulos (caução cadastrada sem depósito correspondente no
+  extrato, transação de caução sem registro formal, financiamento sem nenhuma
+  parcela lançada) — tudo local, sem IA paga.
 - **Rateio de despesas coletivas**: qualquer transação pode ser dividida entre
   vários imóveis por fração ideal, área ou partes iguais; o DRE por imóvel já
   soma a fatia correspondente.
@@ -125,7 +137,14 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 - **Renda tributável (Carnê-Leão)**: separa, mês a mês, o que é Aluguel Efetivo
   (base do IRPF) do que é reembolso de rateio de custeio coletivo — para contratos
   de "valor único mensal" que decompõem o valor cobrado em duas naturezas
-  jurídicas distintas.
+  jurídicas distintas. O imposto do Carnê-Leão é calculado uma única vez sobre a
+  base tributável agregada de TODOS os imóveis (é uma obrigação mensal pessoal do
+  contribuinte, nunca por imóvel), e alocado proporcionalmente só para exibição por
+  imóvel. Inclui também um comparativo declarado × reconstituído, ano-calendário a
+  ano-calendário: cruza a renda reconstituída a partir dos extratos reais contra o
+  que foi de fato lançado em Cadastros → Declarações fiscais (DIRPF anual ou soma
+  de Carnê-Leão mensal) — nunca assume "declarado = zero" quando nada foi lançado,
+  ausência de dado fica marcada como ausência de dado.
 - **Simulador de Carnê-Leão por imóvel**: aplica a tabela progressiva mensal do IRPF
   (vigente desde 05/2024 — confira se mudou) sobre a renda tributável menos despesas
   dedutíveis selecionáveis por checkbox (manutenção e taxas de administração vêm
@@ -143,7 +162,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   (débito/crédito) na hora, sem tabela nova — dá o balancete de verificação por
   conta que um contador usa como ponto de partida para fechar um balanço formal.
 - **Exportar/importar backup**: baixa ou restaura o banco inteiro como um arquivo
-  `.sqlite`.
+  `.sqlite`, com hash SHA-256 exibido e copiável a cada exportação — prova de
+  integridade de que o arquivo apresentado depois (num laudo, numa petição) é
+  exatamente aquele, sem alteração posterior. Um indicador no cabeçalho avisa
+  quando existe alteração feita depois do último backup exportado.
 
 ## Limitações conhecidas (leia antes de usar com dados reais)
 
