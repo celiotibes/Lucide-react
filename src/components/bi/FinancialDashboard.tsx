@@ -5,12 +5,14 @@ import { KPICards } from './KPICards'
 import { WaterfallChart } from './WaterfallChart'
 import { SankeyDiagram } from './SankeyDiagram'
 import { ReportsTab } from './ReportsTab'
+import { CSVImporter } from './CSVImporter'
 import './FinancialDashboard.css'
 
 export function FinancialDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>(
     new Date().toISOString().slice(0, 7)
   )
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'importer'>('dashboard')
 
   const { data, kpis, loading, error } = useFinancialData(selectedPeriod)
 
@@ -71,21 +73,45 @@ export function FinancialDashboard() {
 
   return (
     <div className="financial-dashboard">
-      {/* Header with period selector */}
+      {/* Header with period selector and tabs */}
       <div className="dashboard-header">
-        <h2>📊 Dashboard Financeiro</h2>
-        <div className="period-selector">
-          <button onClick={() => handlePeriodChange('prev')} className="period-btn">
-            ← Anterior
-          </button>
-          <span className="period-display">{selectedPeriod}</span>
-          <button onClick={() => handlePeriodChange('next')} className="period-btn">
-            Próximo →
-          </button>
+        <div className="header-top">
+          <h2>📊 Dashboard Financeiro</h2>
+          <div className="tab-selector">
+            <button
+              className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              Dashboard
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'importer' ? 'active' : ''}`}
+              onClick={() => setActiveTab('importer')}
+            >
+              Importar Dados
+            </button>
+          </div>
         </div>
+        {activeTab === 'dashboard' && (
+          <div className="period-selector">
+            <button onClick={() => handlePeriodChange('prev')} className="period-btn">
+              ← Anterior
+            </button>
+            <span className="period-display">{selectedPeriod}</span>
+            <button onClick={() => handlePeriodChange('next')} className="period-btn">
+              Próximo →
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Summary Box */}
+      {/* Importer Tab */}
+      {activeTab === 'importer' && <CSVImporter />}
+
+      {/* Dashboard Tab */}
+      {activeTab === 'dashboard' && (
+        <>
+          {/* Summary Box */}
       <div className="summary-box">
         <div className="summary-item">
           <span className="summary-label">Receita</span>
@@ -180,12 +206,14 @@ export function FinancialDashboard() {
       </div>
 
       {/* Data Info */}
-      <div className="data-info">
-        <small>
-          ℹ️ Dados de demonstração. Para análise real, importe seus dados contábeis. Última atualização:{' '}
-          {new Date().toLocaleString('pt-BR')}
-        </small>
-      </div>
+          <div className="data-info">
+            <small>
+              ℹ️ Dados de demonstração. Para análise real, importe seus dados contábeis. Última atualização:{' '}
+              {new Date().toLocaleString('pt-BR')}
+            </small>
+          </div>
+        </>
+      )}
     </div>
   )
 }
