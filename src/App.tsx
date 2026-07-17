@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
 import { exportarArquivo, importarArquivo } from "./db/connection";
 import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
 import { registrarBackup, calcularStatusBackup, type RegistroBackup } from "./domain/backupIntegridade";
+import { gerarPainelPendencias } from "./domain/auditoria/painelPendencias";
 import { Dashboard } from "./components/Dashboard";
+import { PendenciasView } from "./components/PendenciasView";
 import { ImportarView } from "./components/ImportarView";
 import { TransacoesView } from "./components/TransacoesView";
 import { ContratosInadimplenciaView } from "./components/ContratosInadimplenciaView";
@@ -23,11 +25,12 @@ import { CadastrosView } from "./components/CadastrosView";
 import { PatrimonioView } from "./components/PatrimonioView";
 
 type Aba =
-  | "dashboard" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
+  | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
+  { id: "pendencias", rotulo: "Pendências", icone: ListTodo },
   { id: "imoveis", rotulo: "Imóveis", icone: Building2 },
   { id: "cadastros", rotulo: "Cadastros", icone: ClipboardList },
   { id: "importar", rotulo: "Importar documentos", icone: UploadCloud },
@@ -57,6 +60,12 @@ function Conteudo() {
   // Recalculado a cada persistência real (versao muda) e a cada backup exportado
   // (backupTick muda) — os dois únicos eventos que afetam o status.
   const statusBackup = useMemo(() => calcularStatusBackup(), [versao, backupTick]);
+
+  const hoje = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const pendenciasCriticas = useMemo(
+    () => (db ? gerarPainelPendencias(db, hoje).filter((p) => p.severidade === "critica").length : 0),
+    [db, versao, hoje, backupTick],
+  );
 
   const carregarDemonstracao = useCallback(async () => {
     if (!db) return;
@@ -172,6 +181,9 @@ function Conteudo() {
         {ABAS.map(({ id, rotulo, icone: Icone }) => (
           <button key={id} aria-current={aba === id ? "page" : undefined} onClick={() => setAba(id)}>
             <Icone size={15} /> {rotulo}
+            {id === "pendencias" && pendenciasCriticas > 0 && (
+              <span className="pill critical" style={{ marginLeft: 6, padding: "1px 6px" }}>{pendenciasCriticas}</span>
+            )}
           </button>
         ))}
       </nav>
@@ -201,6 +213,7 @@ function Conteudo() {
           </div>
         )}
         {aba === "dashboard" && <Dashboard />}
+        {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => setAba(destino as Aba)} />}
         {aba === "imoveis" && <ImoveisView />}
         {aba === "cadastros" && <CadastrosView />}
         {aba === "importar" && <ImportarView />}
