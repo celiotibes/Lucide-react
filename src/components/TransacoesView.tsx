@@ -16,6 +16,11 @@ export interface FiltroTransacoesInicial {
   imovelId?: number | null;
   dataInicio?: string;
   dataFim?: string;
+  /** IDs exatos de transação — usado pelos achados da Auditoria forense (duplicidade,
+   * outlier), que já sabem precisamente quais lançamentos originaram o alerta em vez de só
+   * uma categoria/período aproximado. Quando presente, ignora os demais filtros de categoria/
+   * imóvel/data (é mais preciso que eles) e mostra só esses IDs. */
+  transacaoIds?: number[];
 }
 
 const PILL_CLASSE_PF_NEGOCIO: Record<ClassificacaoPfNegocio, string> = {
@@ -48,23 +53,30 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const [filtroImovel, setFiltroImovel] = useState<number | "">(filtroInicial?.imovelId ?? "");
   const [filtroDataInicio, setFiltroDataInicio] = useState(filtroInicial?.dataInicio ?? "");
   const [filtroDataFim, setFiltroDataFim] = useState(filtroInicial?.dataFim ?? "");
+  const [filtroTransacaoIds, setFiltroTransacaoIds] = useState<number[] | null>(filtroInicial?.transacaoIds ?? null);
 
   const planoContas = useMemo<PlanoConta[]>(() => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []), [db, versao]);
   const planoContasPorCodigo = useMemo(() => new Map(planoContas.map((p) => [p.codigo, p])), [planoContas]);
   const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
   const regrasSalvas = useMemo(() => (db ? listarRegras(db) : []), [db, versao]);
 
-  const algumFiltroAtivo = somentePendentes || filtroCategoria !== "" || filtroImovel !== "" || filtroDataInicio !== "" || filtroDataFim !== "";
+  const algumFiltroAtivo = somentePendentes || filtroCategoria !== "" || filtroImovel !== "" || filtroDataInicio !== "" || filtroDataFim !== "" || filtroTransacaoIds !== null;
   function limparFiltros() {
     setSomentePendentes(false);
     setFiltroCategoria("");
     setFiltroImovel("");
     setFiltroDataInicio("");
     setFiltroDataFim("");
+    setFiltroTransacaoIds(null);
   }
 
   const transacoes = useMemo<Transacao[]>(() => {
     if (!db) return [];
+    if (filtroTransacaoIds !== null) {
+      if (filtroTransacaoIds.length === 0) return [];
+      const placeholders = filtroTransacaoIds.map(() => "?").join(",");
+      return consultar<Transacao>(db, `SELECT * FROM transacoes WHERE id IN (${placeholders}) ORDER BY data DESC`, filtroTransacaoIds);
+    }
     const condicoes: string[] = [];
     const params: (string | number)[] = [];
     if (somentePendentes) condicoes.push("plano_conta_codigo IS NULL");
@@ -74,7 +86,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     if (filtroDataFim !== "") { condicoes.push("data <= ?"); params.push(filtroDataFim); }
     const where = condicoes.length > 0 ? `WHERE ${condicoes.join(" AND ")}` : "";
     return consultar<Transacao>(db, `SELECT * FROM transacoes ${where} ORDER BY data DESC LIMIT 300`, params);
-  }, [db, versao, somentePendentes, filtroCategoria, filtroImovel, filtroDataInicio, filtroDataFim]);
+  }, [db, versao, somentePendentes, filtroCategoria, filtroImovel, filtroDataInicio, filtroDataFim, filtroTransacaoIds]);
 
   const totalPendentes = useMemo(
     () => (db ? consultar<{ total: number }>(db, "SELECT COUNT(*) as total FROM transacoes WHERE plano_conta_codigo IS NULL")[0]?.total ?? 0 : 0),
@@ -158,41 +170,54 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
       </div>
 
       <div className="card" style={{ marginBottom: 16, padding: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
-          Categoria:
-          <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
-            <option value="">— todas —</option>
-            {planoContas.map((p) => (
-              <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
-          Imóvel:
-          <select value={filtroImovel} onChange={(e) => setFiltroImovel(e.target.value ? Number(e.target.value) : "")}>
-            <option value="">— todos —</option>
-            {imoveis.map((i) => (
-              <option key={i.id} value={i.id}>{i.apelido}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
-          De:
-          <input type="date" value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} />
-        </label>
-        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
-          Até:
-          <input type="date" value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} />
-        </label>
-        {algumFiltroAtivo && (
-          <button className="btn" onClick={limparFiltros} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <X size={13} /> Limpar filtros
-          </button>
-        )}
-        {filtroCategoria !== "" && (
-          <span className="pill good" title="Filtro aplicado a partir de um clique na cascata ou no mapa de calor do Painel">
-            filtrando: {planoContasPorCodigo.get(filtroCategoria)?.descricao ?? filtroCategoria}
-          </span>
+        {filtroTransacaoIds !== null ? (
+          <>
+            <span className="pill critical" title="Filtro aplicado a partir de um achado da Auditoria forense (duplicidade ou outlier) — mostra exatamente os lançamentos envolvidos">
+              filtrando: {filtroTransacaoIds.length} transação(ões) específica(s) — achado da auditoria
+            </span>
+            <button className="btn" onClick={limparFiltros} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <X size={13} /> Limpar filtro
+            </button>
+          </>
+        ) : (
+          <>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+              Categoria:
+              <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+                <option value="">— todas —</option>
+                {planoContas.map((p) => (
+                  <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+              Imóvel:
+              <select value={filtroImovel} onChange={(e) => setFiltroImovel(e.target.value ? Number(e.target.value) : "")}>
+                <option value="">— todos —</option>
+                {imoveis.map((i) => (
+                  <option key={i.id} value={i.id}>{i.apelido}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+              De:
+              <input type="date" value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} />
+            </label>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+              Até:
+              <input type="date" value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} />
+            </label>
+            {algumFiltroAtivo && (
+              <button className="btn" onClick={limparFiltros} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <X size={13} /> Limpar filtros
+              </button>
+            )}
+            {filtroCategoria !== "" && (
+              <span className="pill good" title="Filtro aplicado a partir de um clique na cascata ou no mapa de calor do Painel">
+                filtrando: {planoContasPorCodigo.get(filtroCategoria)?.descricao ?? filtroCategoria}
+              </span>
+            )}
+          </>
         )}
       </div>
 

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { CopyCheck, TrendingUp, CalendarX2, Link2Off } from "lucide-react";
+import { CopyCheck, TrendingUp, CalendarX2, Link2Off, Search } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import {
@@ -8,13 +8,22 @@ import {
   detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento,
 } from "../domain/auditoria/auditoriaForense";
 import { formatarMoeda } from "../domain/formatarMoeda";
+import type { FiltroTransacoesInicial } from "./TransacoesView";
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 const CATEGORIAS_VARIAVEIS = ["2.1.02", "2.1.03", "2.1.04"]; // manutenção, obra, prestadores — não aluguel/financiamento fixos
 
-export function AuditoriaView() {
+function BotaoVerTransacoes({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="btn" style={{ padding: "3px 8px", fontSize: 12, display: "inline-flex", gap: 4, alignItems: "center" }} onClick={onClick} title="Ver o(s) lançamento(s) na aba Transações">
+      <Search size={11} /> Ver
+    </button>
+  );
+}
+
+export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransacoesInicial) => void }) {
   const { db, versao } = useDb();
   const hoje = hojeIso();
   const dataInicio36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
@@ -60,7 +69,7 @@ export function AuditoriaView() {
           ) : (
             <div className="table-wrap">
               <table className="data-table">
-                <thead><tr><th>Data</th><th>Descrição</th><th className="num">Valor</th><th className="num">Ocorrências</th></tr></thead>
+                <thead><tr><th>Data</th><th>Descrição</th><th className="num">Valor</th><th className="num">Ocorrências</th><th></th></tr></thead>
                 <tbody>
                   {duplicatas.map((d, i) => (
                     <tr key={i}>
@@ -68,6 +77,7 @@ export function AuditoriaView() {
                       <td>{d.descricao_original}</td>
                       <td className="num">{formatarMoeda(d.valor)}</td>
                       <td className="num"><span className="pill critical">{d.ocorrencias}×</span></td>
+                      <td>{aoDrillDown && <BotaoVerTransacoes onClick={() => aoDrillDown({ transacaoIds: d.transacaoIds })} />}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -83,8 +93,13 @@ export function AuditoriaView() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
               {lacunas.map((l, i) => (
-                <div key={i} style={{ fontSize: 13 }}>
-                  <strong>{l.imovelApelido}</strong> · {l.planoContaCodigo} — faltam: {l.mesesFaltantes.join(", ")}
+                <div key={i} style={{ fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <span><strong>{l.imovelApelido}</strong> · {l.planoContaCodigo} — faltam: {l.mesesFaltantes.join(", ")}</span>
+                  {aoDrillDown && (
+                    <BotaoVerTransacoes
+                      onClick={() => aoDrillDown({ planoContaCodigo: l.planoContaCodigo, imovelId: l.imovelId, dataInicio: dataInicio36m, dataFim: hoje })}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -102,7 +117,7 @@ export function AuditoriaView() {
         ) : (
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th className="num">Valor</th><th className="num">Média da categoria</th><th className="num">Z-score</th></tr></thead>
+              <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th className="num">Valor</th><th className="num">Média da categoria</th><th className="num">Z-score</th><th></th></tr></thead>
               <tbody>
                 {outliers.map((o) => (
                   <tr key={o.transacaoId}>
@@ -112,6 +127,7 @@ export function AuditoriaView() {
                     <td className="num">{formatarMoeda(o.valor)}</td>
                     <td className="num">{formatarMoeda(o.mediaCategoria)}</td>
                     <td className="num"><span className="pill warning">{o.zScore.toFixed(1)}</span></td>
+                    <td>{aoDrillDown && <BotaoVerTransacoes onClick={() => aoDrillDown({ transacaoIds: [o.transacaoId] })} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -137,9 +153,16 @@ export function AuditoriaView() {
                   Cauções cadastradas sem depósito correspondente no extrato ({caucoesSemTransacao.length})
                 </div>
                 {caucoesSemTransacao.map((c) => (
-                  <div key={c.caucaoId} style={{ fontSize: 13, marginBottom: 4 }}>
-                    <strong>{c.imovelApelido}</strong> · {c.locatario} — {formatarMoeda(c.valorInicial)} em {c.dataDeposito}
-                    <span className="pill warning" style={{ marginLeft: 8 }}>sem lançamento em ±30 dias</span>
+                  <div key={c.caucaoId} style={{ fontSize: 13, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <span>
+                      <strong>{c.imovelApelido}</strong> · {c.locatario} — {formatarMoeda(c.valorInicial)} em {c.dataDeposito}
+                      <span className="pill warning" style={{ marginLeft: 8 }}>sem lançamento em ±30 dias</span>
+                    </span>
+                    {aoDrillDown && (
+                      <BotaoVerTransacoes
+                        onClick={() => aoDrillDown({ planoContaCodigo: "9.0.02", imovelId: c.imovelId, dataInicio: dataInicio36m, dataFim: hoje })}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -150,9 +173,12 @@ export function AuditoriaView() {
                   Transações de caução sem registro formal em Cadastros ({transacoesCaucaoSemRegistro.length})
                 </div>
                 {transacoesCaucaoSemRegistro.map((t) => (
-                  <div key={t.transacaoId} style={{ fontSize: 13, marginBottom: 4 }}>
-                    <strong>{t.imovelApelido}</strong> — {formatarMoeda(t.valor)} em {t.data}
-                    <span className="pill warning" style={{ marginLeft: 8 }}>sem caução cadastrada em ±30 dias</span>
+                  <div key={t.transacaoId} style={{ fontSize: 13, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <span>
+                      <strong>{t.imovelApelido}</strong> — {formatarMoeda(t.valor)} em {t.data}
+                      <span className="pill warning" style={{ marginLeft: 8 }}>sem caução cadastrada em ±30 dias</span>
+                    </span>
+                    {aoDrillDown && <BotaoVerTransacoes onClick={() => aoDrillDown({ transacaoIds: [t.transacaoId] })} />}
                   </div>
                 ))}
               </div>

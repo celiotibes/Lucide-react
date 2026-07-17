@@ -235,7 +235,7 @@ function Conteudo() {
         {aba === "indices" && <IndicesEconomicosView />}
         {aba === "renda" && <RendaTributavelView />}
         {aba === "razao" && <LivroRazaoView />}
-        {aba === "auditoria" && <AuditoriaView />}
+        {aba === "auditoria" && <AuditoriaView aoDrillDown={aoDrillDownTransacoes} />}
         {aba === "laudo" && <LaudoView />}
       </main>
     </div>

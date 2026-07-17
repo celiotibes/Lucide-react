@@ -97,6 +97,7 @@ export function detectarOutliers(db: Database, dataInicio: string, dataFim: stri
 }
 
 export interface LacunaMensal {
+  imovelId: number;
   imovelApelido: string;
   planoContaCodigo: string;
   mesesFaltantes: string[];
@@ -128,7 +129,7 @@ export function detectarLacunasMensais(db: Database, planosRecorrentes: string[]
         if (!mesesPresentes.has(chave)) mesesFaltantes.push(chave);
         cursor.setMonth(cursor.getMonth() + 1);
       }
-      if (mesesFaltantes.length > 0) resultado.push({ imovelApelido: imovel.apelido, planoContaCodigo: codigo, mesesFaltantes });
+      if (mesesFaltantes.length > 0) resultado.push({ imovelId: imovel.id, imovelApelido: imovel.apelido, planoContaCodigo: codigo, mesesFaltantes });
     }
   }
   return resultado;
@@ -187,6 +188,7 @@ function diferencaEmDiasAbsoluta(dataA: string, dataB: string): number {
 
 export interface CaucaoSemTransacao {
   caucaoId: number;
+  imovelId: number;
   imovelApelido: string;
   locatario: string;
   valorInicial: number;
@@ -217,7 +219,7 @@ export function detectarCaucoesSemTransacao(db: Database): CaucaoSemTransacao[] 
       );
       return !transacoesProximas.some((t) => diferencaEmDiasAbsoluta(t.data, c.data_deposito) <= JANELA_CONCILIACAO_DIAS);
     })
-    .map((c) => ({ caucaoId: c.id, imovelApelido: c.imovel_apelido, locatario: c.locatario, valorInicial: c.valor_inicial, dataDeposito: c.data_deposito }));
+    .map((c) => ({ caucaoId: c.id, imovelId: c.imovel_id, imovelApelido: c.imovel_apelido, locatario: c.locatario, valorInicial: c.valor_inicial, dataDeposito: c.data_deposito }));
 }
 
 export interface TransacaoCaucaoSemRegistro {
