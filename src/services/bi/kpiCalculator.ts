@@ -1,4 +1,4 @@
-import { FinancialData, KPIMetric } from '../../types/financial'
+import type { FinancialData } from '../../types/financial'
 
 export class KPICalculator {
   static calculateFromIncomeStatement(data: FinancialData): Record<string, number> {
@@ -70,7 +70,7 @@ export class KPICalculator {
   // Liquidity analysis
   static analyzeLiquidity(
     cash: number,
-    shortTermDebt: number,
+    _debt: number,
     monthlyExpenses: number
   ): {
     liquidityMonths: number

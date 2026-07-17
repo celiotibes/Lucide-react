@@ -4,6 +4,7 @@ import { FinancialAnalysisService } from '../../services/bi/financialAnalysis'
 import { KPICards } from './KPICards'
 import { WaterfallChart } from './WaterfallChart'
 import { SankeyDiagram } from './SankeyDiagram'
+import { ReportsTab } from './ReportsTab'
 import './FinancialDashboard.css'
 
 export function FinancialDashboard() {
@@ -128,6 +129,9 @@ export function FinancialDashboard() {
 
       {/* Sankey Diagram */}
       {sankeyData && <SankeyDiagram nodes={sankeyData.nodes} links={sankeyData.links} />}
+
+      {/* Financial Reports */}
+      {data && <ReportsTab data={data} />}
 
       {/* Insights Section */}
       <div className="insights-section">

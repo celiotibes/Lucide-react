@@ -1,4 +1,4 @@
-import { FinancialData, KPIMetric, WaterfallStep } from '../../types/financial'
+import type { FinancialData, KPIMetric, WaterfallStep } from '../../types/financial'
 
 export class FinancialAnalysisService {
   // Calculate key financial metrics from income statement
@@ -74,7 +74,7 @@ export class FinancialAnalysisService {
 
   // Generate Sankey diagram nodes and links for cash flow
   static generateSankeyData(
-    revenue: number,
+    _revenue: number,
     suppliers: number,
     employees: number,
     taxes: number,
