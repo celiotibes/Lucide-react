@@ -191,50 +191,105 @@ export default function PaginaBi() {
           </p>
         </div>
 
-        {/* Resumo Rápido */}
+        {/* Resumo Rápido - Glassmorphism Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-green-600 dark:border-green-500">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Módulos Ativos</p>
-            <p className="text-3xl font-bold text-green-600 dark:text-green-400">{featuresAtivas.length}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Prontos para usar</p>
+          <div className="bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 backdrop-blur-xl rounded-xl p-6 border-2 border-emerald-500/30 hover:border-emerald-500/50 transition-all duration-300 shadow-xl">
+            <p className="text-sm text-emerald-300/70 mb-2">Módulos Ativos</p>
+            <p className="text-4xl font-bold text-emerald-400">{featuresAtivas.length}</p>
+            <p className="text-xs text-emerald-300/50 mt-3">Prontos para usar</p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-yellow-600 dark:border-yellow-500">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Em Desenvolvimento</p>
-            <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{featuresEmDev.length}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Chegando em breve</p>
+          <div className="bg-gradient-to-br from-amber-500/20 to-orange-500/10 backdrop-blur-xl rounded-xl p-6 border-2 border-amber-500/30 hover:border-amber-500/50 transition-all duration-300 shadow-xl">
+            <p className="text-sm text-amber-300/70 mb-2">Em Desenvolvimento</p>
+            <p className="text-4xl font-bold text-amber-400">{featuresEmDev.length}</p>
+            <p className="text-xs text-amber-300/50 mt-3">Chegando em breve</p>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-gray-600 dark:border-gray-500">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Planejados</p>
-            <p className="text-3xl font-bold text-gray-600 dark:text-gray-400">{featuresPlanejadas.length}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Próximas fases</p>
+          <div className="bg-gradient-to-br from-slate-500/20 to-slate-400/10 backdrop-blur-xl rounded-xl p-6 border-2 border-slate-500/30 hover:border-slate-500/50 transition-all duration-300 shadow-xl">
+            <p className="text-sm text-slate-300/70 mb-2">Planejados</p>
+            <p className="text-4xl font-bold text-slate-400">{featuresPlanejadas.length}</p>
+            <p className="text-xs text-slate-300/50 mt-3">Próximas fases</p>
           </div>
         </div>
 
-        {/* Recursos Ativos */}
+        {/* Recursos Ativos - Bento Grid */}
         <div className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Recursos Disponíveis</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuresAtivas.map((feature) => (
+          <h2 className="text-2xl font-bold text-slate-100 mb-6">Recursos Disponíveis</h2>
+          <div className="grid auto-rows-max gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            {/* Dashboard Executivo - Hero card (4 cols) */}
+            {featuresAtivas.slice(0, 1).map((feature) => (
               <Link
                 key={feature.href}
                 href={feature.href}
-                className={`group rounded-lg shadow p-6 border transition-all hover:shadow-lg hover:scale-105 ${feature.cores.bg} ${feature.cores.border} border-2`}
+                className={`lg:col-span-2 lg:row-span-2 group rounded-2xl shadow-2xl p-8 border-2 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 ${feature.cores.bg} ${feature.cores.border} backdrop-blur-xl`}
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`p-3 rounded-lg bg-white ${feature.cores.icon}`}>
+                <div className="flex items-start justify-between mb-6">
+                  <div className={`p-4 rounded-xl bg-white/10 backdrop-blur ${feature.cores.icon}`}>
                     {feature.icone}
                   </div>
                   {getStatusBadge(feature.status)}
                 </div>
 
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:underline">
+                <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
                   {feature.titulo}
                 </h3>
-                <p className="text-sm text-gray-700">{feature.descricao}</p>
+                <p className="text-sm text-gray-700 mb-6 leading-relaxed">{feature.descricao}</p>
 
-                <div className="mt-4 text-sm font-medium group-hover:gap-3 inline-flex items-center gap-2 transition-all">
+                <div className="mt-auto text-sm font-semibold group-hover:gap-3 inline-flex items-center gap-2 transition-all text-gray-900">
+                  Acessar
+                  <span className="group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+              </Link>
+            ))}
+
+            {/* Sankey + Heatmap (lado direito) */}
+            {featuresAtivas.slice(1, 3).map((feature) => (
+              <Link
+                key={feature.href}
+                href={feature.href}
+                className={`group rounded-xl shadow-lg p-6 border-2 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${feature.cores.bg} ${feature.cores.border} backdrop-blur-xl`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-3 rounded-lg bg-white/10 backdrop-blur ${feature.cores.icon}`}>
+                    {feature.icone}
+                  </div>
+                  {getStatusBadge(feature.status)}
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
+                  {feature.titulo}
+                </h3>
+                <p className="text-xs text-gray-700">{feature.descricao}</p>
+
+                <div className="mt-4 text-xs font-medium group-hover:gap-2 inline-flex items-center gap-1 transition-all text-gray-900">
+                  Acessar
+                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </Link>
+            ))}
+
+            {/* Relatórios, Alertas, etc (grid inferior) */}
+            {featuresAtivas.slice(3).map((feature, idx) => (
+              <Link
+                key={feature.href}
+                href={feature.href}
+                className={`group rounded-xl shadow-lg p-6 border-2 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${feature.cores.bg} ${feature.cores.border} backdrop-blur-xl ${
+                  idx === 4 ? 'lg:col-span-2' : ''
+                }`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-3 rounded-lg bg-white/10 backdrop-blur ${feature.cores.icon}`}>
+                    {feature.icone}
+                  </div>
+                  {getStatusBadge(feature.status)}
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
+                  {feature.titulo}
+                </h3>
+                <p className="text-xs text-gray-700">{feature.descricao}</p>
+
+                <div className="mt-4 text-xs font-medium group-hover:gap-2 inline-flex items-center gap-1 transition-all text-gray-900">
                   Acessar
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </div>
