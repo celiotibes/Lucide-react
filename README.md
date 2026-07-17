@@ -53,13 +53,18 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   classificação do documento (categoria do plano de contas e imóvel — único ou rateio
   proporcional entre vários, se o documento cobrir mais de um) é aplicada à transação.
   Nunca classifica sozinho: toda sugestão precisa de confirmação explícita.
-- **Painel**: DRE dos últimos 12 meses, série mensal de receita/despesa/resultado
-  (36 meses), gráfico de inadimplência por faixa de atraso, ranking de resultado
-  líquido por imóvel, DRE agregado por cidade/centro de custo (Floripa × Curitiba)
-  e um diagrama de fluxo (Sankey) mostrando de onde o dinheiro entra (imóvel/salário)
-  → por qual conta bancária passa → para onde sai (categoria de despesa) — o ponto
-  forense do diagrama é evidenciar visualmente que receita de locação e renda
-  pessoal atravessam as mesmas contas de onde saem despesas pessoais.
+- **Painel**: DRE dos últimos 12 meses, uma cascata (waterfall) do resultado — receita
+  bruta menos cada categoria de despesa, da maior para a menor, até o resultado
+  líquido, mostrando visualmente como cada corte de despesa corrói o resultado —,
+  série mensal de receita/despesa/resultado (36 meses), gráfico de inadimplência por
+  faixa de atraso, ranking de resultado líquido por imóvel, DRE agregado por
+  cidade/centro de custo (Floripa × Curitiba), um mapa de calor de despesa por
+  categoria × mês (intensidade de cor proporcional ao gasto, para achar visualmente
+  em qual mês cada centro de custo pesou mais) e um diagrama de fluxo (Sankey)
+  mostrando de onde o dinheiro entra (imóvel/salário) → por qual conta bancária
+  passa → para onde sai (categoria de despesa) — o ponto forense do diagrama é
+  evidenciar visualmente que receita de locação e renda pessoal atravessam as
+  mesmas contas de onde saem despesas pessoais.
 - **Pendências**: worklist consolidado — reúne, ordenado por severidade, tudo que
   já é detectado nas outras abas (transação sem categoria, competência em atraso,
   possível duplicidade, lacuna em despesa recorrente, caução sem depósito
