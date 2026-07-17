@@ -3,6 +3,7 @@ import { consultar } from "../../db/connection";
 
 export interface CelulaHeatmap {
   categoria: string;
+  codigo: string;
   mes: string; // YYYY-MM
   valor: number;
 }
@@ -24,13 +25,13 @@ const MAX_CATEGORIAS = 10;
  * fora da matriz (o objetivo é achar o que pesa mais, não listar tudo; a tabela "Resultado por
  * imóvel/cidade" já cobre o total completo). */
 export function gerarHeatmapDespesas(db: Database, dataInicio: string, dataFim: string): HeatmapDespesas {
-  const linhas = consultar<{ categoria: string; mes: string; valor: number }>(
+  const linhas = consultar<{ categoria: string; codigo: string; mes: string; valor: number }>(
     db,
-    `SELECT p.descricao AS categoria, substr(t.data, 1, 7) AS mes, SUM(ABS(t.valor)) AS valor
+    `SELECT p.descricao AS categoria, p.codigo AS codigo, substr(t.data, 1, 7) AS mes, SUM(ABS(t.valor)) AS valor
      FROM transacoes t
      JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
      WHERE p.natureza = 'debito' AND p.grupo != 'transferencia' AND t.data BETWEEN ? AND ?
-     GROUP BY categoria, mes
+     GROUP BY categoria, codigo, mes
      HAVING SUM(ABS(t.valor)) > 0
      ORDER BY mes`,
     [dataInicio, dataFim],

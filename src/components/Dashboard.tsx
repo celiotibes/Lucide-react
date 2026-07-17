@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, Sankey, Rectangle } from "recharts";
 import type { SankeyNodeProps, SankeyLinkProps } from "recharts";
 import { useDb } from "../db/DbContext";
@@ -8,11 +9,19 @@ import { gerarCascataDre } from "../domain/reports/dreCascata";
 import { gerarHeatmapDespesas } from "../domain/reports/heatmapDespesas";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia, agingPorFaixa } from "../domain/reconcile/inadimplencia";
+import { detectarOutliers } from "../domain/auditoria/auditoriaForense";
 import { calcularDesempenhoPorImovel, agruparDesempenhoPorCidade } from "../domain/reports/desempenhoPorImovel";
 import { gerarFluxoFinanceiro, type NoFluxo } from "../domain/reports/fluxoFinanceiro";
 import { formatarMoeda as formatarMoedaCompleta } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
+import type { FiltroTransacoesInicial } from "./TransacoesView";
 import type { Imovel } from "../domain/types";
+
+function ultimoDiaDoMes(mesIso: string): string {
+  const [ano, mes] = mesIso.split("-").map(Number);
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  return `${mesIso}-${String(ultimoDia).padStart(2, "0")}`;
+}
 
 const MESES_ABREVIADOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 function formatarMesAbreviado(mesIso: string): string {
@@ -102,7 +111,7 @@ function TooltipSerie({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-export function Dashboard() {
+export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransacoesInicial) => void }) {
   const { db, versao } = useDb();
   const hoje = hojeIso();
   const dataInicio12m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 12)).toISOString().slice(0, 10);
@@ -134,6 +143,15 @@ export function Dashboard() {
     () => (db ? gerarHeatmapDespesas(db, dataInicio12m, hoje) : { categorias: [], meses: [], celulas: [], valorMaximo: 0 }),
     [db, versao, dataInicio12m, hoje],
   );
+  // Cruza o mapa de calor com a auditoria forense: célula que contém um lançamento fora da
+  // curva (z-score) da própria categoria ganha um indicador visual — vínculo direto entre o
+  // achado da aba Auditoria forense e o BI do Painel, sem precisar visitar a outra aba pra
+  // saber que aquele mês específico tem algo fora do padrão.
+  const celulasComOutlier = useMemo(() => {
+    if (!db) return new Set<string>();
+    const outliers = detectarOutliers(db, dataInicio12m, hoje);
+    return new Set(outliers.map((o) => `${o.planoContaCodigo}|${o.data.slice(0, 7)}`));
+  }, [db, versao, dataInicio12m, hoje]);
 
   const aging = useMemo(() => agingPorFaixa(statusInadimplencia), [statusInadimplencia]);
   const dadosAging = Object.entries(aging).map(([faixa, valores]) => ({ faixa, ...valores }));
@@ -182,6 +200,7 @@ export function Dashboard() {
         <p style={{ maxWidth: "72ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 14 }}>
           Da receita bruta até o resultado líquido, categoria de despesa por categoria, na ordem de quem mais pesa —
           mostra visualmente como cada corte de despesa "corrói" o resultado, em vez de só listar totais isolados.
+          {aoDrillDown && " Clique numa barra de despesa para ver as transações que a compõem."}
         </p>
         <div style={{ width: "100%", height: 300, background: "var(--viz-surface)", borderRadius: 6 }}>
           <ResponsiveContainer>
@@ -202,7 +221,16 @@ export function Dashboard() {
               <Bar dataKey="base" stackId="cascata" fill="transparent" isAnimationActive={false} />
               <Bar dataKey="altura" stackId="cascata" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                 {cascataDre.map((etapa) => (
-                  <Cell key={etapa.rotulo} fill={corEtapaCascata(etapa.tipo, etapa.valor)} />
+                  <Cell
+                    key={etapa.rotulo}
+                    fill={corEtapaCascata(etapa.tipo, etapa.valor)}
+                    cursor={etapa.tipo === "despesa" && aoDrillDown ? "pointer" : "default"}
+                    onClick={() => {
+                      if (etapa.tipo === "despesa" && etapa.codigo && aoDrillDown) {
+                        aoDrillDown({ planoContaCodigo: etapa.codigo, dataInicio: dataInicio12m, dataFim: hoje });
+                      }
+                    }}
+                  />
                 ))}
               </Bar>
             </BarChart>
@@ -308,7 +336,9 @@ export function Dashboard() {
         <p style={{ maxWidth: "72ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 14 }}>
           Intensidade da cor proporcional ao valor gasto naquela categoria naquele mês — identifica visualmente em
           qual mês cada centro de custo pesou mais, sem precisar ler linha a linha. Limitado às {heatmapDespesas.categorias.length} maiores
-          categorias do período; o total completo continua nas tabelas acima.
+          categorias do período; o total completo continua nas tabelas acima. Célula com <AlertTriangle size={11} style={{ verticalAlign: "-1px" }} />
+          {" "}contém um lançamento fora da curva da própria categoria (achado da Auditoria forense).
+          {aoDrillDown && " Clique numa célula para ver as transações que a compõem."}
         </p>
         {heatmapDespesas.categorias.length === 0 ? (
           <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhuma despesa lançada no período para montar o mapa de calor.</p>
@@ -331,17 +361,27 @@ export function Dashboard() {
                       const celula = heatmapDespesas.celulas.find((c) => c.categoria === categoria && c.mes === mes);
                       const valor = celula?.valor ?? 0;
                       const intensidade = heatmapDespesas.valorMaximo > 0 ? Math.round((valor / heatmapDespesas.valorMaximo) * 100) : 0;
+                      const temOutlier = celula ? celulasComOutlier.has(`${celula.codigo}|${celula.mes}`) : false;
                       return (
                         <td
                           key={mes}
                           className="num"
+                          onClick={() => {
+                            if (celula && aoDrillDown) {
+                              aoDrillDown({ planoContaCodigo: celula.codigo, dataInicio: `${celula.mes}-01`, dataFim: ultimoDiaDoMes(celula.mes) });
+                            }
+                          }}
+                          title={temOutlier ? "Contém lançamento fora da curva da própria categoria (achado da Auditoria forense)" : undefined}
                           style={{
                             background: valor > 0 ? `color-mix(in srgb, var(--viz-despesa) ${Math.max(intensidade, 12)}%, var(--viz-surface))` : undefined,
                             color: intensidade > 45 ? "#fff" : undefined,
                             fontSize: 12,
+                            cursor: valor > 0 && aoDrillDown ? "pointer" : undefined,
+                            position: "relative",
                           }}
                         >
                           {valor > 0 ? formatarMoeda(valor) : ""}
+                          {temOutlier && <AlertTriangle size={10} style={{ position: "absolute", top: 2, right: 2 }} />}
                         </td>
                       );
                     })}

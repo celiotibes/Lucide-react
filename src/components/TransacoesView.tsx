@@ -1,11 +1,22 @@
 import { Fragment, useMemo, useState } from "react";
-import { Wand2, Split, Trash2, Download } from "lucide-react";
+import { Wand2, Split, Trash2, Download, X } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar, executar } from "../db/connection";
 import type { Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
 import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
+
+/** Filtro inicial vindo de outra tela (drill-down do Painel: clicar numa barra da cascata do
+ * DRE ou numa célula do mapa de calor navega pra cá já filtrado pela categoria/mês/imóvel que
+ * originou o clique). Aplicado uma única vez, na montagem — depois disso o usuário controla os
+ * filtros normalmente pelos próprios controles da tela. */
+export interface FiltroTransacoesInicial {
+  planoContaCodigo?: string | null;
+  imovelId?: number | null;
+  dataInicio?: string;
+  dataFim?: string;
+}
 
 const PILL_CLASSE_PF_NEGOCIO: Record<ClassificacaoPfNegocio, string> = {
   PF: "warning",
@@ -20,7 +31,7 @@ const ROTULO_CRITERIO: Record<CriterioRateio, string> = {
   por_unidade: "Igual entre unidades",
 };
 
-export function TransacoesView() {
+export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransacoesInicial | null }) {
   const { db, versao, persistir } = useDb();
   const [somentePendentes, setSomentePendentes] = useState(false);
   const [rateioAbertoId, setRateioAbertoId] = useState<number | null>(null);
@@ -31,16 +42,39 @@ export function TransacoesView() {
   const [criterio, setCriterio] = useState<CriterioRateio>("fracao_ideal");
   const [mensagem, setMensagem] = useState<string | null>(null);
 
+  // Estado lazy-inicializado a partir de filtroInicial (drill-down) — só lido na primeira
+  // renderização; depois disso o usuário controla os filtros normalmente pelos selects abaixo.
+  const [filtroCategoria, setFiltroCategoria] = useState(filtroInicial?.planoContaCodigo ?? "");
+  const [filtroImovel, setFiltroImovel] = useState<number | "">(filtroInicial?.imovelId ?? "");
+  const [filtroDataInicio, setFiltroDataInicio] = useState(filtroInicial?.dataInicio ?? "");
+  const [filtroDataFim, setFiltroDataFim] = useState(filtroInicial?.dataFim ?? "");
+
   const planoContas = useMemo<PlanoConta[]>(() => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []), [db, versao]);
   const planoContasPorCodigo = useMemo(() => new Map(planoContas.map((p) => [p.codigo, p])), [planoContas]);
   const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
   const regrasSalvas = useMemo(() => (db ? listarRegras(db) : []), [db, versao]);
 
+  const algumFiltroAtivo = somentePendentes || filtroCategoria !== "" || filtroImovel !== "" || filtroDataInicio !== "" || filtroDataFim !== "";
+  function limparFiltros() {
+    setSomentePendentes(false);
+    setFiltroCategoria("");
+    setFiltroImovel("");
+    setFiltroDataInicio("");
+    setFiltroDataFim("");
+  }
+
   const transacoes = useMemo<Transacao[]>(() => {
     if (!db) return [];
-    const filtro = somentePendentes ? "WHERE plano_conta_codigo IS NULL" : "";
-    return consultar<Transacao>(db, `SELECT * FROM transacoes ${filtro} ORDER BY data DESC LIMIT 300`);
-  }, [db, versao, somentePendentes]);
+    const condicoes: string[] = [];
+    const params: (string | number)[] = [];
+    if (somentePendentes) condicoes.push("plano_conta_codigo IS NULL");
+    if (filtroCategoria !== "") { condicoes.push("plano_conta_codigo = ?"); params.push(filtroCategoria); }
+    if (filtroImovel !== "") { condicoes.push("imovel_id = ?"); params.push(filtroImovel); }
+    if (filtroDataInicio !== "") { condicoes.push("data >= ?"); params.push(filtroDataInicio); }
+    if (filtroDataFim !== "") { condicoes.push("data <= ?"); params.push(filtroDataFim); }
+    const where = condicoes.length > 0 ? `WHERE ${condicoes.join(" AND ")}` : "";
+    return consultar<Transacao>(db, `SELECT * FROM transacoes ${where} ORDER BY data DESC LIMIT 300`, params);
+  }, [db, versao, somentePendentes, filtroCategoria, filtroImovel, filtroDataInicio, filtroDataFim]);
 
   const totalPendentes = useMemo(
     () => (db ? consultar<{ total: number }>(db, "SELECT COUNT(*) as total FROM transacoes WHERE plano_conta_codigo IS NULL")[0]?.total ?? 0 : 0),
@@ -121,6 +155,45 @@ export function TransacoesView() {
             <Download size={13} /> Exportar mapa de conciliação (CSV)
           </button>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16, padding: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          Categoria:
+          <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+            <option value="">— todas —</option>
+            {planoContas.map((p) => (
+              <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          Imóvel:
+          <select value={filtroImovel} onChange={(e) => setFiltroImovel(e.target.value ? Number(e.target.value) : "")}>
+            <option value="">— todos —</option>
+            {imoveis.map((i) => (
+              <option key={i.id} value={i.id}>{i.apelido}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          De:
+          <input type="date" value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} />
+        </label>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          Até:
+          <input type="date" value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} />
+        </label>
+        {algumFiltroAtivo && (
+          <button className="btn" onClick={limparFiltros} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <X size={13} /> Limpar filtros
+          </button>
+        )}
+        {filtroCategoria !== "" && (
+          <span className="pill good" title="Filtro aplicado a partir de um clique na cascata ou no mapa de calor do Painel">
+            filtrando: {planoContasPorCodigo.get(filtroCategoria)?.descricao ?? filtroCategoria}
+          </span>
+        )}
       </div>
 
       {regrasSalvas.length > 0 && (

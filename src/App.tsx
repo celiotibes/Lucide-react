@@ -9,7 +9,7 @@ import { gerarPainelPendencias } from "./domain/auditoria/painelPendencias";
 import { Dashboard } from "./components/Dashboard";
 import { PendenciasView } from "./components/PendenciasView";
 import { ImportarView } from "./components/ImportarView";
-import { TransacoesView } from "./components/TransacoesView";
+import { TransacoesView, type FiltroTransacoesInicial } from "./components/TransacoesView";
 import { ContratosInadimplenciaView } from "./components/ContratosInadimplenciaView";
 import { CaucaoView } from "./components/CaucaoView";
 import { FinanciamentosView } from "./components/FinanciamentosView";
@@ -51,6 +51,14 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
 function Conteudo() {
   const { db, versao, carregando, persistir, reiniciar } = useDb();
   const [aba, setAba] = useState<Aba>("dashboard");
+  // Drill-down do Painel (clique numa barra da cascata do DRE ou numa célula do mapa de calor):
+  // guarda o filtro e troca de aba pra Transações, que consome esse valor uma única vez ao
+  // montar. Não é reaproveitado entre navegações — cada clique novo sobrescreve o anterior.
+  const [filtroTransacoesDrillDown, setFiltroTransacoesDrillDown] = useState<FiltroTransacoesInicial | null>(null);
+  const aoDrillDownTransacoes = useCallback((filtro: FiltroTransacoesInicial) => {
+    setFiltroTransacoesDrillDown(filtro);
+    setAba("transacoes");
+  }, []);
   const [mensagemSeed, setMensagemSeed] = useState<string | null>(null);
   const [ultimoRegistroBackup, setUltimoRegistroBackup] = useState<RegistroBackup | null>(null);
   const [hashCopiado, setHashCopiado] = useState(false);
@@ -212,13 +220,13 @@ function Conteudo() {
             {mensagemSeed}
           </div>
         )}
-        {aba === "dashboard" && <Dashboard />}
+        {aba === "dashboard" && <Dashboard aoDrillDown={aoDrillDownTransacoes} />}
         {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => setAba(destino as Aba)} />}
         {aba === "imoveis" && <ImoveisView />}
         {aba === "cadastros" && <CadastrosView />}
         {aba === "importar" && <ImportarView />}
         {aba === "documentos" && <DocumentosView />}
-        {aba === "transacoes" && <TransacoesView />}
+        {aba === "transacoes" && <TransacoesView filtroInicial={filtroTransacoesDrillDown} />}
         {aba === "contratos" && <ContratosInadimplenciaView />}
         {aba === "reajustes" && <ReajustesRescisaoView />}
         {aba === "caucao" && <CaucaoView />}
