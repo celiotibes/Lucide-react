@@ -77,6 +77,7 @@ import { advancedCertificationService } from '@services/AdvancedCertificationSer
 import mlPredictionController from '@/api/controllers/mlPredictionController';
 import autoReportController from '@/api/controllers/autoReportController';
 import autoResponseController from '@/api/controllers/autoResponseController';
+import complianceDashboardController from '@/api/controllers/complianceDashboardController';
 import { mlPredictionService } from '@services/MLPredictionService';
 import { autoReportService } from '@services/AutoReportService';
 import { autoResponseService } from '@services/AutoResponseService';
@@ -265,6 +266,9 @@ app.use('/api/v1/certification', verifyToken, advancedCertificationRouter);
 app.use('/api/v1/ml', verifyToken, mlPredictionController);
 app.use('/api/v1/reports', verifyToken, autoReportController);
 app.use('/api/v1/responses', verifyToken, autoResponseController);
+
+// Phase 11: Compliance Dashboard & LGPD Monitoring
+app.use('/api/v1/compliance', verifyToken, complianceDashboardController);
 
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
