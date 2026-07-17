@@ -10,6 +10,8 @@ import {
   HeatmapSquare,
   Clock,
   Gauge,
+  Activity,
+  Settings2,
 } from 'lucide-react';
 
 interface FeatureBi {
@@ -111,6 +113,30 @@ const features: FeatureBi[] = [
     },
   },
   {
+    titulo: 'Performance & Analytics',
+    descricao: 'Métricas de sistema, estatísticas de uso e recomendações de otimização',
+    href: '/painel-gestao/bi/performance',
+    icone: <Activity className="w-6 h-6" />,
+    status: 'ativo',
+    cores: {
+      bg: 'bg-cyan-50',
+      border: 'border-cyan-200',
+      icon: 'text-cyan-600',
+    },
+  },
+  {
+    titulo: 'Configurações',
+    descricao: 'Gerencie ETL, cache, real-time, alertas e performance do sistema',
+    href: '/painel-gestao/bi/configuracoes',
+    icone: <Settings2 className="w-6 h-6" />,
+    status: 'ativo',
+    cores: {
+      bg: 'bg-gray-50',
+      border: 'border-gray-200',
+      icon: 'text-gray-600',
+    },
+  },
+  {
     titulo: 'Previsões e ML',
     descricao: 'Forecasting de receitas, custos e detecção de anomalias com machine learning',
     href: '#',
@@ -167,22 +193,22 @@ export default function PaginaBi() {
 
         {/* Resumo Rápido */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-600">
-            <p className="text-sm text-gray-600 mb-1">Módulos Ativos</p>
-            <p className="text-3xl font-bold text-green-600">{featuresAtivas.length}</p>
-            <p className="text-xs text-gray-500 mt-2">Prontos para usar</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-green-600 dark:border-green-500">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Módulos Ativos</p>
+            <p className="text-3xl font-bold text-green-600 dark:text-green-400">{featuresAtivas.length}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Prontos para usar</p>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-600">
-            <p className="text-sm text-gray-600 mb-1">Em Desenvolvimento</p>
-            <p className="text-3xl font-bold text-yellow-600">{featuresEmDev.length}</p>
-            <p className="text-xs text-gray-500 mt-2">Chegando em breve</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-yellow-600 dark:border-yellow-500">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Em Desenvolvimento</p>
+            <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{featuresEmDev.length}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Chegando em breve</p>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-gray-600">
-            <p className="text-sm text-gray-600 mb-1">Planejados</p>
-            <p className="text-3xl font-bold text-gray-600">{featuresPlanejadas.length}</p>
-            <p className="text-xs text-gray-500 mt-2">Próximas fases</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-gray-600 dark:border-gray-500">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Planejados</p>
+            <p className="text-3xl font-bold text-gray-600 dark:text-gray-400">{featuresPlanejadas.length}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Próximas fases</p>
           </div>
         </div>
 
