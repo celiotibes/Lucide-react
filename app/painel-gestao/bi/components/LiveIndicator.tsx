@@ -101,7 +101,7 @@ export function LiveIndicator({
 /**
  * Componente que mostra quando dados foram atualizados
  */
-export function LastUpdatedLabel({ timestamp?: Date; loading?: boolean }) {
+export function LastUpdatedLabel({ timestamp, loading }: { timestamp?: Date; loading?: boolean }) {
   if (!timestamp) {
     return (
       <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
