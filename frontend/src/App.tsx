@@ -4,6 +4,8 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "./store/auth";
 import { PropertyCalendar } from "./components/PropertyCalendar";
 import { BookingForm } from "./components/BookingForm";
+import { OverviewPage } from "./pages/bi/overview/OverviewPage";
+import { ComponentShowcase } from "./pages/ComponentShowcase";
 import { LogOut } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -145,6 +147,51 @@ export function App() {
             element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <OverviewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/showcase"
+            element={
+              <ProtectedRoute>
+                <ComponentShowcase />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <OverviewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute>
+                <OverviewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <div className="bg-[#0f172a] min-h-screen pb-[80px] flex items-center justify-center">
+                  <div className="text-[#cbd5e1] text-center">
+                    <p className="text-2xl font-bold mb-2">⚙️ Configurações</p>
+                    <p>Página de configurações em desenvolvimento</p>
+                  </div>
+                </div>
               </ProtectedRoute>
             }
           />

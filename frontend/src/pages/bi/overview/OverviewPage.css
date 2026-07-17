@@ -1,49 +1,45 @@
-/* Overview Page Styles */
+/* Overview Page Modern Styles */
+/* Tailwind CSS handles most styling; this file is for animations and transitions */
+
 .overview-page {
-  min-height: 100vh;
-  background-color: #f9fafb;
+  /* Base styles handled by inline Tailwind classes */
 }
 
+/* Error banner animations */
 .error-banner {
-  background-color: #fef3c7;
-  border: 1px solid #fcd34d;
-  border-bottom: none;
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #92400e;
-  font-size: 14px;
+  animation: slideDown 300ms ease-out;
 }
 
-.error-icon {
-  font-size: 20px;
-  flex-shrink: 0;
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.error-banner p {
-  margin: 0;
-  line-height: 1.5;
-}
-
-.error-note {
-  color: #b45309;
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-@media (prefers-color-scheme: dark) {
+/* Smooth page transitions */
+@media (prefers-reduced-motion: no-preference) {
   .overview-page {
-    background-color: #111827;
+    animation: fadeIn 400ms ease-out;
   }
+}
 
-  .error-banner {
-    background-color: #78350f;
-    border-color: #92400e;
-    color: #fef3c7;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
   }
+  to {
+    opacity: 1;
+  }
+}
 
-  .error-note {
-    color: #fcd34d;
+/* Mobile-first responsive padding for bottom navigation */
+@media (max-width: 768px) {
+  .overview-page {
+    padding-bottom: 20px;
   }
 }

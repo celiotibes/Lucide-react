@@ -1,10 +1,12 @@
 /**
  * BI Overview Page
  * Dashboard principal com visão geral dos KPIs financeiros
+ * Integrado com Design System Moderno (Glassmorphism, Bento Grid, Bottom Navigation)
  */
 
 import React, { useState, useEffect } from 'react';
 import { KPIDashboard } from '../../../components/bi/dashboard/KPIDashboard';
+import { BottomNavigation } from '../../../components/modern';
 import { FinancialKPIs, BiFilterState } from '../../../types/bi';
 import './OverviewPage.css';
 
@@ -62,13 +64,22 @@ export const OverviewPage: React.FC = () => {
     setFilters(newFilters);
   };
 
+  const navItems = [
+    { label: 'Dashboard', path: '/dashboard', icon: '📊' },
+    { label: 'Relatórios', path: '/reports', icon: '📄' },
+    { label: 'Análises', path: '/analytics', icon: '📈' },
+    { label: 'Configurações', path: '/settings', icon: '⚙️' },
+  ];
+
   return (
-    <div className="overview-page">
+    <div className="overview-page bg-[#0f172a] min-h-screen pb-[80px]">
       {error && (
-        <div className="error-banner">
-          <span className="error-icon">⚠️</span>
-          <p>{error}</p>
-          <p className="error-note">Exibindo dados mockados para demonstração</p>
+        <div className="mx-4 mt-4 p-4 bg-[#ef4444]/10 border border-[#ef4444] rounded-lg flex items-start gap-3">
+          <span className="text-xl">⚠️</span>
+          <div>
+            <p className="text-[#ef4444] font-medium">{error}</p>
+            <p className="text-[#94a3b8] text-sm mt-1">Exibindo dados mockados para demonstração</p>
+          </div>
         </div>
       )}
 
@@ -78,6 +89,8 @@ export const OverviewPage: React.FC = () => {
         filters={filters}
         onFilterChange={handleFilterChange}
       />
+
+      <BottomNavigation items={navItems} />
     </div>
   );
 };
