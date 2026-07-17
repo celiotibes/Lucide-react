@@ -37,6 +37,9 @@ import {
   PieChart as PieChartIcon,
 } from 'lucide-react';
 import { AlertasWidget } from '../components/AlertasWidget';
+import { useLiveData } from '../hooks/useLiveData';
+import { LastUpdatedLabel } from '../components/LiveIndicator';
+import { useFiltros } from '../components/FilterContext';
 
 interface DashboardState {
   kpis: KPIFinanceiro[];
@@ -53,60 +56,70 @@ interface DashboardState {
 }
 
 export default function BiDashboard() {
-  const [state, setState] = useState<DashboardState>({
-    kpis: [],
-    residenciais: [],
-    prestadores: [],
-    carregando: true,
-  });
+  const { filtros, atualizarFiltro } = useFiltros();
 
-  const [dataInicio, setDataInicio] = useState<string>(() => {
+  // Use filtros globais ou valores padrão
+  const [localDataInicio, setLocalDataInicio] = useState<string>(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 11);
     return d.toISOString().split('T')[0];
   });
 
-  const [dataFim, setDataFim] = useState<string>(
+  const [localDataFim, setLocalDataFim] = useState<string>(
     () => new Date().toISOString().split('T')[0]
   );
 
-  useEffect(() => {
-    carregarDados();
-  }, [dataInicio, dataFim]);
-
-  async function carregarDados() {
-    setState((prev) => ({ ...prev, carregando: true }));
-
-    try {
-      const [kpisRes, residenciaisRes, prestadoresRes] = await Promise.all([
-        obterKPIsFinanceiros(dataInicio, dataFim),
-        obterResumoResidenciais(dataInicio, dataFim),
-        obterPerformancePrestadores(dataInicio, dataFim),
-      ]);
-
-      if (kpisRes.sucesso && residenciaisRes.sucesso && prestadoresRes.sucesso) {
-        setState({
-          kpis: kpisRes.kpis || [],
-          residenciais: residenciaisRes.residenciais || [],
-          prestadores: prestadoresRes.prestadores || [],
-          totalizadores: kpisRes.totalizadores,
-          carregando: false,
-        });
-      } else {
-        setState((prev) => ({
-          ...prev,
-          carregando: false,
-          erro: 'Erro ao carregar dados',
-        }));
-      }
-    } catch (erro) {
-      setState((prev) => ({
-        ...prev,
-        carregando: false,
-        erro: erro instanceof Error ? erro.message : 'Erro desconhecido',
-      }));
+  // Live data hooks
+  const { data: kpisData, loading: kpisLoading, lastUpdated: kpisUpdated } = useLiveData(
+    async () => {
+      const res = await obterKPIsFinanceiros(localDataInicio, localDataFim);
+      return res.sucesso ? res.kpis || [] : [];
+    },
+    {
+      dependsOnTables: ['fact_faturamento', 'fact_despesa', 'fact_recebimento'],
+      refreshInterval: 30000
     }
-  }
+  );
+
+  const { data: residenciaisData, loading: residenciaisLoading } = useLiveData(
+    async () => {
+      const res = await obterResumoResidenciais(localDataInicio, localDataFim);
+      return res.sucesso ? res.residenciais || [] : [];
+    },
+    { dependsOnTables: ['fact_despesa', 'fact_faturamento'] }
+  );
+
+  const { data: prestadoresData, loading: prestadoresLoading } = useLiveData(
+    async () => {
+      const res = await obterPerformancePrestadores(localDataInicio, localDataFim);
+      return res.sucesso ? res.prestadores || [] : [];
+    },
+    { dependsOnTables: ['fact_apontamento'] }
+  );
+
+  const kpisRes = {
+    sucesso: true,
+    kpis: kpisData || [],
+    totalizadores: kpisData && kpisData.length > 0 ? {
+      faturamentoTotal: kpisData.reduce((sum, k) => sum + (k.faturamentoTotal || 0), 0),
+      receitaLiquidaTotal: kpisData.reduce((sum, k) => sum + (k.receitaLiquida || 0), 0),
+      custoTotal: kpisData.reduce((sum, k) => sum + (k.custoOperacional || 0) + (k.custoDespesas || 0), 0),
+      margemMedia: kpisData.length > 0 ? kpisData.reduce((sum, k) => sum + (k.margemPercentual || 0), 0) / kpisData.length : 0,
+    } : undefined,
+  };
+
+  const state: DashboardState = {
+    kpis: kpisRes.kpis || [],
+    residenciais: residenciaisData || [],
+    prestadores: prestadoresData || [],
+    carregando: kpisLoading || residenciaisLoading || prestadoresLoading,
+    totalizadores: kpisRes.totalizadores,
+  };
+
+  const carregarDados = () => {
+    // Force refresh via live data hooks
+    window.location.reload();
+  };
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -120,32 +133,35 @@ export default function BiDashboard() {
         </div>
 
         {/* Filtros de Data */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8 border border-gray-200 dark:border-gray-700">
           <div className="flex gap-4 items-end flex-wrap">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Data Início</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data Início</label>
               <input
                 type="date"
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={localDataInicio}
+                onChange={(e) => setLocalDataInicio(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Data Fim</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data Fim</label>
               <input
                 type="date"
-                value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={localDataFim}
+                onChange={(e) => setLocalDataFim(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <button
               onClick={carregarDados}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium"
             >
               Atualizar
             </button>
+            <div className="ml-auto flex items-center gap-2">
+              <LastUpdatedLabel timestamp={kpisUpdated} loading={state.carregando} />
+            </div>
           </div>
         </div>
 
@@ -156,14 +172,14 @@ export default function BiDashboard() {
 
         {/* KPIs Principais */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-600">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-blue-600 dark:border-blue-500">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-blue-600" />
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <DollarSign className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Faturamento Total</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Faturamento Total</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   R$ {(state.totalizadores?.faturamentoTotal || 0).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                   })}
@@ -172,14 +188,14 @@ export default function BiDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-600">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-green-600 dark:border-green-500">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-green-600" />
+              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Receita Líquida</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Receita Líquida</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   R$ {(state.totalizadores?.receitaLiquidaTotal || 0).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                   })}
@@ -188,14 +204,14 @@ export default function BiDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-600">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-purple-600 dark:border-purple-500">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <BarChart3 className="w-6 h-6 text-purple-600" />
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Custo Total</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Custo Total</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   R$ {(state.totalizadores?.custoTotal || 0).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                   })}
@@ -204,14 +220,14 @@ export default function BiDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-600">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-orange-600 dark:border-orange-500">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <PieChartIcon className="w-6 h-6 text-orange-600" />
+              <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <PieChartIcon className="w-6 h-6 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Margem Média</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Margem Média</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {(state.totalizadores?.margemMedia || 0).toFixed(1)}%
                 </p>
               </div>
@@ -222,8 +238,8 @@ export default function BiDashboard() {
         {/* Gráficos Principais */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Faturamento vs Receita Líquida */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Faturamento vs Receita Líquida</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Faturamento vs Receita Líquida</h2>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={state.kpis}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -256,8 +272,8 @@ export default function BiDashboard() {
           </div>
 
           {/* Margem Percentual Mensal */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Evolução de Margem</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Evolução de Margem</h2>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={state.kpis}>
                 <CartesianGrid strokeDasharray="3 3" />
