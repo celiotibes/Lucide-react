@@ -230,7 +230,7 @@ function Conteudo() {
         {aba === "contratos" && <ContratosInadimplenciaView />}
         {aba === "reajustes" && <ReajustesRescisaoView />}
         {aba === "caucao" && <CaucaoView />}
-        {aba === "financiamentos" && <FinanciamentosView />}
+        {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
         {aba === "patrimonio" && <PatrimonioView />}
         {aba === "indices" && <IndicesEconomicosView />}
         {aba === "renda" && <RendaTributavelView />}

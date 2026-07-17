@@ -1,13 +1,20 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Search } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { compararComTransacoes, type Financiamento } from "../domain/financiamento/amortizacao";
 import type { Imovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
+import type { FiltroTransacoesInicial } from "./TransacoesView";
 
-export function FinanciamentosView() {
+function ultimoDiaDoMes(mesIso: string): string {
+  const [ano, mes] = mesIso.split("-").map(Number);
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  return `${mesIso}-${String(ultimoDia).padStart(2, "0")}`;
+}
+
+export function FinanciamentosView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransacoesInicial) => void }) {
   const { db, versao } = useDb();
   const [financiamentoSelecionadoId, setFinanciamentoSelecionadoId] = useState<number | null>(null);
 
@@ -98,6 +105,7 @@ export function FinanciamentosView() {
                   <th className="num">Amortização teórica</th>
                   <th className="num">Amortização cobrada</th>
                   <th>Situação</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -112,11 +120,25 @@ export function FinanciamentosView() {
                     <td>
                       {d.possivelAnatocismo ? <span className="pill critical">divergente</span> : <span className="pill good">confere</span>}
                     </td>
+                    <td>
+                      {aoDrillDown && financiamentoAtivo && (
+                        <button
+                          className="btn"
+                          style={{ padding: "3px 8px", fontSize: 12, display: "inline-flex", gap: 4, alignItems: "center" }}
+                          title="Ver os lançamentos de juros/amortização deste mês na aba Transações"
+                          onClick={() =>
+                            aoDrillDown({ imovelId: financiamentoAtivo.imovel_id, dataInicio: `${d.mes}-01`, dataFim: ultimoDiaDoMes(d.mes) })
+                          }
+                        >
+                          <Search size={11} /> Ver
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {divergencias.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                    <td colSpan={8} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                       {financiamentoAtivo.sistema === "OUTRO"
                         ? "Sistema \"Outro\" não tem cronograma teórico SAC/Price — não há base de comparação de anatocismo para ele."
                         : "Nenhuma transação lançada para este imóvel dentro da janela do cronograma."}
