@@ -26,6 +26,7 @@ import { TemplateMatchingPanel } from './components/templates/TemplateMatchingPa
 import { AdvancedSearchUI } from './components/search/AdvancedSearchUI'
 import { AIProviderStats } from './components/aiOptimization/AIProviderStats'
 import { BudgetDashboard } from './components/aiOptimization/BudgetDashboard'
+import { FinancialDashboard } from './components/bi/FinancialDashboard'
 import { ImportExportPanel } from './components/documents/ImportExportPanel'
 import { TemplateManager } from './components/templates/TemplateManager'
 import { DocumentSharingManager } from './components/sharing/DocumentSharingManager'
@@ -57,7 +58,7 @@ function App() {
 
   // FASE 8: Budget tracking e alertas de custo
   useBudgetAlerts()
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard' | 'financial-dashboard'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -215,6 +216,8 @@ function App() {
                                                               ? 'Otimize custos de IA com roteamento automático por provedor'
                                                               : paginaAtiva === 'budget-dashboard'
                                                                 ? 'Rastreie gastos mensais e controle seu orçamento de IA em tempo real'
+                                                              : paginaAtiva === 'financial-dashboard'
+                                                                ? 'Visualize análises financeiras com gráficos de cascata, fluxo de caixa e KPIs'
                                                                 : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
@@ -471,6 +474,15 @@ function App() {
           >
             💰 Orçamento
           </button>
+          <button
+            onClick={() => setPaginaAtiva('financial-dashboard')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'financial-dashboard' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📊 Financeiro
+          </button>
         </div>
         <div style={styles.versao}>
           <span style={{ display: 'block', marginBottom: '4px' }}>FASE 4.2 - Frontend LLM</span>
@@ -713,6 +725,12 @@ function App() {
         {paginaAtiva === 'budget-dashboard' && (
           <main style={styles.mainFullWidth}>
             <BudgetDashboard />
+          </main>
+        )}
+
+        {paginaAtiva === 'financial-dashboard' && (
+          <main style={styles.mainFullWidth}>
+            <FinancialDashboard />
           </main>
         )}
       </div>

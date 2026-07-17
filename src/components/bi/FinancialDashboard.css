@@ -1,0 +1,283 @@
+.financial-dashboard {
+  padding: 20px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.dashboard-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 24px;
+}
+
+.period-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.period-btn {
+  background: #2196f3;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.period-btn:hover {
+  background: #1976d2;
+}
+
+.period-display {
+  font-weight: 600;
+  color: #333;
+  min-width: 100px;
+  text-align: center;
+  font-family: monospace;
+}
+
+.summary-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2196f3;
+}
+
+.summary-divider {
+  width: 1px;
+  height: 40px;
+  background: #e0e0e0;
+}
+
+.loading,
+.error,
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+  font-size: 16px;
+}
+
+.error {
+  color: #f44336;
+  background: #ffebee;
+  border-radius: 8px;
+}
+
+.insights-section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.insights-section h3 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.insight-card {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 6px;
+  border-left: 4px solid;
+}
+
+.insight-card h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.insight-card p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.insight-icon {
+  font-size: 24px;
+  min-width: 32px;
+}
+
+.insight-content {
+  flex: 1;
+}
+
+.insight-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-left-color: #4caf50;
+}
+
+.insight-warning {
+  background: #fff3e0;
+  color: #e65100;
+  border-left-color: #ff9800;
+}
+
+.insight-critical {
+  background: #ffebee;
+  color: #c62828;
+  border-left-color: #f44336;
+}
+
+.data-info {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .financial-dashboard {
+    background: #1e1e1e;
+  }
+
+  .dashboard-header h2 {
+    color: #e0e0e0;
+  }
+
+  .period-selector {
+    background: #2d2d2d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .period-display {
+    color: #e0e0e0;
+  }
+
+  .summary-box {
+    background: #2d2d2d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .summary-label {
+    color: #888;
+  }
+
+  .summary-value {
+    color: #4db8ff;
+  }
+
+  .summary-divider {
+    background: #404040;
+  }
+
+  .insights-section {
+    background: #2d2d2d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .insights-section h3 {
+    color: #e0e0e0;
+  }
+
+  .insight-success {
+    background: #1a3a1a;
+    color: #66bb6a;
+  }
+
+  .insight-warning {
+    background: #3a2f1f;
+    color: #ffb74d;
+  }
+
+  .insight-critical {
+    background: #3a1f1f;
+    color: #ff6b6b;
+  }
+
+  .data-info {
+    color: #666;
+    border-top-color: #404040;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .financial-dashboard {
+    padding: 12px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .period-selector {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .summary-box {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .summary-divider {
+    width: 40px;
+    height: 1px;
+  }
+
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
+}
