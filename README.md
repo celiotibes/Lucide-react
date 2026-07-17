@@ -75,7 +75,12 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
   coluna PF × Negócio (derivada do grupo da conta: `pessoal` é PF, `receita`/`despesa`
   é a atividade de locação, `transferencia` — entre contas próprias, caução — fica à
   parte por não ser nem um nem outro) e exportação em CSV do mapa de conciliação
-  completo (Data, Descrição, Valor, Categoria, Imóvel, PF/Negócio, Origem).
+  completo (Data, Descrição, Valor, Categoria, Imóvel, PF/Negócio, Origem). Filtros
+  manuais por categoria, imóvel e intervalo de data — e é o destino do drill-down do
+  resto do app: uma barra da cascata do DRE, uma célula do mapa de calor, um bloco do
+  Sankey, um achado da Auditoria forense ou um mês divergente em Financiamentos abrem
+  aqui já filtrados nos lançamentos exatos envolvidos, em vez de só mostrar o total
+  agregado.
 - **Contratos e inadimplência**: lista de contratos de locação e competências em
   aberto com dias de atraso, multa e juros de mora calculados pelas cláusulas de
   cada contrato.
