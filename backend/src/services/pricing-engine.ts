@@ -1,5 +1,6 @@
 import { query } from "../db.js";
 import { Logger } from "../shared/logger";
+import { occupancyCache } from "../shared/cache";
 
 interface PricingRule {
   id: string;
@@ -46,34 +47,44 @@ class PricingEngine {
   async getHistoricalOccupancy(
     days: number = 90
   ): Promise<Map<string, number>> {
-    const occupancyMap = new Map<string, number>();
-    const endDate = new Date();
-    const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+    // Try cache first
+    return occupancyCache.getOrFetch(
+      this.propertyId,
+      days,
+      async () => {
+        this.logger.debug('Fetching fresh occupancy data', { propertyId: this.propertyId, days });
 
-    const result = await query(
-      `SELECT
-        slot_date,
-        CASE
-          WHEN status = 'booked' THEN 1.0
-          WHEN status = 'blocked' THEN 0.5
-          ELSE 0.0
-        END as occupancy
-      FROM calendar_slots
-      WHERE property_id = $1
-        AND slot_date BETWEEN $2 AND $3
-      ORDER BY slot_date`,
-      [
-        this.propertyId,
-        startDate.toISOString().split("T")[0],
-        endDate.toISOString().split("T")[0],
-      ]
+        const occupancyMap = new Map<string, number>();
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+
+        const result = await query(
+          `SELECT
+            slot_date,
+            CASE
+              WHEN status = 'booked' THEN 1.0
+              WHEN status = 'blocked' THEN 0.5
+              ELSE 0.0
+            END as occupancy
+          FROM calendar_slots
+          WHERE property_id = $1
+            AND slot_date BETWEEN $2 AND $3
+          ORDER BY slot_date`,
+          [
+            this.propertyId,
+            startDate.toISOString().split("T")[0],
+            endDate.toISOString().split("T")[0],
+          ]
+        );
+
+        for (const row of result.rows) {
+          occupancyMap.set(row.slot_date, row.occupancy);
+        }
+
+        this.logger.debug('Occupancy data cached', { propertyId: this.propertyId, records: occupancyMap.size });
+        return occupancyMap;
+      }
     );
-
-    for (const row of result.rows) {
-      occupancyMap.set(row.slot_date, row.occupancy);
-    }
-
-    return occupancyMap;
   }
 
   async getSeasonalMultiplier(date: string): Promise<number> {

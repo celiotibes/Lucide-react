@@ -8,6 +8,7 @@ import { pool } from '../db/pool';
 import { redis } from '../cache/redis';
 import { Logger } from '../shared/logger';
 import { TripAdvisorClient } from '../integrations/tripadvisor/tripadvisor-client';
+import { ratingCache } from '../shared/cache';
 
 const logger = Logger.getLogger('SyncTripAdvisorRatingsWorker');
 
@@ -36,10 +37,27 @@ const worker = new Worker(
         return { status: 'skipped' };
       }
 
-      // Buscar ratings
+      // Buscar ratings (com cache)
       logger.debug('Fetching TripAdvisor ratings', { propertyId, externalId: listing.external_id });
-      const ratings = await tripadvisor.getPropertyRatings(listing.external_id);
-      logger.info('TripAdvisor ratings fetched', { propertyId, rating: ratings.overall_rating, reviewCount: ratings.review_count });
+      const ratings = await ratingCache.getRatingOrFetch(
+        propertyId,
+        'tripadvisor',
+        async () => {
+          const freshRatings = await tripadvisor.getPropertyRatings(listing.external_id);
+          return {
+            overall_rating: freshRatings.overall_rating,
+            review_count: freshRatings.review_count,
+            rating_histogram: freshRatings.rating_histogram,
+          };
+        }
+      );
+
+      logger.info('TripAdvisor ratings fetched', {
+        propertyId,
+        rating: ratings.overall_rating,
+        reviewCount: ratings.review_count,
+        source: 'cache_or_api',
+      });
 
       // Salvar ratings
       await saveRatings(propertyId, 'tripadvisor', ratings);
