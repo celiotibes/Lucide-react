@@ -36,6 +36,7 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
 } from 'lucide-react';
+import { AlertasWidget } from '../components/AlertasWidget';
 
 interface DashboardState {
   kpis: KPIFinanceiro[];
@@ -146,6 +147,11 @@ export default function BiDashboard() {
               Atualizar
             </button>
           </div>
+        </div>
+
+        {/* Widget de Alertas */}
+        <div className="mb-8">
+          <AlertasWidget autoRefresh={true} refreshInterval={60000} />
         </div>
 
         {/* KPIs Principais */}
