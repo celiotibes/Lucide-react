@@ -78,6 +78,10 @@ import mlPredictionController from '@/api/controllers/mlPredictionController';
 import autoReportController from '@/api/controllers/autoReportController';
 import autoResponseController from '@/api/controllers/autoResponseController';
 import complianceDashboardController from '@/api/controllers/complianceDashboardController';
+
+// Phase 12: Webhook Integration & Push Notifications
+import webhookController from '@/api/controllers/webhookController';
+import { webhookIntegrationService } from '@services/WebhookIntegrationService';
 import { mlPredictionService } from '@services/MLPredictionService';
 import { autoReportService } from '@services/AutoReportService';
 import { autoResponseService } from '@services/AutoResponseService';
@@ -269,6 +273,10 @@ app.use('/api/v1/responses', verifyToken, autoResponseController);
 
 // Phase 11: Compliance Dashboard & LGPD Monitoring
 app.use('/api/v1/compliance', verifyToken, complianceDashboardController);
+
+// Phase 12: Webhook Integration & Push Notifications
+app.use('/api/v1/webhooks', verifyToken, webhookController);
+app.use('/api/v1/notifications', verifyToken, webhookController);
 
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
