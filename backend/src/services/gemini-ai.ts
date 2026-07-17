@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import Logger from "../logger.js";
+import { Logger } from "../shared/logger";
 
 interface GeminiRequest {
   contents: Array<{
@@ -47,6 +47,7 @@ class GeminiAiClient {
   private apiKey: string;
   private baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
   private freeQuotaExceeded = false;
+  private logger = Logger.getLogger('GeminiAiClient');
 
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || "";
@@ -55,13 +56,16 @@ class GeminiAiClient {
       timeout: 30000,
     });
 
+    this.logger.debug('Initializing GeminiAiClient', {
+      baseUrl: this.baseUrl,
+      apiKey: this.apiKey?.substring(0, 5) + '...'
+    });
+
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response?.status === 429) {
-          Logger.warn("Rate limit exceeded - switching to fallback", {
-            context: "GeminiAiClient",
-          });
+          this.logger.warn('Rate limit exceeded - switching to fallback');
           this.freeQuotaExceeded = true;
         }
         throw error;
@@ -71,6 +75,7 @@ class GeminiAiClient {
 
   private async callGemini(prompt: string): Promise<string> {
     if (!this.apiKey) {
+      this.logger.error('GEMINI_API_KEY not configured', new Error('Missing API key'));
       throw new Error("GEMINI_API_KEY not configured");
     }
 
@@ -91,6 +96,7 @@ class GeminiAiClient {
     };
 
     try {
+      this.logger.debug('Calling Gemini API', { promptLength: prompt.length });
       const response = await this.client.post<GeminiResponse>(
         this.baseUrl,
         request,
@@ -106,13 +112,18 @@ class GeminiAiClient {
         response.data.candidates.length > 0 &&
         response.data.candidates[0].content.parts.length > 0
       ) {
-        return response.data.candidates[0].content.parts[0].text;
+        const result = response.data.candidates[0].content.parts[0].text;
+        this.logger.debug('Successfully received response from Gemini', { resultLength: result.length });
+        return result;
       }
 
       throw new Error("Empty response from Gemini");
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 429) {
         this.freeQuotaExceeded = true;
+        this.logger.warn('Gemini API rate limit reached');
+      } else {
+        this.logger.error('Failed to call Gemini API', error as Error);
       }
       throw error;
     }

@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import Logger from "../logger.js";
+import { Logger } from "../shared/logger";
 
 interface VrboProperty {
   propertyId: string;
@@ -35,6 +35,7 @@ class VrboApiClient {
   private requestCount = 0;
   private lastResetTime = Date.now();
   private maxRequestsPerSecond = 10;
+  private logger = Logger.getLogger('VrboApiClient');
 
   constructor() {
     this.apiKey = process.env.VRBO_API_KEY || "";
@@ -48,13 +49,16 @@ class VrboApiClient {
       timeout: 30000,
     });
 
+    this.logger.debug('Initializing VrboApiClient', {
+      baseUrl: this.baseUrl,
+      apiKey: this.apiKey?.substring(0, 5) + '...'
+    });
+
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response?.status === 429) {
-          Logger.error("Rate limit exceeded", error, {
-            context: "VrboApiClient",
-          });
+          this.logger.warn('Rate limit exceeded', error);
         }
         throw error;
       }
@@ -86,12 +90,13 @@ class VrboApiClient {
     await this.waitForRateLimit();
 
     try {
+      this.logger.debug('Fetching properties from VRBO');
       const response = await this.client.get("/v1/properties");
-      return response.data.properties || [];
+      const properties = response.data.properties || [];
+      this.logger.debug('Successfully fetched properties', { count: properties.length });
+      return properties;
     } catch (error) {
-      Logger.error("Failed to fetch properties", error, {
-        context: "VrboApiClient",
-      });
+      this.logger.error('Failed to fetch properties', error as Error);
       throw error;
     }
   }

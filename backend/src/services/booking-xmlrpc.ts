@@ -1,5 +1,6 @@
 import xmlrpc from "xmlrpc";
 import pLimit from "p-limit";
+import { Logger } from "../shared/logger";
 
 interface BookingAvailability {
   date: string;
@@ -17,6 +18,7 @@ class BookingXmlRpcClient {
   private rateLimitTokens: RateLimiterToken[] = [];
   private maxRequestsPerSecond = 2;
   private limiter: any;
+  private logger = Logger.getLogger('BookingXmlRpcClient');
 
   constructor() {
     this.accountId = process.env.BOOKING_ACCOUNT_ID || "";
@@ -25,6 +27,12 @@ class BookingXmlRpcClient {
     const protocol = "https";
     const hostname = "secure.booking.com";
     const path = "/sync/v2";
+
+    this.logger.debug('Initializing BookingXmlRpcClient', {
+      hostname,
+      path,
+      accountId: this.accountId?.substring(0, 5) + '...'
+    });
 
     this.client = xmlrpc.createSecureClient({
       host: hostname,
@@ -47,6 +55,7 @@ class BookingXmlRpcClient {
       const oldestToken = this.rateLimitTokens[0];
       const waitTime = oldestToken.timestamp + 1000 - now;
       if (waitTime > 0) {
+        this.logger.debug('Rate limit reached, waiting', { waitTime_ms: waitTime });
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
     }
@@ -58,13 +67,16 @@ class BookingXmlRpcClient {
     await this.waitForRateLimit();
 
     return new Promise((resolve, reject) => {
+      this.logger.debug('Fetching properties from Booking.com');
       this.client.methodCall(
         "get_properties",
         [{ auth: { username: this.accountId, password: this.apiKey } }],
         (error: any, value: any) => {
           if (error) {
+            this.logger.error('Failed to fetch properties', error);
             reject(error);
           } else {
+            this.logger.debug('Successfully fetched properties', { count: value?.length || 0 });
             resolve(value);
           }
         }
@@ -80,6 +92,7 @@ class BookingXmlRpcClient {
     await this.waitForRateLimit();
 
     return new Promise((resolve, reject) => {
+      this.logger.debug('Fetching availability', { propertyId, startDate, endDate });
       const params = {
         auth: {
           username: this.accountId,
@@ -95,12 +108,15 @@ class BookingXmlRpcClient {
         [params],
         (error: any, value: any) => {
           if (error) {
+            this.logger.error('Failed to fetch availability', error, { propertyId });
             reject(error);
           } else {
             try {
               const availability = this.parseAvailabilityResponse(value);
+              this.logger.debug('Successfully parsed availability', { propertyId, count: availability.length });
               resolve(availability);
             } catch (parseError) {
+              this.logger.error('Failed to parse availability response', parseError as Error, { propertyId });
               reject(parseError);
             }
           }
