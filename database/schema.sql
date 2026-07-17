@@ -3010,3 +3010,60 @@ create index idx_fechamentos_prestador_status on fechamentos_prestador(contrato_
 create index idx_fechamentos_prestador_data on fechamentos_prestador(data_inicio, data_fim);
 create index idx_solicitacoes_eventual_status on solicitacoes_prestador_eventual(status, residencial_id);
 create index idx_alocacao_prestador_ativo on alocacao_prestador_residencial(prestador_id) where ativo = true;
+
+-- ============================================================================
+-- 20. INTEGRAÇÃO PRESTADORES ↔ ORDENS DE SERVIÇO (TASK #51)
+-- ============================================================================
+-- Permite associar apontamentos de prestadores com ordens de serviço específicas,
+-- viabilizando cobrança automática de custos de mão de obra.
+
+alter table apontamentos_prestador add column ordem_servico_id uuid references ordens_servico(id) on delete set null;
+create index idx_apontamentos_ordem_servico on apontamentos_prestador(ordem_servico_id) where ordem_servico_id is not null;
+
+-- Rateio de custos: quando um apontamento não está vinculado a uma OS específica,
+-- os custos são rateados entre os residenciais visitados (via apontamentos_residencial_detalhe).
+-- Quando vinculado a uma OS, o custo integral fica alocado à OS.
+
+-- Tabela de custo de apontamento (derivada dos apontamentos vinculados a uma OS)
+create table apontamento_custos (
+  id uuid primary key default gen_random_uuid(),
+  apontamento_id uuid not null references apontamentos_prestador(id) on delete cascade,
+  ordem_servico_id uuid not null references ordens_servico(id) on delete cascade,
+
+  -- Valores calculados a partir do apontamento
+  horas_trabalhadas numeric(5,2) not null,
+  valor_hora_prestador numeric(10,2) not null,
+  valor_total numeric(14,2) not null,
+
+  -- Deslocamento (se houver)
+  valor_deslocamento numeric(10,2) not null default 0,
+
+  descricao text,
+  criado_em timestamptz not null default now(),
+
+  constraint check_valores_nao_negativos check (horas_trabalhadas >= 0 and valor_hora_prestador >= 0 and valor_deslocamento >= 0)
+);
+
+create index idx_apontamento_custos_ordem_servico on apontamento_custos(ordem_servico_id);
+create index idx_apontamento_custos_apontamento on apontamento_custos(apontamento_id);
+
+-- RLS: apontamento_custos
+alter table apontamento_custos enable row level security;
+create policy admin_full_access_apontamento_custos on apontamento_custos
+  for all using (fn_eh_admin_ou_economista());
+
+create policy prestador_ve_custos_seus_apontamentos on apontamento_custos
+  for select using (
+    exists (
+      select 1 from apontamentos_prestador ap
+      join contratos_prestador cp on ap.contrato_id = cp.id
+      join prestadores_servico ps on cp.prestador_id = ps.id
+      join usuarios u on ps.pessoa_id = u.pessoa_id
+      where ap.id = apontamento_custos.apontamento_id and u.id = auth.uid()
+    )
+  );
+
+-- Trigger para auditoria de custos de apontamento
+create trigger trg_audit_apontamento_custos
+  after insert or update or delete on apontamento_custos
+  for each row execute function fn_audit_trigger();
