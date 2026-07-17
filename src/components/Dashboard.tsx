@@ -4,6 +4,8 @@ import type { SankeyNodeProps, SankeyLinkProps } from "recharts";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { gerarSerieMensal, gerarDre, resultadoLiquido } from "../domain/reports/dre";
+import { gerarCascataDre } from "../domain/reports/dreCascata";
+import { gerarHeatmapDespesas } from "../domain/reports/heatmapDespesas";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia, agingPorFaixa } from "../domain/reconcile/inadimplencia";
 import { calcularDesempenhoPorImovel, agruparDesempenhoPorCidade } from "../domain/reports/desempenhoPorImovel";
@@ -11,6 +13,12 @@ import { gerarFluxoFinanceiro, type NoFluxo } from "../domain/reports/fluxoFinan
 import { formatarMoeda as formatarMoedaCompleta } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
 import type { Imovel } from "../domain/types";
+
+const MESES_ABREVIADOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function formatarMesAbreviado(mesIso: string): string {
+  const [ano, mes] = mesIso.split("-");
+  return `${MESES_ABREVIADOS[Number(mes) - 1]}/${ano.slice(2)}`;
+}
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -63,6 +71,23 @@ function LigacaoSankeyFluxo({ sourceX, targetX, sourceY, targetY, sourceControlX
   );
 }
 
+function corEtapaCascata(tipo: "receita" | "despesa" | "total", valor: number): string {
+  if (tipo === "receita") return "var(--viz-receita)";
+  if (tipo === "despesa") return "var(--viz-despesa)";
+  return valor >= 0 ? "var(--viz-good)" : "var(--viz-critical)";
+}
+
+function TooltipCascata({ active, payload }: { active?: boolean; payload?: { payload: { rotulo: string; valor: number; tipo: "receita" | "despesa" | "total" } }[] }) {
+  if (!active || !payload?.length) return null;
+  const etapa = payload[0].payload;
+  return (
+    <div className="tooltip-viz">
+      <strong>{etapa.rotulo}</strong>
+      <div style={{ color: corEtapaCascata(etapa.tipo, etapa.valor) }}>{formatarMoeda(etapa.valor)}</div>
+    </div>
+  );
+}
+
 function TooltipSerie({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
@@ -104,6 +129,11 @@ export function Dashboard() {
   const desempenhoCidades = useMemo(() => agruparDesempenhoPorCidade(desempenhoImoveis), [desempenhoImoveis]);
 
   const fluxoFinanceiro = useMemo(() => (db ? gerarFluxoFinanceiro(db, dataInicio12m, hoje) : { nodes: [], links: [] }), [db, versao, dataInicio12m, hoje]);
+  const cascataDre = useMemo(() => gerarCascataDre(linhasDre12m), [linhasDre12m]);
+  const heatmapDespesas = useMemo(
+    () => (db ? gerarHeatmapDespesas(db, dataInicio12m, hoje) : { categorias: [], meses: [], celulas: [], valorMaximo: 0 }),
+    [db, versao, dataInicio12m, hoje],
+  );
 
   const aging = useMemo(() => agingPorFaixa(statusInadimplencia), [statusInadimplencia]);
   const dadosAging = Object.entries(aging).map(([faixa, valores]) => ({ faixa, ...valores }));
@@ -147,7 +177,40 @@ export function Dashboard() {
         <KpiTile label="Em aberto (inadimplência)" value={formatarMoeda(totalEmAberto)} variant={totalEmAberto > 0 ? "critical" : "good"} />
       </div>
 
-      <div className="grid-2">
+      <div className="card" style={{ marginTop: 20 }}>
+        <h2 className="section-title">Cascata do resultado (12 meses)</h2>
+        <p style={{ maxWidth: "72ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 14 }}>
+          Da receita bruta até o resultado líquido, categoria de despesa por categoria, na ordem de quem mais pesa —
+          mostra visualmente como cada corte de despesa "corrói" o resultado, em vez de só listar totais isolados.
+        </p>
+        <div style={{ width: "100%", height: 300, background: "var(--viz-surface)", borderRadius: 6 }}>
+          <ResponsiveContainer>
+            <BarChart data={cascataDre} margin={{ top: 10, right: 16, left: 0, bottom: 48 }}>
+              <CartesianGrid stroke="var(--viz-grid)" vertical={false} />
+              <XAxis
+                dataKey="rotulo"
+                tick={{ fontSize: 10.5, fill: "var(--viz-muted)" }}
+                axisLine={{ stroke: "var(--viz-baseline)" }}
+                tickLine={false}
+                interval={0}
+                angle={-35}
+                textAnchor="end"
+                height={70}
+              />
+              <YAxis tick={{ fontSize: 11, fill: "var(--viz-muted)" }} axisLine={false} tickLine={false} width={64} tickFormatter={(v) => formatarMoeda(v)} />
+              <Tooltip content={<TooltipCascata />} />
+              <Bar dataKey="base" stackId="cascata" fill="transparent" isAnimationActive={false} />
+              <Bar dataKey="altura" stackId="cascata" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                {cascataDre.map((etapa) => (
+                  <Cell key={etapa.rotulo} fill={corEtapaCascata(etapa.tipo, etapa.valor)} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{ marginTop: 24 }}>
         <div className="card">
           <h2 className="section-title">Receita × despesa × resultado (36 meses)</h2>
           <div style={{ width: "100%", height: 280, background: "var(--viz-surface)", borderRadius: 6 }}>
@@ -238,6 +301,56 @@ export function Dashboard() {
             </table>
           </div>
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 24 }}>
+        <h2 className="section-title">Mapa de calor — despesa por categoria × mês (12 meses)</h2>
+        <p style={{ maxWidth: "72ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 14 }}>
+          Intensidade da cor proporcional ao valor gasto naquela categoria naquele mês — identifica visualmente em
+          qual mês cada centro de custo pesou mais, sem precisar ler linha a linha. Limitado às {heatmapDespesas.categorias.length} maiores
+          categorias do período; o total completo continua nas tabelas acima.
+        </p>
+        {heatmapDespesas.categorias.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhuma despesa lançada no período para montar o mapa de calor.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Categoria</th>
+                  {heatmapDespesas.meses.map((mes) => (
+                    <th key={mes} className="num">{formatarMesAbreviado(mes)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {heatmapDespesas.categorias.map((categoria) => (
+                  <tr key={categoria}>
+                    <td>{categoria}</td>
+                    {heatmapDespesas.meses.map((mes) => {
+                      const celula = heatmapDespesas.celulas.find((c) => c.categoria === categoria && c.mes === mes);
+                      const valor = celula?.valor ?? 0;
+                      const intensidade = heatmapDespesas.valorMaximo > 0 ? Math.round((valor / heatmapDespesas.valorMaximo) * 100) : 0;
+                      return (
+                        <td
+                          key={mes}
+                          className="num"
+                          style={{
+                            background: valor > 0 ? `color-mix(in srgb, var(--viz-despesa) ${Math.max(intensidade, 12)}%, var(--viz-surface))` : undefined,
+                            color: intensidade > 45 ? "#fff" : undefined,
+                            fontSize: 12,
+                          }}
+                        >
+                          {valor > 0 ? formatarMoeda(valor) : ""}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: 24 }}>
