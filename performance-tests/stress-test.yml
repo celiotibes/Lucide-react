@@ -1,0 +1,55 @@
+config:
+  target: "http://localhost:3000"
+  http:
+    timeout: 20
+    max: 50
+  phases:
+    - duration: 30
+      arrivalRate: 5
+      name: "Baseline"
+    - duration: 120
+      arrivalRate: 50
+      rampTo: 200
+      name: "Ramp up to breaking point"
+    - duration: 60
+      arrivalRate: 200
+      name: "Maximum load"
+  processor: "./processor.js"
+
+scenarios:
+  - name: "KPI Endpoint Stress Test"
+    weight: 40
+    flow:
+      - post:
+          url: "/api/bi/kpis"
+          headers:
+            Authorization: "Bearer stress-test-{{ $randomString(10) }}"
+            Content-Type: "application/json"
+          json:
+            startDate: "2024-01-01"
+            endDate: "2024-12-31"
+            propertyIds: ["prop-{{ $randomNumber(1, 1000) }}"]
+          timeout: 15
+
+  - name: "Movements Endpoint Stress Test"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/bi/movements?startDate=2024-06-01&endDate=2024-06-30&limit={{ $randomNumber(10, 100) }}"
+          headers:
+            Authorization: "Bearer stress-test-{{ $randomString(10) }}"
+          timeout: 15
+
+  - name: "Reports Endpoint Stress Test"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/bi/reports/waterfall"
+          headers:
+            Authorization: "Bearer stress-test-{{ $randomString(10) }}"
+            Content-Type: "application/json"
+          json:
+            startDate: "2024-0{{ $randomNumber(1, 9) }}-01"
+            endDate: "2024-0{{ $randomNumber(1, 9) }}-30"
+            propertyId: "prop-{{ $randomNumber(1, 1000) }}"
+          timeout: 15

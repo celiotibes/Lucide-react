@@ -1,236 +1,255 @@
-# Performance Testing Suite - k6
+# 📊 Performance Testing Suite
 
-Complete performance testing suite for Rental Listing Sync system.
+Load testing configurations and utilities for the BI module and core services.
 
-## 5 Load Test Scenarios
-
-### 1. Authentication Load Test (`auth-load.js`)
-**Purpose**: Validate authentication system capacity
-**Load Profile**: 10 req/sec constant for 5 minutes
-**Metrics**:
-- P95 Response Time: < 200ms
-- P99 Response Time: < 500ms
-- Error Rate: < 0.1%
-
-**What it tests**:
-- User signup
-- User login
-- Token validation (/auth/me)
-
-### 2. Calendar API Test (`calendar-api.js`)
-**Purpose**: Validate calendar and booking API performance
-**Load Profile**: 50 req/sec constant for 5 minutes
-**Metrics**:
-- Calendar read P95: < 100ms (cached)
-- Booking create P95: < 200ms
-- Redis cache hit rate: > 80%
-- Error Rate: < 0.1%
-
-**What it tests**:
-- Calendar fetch (180-day range)
-- Calendar filter (date range)
-- Booking creation
-
-### 3. OTA Webhook Simulation (`webhook-simulation.js`)
-**Purpose**: Validate webhook processing under peak load
-**Load Profile**: 
-- Booking.com: 60 events/sec
-- VRBO: 40 events/sec
-- Total: 100 events/sec for 2 minutes
-**Metrics**:
-- Message latency P95: < 500ms
-- Queue processing: < 1000 pending jobs
-- Error Rate: < 1%
-
-**What it tests**:
-- HMAC signature verification
-- Queue job processing
-- Database writes under load
-
-### 4. Dynamic Pricing Test (`pricing-engine.js`)
-**Purpose**: Validate pricing calculation performance
-**Load Profile**: 20 req/sec constant for 3 minutes
-**Metrics**:
-- Calculation P95: < 200ms
-- Forecast P95: < 300ms
-- Error Rate: < 1%
-
-**What it tests**:
-- Dynamic price calculation
-- Demand forecasting
-- AI pricing logic
-
-### 5. Concurrent Users Test (`concurrent-users.js`)
-**Purpose**: Validate system stability under variable load
-**Load Profile**: Ramp 0→500 users over 2min, sustain 5min, ramp down 3min
-**Metrics**:
-- Response time stability (no degradation)
-- Memory stability (no leaks)
-- Connection pool health
-- Error Rate: < 1%
-
-**What it tests**:
-- User browsing journey
-- Concurrent property access
-- Booking creation at scale
-
-## Installation
+## Prerequisites
 
 ```bash
-# Install k6
-# macOS
-brew install k6
+# Install Artillery globally
+npm install -g artillery
 
-# Linux
-sudo apt-get install k6
-
-# Docker
-docker run -v $(pwd):/scripts -it grafana/k6:latest run /scripts/auth-load.js
-
-# Windows
-choco install k6
+# Or use locally
+npm install --save-dev artillery
 ```
+
+## Test Configurations
+
+### 1. Load Test (`load-test.yml`)
+
+Standard load testing scenario with three phases:
+- **Warm up** (60s at 10 RPS): Baseline performance
+- **Sustained load** (120s at 20 RPS): Normal operations
+- **Stress test** (60s at 50 RPS): Peak load
+
+**Run**:
+```bash
+artillery run load-test.yml
+```
+
+**Generate HTML Report**:
+```bash
+artillery run load-test.yml --output results.json
+artillery report results.json
+```
+
+### 2. Stress Test (`stress-test.yml`)
+
+Aggressive load test to find breaking point:
+- **Baseline** (30s at 5 RPS): Control measurement
+- **Ramp up** (120s from 50 to 200 RPS): Gradual increase
+- **Maximum load** (60s at 200 RPS): Breaking point
+
+**Run**:
+```bash
+artillery run stress-test.yml
+```
+
+### 3. Endurance Test (create as needed)
+
+24+ hour sustained load test to identify memory leaks and performance degradation.
 
 ## Running Tests
 
-### Setup Environment Variables
-```bash
-# Backend should be running on localhost:3000
-export API_URL="http://localhost:3000"
-export AUTH_TOKEN="your-valid-jwt-token"
-export PROPERTY_ID="1"
-export BOOKING_SECRET="your-booking-webhook-secret"
-export VRBO_SECRET="your-vrbo-webhook-secret"
-```
-
-### Individual Test Execution
+### Quick Start
 
 ```bash
-# Authentication load test
-k6 run auth-load.js
+# Install dependencies
+npm install -g artillery
 
-# Calendar API test
-k6 run calendar-api.js --vus 50
+# Run basic load test
+cd performance-tests
+artillery run load-test.yml
 
-# Webhook simulation
-k6 run webhook-simulation.js
-
-# Pricing engine test
-k6 run pricing-engine.js
-
-# Concurrent users test
-k6 run concurrent-users.js
+# Generate report
+artillery report results.json
 ```
 
-### Generate Reports
+### Advanced Usage
 
 ```bash
-# CSV Report
-k6 run auth-load.js --out csv=results.csv
+# Run with custom target URL
+artillery run load-test.yml --target http://staging.example.com:3000
 
-# Summary Report
-k6 run auth-load.js --summary-export=summary.json
+# Run with higher verbosity
+artillery run load-test.yml --verbose
 
-# JSON Report
-k6 run auth-load.js --out json=output.json
+# Run multiple iterations
+for i in {1..5}; do
+  artillery run load-test.yml --output results-run-$i.json
+  artillery report results-run-$i.json
+done
+
+# Combine results
+artillery merge results-run-*.json combined-results.json
+artillery report combined-results.json
 ```
 
-### Run All Tests (Sequential)
+## Expected Results
 
-```bash
-#!/bin/bash
-echo "Running Authentication Load Test..."
-k6 run auth-load.js
+### Successful Load Test
 
-echo "Running Calendar API Test..."
-k6 run calendar-api.js
+```
+Summary Report
+--------------
+  Scenarios launched:  600
+  Scenarios completed: 598
+  Requests launched:   2990
+  Requests completed:  2989
+  Mean response/sec:   24.91
+  Response time (msec):
+    min: 45
+    max: 1250
+    median: 250
+    p95: 520
+    p99: 980
+  Scenario counts:
+    BI API Comprehensive Load Test: 600
+  Codes:
+    200: 2989
+    502: 1
 
-echo "Running Webhook Simulation..."
-k6 run webhook-simulation.js
-
-echo "Running Pricing Engine Test..."
-k6 run pricing-engine.js
-
-echo "Running Concurrent Users Test..."
-k6 run concurrent-users.js
-
-echo "All tests completed!"
+Ramp-up phase: OK - Load increased smoothly
+Sustained phase: OK - Consistent response times
+Stress phase: OK - System handled increased load
 ```
 
-## Success Criteria
+### Performance Issues
 
-All tests must meet these criteria to pass:
-
-| Test | P95 Latency | P99 Latency | Error Rate | Status |
-|------|------------|------------|-----------|--------|
-| Authentication | < 200ms | < 500ms | < 0.1% | ✅ |
-| Calendar API | < 100ms* | < 200ms | < 0.1% | ✅ |
-| Webhooks | < 500ms | < 1000ms | < 1% | ✅ |
-| Pricing | < 200ms | < 300ms | < 1% | ✅ |
-| Concurrent | < 500ms | < 1000ms | < 1% | ✅ |
-
-*Cached reads should be faster
+If you see:
+- p95 response time > 1000ms: Database optimization needed
+- > 5% error rate: System overload or backend issue
+- Memory usage > 80%: Memory leak suspected
+- CPU usage > 90%: Need to scale horizontally
 
 ## Monitoring During Tests
 
-In another terminal, monitor the backend:
-
+### Terminal 1: Run load test
 ```bash
-# Watch logs
-docker-compose logs -f backend
-
-# Monitor database connections
-psql -h localhost -U postgres -d rental_sync -c "SELECT count(*) FROM pg_stat_activity;"
-
-# Monitor Redis
-redis-cli INFO stats
+artillery run load-test.yml
 ```
 
-## Analysis & Optimization
+### Terminal 2: Monitor backend
+```bash
+# Watch backend logs
+sudo journalctl -u lucide-backend -f
 
-After running tests:
+# Or with filtering
+sudo journalctl -u lucide-backend -f | grep ERROR
+```
 
-1. **Review Results**: Check k6 output for failures
-2. **Identify Bottlenecks**: 
-   - High database query times? Add indexes
-   - High memory? Check for leaks
-   - Queue backlog? Increase worker concurrency
-3. **Optimize**:
-   - Add caching
-   - Optimize queries
-   - Increase connection pools
-   - Horizontal scaling
+### Terminal 3: Monitor database
+```bash
+# Connect to database
+psql -h localhost -U postgres -d lucide_bi
 
-## Troubleshooting
+# Monitor active queries
+SELECT pid, query, query_start FROM pg_stat_activity 
+  WHERE query NOT LIKE '%pg_stat_activity%' 
+  ORDER BY query_start;
+```
 
-### Tests failing with 401
-- Ensure AUTH_TOKEN is valid JWT
-- Token may have expired, generate new one from login endpoint
+### Terminal 4: Monitor system
+```bash
+# Watch system metrics
+htop
 
-### Tests failing with 404
-- Ensure API_URL is correct
-- Backend should be running on port 3000
-- Check firewall settings
+# Or
+watch -n 1 'ps aux | grep node'
+```
 
-### Too many connections error
-- Database connection pool exhausted
-- Increase DATABASE_POOL_SIZE in .env
-- Check for connection leaks in code
+## Performance Analysis
 
-### Webhook signature errors
-- Ensure BOOKING_SECRET and VRBO_SECRET match backend .env
-- Check HMAC calculation in webhook-simulation.js
+### Interpreting Results
+
+**Response Time Percentiles**:
+- p50 (median): 50% of requests faster than this
+- p95: 95% of requests faster than this (SLA target)
+- p99: 99% of requests faster than this (rare cases)
+
+**Key Metrics**:
+- **Throughput (RPS)**: Requests per second the system can handle
+- **Success Rate**: Percentage of requests that completed successfully
+- **Error Rate**: Percentage of failed requests
+
+### Common Issues & Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| High response times | Database slow queries | Add indexes, optimize queries |
+| Memory leak | Unbounded cache growth | Implement TTL, add GC |
+| High error rate | Resource exhaustion | Scale horizontally, optimize code |
+| CPU spikes | Expensive calculations | Batch operations, use workers |
+
+## Integration with CI/CD
+
+### Add to GitHub Actions
+
+```yaml
+- name: Run performance tests
+  run: |
+    npm install -g artillery
+    artillery run performance-tests/load-test.yml --output results.json
+    artillery report results.json
+    
+- name: Check performance
+  run: |
+    # Fail if p95 response time > 1000ms
+    if artillery report results.json | grep -q "p95.*[0-9]\{4\}"; then
+      echo "❌ Performance regression detected"
+      exit 1
+    fi
+```
+
+## Database Performance Profiling
+
+Monitor slow queries during test:
+
+```sql
+-- Enable slow query log (PostgreSQL)
+SET log_min_duration_statement = 100; -- Log queries > 100ms
+
+-- View slow queries
+SELECT query, mean_time, max_time, calls 
+FROM pg_stat_statements 
+ORDER BY mean_time DESC 
+LIMIT 10;
+```
+
+## Cache Analysis
+
+Monitor cache during test:
+
+```bash
+# Connect to Redis
+redis-cli -h localhost
+
+# Monitor commands in real-time
+> MONITOR
+
+# Check memory
+> INFO memory
+
+# Check keys
+> KEYS bi:*
+> DBSIZE
+```
 
 ## Next Steps
 
-1. **Baseline Establishment**: Run all tests once to establish baseline metrics
-2. **Stress Testing**: Increase load gradually to find breaking point
-3. **Optimization**: Fix identified bottlenecks
-4. **Regression Testing**: Re-run after optimizations
-5. **Production**: Deploy and monitor real metrics
+1. **Baseline**: Run load test to establish baseline
+2. **Monitor**: Identify bottlenecks and issues
+3. **Optimize**: Apply fixes and improvements
+4. **Retest**: Run test again to verify improvements
+5. **Document**: Record results and SLAs
 
-## References
+## Resources
 
-- [k6 Documentation](https://k6.io/docs/)
-- [PERFORMANCE_TEST_PLAN.md](../PERFORMANCE_TEST_PLAN.md)
-- [Architecture](../ARCHITECTURE.md)
+- [Artillery Docs](https://artillery.io/docs)
+- [Performance Best Practices](https://nodejs.org/en/docs/guides/nodejs-performance/)
+- [PostgreSQL Performance Tuning](https://wiki.postgresql.org/wiki/Performance_Optimization)
+- [Redis Performance Tuning](https://redis.io/topics/optimization)
+
+---
+
+**Last Updated**: 2026-07-17  
+**Maintained by**: Performance Team

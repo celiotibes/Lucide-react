@@ -1,0 +1,71 @@
+config:
+  target: "http://localhost:3000"
+  http:
+    timeout: 30
+    max: 10
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: "Warm up phase"
+    - duration: 120
+      arrivalRate: 20
+      name: "Sustained load"
+    - duration: 60
+      arrivalRate: 50
+      name: "Stress test"
+  processor: "./processor.js"
+
+scenarios:
+  - name: "BI API Comprehensive Load Test"
+    weight: 100
+    flow:
+      # KPI Endpoint Test
+      - post:
+          url: "/api/bi/kpis"
+          headers:
+            Authorization: "Bearer test-token-{{ $randomString(10) }}"
+            Content-Type: "application/json"
+          json:
+            startDate: "2024-06-01"
+            endDate: "2024-06-30"
+            propertyIds: ["prop-123", "prop-456"]
+          capture:
+            json: "$.data.grossRevenue.value"
+            as: "revenue"
+          timeout: 10
+      
+      # Movement Listing Test
+      - get:
+          url: "/api/bi/movements?startDate=2024-06-01&endDate=2024-06-30&limit=50&offset=0"
+          headers:
+            Authorization: "Bearer test-token-{{ $randomString(10) }}"
+          timeout: 10
+      
+      # Waterfall Report Test
+      - post:
+          url: "/api/bi/reports/waterfall"
+          headers:
+            Authorization: "Bearer test-token-{{ $randomString(10) }}"
+            Content-Type: "application/json"
+          json:
+            startDate: "2024-06-01"
+            endDate: "2024-06-30"
+            propertyId: "prop-123"
+          timeout: 15
+      
+      # Sankey Report Test
+      - post:
+          url: "/api/bi/reports/sankey"
+          headers:
+            Authorization: "Bearer test-token-{{ $randomString(10) }}"
+            Content-Type: "application/json"
+          json:
+            startDate: "2024-06-01"
+            endDate: "2024-06-30"
+            propertyId: "prop-123"
+          timeout: 15
+      
+      # Health Check
+      - get:
+          url: "/api/bi/health"
+          timeout: 5
