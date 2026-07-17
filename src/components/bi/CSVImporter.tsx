@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import { StarSchemaManager } from '../../services/bi/starSchemaManager'
+import { AccountingDataProvider } from '../../services/bi/accountingDataProvider'
 import type { CSVRow, ImportResult } from '../../types/starSchema'
+import type { DataFetchResult } from '../../services/bi/accountingDataProvider'
 import './CSVImporter.css'
 
 interface ColumnMapping {
@@ -67,6 +69,40 @@ export function CSVImporter() {
       newMappings.delete(csvCol)
     }
     setMappings(newMappings)
+  }
+
+  const handleDataFetched = (fetchResult: DataFetchResult) => {
+    if (!fetchResult.success) {
+      alert(`Erro ao buscar dados: ${fetchResult.error}`)
+      return
+    }
+
+    // Validate and enrich data
+    const enrichedData = AccountingDataProvider.enrichData(fetchResult.data)
+    const validation = AccountingDataProvider.validateData(enrichedData)
+
+    if (!validation.valid) {
+      alert(`Dados inválidos:\n${validation.errors.join('\n')}`)
+      return
+    }
+
+    // Auto-map columns if they match required fields
+    const autoMappings = new Map<string, string>()
+    const requiredFields = ['accountCode', 'accountName', 'debit', 'credit', 'date']
+
+    requiredFields.forEach((field) => {
+      if (enrichedData.length > 0 && field in enrichedData[0]) {
+        autoMappings.set(field, field)
+      }
+    })
+
+    setCsvData(enrichedData)
+    setMappings(autoMappings)
+
+    // Extract headers from data
+    if (enrichedData.length > 0) {
+      setHeaders(Object.keys(enrichedData[0]))
+    }
   }
 
   const handleImport = async () => {
