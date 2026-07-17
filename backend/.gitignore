@@ -9,3 +9,5 @@ dist/
 .idea/
 coverage/
 .nyc_output/
+audit-results.json
+performance-baseline.json
