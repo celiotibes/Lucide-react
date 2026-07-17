@@ -6,13 +6,14 @@ import { WaterfallChart } from './WaterfallChart'
 import { SankeyDiagram } from './SankeyDiagram'
 import { ReportsTab } from './ReportsTab'
 import { CSVImporter } from './CSVImporter'
+import { AnalyticsModule } from './AnalyticsModule'
 import './FinancialDashboard.css'
 
 export function FinancialDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>(
     new Date().toISOString().slice(0, 7)
   )
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'importer'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'importer' | 'analytics'>('dashboard')
 
   const { data, kpis, loading, error } = useFinancialData(selectedPeriod)
 
@@ -90,6 +91,12 @@ export function FinancialDashboard() {
             >
               Importar Dados
             </button>
+            <button
+              className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+              onClick={() => setActiveTab('analytics')}
+            >
+              Análises
+            </button>
           </div>
         </div>
         {activeTab === 'dashboard' && (
@@ -107,6 +114,9 @@ export function FinancialDashboard() {
 
       {/* Importer Tab */}
       {activeTab === 'importer' && <CSVImporter />}
+
+      {/* Analytics Tab */}
+      {activeTab === 'analytics' && <AnalyticsModule showIntro={true} />}
 
       {/* Dashboard Tab */}
       {activeTab === 'dashboard' && (
