@@ -126,75 +126,87 @@ function Conteudo() {
 
   if (carregando || !db) {
     return (
-      <div className="app-shell" style={{ alignItems: "center", justifyContent: "center" }}>
-        <p>Carregando banco de dados local…</p>
+      <div className="app-shell" style={{ padding: 28, maxWidth: 1180, width: "100%", margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28 }}>
+          <BookOpen size={22} color="var(--accent)" />
+          <p style={{ color: "var(--ink-soft)", margin: 0 }}>Carregando banco de dados local…</p>
+        </div>
+        <div className="kpi-grid">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 74 }} />)}
+        </div>
+        <div className="grid-2" style={{ marginTop: 20 }}>
+          <div className="skeleton" style={{ height: 280 }} />
+          <div className="skeleton" style={{ height: 280 }} />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <BookOpen size={22} color="var(--accent)" />
-          <div>
-            <h1>Reconstituição contábil</h1>
-            <small>Locação de imóveis · pessoa física — todos os dados ficam neste navegador</small>
+      <div className="app-sticky-top">
+        <header className="app-header">
+          <div className="brand">
+            <BookOpen size={22} color="var(--accent)" />
+            <div>
+              <h1>Reconstituição contábil</h1>
+              <small>Locação de imóveis · pessoa física — todos os dados ficam neste navegador</small>
+            </div>
           </div>
-        </div>
-        <div className="toolbar-actions">
-          <button className="btn" onClick={carregarDemonstracao}>
-            <RotateCcw size={14} /> Carregar dados de demonstração
-          </button>
-          <button className="btn" onClick={exportarBanco}>
-            <Download size={14} /> Exportar backup
-          </button>
-          {statusBackup.ultimoBackupEm === null ? (
-            <span className="pill warning" title="Nenhum backup exportado ainda nesta instalação">nunca fez backup</span>
-          ) : statusBackup.existeAlteracaoNaoBackupeada ? (
-            <span
-              className={`pill ${statusBackup.diasDesdeUltimoBackup !== null && statusBackup.diasDesdeUltimoBackup > 7 ? "critical" : "warning"}`}
-              title="Há alterações feitas depois do último backup exportado"
-            >
-              backup desatualizado{statusBackup.diasDesdeUltimoBackup !== null && statusBackup.diasDesdeUltimoBackup > 0 ? ` (${statusBackup.diasDesdeUltimoBackup}d)` : ""}
-            </span>
-          ) : (
-            <span className="pill good" title="Todas as alterações já estão refletidas no último backup exportado">backup em dia</span>
-          )}
-          <button className="btn" onClick={() => inputImportarRef.current?.click()}>
-            <UploadIcon size={14} /> Importar backup
-          </button>
-          <input
-            ref={inputImportarRef}
-            type="file"
-            accept=".sqlite,.db"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const arquivo = e.target.files?.[0];
-              if (arquivo) importarBanco(arquivo);
-            }}
-          />
-          <button
-            className="btn danger"
-            onClick={() => {
-              if (confirm("Isso apaga todos os dados salvos neste navegador. Continuar?")) reiniciar();
-            }}
-          >
-            Limpar tudo
-          </button>
-        </div>
-      </header>
-
-      <nav className="app-nav">
-        {ABAS.map(({ id, rotulo, icone: Icone }) => (
-          <button key={id} aria-current={aba === id ? "page" : undefined} onClick={() => setAba(id)}>
-            <Icone size={15} /> {rotulo}
-            {id === "pendencias" && pendenciasCriticas > 0 && (
-              <span className="pill critical" style={{ marginLeft: 6, padding: "1px 6px" }}>{pendenciasCriticas}</span>
+          <div className="toolbar-actions">
+            <button className="btn" onClick={carregarDemonstracao}>
+              <RotateCcw size={14} /> Carregar dados de demonstração
+            </button>
+            <button className="btn" onClick={exportarBanco}>
+              <Download size={14} /> Exportar backup
+            </button>
+            {statusBackup.ultimoBackupEm === null ? (
+              <span className="pill warning" title="Nenhum backup exportado ainda nesta instalação">nunca fez backup</span>
+            ) : statusBackup.existeAlteracaoNaoBackupeada ? (
+              <span
+                className={`pill ${statusBackup.diasDesdeUltimoBackup !== null && statusBackup.diasDesdeUltimoBackup > 7 ? "critical" : "warning"}`}
+                title="Há alterações feitas depois do último backup exportado"
+              >
+                backup desatualizado{statusBackup.diasDesdeUltimoBackup !== null && statusBackup.diasDesdeUltimoBackup > 0 ? ` (${statusBackup.diasDesdeUltimoBackup}d)` : ""}
+              </span>
+            ) : (
+              <span className="pill good" title="Todas as alterações já estão refletidas no último backup exportado">backup em dia</span>
             )}
-          </button>
-        ))}
-      </nav>
+            <button className="btn" onClick={() => inputImportarRef.current?.click()}>
+              <UploadIcon size={14} /> Importar backup
+            </button>
+            <input
+              ref={inputImportarRef}
+              type="file"
+              accept=".sqlite,.db"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const arquivo = e.target.files?.[0];
+                if (arquivo) importarBanco(arquivo);
+              }}
+            />
+            <button
+              className="btn danger"
+              onClick={() => {
+                if (confirm("Isso apaga todos os dados salvos neste navegador. Continuar?")) reiniciar();
+              }}
+            >
+              Limpar tudo
+            </button>
+          </div>
+        </header>
+
+        <nav className="app-nav">
+          {ABAS.map(({ id, rotulo, icone: Icone }) => (
+            <button key={id} aria-current={aba === id ? "page" : undefined} onClick={() => setAba(id)}>
+              <Icone size={15} /> {rotulo}
+              {id === "pendencias" && pendenciasCriticas > 0 && (
+                <span className="pill critical" style={{ marginLeft: 6, padding: "1px 6px" }}>{pendenciasCriticas}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       <main className="app-main">
         {ultimoRegistroBackup && (
@@ -220,23 +232,25 @@ function Conteudo() {
             {mensagemSeed}
           </div>
         )}
-        {aba === "dashboard" && <Dashboard aoDrillDown={aoDrillDownTransacoes} />}
-        {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => setAba(destino as Aba)} />}
-        {aba === "imoveis" && <ImoveisView />}
-        {aba === "cadastros" && <CadastrosView />}
-        {aba === "importar" && <ImportarView />}
-        {aba === "documentos" && <DocumentosView />}
-        {aba === "transacoes" && <TransacoesView filtroInicial={filtroTransacoesDrillDown} />}
-        {aba === "contratos" && <ContratosInadimplenciaView />}
-        {aba === "reajustes" && <ReajustesRescisaoView />}
-        {aba === "caucao" && <CaucaoView />}
-        {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
-        {aba === "patrimonio" && <PatrimonioView />}
-        {aba === "indices" && <IndicesEconomicosView />}
-        {aba === "renda" && <RendaTributavelView />}
-        {aba === "razao" && <LivroRazaoView />}
-        {aba === "auditoria" && <AuditoriaView aoDrillDown={aoDrillDownTransacoes} />}
-        {aba === "laudo" && <LaudoView />}
+        <div className="tab-content" key={aba}>
+          {aba === "dashboard" && <Dashboard aoDrillDown={aoDrillDownTransacoes} />}
+          {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => setAba(destino as Aba)} />}
+          {aba === "imoveis" && <ImoveisView />}
+          {aba === "cadastros" && <CadastrosView />}
+          {aba === "importar" && <ImportarView />}
+          {aba === "documentos" && <DocumentosView />}
+          {aba === "transacoes" && <TransacoesView filtroInicial={filtroTransacoesDrillDown} />}
+          {aba === "contratos" && <ContratosInadimplenciaView />}
+          {aba === "reajustes" && <ReajustesRescisaoView />}
+          {aba === "caucao" && <CaucaoView />}
+          {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
+          {aba === "patrimonio" && <PatrimonioView />}
+          {aba === "indices" && <IndicesEconomicosView />}
+          {aba === "renda" && <RendaTributavelView />}
+          {aba === "razao" && <LivroRazaoView />}
+          {aba === "auditoria" && <AuditoriaView aoDrillDown={aoDrillDownTransacoes} />}
+          {aba === "laudo" && <LaudoView />}
+        </div>
       </main>
     </div>
   );

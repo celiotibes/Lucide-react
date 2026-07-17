@@ -49,8 +49,18 @@ export function PendenciasView({ aoNavegar }: { aoNavegar: (aba: string) => void
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {pendencias.map((p) => {
             const Icone = ICONE_SEVERIDADE[p.severidade];
+            const abaAlvo = p.aba;
             return (
-              <div key={p.id} className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div
+                key={p.id}
+                className="card"
+                data-interactive={abaAlvo ? "true" : undefined}
+                role={abaAlvo ? "button" : undefined}
+                tabIndex={abaAlvo ? 0 : undefined}
+                onClick={abaAlvo ? () => aoNavegar(abaAlvo) : undefined}
+                onKeyDown={abaAlvo ? (e) => (e.key === "Enter" || e.key === " ") && aoNavegar(abaAlvo) : undefined}
+                style={{ display: "flex", gap: 12, alignItems: "flex-start" }}
+              >
                 <Icone size={18} style={{ flexShrink: 0, marginTop: 2 }} color={p.severidade === "critica" ? "var(--viz-critical)" : p.severidade === "atencao" ? "var(--viz-warning)" : "var(--viz-muted)"} />
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
@@ -59,8 +69,8 @@ export function PendenciasView({ aoNavegar }: { aoNavegar: (aba: string) => void
                   </div>
                   <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: 0 }}>{p.descricao}</p>
                 </div>
-                {p.aba && (
-                  <button className="btn" style={{ flexShrink: 0 }} onClick={() => aoNavegar(p.aba!)}>
+                {abaAlvo && (
+                  <button className="btn" style={{ flexShrink: 0 }} onClick={(e) => { e.stopPropagation(); aoNavegar(abaAlvo); }}>
                     Ver
                   </button>
                 )}
