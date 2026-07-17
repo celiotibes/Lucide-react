@@ -73,6 +73,14 @@ import { legisIntegrationService } from '@services/LegisIntegrationService';
 import advancedCertificationRouter from '@/api/routes/advancedCertificationRouter';
 import { advancedCertificationService } from '@services/AdvancedCertificationService';
 
+// Phase 10: ML Predictions & Auto-Generation
+import mlPredictionController from '@/api/controllers/mlPredictionController';
+import autoReportController from '@/api/controllers/autoReportController';
+import autoResponseController from '@/api/controllers/autoResponseController';
+import { mlPredictionService } from '@services/MLPredictionService';
+import { autoReportService } from '@services/AutoReportService';
+import { autoResponseService } from '@services/AutoResponseService';
+
 // Phase 5: AI Optimization & Monitoring Routers
 import abTestingRouter from '@/api/routes/abTestingRouter';
 import rateLimitingRouter from '@/api/routes/rateLimitingRouter';
@@ -252,6 +260,11 @@ app.use('/api/v1/legis', verifyToken, legisRouter);
 
 // Advanced Digital Certification (ICP-Brasil)
 app.use('/api/v1/certification', verifyToken, advancedCertificationRouter);
+
+// Phase 10: ML Predictions & Auto-Generation
+app.use('/api/v1/ml', verifyToken, mlPredictionController);
+app.use('/api/v1/reports', verifyToken, autoReportController);
+app.use('/api/v1/responses', verifyToken, autoResponseController);
 
 // 404 Handler (must come before error handler)
 app.use(notFoundHandler);
