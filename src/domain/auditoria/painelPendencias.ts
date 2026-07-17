@@ -135,6 +135,26 @@ export function gerarPainelPendencias(db: Database, hoje: string): ItemPendencia
     });
   }
 
+  // Checagem direta por SQL (em vez de calcularComprometimentoRenda, que depende do salário
+  // mensal digitado à mão na tela de Patrimônio, um dado que não fica salvo no banco) — mesma
+  // condição de "não informado" que a própria tela de Financiamentos já sinaliza por imóvel.
+  const financiamentosOutroSemParcela = consultar<{ instituicao: string; apelido: string }>(
+    db,
+    `SELECT f.instituicao, COALESCE(i.apelido, 'imóvel ' || f.imovel_id) AS apelido
+     FROM financiamentos f
+     JOIN imoveis i ON i.id = f.imovel_id
+     WHERE f.sistema = 'OUTRO' AND f.parcela_mensal_manual IS NULL`,
+  );
+  if (financiamentosOutroSemParcela.length > 0) {
+    itens.push({
+      id: "financiamentos-outro-sem-parcela",
+      titulo: `${financiamentosOutroSemParcela.length} financiamento(s) "Outro" sem parcela mensal informada`,
+      descricao: `Consórcio ou outro financiamento sem cronograma teórico precisa de parcela mensal manual para entrar no comprometimento de renda: ${financiamentosOutroSemParcela.map((f) => `${f.apelido} · ${f.instituicao}`).join(", ")}.`,
+      severidade: "critica",
+      aba: "financiamentos",
+    });
+  }
+
   const inicioHistoricoFiscal = somarAnos(`${hoje.slice(0, 4)}-01-01`, -6);
   const comparativoFiscal = compararDeclaradoXReconstituido(db, inicioHistoricoFiscal, hoje);
   for (const linha of comparativoFiscal) {
