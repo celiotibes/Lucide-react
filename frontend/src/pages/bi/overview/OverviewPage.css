@@ -1,0 +1,49 @@
+/* Overview Page Styles */
+.overview-page {
+  min-height: 100vh;
+  background-color: #f9fafb;
+}
+
+.error-banner {
+  background-color: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-bottom: none;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #92400e;
+  font-size: 14px;
+}
+
+.error-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.error-banner p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.error-note {
+  color: #b45309;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .overview-page {
+    background-color: #111827;
+  }
+
+  .error-banner {
+    background-color: #78350f;
+    border-color: #92400e;
+    color: #fef3c7;
+  }
+
+  .error-note {
+    color: #fcd34d;
+  }
+}

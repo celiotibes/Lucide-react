@@ -1,0 +1,279 @@
+/* Heatmap Chart Styles */
+.heatmap-chart {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 20px 0;
+}
+
+.heatmap-container {
+  overflow-x: auto;
+  margin-bottom: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #fafbfc;
+}
+
+.heatmap-table {
+  display: flex;
+  flex-direction: column;
+  border-collapse: collapse;
+}
+
+.heatmap-header-row,
+.heatmap-data-row {
+  display: flex;
+  flex-direction: row;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.heatmap-header-row:last-child {
+  border-bottom: none;
+}
+
+.heatmap-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+  font-size: 12px;
+  border-right: 1px solid #e5e7eb;
+  word-break: break-word;
+  position: relative;
+}
+
+.heatmap-cell:last-child {
+  border-right: none;
+}
+
+.header-cell {
+  background-color: #f3f4f6;
+  font-weight: 600;
+  color: #374151;
+  text-align: center;
+  min-height: 50px;
+}
+
+.row-label {
+  background-color: #f9fafb;
+  font-weight: 500;
+  color: #374151;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.category-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  font-size: 11px;
+}
+
+.row-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.data-cell {
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 40px;
+}
+
+.data-cell:hover {
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.2);
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+.cell-value {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Legend */
+.heatmap-legend {
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.legend-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.legend-gradient {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.gradient-bar {
+  flex: 1;
+  height: 24px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    #3b82f6 0%,
+    #60a5fa 25%,
+    #fbbf24 50%,
+    #f97316 75%,
+    #ef4444 100%
+  );
+  border: 1px solid #d1d5db;
+}
+
+.gradient-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 200px;
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Stats */
+.heatmap-stats {
+  display: flex;
+  gap: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.stat-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.stat-value {
+  color: #111827;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .heatmap-chart {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .chart-title {
+    color: #f9fafb;
+  }
+
+  .heatmap-container {
+    background-color: #111827;
+    border-color: #374151;
+  }
+
+  .heatmap-header-row,
+  .heatmap-data-row {
+    border-bottom-color: #374151;
+  }
+
+  .heatmap-cell {
+    border-right-color: #374151;
+  }
+
+  .header-cell {
+    background-color: #374151;
+    color: #f9fafb;
+  }
+
+  .row-label {
+    background-color: #1f2937;
+    color: #e5e7eb;
+  }
+
+  .heatmap-legend {
+    background-color: #1f2937;
+    border-color: #374151;
+  }
+
+  .legend-label {
+    color: #e5e7eb;
+  }
+
+  .gradient-labels {
+    color: #9ca3af;
+  }
+
+  .heatmap-stats {
+    border-top-color: #374151;
+  }
+
+  .stat-label {
+    color: #9ca3af;
+  }
+
+  .stat-value {
+    color: #f9fafb;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .heatmap-chart {
+    padding: 16px;
+  }
+
+  .heatmap-cell {
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+
+  .header-cell {
+    min-height: 40px;
+  }
+
+  .category-label {
+    font-size: 10px;
+  }
+
+  .cell-value {
+    font-size: 10px;
+  }
+
+  .heatmap-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .legend-gradient {
+    flex-direction: column;
+  }
+
+  .gradient-labels {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
