@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { obterPool } from '@/server/integracao/db';
 import { formatarData } from '@/lib/formatacao';
-import AutovistoriaForm from '@/components/autovistoria/AutovistoriaForm';
+import AutovistoriaForm from '../../components/autovistoria/AutovistoriaForm';
 
 interface Vistoria {
   id: string;

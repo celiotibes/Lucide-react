@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     await ensureUploadDir();
 
     const formData = await request.formData();
-    const arquivo = formData.get('arquivo') as Blob;
+    const arquivo = formData.get('arquivo') as File;
     const imovel_id = formData.get('imovel_id') as string;
     const tipo_documento = formData.get('tipo_documento') as string;
     const numero_contrato = formData.get('numero_contrato') as string;
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const pool = obterPool();
     const buffer = Buffer.from(await arquivo.arrayBuffer());
-    const nomeArquivo = arquivo.name || 'contrato';
+    const nomeArquivo = arquivo.name;
     const tipoMime = arquivo.type || 'application/octet-stream';
 
     // Salvar arquivo

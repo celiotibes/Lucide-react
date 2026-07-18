@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { obterPool } from '@/server/integracao/db';
 import { formatarData, formatarMoeda } from '@/lib/formatacao';
 import Link from 'next/link';

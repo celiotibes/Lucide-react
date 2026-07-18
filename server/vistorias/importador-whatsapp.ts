@@ -125,7 +125,7 @@ export function extrairInformacoesDano(texto: string): {
     confianca = 80 + Math.min(tiposDanoEncontrados.size * 5, 20); // 80-100
   } else if (
     texto.length > 50 &&
-    (textoLover.includes('problema') || textoLower.includes('defeito'))
+    (textoLower.includes('problema') || textoLower.includes('defeito'))
   ) {
     confianca = 60;
   }

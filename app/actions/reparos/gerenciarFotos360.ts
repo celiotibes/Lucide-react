@@ -107,7 +107,7 @@ export async function apagarFoto360(fotoId: string): Promise<boolean> {
       [fotoId, '360']
     );
 
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (erro) {
     const mensagem = erro instanceof Error ? erro.message : String(erro);
     console.error('Erro ao apagar foto 360:', mensagem);

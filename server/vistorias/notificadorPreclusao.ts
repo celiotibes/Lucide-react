@@ -3,7 +3,14 @@
 import { obterPool } from '@/server/integracao/db';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend: Resend | null = null;
+
+function obterResend(): Resend {
+  if (!resend && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend || new Resend('dummy-key');
+}
 
 interface ContestacaoComPrazo {
   id: string;
@@ -70,7 +77,7 @@ export async function dispararNotificacoesPreclusao() {
         }
 
         // Enviar email via Resend
-        const resultado = await resend.emails.send({
+        const resultado = await obterResend().emails.send({
           from: 'vistorias@crmt-imobiliaria.com.br',
           to: contestacao.contato_inquilino,
           subject: assunto,
@@ -118,7 +125,7 @@ export async function dispararNotificacoesPreclusao() {
         );
 
         if (jaEnviada.rows.length === 0) {
-          await resend.emails.send({
+          await obterResend().emails.send({
             from: 'vistorias@crmt-imobiliaria.com.br',
             to: contestacao.contato_inquilino,
             subject: '⏰ Preclusão expirada - Contestação encerrada',

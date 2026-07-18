@@ -4,7 +4,15 @@ import { obterPool } from '@/server/integracao/db';
 import { Resend } from 'resend';
 import twilio from 'twilio';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend: Resend | null = null;
+
+function obterResend(): Resend {
+  if (!resend && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend || new Resend('dummy-key');
+}
+
 const twilioClient = process.env.TWILIO_ACCOUNT_SID
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
@@ -234,7 +242,7 @@ async function dispararEmail(
   try {
     const { subject, html } = criarConteudoEmail(inquilino, contestacao, tipo);
 
-    const resultado = await resend.emails.send({
+    const resultado = await obterResend().emails.send({
       from: 'vistorias@crmt-imobiliaria.com.br',
       to: inquilino.email,
       subject,

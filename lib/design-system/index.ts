@@ -30,7 +30,7 @@ export const designSystem = {
  * Example: getToken('colors.primary.500')
  */
 export function getToken(path: string): any {
-  return path.split('.').reduce((obj, key) => obj?.[key], designSystem);
+  return path.split('.').reduce((obj: any, key) => obj?.[key], designSystem);
 }
 
 /**

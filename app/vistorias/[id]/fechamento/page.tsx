@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { obterPool } from '@/server/integracao/db';
 import { formatarMoeda } from '@/lib/formatacao';
-import FechamentoForm from '@/components/vistorias/FechamentoForm';
+import FechamentoForm from '../../../components/vistorias/FechamentoForm';
 
 interface Vistoria {
   id: string;
