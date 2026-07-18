@@ -3085,3 +3085,70 @@ create policy prestador_ve_custos_seus_apontamentos on apontamento_custos
 create trigger trg_audit_apontamento_custos
   after insert or update or delete on apontamento_custos
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 37. DOCUMENTOS ANEXADOS PELO GESTOR (upload de contrato assinado, aditivo,
+--     e-mail de negociação/renovação) — leitura e análise assistida por IA
+-- ============================================================================
+-- Distinta de `documentos_gerados` (seção 8): aquela é a SAÍDA do sistema —
+-- contrato/aditivo/termo gerado pelo motor de contratos (server/integracao/
+-- gerarContratoHtml.ts) e, quando aplicável, assinado digitalmente. Esta é a
+-- ENTRADA: um arquivo que o gestor recebeu de fora (contrato já assinado
+-- fisicamente, aditivo em PDF, print/PDF de e-mail de negociação de
+-- renovação) e sobe para o sistema ler, converter em Markdown e analisar
+-- via IA — sempre com validação humana antes de qualquer valor ser gravado
+-- em `contratos`/`reajustes_contrato` (ver seção 38, `extracoes_documento_ia`).
+create table documentos_anexados (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid references contratos(id),
+  tipo text not null check (tipo in
+    ('contrato_assinado','aditivo','comunicacao_renovacao','comunicacao_negociacao','outro')),
+  nome_arquivo text not null,
+  mime_type text not null,
+  tamanho_bytes bigint not null check (tamanho_bytes > 0),
+  hash_sha256 text not null unique,   -- também evita reprocessar o mesmo arquivo duas vezes
+  storage_path text not null,
+  -- Resultado da conversão (server/documentos/converterParaMarkdown.ts) —
+  -- é o que a IA de fato lê; nunca o binário original.
+  texto_extraido_md text,
+  status_extracao text not null default 'pendente'
+    check (status_extracao in ('pendente','processando','concluida','falhou')),
+  erro_extracao text,
+  enviado_por uuid references pessoas(id),
+  criado_em timestamptz not null default now()
+);
+
+create index idx_documentos_anexados_contrato on documentos_anexados(contrato_id);
+
+alter table documentos_anexados enable row level security;
+create policy admin_full_access_documentos_anexados on documentos_anexados
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_documentos_anexados after insert or update or delete on documentos_anexados
+  for each row execute function fn_audit_trigger();
+
+-- Bucket privado de Storage para o binário do arquivo (a linha em
+-- `documentos_anexados` acima guarda só metadado + `storage_path`).
+-- Privado porque pode conter dado pessoal (CPF, nome, assinatura) — acesso
+-- só via URL assinada de expiração curta (lib/supabase/storage.ts), nunca
+-- URL pública. O upload real (lib/supabase/serviceClient.ts) usa a
+-- service_role key e por isso ignora as políticas abaixo — elas existem
+-- como defesa em profundidade, para o dia em que uma tela do portal
+-- (sessão de usuário real, não service role) também precisar deste bucket.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'documentos',
+  'documentos',
+  false,
+  26214400, -- 25MB, mesmo limite validado em server/documentos/logicaUpload.ts
+  array['application/pdf','image/jpeg','image/png','image/webp',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+)
+on conflict (id) do nothing;
+
+create policy admin_upload_documentos on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'documentos' and fn_eh_admin_ou_economista());
+create policy admin_leitura_documentos on storage.objects
+  for select to authenticated
+  using (bucket_id = 'documentos' and fn_eh_admin_ou_economista());

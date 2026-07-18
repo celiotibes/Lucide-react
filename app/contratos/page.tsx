@@ -101,6 +101,8 @@ export default async function PaginaContratos() {
                 </td>
                 <td>
                   <Link href={`/contratos/${contrato.id}/contrato`}>Gerar/ver</Link>
+                  {' · '}
+                  <Link href={`/contratos/${contrato.id}/documentos`}>Documentos</Link>
                 </td>
               </tr>
             ))}
