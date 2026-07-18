@@ -9,6 +9,16 @@
 3. Ativar backup/PITR (plano Pro) antes de qualquer dado real de produção.
 4. Popular `usuarios` conforme cada pessoa se cadastra via Supabase Auth (trigger `on auth.users insert` ligando a um `pessoa_id`, a implementar na camada de aplicação conforme o fluxo de convite escolhido).
 
+## Migrações incrementais
+
+Bancos criados **antes** da correção que adicionou colunas de NFS-e/PIX a
+`fechamentos_prestador` (motivo_devolucao, nfse_id, nfse_status, nfse_url,
+nfse_protocolo, pix_id, pix_status, pix_enviado_em, pix_confirmado_em,
+pix_motivo_devolucao) precisam rodar `migration-fechamentos-nfse-pix.sql`
+uma vez — é idempotente (`add column if not exists`). Bancos criados do
+zero a partir do `schema.sql` atual já vêm com essas colunas e não
+precisam do script.
+
 ## O que já vem pronto no schema
 
 - Todas as tabelas das Fases 0-4 (não precisa migração destrutiva ao avançar de fase — só passa a popular/consumir mais tabelas).

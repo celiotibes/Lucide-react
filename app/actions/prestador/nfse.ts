@@ -16,7 +16,7 @@ export async function gerarNfsePorFechamento(fechamentoId: string) {
     .from('fechamentos_prestador')
     .select(
       `
-      id, prestador_id, status, total_proventos, data_inicio, data_fim,
+      id, status, total_proventos, data_inicio, data_fim, nfse_id,
       prestadores_servico (
         nome_completo, cpf_cnpj,
         pessoas (email, telefone)

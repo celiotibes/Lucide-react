@@ -16,7 +16,7 @@ export async function enviarPixPorFechamento(fechamentoId: string) {
     .from('fechamentos_prestador')
     .select(
       `
-      id, prestador_id, status, valor_liquido,
+      id, status, valor_liquido, pix_id, pix_status,
       prestadores_servico (
         id, nome_completo, cpf_cnpj, chave_pix,
         pessoas (email, telefone, nome)

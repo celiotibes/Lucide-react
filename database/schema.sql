@@ -2877,6 +2877,24 @@ create table fechamentos_prestador (
   data_pagamento date,
   comprovante_pix text,
   nota_fiscal_url text,
+  motivo_devolucao text,
+
+  -- Emissão de NFS-e via Asaas (webhook app/api/webhooks/asaas/nfse) —
+  -- nfse_status usa valores em português mapeados do evento Asaas
+  -- (emitted→emitida, processed→processada, cancelled→cancelada).
+  nfse_id text,
+  nfse_status text check (nfse_status in ('emitida', 'processada', 'cancelada')),
+  nfse_url text,
+  nfse_protocolo text,
+
+  -- Envio de PIX via Asaas (webhook app/api/webhooks/asaas/pix) —
+  -- pix_status mapeado do evento Asaas (PENDING→enviado,
+  -- TRANSFERRED→confirmado, FAILED→devolvido, EXPIRED→expirado).
+  pix_id text,
+  pix_status text check (pix_status in ('enviado', 'confirmado', 'devolvido', 'expirado')),
+  pix_enviado_em timestamptz,
+  pix_confirmado_em timestamptz,
+  pix_motivo_devolucao text,
 
   foi_importado_retroativo boolean default false,
   criado_em timestamptz not null default now(),

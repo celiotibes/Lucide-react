@@ -56,7 +56,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Atualizar fechamento com status da NFS-e
     const { rows: fechamentos } = await pool.query<{ id: string; prestador_id: string }>(
-      `select id, prestador_id from fechamentos_prestador where id = $1`,
+      `select fp.id, cp.prestador_id
+       from fechamentos_prestador fp
+       join contratos_prestador cp on cp.id = fp.contrato_id
+       where fp.id = $1`,
       [evento.externalReference]
     );
 

@@ -64,7 +64,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       status: string;
       valor_liquido: number;
     }>(
-      `select id, prestador_id, status, valor_liquido from fechamentos_prestador where id = $1`,
+      `select fp.id, cp.prestador_id, fp.status, fp.valor_liquido
+       from fechamentos_prestador fp
+       join contratos_prestador cp on cp.id = fp.contrato_id
+       where fp.id = $1`,
       [evento.externalReference]
     );
 
