@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/celiotibes/lucide-react#readme
+    about: Read the project documentation
+  - name: Discussions
+    url: https://github.com/celiotibes/lucide-react/discussions
+    about: Ask questions and share ideas

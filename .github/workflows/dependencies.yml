@@ -1,0 +1,52 @@
+name: Dependencies
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    name: Check & Update Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for updates
+        run: npm outdated || true
+
+      - name: Audit for vulnerabilities
+        run: npm audit --production || true
+
+      - name: Create PR for updates
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: 'chore: update dependencies'
+          title: 'chore: update dependencies'
+          body: |
+            This PR updates project dependencies to their latest compatible versions.
+
+            **Changes:**
+            - Run `npm update` to apply updates
+            - Review changelog for breaking changes
+            - Run tests to ensure compatibility
+          branch: chore/update-dependencies
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
