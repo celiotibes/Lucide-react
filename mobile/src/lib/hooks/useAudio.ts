@@ -91,25 +91,36 @@ export function useAudio() {
     }
   };
 
-  const transcreverAudio = async (caminhoAudio: string): Promise<string | null> => {
+  const transcreverAudio = async (
+    caminhoAudio: string,
+    mediaId: string,
+    baseUrl: string = 'http://localhost:3000'
+  ): Promise<string | null> => {
     try {
-      // Placeholder para integração com OpenAI Whisper API
-      // Será implementado com auth token e upload do arquivo
-      // const formData = new FormData();
-      // formData.append('file', { uri: caminhoAudio, type: 'audio/m4a', name: 'audio.m4a' });
-      // formData.append('model', 'whisper-1');
-      //
-      // const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      //   method: 'POST',
-      //   headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      //   body: formData,
-      // });
-      //
-      // const resultado = await response.json();
-      // return resultado.text || null;
+      const formData = new FormData();
 
-      console.log('Transcrição de áudio não implementada ainda');
-      return null;
+      // Adicionar arquivo local como blob
+      formData.append('audioFile', {
+        uri: caminhoAudio,
+        type: 'audio/m4a',
+        name: 'audio.m4a',
+      } as any);
+      formData.append('mediaId', mediaId);
+
+      // Chamar backend para transcrição
+      const response = await fetch(`${baseUrl}/api/vistorias/transcricao`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const erro = await response.json();
+        console.error('Erro na transcrição:', erro.error);
+        return null;
+      }
+
+      const resultado = await response.json();
+      return resultado.data?.transcricao || null;
     } catch (erro) {
       console.error('Erro ao transcrever áudio:', erro);
       return null;
