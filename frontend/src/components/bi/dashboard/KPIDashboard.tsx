@@ -8,6 +8,9 @@ import {
   TrendLineChart,
   BreakdownPieChart,
   ComparisonBarChart,
+  DateRangePicker,
+  CategoryFilter,
+  FilterPills,
 } from '../../../components/modern';
 import './KPIDashboard.css';
 
@@ -25,6 +28,14 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
   onFilterChange,
 }) => {
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
+  const categories = [
+    { id: 'operational', name: 'Operacional', icon: '⚙️', color: '#3b82f6' },
+    { id: 'administrative', name: 'Administrativo', icon: '📋', color: '#d4af37' },
+    { id: 'financial', name: 'Financeiro', icon: '💰', color: '#10b981' },
+    { id: 'marketing', name: 'Marketing', icon: '📢', color: '#f59e0b' },
+  ];
 
   useEffect(() => {
     console.log('KPIs atualizados:', kpis);
@@ -74,29 +85,48 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
             Visão geral dos KPIs contábeis e financeiros
           </p>
 
-          {/* Date Range Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <label className="text-[#cbd5e1] text-sm font-medium">Período:</label>
-            <input
-              type="date"
-              defaultValue={filters?.startDate.toISOString().split('T')[0]}
-              onChange={(e) => {
-                const endDate = filters?.endDate.toISOString().split('T')[0] || '';
-                handleDateRangeChange(e.target.value, endDate);
+          {/* Advanced Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center mb-4">
+            <DateRangePicker
+              startDate={filters?.startDate || new Date()}
+              endDate={filters?.endDate || new Date()}
+              onDateChange={(start, end) => {
+                if (onFilterChange && filters) {
+                  onFilterChange({
+                    ...filters,
+                    startDate: start,
+                    endDate: end,
+                  });
+                }
               }}
-              className="px-3 py-2 bg-[#243549] border border-[#334155] text-[#f1f5f9] rounded-lg text-sm hover:border-[#3b82f6] transition-colors focus:outline-none focus:border-[#3b82f6]"
             />
-            <span className="text-[#94a3b8] text-sm">até</span>
-            <input
-              type="date"
-              defaultValue={filters?.endDate.toISOString().split('T')[0]}
-              onChange={(e) => {
-                const startDate = filters?.startDate.toISOString().split('T')[0] || '';
-                handleDateRangeChange(startDate, e.target.value);
-              }}
-              className="px-3 py-2 bg-[#243549] border border-[#334155] text-[#f1f5f9] rounded-lg text-sm hover:border-[#3b82f6] transition-colors focus:outline-none focus:border-[#3b82f6]"
+            <CategoryFilter
+              categories={categories}
+              selectedCategories={selectedCategories}
+              onCategoryChange={setSelectedCategories}
             />
           </div>
+
+          {/* Active Filters Display */}
+          {(selectedCategories.length > 0) && (
+            <FilterPills
+              filters={[
+                ...selectedCategories.map((catId) => {
+                  const category = categories.find((c) => c.id === catId);
+                  return {
+                    id: catId,
+                    label: category?.name || '',
+                    icon: category?.icon,
+                    onClear: () => {
+                      setSelectedCategories(selectedCategories.filter((id) => id !== catId));
+                    },
+                  };
+                }),
+              ]}
+              onClearAll={() => setSelectedCategories([])}
+              showClearAll={true}
+            />
+          )}
         </div>
       </div>
 
