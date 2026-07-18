@@ -2,7 +2,6 @@ import type {
   StarSchemaDatabase,
   DimDate,
   DimAccount,
-  DimCostCenter,
   FactBalancete,
   CSVRow,
   ImportResult,
@@ -28,21 +27,60 @@ export class StarSchemaManager {
     try {
       const stored = localStorage.getItem(this.DB_KEY)
       return stored ? JSON.parse(stored) : this.initializeSchema()
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'QuotaExceededError') {
+        console.warn('localStorage quota exceeded during load')
+      } else if (err instanceof SyntaxError) {
+        console.warn('Corrupted schema data, reinitializing')
+      }
       return this.initializeSchema()
     }
   }
 
-  // Save schema to localStorage
+  // Save schema to localStorage with automatic quota management
   static saveSchema(schema: StarSchemaDatabase): void {
     try {
       localStorage.setItem(this.DB_KEY, JSON.stringify(schema))
     } catch (err) {
       if (err instanceof Error && err.name === 'QuotaExceededError') {
-        console.warn('localStorage quota exceeded, clearing old data')
-        this.clearOldData()
-        localStorage.setItem(this.DB_KEY, JSON.stringify(schema))
+        console.warn('localStorage quota exceeded, attempting cleanup')
+        try {
+          this.clearOldData()
+          localStorage.setItem(this.DB_KEY, JSON.stringify(schema))
+        } catch (retryErr) {
+          console.error('Failed to save after cleanup:', retryErr)
+          // Last resort: clear everything and try again
+          try {
+            localStorage.clear()
+            localStorage.setItem(this.DB_KEY, JSON.stringify(schema))
+          } catch (finalErr) {
+            console.error('Critical: Cannot save to localStorage', finalErr)
+            throw new Error('Storage quota exceeded and cannot be freed')
+          }
+        }
+      } else {
+        throw err
       }
+    }
+  }
+
+  // Get storage usage estimate
+  static getStorageStats(): { used: number; available: number; percent: number } {
+    let used = 0
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key) {
+        const value = localStorage.getItem(key) || ''
+        used += key.length + value.length
+      }
+    }
+
+    // Rough estimate: typical localStorage limit is 5-10MB
+    const available = 5242880 // 5MB estimate
+    return {
+      used,
+      available,
+      percent: Math.round((used / available) * 100),
     }
   }
 

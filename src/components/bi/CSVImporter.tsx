@@ -1,14 +1,8 @@
 import { useState, useRef } from 'react'
 import { StarSchemaManager } from '../../services/bi/starSchemaManager'
-import { AccountingDataProvider } from '../../services/bi/accountingDataProvider'
 import type { CSVRow, ImportResult } from '../../types/starSchema'
-import type { DataFetchResult } from '../../services/bi/accountingDataProvider'
+import { parseCSV, detectDelimiter } from '../../utils/csvParser'
 import './CSVImporter.css'
-
-interface ColumnMapping {
-  csvColumn: string
-  targetField: string
-}
 
 export function CSVImporter() {
   const [file, setFile] = useState<File | null>(null)
@@ -26,37 +20,59 @@ export function CSVImporter() {
     if (!selectedFile) return
 
     setFile(selectedFile)
-    parseCSV(selectedFile)
+    parseCSVFile(selectedFile)
   }
 
-  const parseCSV = (file: File) => {
+  const parseCSVFile = (file: File) => {
     const reader = new FileReader()
     reader.onload = (e) => {
-      const text = e.target?.result as string
-      const lines = text.split('\n').filter((l) => l.trim())
+      try {
+        const text = e.target?.result as string
+        if (!text.trim()) {
+          alert('Arquivo CSV vazio')
+          return
+        }
 
-      if (lines.length === 0) return
+        // Detect delimiter automatically
+        const delimiter = detectDelimiter(text)
 
-      // Parse header
-      const header = lines[0].split(',').map((h) => h.trim())
-      setHeaders(header)
+        // Parse CSV with proper RFC 4180 compliance
+        const rows = parseCSV(text, { delimiter })
 
-      // Parse data
-      const data: CSVRow[] = []
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map((v) => v.trim())
-        const row: CSVRow = {}
+        if (rows.length === 0) {
+          alert('Nenhum dado encontrado no arquivo')
+          return
+        }
 
-        header.forEach((col, idx) => {
-          const val = values[idx]
-          row[col] = isNaN(Number(val)) ? val : Number(val)
-        })
+        // Extract header
+        const header = rows[0]
+        setHeaders(header)
 
-        data.push(row)
+        // Parse data rows
+        const data: CSVRow[] = []
+        for (let i = 1; i < rows.length; i++) {
+          const values = rows[i]
+          const row: CSVRow = {}
+
+          header.forEach((col, idx) => {
+            const val = values[idx] ?? ''
+            // Try to parse as number if it looks like one
+            row[col] = val === '' ? null : isNaN(Number(val)) ? val : Number(val)
+          })
+
+          data.push(row)
+        }
+
+        setCsvData(data)
+        setMappings(new Map()) // Reset mappings
+      } catch (error) {
+        alert(`Erro ao processar arquivo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+        setFile(null)
       }
-
-      setCsvData(data)
-      setMappings(new Map()) // Reset mappings
+    }
+    reader.onerror = () => {
+      alert('Erro ao ler arquivo')
+      setFile(null)
     }
     reader.readAsText(file)
   }
@@ -69,40 +85,6 @@ export function CSVImporter() {
       newMappings.delete(csvCol)
     }
     setMappings(newMappings)
-  }
-
-  const handleDataFetched = (fetchResult: DataFetchResult) => {
-    if (!fetchResult.success) {
-      alert(`Erro ao buscar dados: ${fetchResult.error}`)
-      return
-    }
-
-    // Validate and enrich data
-    const enrichedData = AccountingDataProvider.enrichData(fetchResult.data)
-    const validation = AccountingDataProvider.validateData(enrichedData)
-
-    if (!validation.valid) {
-      alert(`Dados inválidos:\n${validation.errors.join('\n')}`)
-      return
-    }
-
-    // Auto-map columns if they match required fields
-    const autoMappings = new Map<string, string>()
-    const requiredFields = ['accountCode', 'accountName', 'debit', 'credit', 'date']
-
-    requiredFields.forEach((field) => {
-      if (enrichedData.length > 0 && field in enrichedData[0]) {
-        autoMappings.set(field, field)
-      }
-    })
-
-    setCsvData(enrichedData)
-    setMappings(autoMappings)
-
-    // Extract headers from data
-    if (enrichedData.length > 0) {
-      setHeaders(Object.keys(enrichedData[0]))
-    }
   }
 
   const handleImport = async () => {

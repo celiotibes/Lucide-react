@@ -202,14 +202,18 @@ export class AnalyticsEngine {
     if (data.length >= 12) {
       const firstQuarter = data.slice(0, 3).reduce((sum, d) => sum + d.value, 0) / 3
       const lastQuarter = data.slice(-3).reduce((sum, d) => sum + d.value, 0) / 3
-      const quarterDiff = Math.abs(lastQuarter - firstQuarter) / firstQuarter
 
-      if (quarterDiff > 0.3) {
-        patterns.push(
-          lastQuarter > firstQuarter
-            ? 'Upward seasonal trend detected'
-            : 'Downward seasonal trend detected'
-        )
+      // Avoid division by zero
+      if (Math.abs(firstQuarter) > 0.01) {
+        const quarterDiff = Math.abs(lastQuarter - firstQuarter) / Math.abs(firstQuarter)
+
+        if (quarterDiff > 0.3) {
+          patterns.push(
+            lastQuarter > firstQuarter
+              ? 'Upward seasonal trend detected'
+              : 'Downward seasonal trend detected',
+          )
+        }
       }
     }
 
@@ -223,17 +227,22 @@ export class AnalyticsEngine {
     }
 
     const totalMonths = data.length - 1
-    if (growthMonths / totalMonths > 0.7) {
-      patterns.push('Sustained growth period detected')
-    } else if (declineMonths / totalMonths > 0.7) {
-      patterns.push('Sustained decline period detected')
+    if (totalMonths > 0) {
+      if (growthMonths / totalMonths > 0.7) {
+        patterns.push('Sustained growth period detected')
+      } else if (declineMonths / totalMonths > 0.7) {
+        patterns.push('Sustained decline period detected')
+      }
     }
 
     // Check for volatility
     const values = data.map((d) => d.value)
     const mean = values.reduce((a, b) => a + b, 0) / values.length
     const std = Math.sqrt(values.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / values.length)
-    const cv = (std / Math.abs(mean || 1)) * 100
+
+    // Safe coefficient of variation (avoid division by zero)
+    const absMean = Math.abs(mean)
+    const cv = absMean > 0.01 ? (std / absMean) * 100 : 0
 
     if (cv > 30) {
       patterns.push('High volatility detected')

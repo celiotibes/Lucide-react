@@ -38,6 +38,32 @@ export function DataSourceSelector({ onDataFetched, onError }: DataSourceSelecto
       return
     }
 
+    // Validate date range before fetching
+    if (dateRange.start && dateRange.end) {
+      const startDate = new Date(dateRange.start)
+      const endDate = new Date(dateRange.end)
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        setStatus('❌ Error: Invalid date format')
+        onError?.('Invalid date format')
+        return
+      }
+
+      if (startDate > endDate) {
+        setStatus('❌ Error: Start date must be before end date')
+        onError?.('Start date must be before end date')
+        return
+      }
+
+      const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysDiff > 1825) {
+        // More than 5 years
+        setStatus('❌ Error: Date range exceeds 5 years')
+        onError?.('Please select a date range within 5 years')
+        return
+      }
+    }
+
     setLoading(true)
     setStatus('Fetching data...')
 
@@ -52,16 +78,23 @@ export function DataSourceSelector({ onDataFetched, onError }: DataSourceSelecto
       dateRange,
     }
 
-    const result = await AccountingDataProvider.fetchData(options)
+    try {
+      const result = await AccountingDataProvider.fetchData(options)
 
-    setLoading(false)
+      setLoading(false)
 
-    if (result.success) {
-      setStatus(`✅ Loaded ${result.recordsCount} records`)
-      onDataFetched?.(result)
-    } else {
-      setStatus(`❌ Error: ${result.error}`)
-      onError?.(result.error || 'Unknown error')
+      if (result.success) {
+        setStatus(`✅ Loaded ${result.recordsCount} records`)
+        onDataFetched?.(result)
+      } else {
+        setStatus(`❌ Error: ${result.error}`)
+        onError?.(result.error || 'Unknown error')
+      }
+    } catch (error) {
+      setLoading(false)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      setStatus(`❌ Error: ${errorMsg}`)
+      onError?.(errorMsg)
     }
   }
 

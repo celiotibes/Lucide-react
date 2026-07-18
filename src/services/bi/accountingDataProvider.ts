@@ -23,6 +23,9 @@ export interface DataFetchResult {
 
 export class AccountingDataProvider {
   private static readonly CACHE_DURATION = 3600000 // 1 hour
+  private static readonly API_TIMEOUT = 30000 // 30 seconds
+  private static readonly MAX_RETRIES = 3
+  private static readonly RETRY_BACKOFF_MS = 1000 // Initial 1s, doubles on each retry
   private static cache = new Map<string, { data: CSVRow[]; timestamp: number }>()
 
   // Fetch accounting data from configured source
@@ -160,10 +163,87 @@ export class AccountingDataProvider {
     return data
   }
 
+  // Fetch with timeout wrapper
+  private static async fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = this.API_TIMEOUT,
+  ): Promise<Response> {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      return await fetch(url, { ...options, signal: controller.signal })
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  // Fetch with exponential backoff retry
+  private static async fetchWithRetry(
+    url: string,
+    options: RequestInit,
+  ): Promise<Response> {
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
+      try {
+        const response = await this.fetchWithTimeout(url, options)
+
+        // Don't retry on client errors (4xx), only server errors (5xx) and timeouts
+        if (response.ok || (response.status >= 400 && response.status < 500)) {
+          return response
+        }
+
+        // 429 (rate limit) and 5xx errors are retryable
+        if (response.status === 429 || response.status >= 500) {
+          lastError = new Error(
+            `API error: ${response.status} ${response.statusText} (attempt ${attempt + 1})`,
+          )
+          if (attempt < this.MAX_RETRIES - 1) {
+            const backoffMs = this.RETRY_BACKOFF_MS * Math.pow(2, attempt)
+            await new Promise((resolve) => setTimeout(resolve, backoffMs))
+            continue
+          }
+        }
+
+        return response
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+
+        // Retry on network errors and timeouts
+        if (
+          lastError.name === 'AbortError' ||
+          lastError.message.includes('Failed to fetch') ||
+          error instanceof TypeError
+        ) {
+          if (attempt < this.MAX_RETRIES - 1) {
+            const backoffMs = this.RETRY_BACKOFF_MS * Math.pow(2, attempt)
+            await new Promise((resolve) => setTimeout(resolve, backoffMs))
+            continue
+          }
+        }
+
+        throw lastError
+      }
+    }
+
+    throw lastError || new Error('API fetch failed')
+  }
+
   // Fetch from REST API endpoint
   private static async fetchFromAPI(options: FetchOptions): Promise<CSVRow[]> {
     const { endpoint, apiKey } = options.source
     if (!endpoint) throw new Error('No endpoint provided')
+
+    // Validate date range
+    if (options.dateRange?.start && options.dateRange?.end) {
+      const startDate = new Date(options.dateRange.start)
+      const endDate = new Date(options.dateRange.end)
+      if (startDate > endDate) {
+        throw new Error('Start date must be before end date')
+      }
+    }
 
     const url = new URL(endpoint)
     if (options.dateRange?.start) {
@@ -181,13 +261,34 @@ export class AccountingDataProvider {
       headers['Authorization'] = `Bearer ${apiKey}`
     }
 
-    const response = await fetch(url.toString(), { headers })
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`)
-    }
+    try {
+      const response = await this.fetchWithRetry(url.toString(), { headers })
 
-    const result = await response.json()
-    return Array.isArray(result) ? result : result.data || []
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('API authentication failed (invalid or expired token)')
+        }
+        if (response.status === 403) {
+          throw new Error('API access denied (insufficient permissions)')
+        }
+        if (response.status === 404) {
+          throw new Error('API endpoint not found')
+        }
+        throw new Error(`API error: ${response.status} ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      return Array.isArray(result) ? result : result.data || []
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error(
+            `API request timeout after ${this.API_TIMEOUT}ms - server may be unresponsive`,
+          )
+        }
+      }
+      throw error
+    }
   }
 
   // Parse ERP export format (typically CSV or JSON)
