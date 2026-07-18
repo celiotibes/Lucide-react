@@ -39,7 +39,7 @@ export function useLiveData<T>(
   const [isStale, setIsStale] = useState(false);
 
   const { lastUpdate, hasNewData } = useRealtime();
-  const refreshTimeoutRef = useRef<NodeJS.Timeout>();
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const refresh = async () => {
     try {

@@ -65,7 +65,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             setHasNewData(true);
           }
         )
-        .subscribe((status) => {
+        .subscribe((status: string) => {
           setIsConnected(status === 'SUBSCRIBED');
         })
     );

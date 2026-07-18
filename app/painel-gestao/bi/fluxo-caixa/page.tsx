@@ -4,10 +4,6 @@ import { useEffect, useState } from 'react';
 import { obterFluxoCaixa } from '@/app/actions/bi/obterFluxoCaixa';
 import {
   Sankey,
-  Sink,
-  Source,
-  Link,
-  Node,
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';

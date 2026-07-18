@@ -7,7 +7,7 @@ import {
   AlertCircle,
   FileText,
   Zap,
-  HeatmapSquare,
+  Flame,
   Clock,
   Gauge,
   Activity,
@@ -56,7 +56,7 @@ const features: FeatureBi[] = [
     titulo: 'Análise de Custos (Heatmap)',
     descricao: 'Mapa de calor mostrando intensidade de custos por período e categoria',
     href: '/painel-gestao/bi/analise-calor',
-    icone: <HeatmapSquare className="w-6 h-6" />,
+    icone: <Flame className="w-6 h-6" />,
     status: 'ativo',
     cores: {
       bg: 'bg-orange-50',
