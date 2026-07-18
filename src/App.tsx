@@ -1,16 +1,29 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
+import { ToastProvider } from './contexts/ToastContext'
 import { LoginScreen } from './screens/LoginScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
 import { CasesScreen } from './screens/CasesScreen'
 import { IntimationsScreen } from './screens/IntimationsScreen'
 import { ComplianceScreen } from './screens/ComplianceScreen'
+import { seedMockData } from './mocks/data'
 
 function App() {
+  useEffect(() => {
+    // Seed mock data in development mode
+    if (import.meta.env.DEV) {
+      const enableMockData = localStorage.getItem('ENABLE_MOCK_DATA') !== 'false'
+      if (enableMockData) {
+        seedMockData()
+      }
+    }
+  }, [])
+
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ToastProvider>
         <Routes>
           <Route path="/login" element={<LoginScreen />} />
 
@@ -53,6 +66,7 @@ function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   )
