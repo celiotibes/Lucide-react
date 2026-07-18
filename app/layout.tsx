@@ -20,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/modelos-contrato">Modelos de Contrato</Link>
               <Link href="/faturas">Faturas</Link>
               <Link href="/ordens-servico">Ordens de Serviço</Link>
+              <Link href="/vistorias">Vistorias</Link>
               <Link href="/quebras-contrato">Quebras de Contrato</Link>
               <Link href="/extratos">Extratos</Link>
               <Link href="/conciliacao-bancaria">Conciliação Bancária</Link>
