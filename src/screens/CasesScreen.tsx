@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useCasesStore } from '../stores/casesStore'
 import { BottomNavigation } from '../components/BottomNavigation'
+import { useWebSocket } from '../contexts/WebSocketContext'
+import { useToast } from '../contexts/ToastContext'
+import { getWebSocketService } from '../services/websocketService'
 
 export const CasesScreen: React.FC = () => {
   const {
@@ -11,16 +14,39 @@ export const CasesScreen: React.FC = () => {
     fetchCases,
     selectCase,
     clearError,
+    updateCaseLocal,
   } = useCasesStore()
 
+  const { isConnected } = useWebSocket()
+  const { showToast } = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 12
 
+  const handleCaseUpdate = useCallback(
+    (data: unknown) => {
+      const update = data as { id: string; progress?: number; status?: string }
+      if (update.id) {
+        updateCaseLocal(update.id, update)
+        showToast('Caso atualizado em tempo real', 'info')
+      }
+    },
+    [updateCaseLocal, showToast]
+  )
+
   useEffect(() => {
     fetchCases()
   }, [])
+
+  useEffect(() => {
+    const ws = getWebSocketService()
+    const unsubscribe = ws.on('case:updated', handleCaseUpdate)
+
+    return () => {
+      unsubscribe()
+    }
+  }, [handleCaseUpdate])
 
   const filteredCases = cases.filter((c) => {
     const matchSearch =
@@ -48,8 +74,22 @@ export const CasesScreen: React.FC = () => {
       {/* Header */}
       <header className="bg-slate-900/80 border-b border-slate-700/50 backdrop-blur-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Gerenciamento de Casos</h1>
-          <p className="text-gray-400">Visualize, filtro e gerencie todos os seus casos jurídicos</p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Gerenciamento de Casos</h1>
+              <p className="text-gray-400">Visualize, filtro e gerencie todos os seus casos jurídicos</p>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800/50 border border-slate-700/50">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+                }`}
+              />
+              <span className="text-xs text-gray-400">
+                {isConnected ? 'Tempo real' : 'Offline'}
+              </span>
+            </div>
+          </div>
         </div>
       </header>
 

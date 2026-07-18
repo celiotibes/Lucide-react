@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useIntimationsStore } from '../stores/intimationsStore'
 import { BottomNavigation } from '../components/BottomNavigation'
+import { useWebSocket } from '../contexts/WebSocketContext'
+import { useToast } from '../contexts/ToastContext'
+import { getWebSocketService } from '../services/websocketService'
 
 export const IntimationsScreen: React.FC = () => {
   const {
@@ -12,13 +15,37 @@ export const IntimationsScreen: React.FC = () => {
     selectIntimation,
     processIntimation,
     clearError,
+    updateIntimation,
   } = useIntimationsStore()
 
+  const { isConnected, unreadIntimations } = useWebSocket()
+  const { showToast } = useToast()
   const [statusFilter, setStatusFilter] = useState<string>('all')
+
+  const handleWebSocketUpdate = useCallback(
+    (data: unknown) => {
+      const update = data as { id: string; status?: string; confidence?: number }
+      if (update.id) {
+        updateIntimation(update.id, update)
+        showToast('Intimação atualizada em tempo real', 'info')
+      }
+    },
+    [updateIntimation, showToast]
+  )
 
   useEffect(() => {
     fetchIntimations()
   }, [])
+
+  useEffect(() => {
+    const ws = getWebSocketService()
+
+    const unsubscribe = ws.on('intimation:updated', handleWebSocketUpdate)
+
+    return () => {
+      unsubscribe()
+    }
+  }, [handleWebSocketUpdate])
 
   const filteredIntimations = intimations.filter(
     (i) => statusFilter === 'all' || i.status === statusFilter,
@@ -58,10 +85,31 @@ export const IntimationsScreen: React.FC = () => {
       {/* Header */}
       <header className="bg-slate-900/80 border-b border-slate-700/50 backdrop-blur-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Processamento de Intimações</h1>
-          <p className="text-gray-400">
-            Gerencie e processe intimações com automação inteligente
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">
+                Processamento de Intimações
+              </h1>
+              <p className="text-gray-400">
+                Gerencie e processe intimações com automação inteligente
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+                }`}
+              />
+              <span className="text-sm text-gray-400">
+                {isConnected ? 'Conectado' : 'Desconectado'}
+              </span>
+              {unreadIntimations > 0 && (
+                <span className="ml-4 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-semibold">
+                  🔔 {unreadIntimations} novo
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 

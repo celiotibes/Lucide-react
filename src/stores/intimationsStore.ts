@@ -23,6 +23,7 @@ export interface IntimationsState {
   fetchIntimationDetail: (id: string) => Promise<Intimation>
   processIntimation: (id: string) => Promise<void>
   updateIntimationResponse: (id: string, response: any) => Promise<void>
+  updateIntimation: (id: string, data: Partial<Intimation>) => void
   selectIntimation: (intimationOrId: Intimation | string | null) => void
   clearError: () => void
 }
@@ -86,6 +87,18 @@ export const useIntimationsStore = create<IntimationsState>((set) => ({
       set({ error: message })
       throw err
     }
+  },
+
+  updateIntimation: (id: string, data: Partial<Intimation>) => {
+    set((state) => ({
+      intimations: state.intimations.map((i) =>
+        i.id === id ? { ...i, ...data, lastUpdate: new Date().toISOString() } : i
+      ),
+      selectedIntimation:
+        state.selectedIntimation?.id === id
+          ? { ...state.selectedIntimation, ...data, lastUpdate: new Date().toISOString() }
+          : state.selectedIntimation,
+    }))
   },
 
   selectIntimation: (intimationOrId) => {

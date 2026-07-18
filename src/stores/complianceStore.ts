@@ -21,6 +21,7 @@ export interface ComplianceState {
   fetchMetrics: () => Promise<void>
   fetchRiskAssessment: () => Promise<void>
   fetchAuditTrail: (params?: any) => Promise<void>
+  updateMetricLocal: (id: string, data: Partial<ComplianceMetric>) => void
   clearError: () => void
 }
 
@@ -70,6 +71,14 @@ export const useComplianceStore = create<ComplianceState>((set) => ({
       set({ error: message })
       throw err
     }
+  },
+
+  updateMetricLocal: (id: string, data: Partial<ComplianceMetric>) => {
+    set((state) => ({
+      metrics: state.metrics.map((m) =>
+        m.id === id ? { ...m, ...data } : m
+      ),
+    }))
   },
 
   clearError: () => set({ error: null }),

@@ -24,6 +24,7 @@ export interface CasesState {
   fetchCaseDetail: (id: string) => Promise<Case>
   createCase: (data: any) => Promise<Case>
   updateCase: (id: string, data: any) => Promise<Case>
+  updateCaseLocal: (id: string, data: Partial<Case>) => void
   deleteCase: (id: string) => Promise<void>
   selectCase: (caseOrId: Case | string | null) => void
   clearError: () => void
@@ -78,6 +79,18 @@ export const useCasesStore = create<CasesState>((set) => ({
       set({ error: message })
       throw err
     }
+  },
+
+  updateCaseLocal: (id: string, data: Partial<Case>) => {
+    set((state) => ({
+      cases: state.cases.map((c) =>
+        c.id === id ? { ...c, ...data, lastUpdate: new Date().toISOString() } : c
+      ),
+      selectedCase:
+        state.selectedCase?.id === id
+          ? { ...state.selectedCase, ...data, lastUpdate: new Date().toISOString() }
+          : state.selectedCase,
+    }))
   },
 
   deleteCase: async (id: string) => {

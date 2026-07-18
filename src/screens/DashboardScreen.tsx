@@ -1,20 +1,58 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useCasesStore } from '../stores/casesStore'
 import { useComplianceStore } from '../stores/complianceStore'
 import { useNavigate } from 'react-router-dom'
 import { BottomNavigation } from '../components/BottomNavigation'
+import { useWebSocket } from '../contexts/WebSocketContext'
+import { useToast } from '../contexts/ToastContext'
+import { getWebSocketService } from '../services/websocketService'
 
 export const DashboardScreen: React.FC = () => {
   const { user, logout } = useAuthStore()
-  const { cases, isLoading: casesLoading, fetchCases } = useCasesStore()
-  const { metrics, isLoading: complianceLoading, fetchMetrics } = useComplianceStore()
+  const { cases, isLoading: casesLoading, fetchCases, updateCaseLocal } = useCasesStore()
+  const { metrics, isLoading: complianceLoading, fetchMetrics, updateMetricLocal } =
+    useComplianceStore()
   const navigate = useNavigate()
+  const { isConnected } = useWebSocket()
+  const { showToast } = useToast()
+
+  const handleCaseUpdate = useCallback(
+    (data: unknown) => {
+      const update = data as { id: string; progress?: number; status?: string }
+      if (update.id) {
+        updateCaseLocal(update.id, update)
+        showToast('Caso atualizado em tempo real', 'info')
+      }
+    },
+    [updateCaseLocal, showToast]
+  )
+
+  const handleMetricUpdate = useCallback(
+    (data: unknown) => {
+      const update = data as { id: string; value: number; status: string }
+      if (update.id) {
+        updateMetricLocal(update.id, update)
+      }
+    },
+    [updateMetricLocal]
+  )
 
   useEffect(() => {
     fetchCases()
     fetchMetrics()
   }, [])
+
+  useEffect(() => {
+    const ws = getWebSocketService()
+    const unsubscribeCaseUpdate = ws.on('case:updated', handleCaseUpdate)
+    const unsubscribeMetricUpdate = ws.on('compliance:metric-updated', handleMetricUpdate)
+
+    return () => {
+      unsubscribeCaseUpdate()
+      unsubscribeMetricUpdate()
+    }
+  }, [handleCaseUpdate, handleMetricUpdate])
 
   const handleLogout = async () => {
     try {
@@ -35,7 +73,17 @@ export const DashboardScreen: React.FC = () => {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <p className="text-gray-400 text-sm">Bem-vindo, {user?.name || user?.email}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-gray-400 text-sm">Bem-vindo, {user?.name || user?.email}</p>
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+                }`}
+              />
+              <span className="text-xs text-gray-500">
+                {isConnected ? 'Live' : 'Offline'}
+              </span>
+            </div>
           </div>
           <button
             onClick={handleLogout}
