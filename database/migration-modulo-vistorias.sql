@@ -67,6 +67,42 @@ alter table vistorias
 create index if not exists idx_vistorias_base on vistorias(vistoria_base_id);
 create index if not exists idx_vistorias_tipo_status on vistorias(tipo, status);
 
+-- Nada impede, só com a FK, de uma vistoria de saída apontar para a
+-- entrada de OUTRO imóvel — mesmo tipo de checagem cross-row que
+-- `fn_check_contrato_comodo_coerente` já resolve para `comodos`/
+-- `contratos` (seção 27). Sem isto, o comparador (obterComparativoVistoria)
+-- poderia silenciosamente comparar itens de checklist de imóveis
+-- diferentes.
+create or replace function fn_check_vistoria_base_coerente()
+returns trigger as $$
+declare
+  v_imovel_da_base uuid;
+  v_tipo_da_base text;
+begin
+  if new.vistoria_base_id is null then
+    return new;
+  end if;
+
+  select imovel_id, tipo into v_imovel_da_base, v_tipo_da_base
+  from vistorias where id = new.vistoria_base_id;
+
+  if v_imovel_da_base is distinct from new.imovel_id then
+    raise exception 'vistoria_base_id % não pertence ao mesmo imóvel % desta vistoria', new.vistoria_base_id, new.imovel_id;
+  end if;
+
+  if v_tipo_da_base is distinct from 'entrada' then
+    raise exception 'vistoria_base_id % precisa apontar para uma vistoria do tipo entrada (encontrado: %)', new.vistoria_base_id, v_tipo_da_base;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_check_vistoria_base_coerente on vistorias;
+create trigger trg_check_vistoria_base_coerente
+  before insert or update on vistorias
+  for each row execute function fn_check_vistoria_base_coerente();
+
 -- ----------------------------------------------------------------------------
 -- 3. Ambientes e itens de checklist
 -- ----------------------------------------------------------------------------
