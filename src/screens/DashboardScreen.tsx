@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useCasesStore } from '../stores/casesStore'
 import { useComplianceStore } from '../stores/complianceStore'
 import { useNavigate } from 'react-router-dom'
+import { BottomNavigation } from '../components/BottomNavigation'
 
 export const DashboardScreen: React.FC = () => {
   const { user, logout } = useAuthStore()
@@ -28,7 +29,7 @@ export const DashboardScreen: React.FC = () => {
   const completedCases = cases.filter((c) => c.status === 'concluded').length
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-24">
       {/* Header */}
       <header className="bg-slate-900/80 border-b border-slate-700/50 backdrop-blur-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -208,6 +209,7 @@ export const DashboardScreen: React.FC = () => {
           )}
         </div>
       </main>
+      <BottomNavigation />
     </div>
   )
 }
