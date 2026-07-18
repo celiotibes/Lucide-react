@@ -185,29 +185,36 @@ export default async function PaginaVistoria({ params }: { params: Promise<{ id:
             </table>
           )}
 
-          {fechamento && (
+          {(vistoria.tipo === 'saida' || vistoria.tipo === 'conferencia') && (
             <>
               <h3>Fechamento financeiro</h3>
-              <p>
-                <strong>Débitos:</strong> {formatarMoeda(fechamento.total_debitos)} &nbsp;|&nbsp;{' '}
-                <strong>Créditos:</strong> {formatarMoeda(fechamento.total_creditos)}
-                {fechamento.caucao_valor_atualizado && (
-                  <>
-                    {' '}
-                    (inclui caução atualizada de {formatarMoeda(fechamento.caucao_valor_atualizado)},{' '}
-                    {fechamento.caucao_fonte === 'indice_bacen' ? 'via índice da poupança' : 'via extrato bancário'})
-                  </>
-                )}
-              </p>
-              <p>
-                <strong>Saldo final:</strong>{' '}
-                <span className={`tag${Number(fechamento.saldo_final) < 0 ? ' tag--atrasada' : ' tag--concluido'}`}>
-                  {Number(fechamento.saldo_final) >= 0
-                    ? `A devolver ao inquilino: ${formatarMoeda(fechamento.saldo_final)}`
-                    : `A cobrar do inquilino: ${formatarMoeda(Math.abs(Number(fechamento.saldo_final)))}`}
-                </span>{' '}
-                ({fechamento.status})
-              </p>
+              <Link href={`/vistorias/${vistoria.id}/fechamento`} className="botao-link">
+                Editar fechamento
+              </Link>
+              {fechamento && (
+                <>
+                  <p>
+                    <strong>Débitos:</strong> {formatarMoeda(fechamento.total_debitos)} &nbsp;|&nbsp;{' '}
+                    <strong>Créditos:</strong> {formatarMoeda(fechamento.total_creditos)}
+                    {fechamento.caucao_valor_atualizado && (
+                      <>
+                        {' '}
+                        (inclui caução atualizada de {formatarMoeda(fechamento.caucao_valor_atualizado)},{' '}
+                        {fechamento.caucao_fonte === 'indice_bacen' ? 'via índice da poupança' : 'via extrato bancário'})
+                      </>
+                    )}
+                  </p>
+                  <p>
+                    <strong>Saldo final:</strong>{' '}
+                    <span className={`tag${Number(fechamento.saldo_final) < 0 ? ' tag--atrasada' : ' tag--concluido'}`}>
+                      {Number(fechamento.saldo_final) >= 0
+                        ? `A devolver ao inquilino: ${formatarMoeda(fechamento.saldo_final)}`
+                        : `A cobrar do inquilino: ${formatarMoeda(Math.abs(Number(fechamento.saldo_final)))}`}
+                    </span>{' '}
+                    ({fechamento.status})
+                  </p>
+                </>
+              )}
             </>
           )}
         </>
