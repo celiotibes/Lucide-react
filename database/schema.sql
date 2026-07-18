@@ -3010,7 +3010,7 @@ create policy prestador_ve_proprios_apontamentos on apontamentos_prestador
   for select using (
     exists (
       select 1 from prestadores_servico ps
-      join personas p on ps.pessoa_id = p.id
+      join pessoas p on ps.pessoa_id = p.id
       join auth.users u on p.email = u.email
       where ps.id = (select prestador_id from contratos_prestador where id = apontamentos_prestador.contrato_id)
         and u.id = auth.uid()
