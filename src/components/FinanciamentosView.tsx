@@ -5,14 +5,9 @@ import { consultar } from "../db/connection";
 import { compararComTransacoes, type Financiamento } from "../domain/financiamento/amortizacao";
 import type { Imovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
+import { ultimoDiaDoMes } from "../domain/data";
 import { KpiTile } from "./KpiTile";
 import type { FiltroTransacoesInicial } from "./TransacoesView";
-
-function ultimoDiaDoMes(mesIso: string): string {
-  const [ano, mes] = mesIso.split("-").map(Number);
-  const ultimoDia = new Date(ano, mes, 0).getDate();
-  return `${mesIso}-${String(ultimoDia).padStart(2, "0")}`;
-}
 
 export function FinanciamentosView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransacoesInicial) => void }) {
   const { db, versao } = useDb();
@@ -127,7 +122,17 @@ export function FinanciamentosView({ aoDrillDown }: { aoDrillDown?: (filtro: Fil
                           style={{ padding: "3px 8px", fontSize: 12, display: "inline-flex", gap: 4, alignItems: "center" }}
                           title="Ver os lançamentos de juros/amortização deste mês na aba Transações"
                           onClick={() =>
-                            aoDrillDown({ imovelId: financiamentoAtivo.imovel_id, dataInicio: `${d.mes}-01`, dataFim: ultimoDiaDoMes(d.mes) })
+                            aoDrillDown({
+                              imovelId: financiamentoAtivo.imovel_id,
+                              // 2.1.05/2.1.06 = juros/amortização de financiamento (mesmos códigos que
+                              // compararComTransacoes usa pra montar jurosCobrado/amortizacaoCobrada
+                              // acima) — sem isso o "Ver" mostrava TODOS os lançamentos do imóvel no
+                              // mês (aluguel, condomínio etc.), diluindo a evidência específica do
+                              // alerta de possível anatocismo que o título do botão promete mostrar.
+                              planoContaCodigos: ["2.1.05", "2.1.06"],
+                              dataInicio: `${d.mes}-01`,
+                              dataFim: ultimoDiaDoMes(d.mes),
+                            })
                           }
                         >
                           <Search size={11} /> Ver

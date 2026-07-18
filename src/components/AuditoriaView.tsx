@@ -160,7 +160,11 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
                     </span>
                     {aoDrillDown && (
                       <BotaoVerTransacoes
-                        onClick={() => aoDrillDown({ planoContaCodigo: "9.0.02", imovelId: c.imovelId, dataInicio: dataInicio36m, dataFim: hoje })}
+                        // detectarCaucoesSemTransacao não tem filtro de data (escaneia cauções de qualquer
+                        // época) — a busca aqui precisa cobrir pelo menos a data real do depósito, não só
+                        // os últimos 36 meses, senão uma caução mais antiga vira "sem nada por perto" só
+                        // porque a janela do drill-down nunca incluiu o período certo.
+                        onClick={() => aoDrillDown({ planoContaCodigo: "9.0.02", imovelId: c.imovelId, dataInicio: c.dataDeposito < dataInicio36m ? c.dataDeposito : dataInicio36m, dataFim: hoje })}
                       />
                     )}
                   </div>

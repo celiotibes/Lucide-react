@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, Sankey, Rectangle } from "recharts";
 import type { SankeyNodeProps, SankeyLinkProps } from "recharts";
@@ -13,15 +13,10 @@ import { detectarOutliers } from "../domain/auditoria/auditoriaForense";
 import { calcularDesempenhoPorImovel, agruparDesempenhoPorCidade } from "../domain/reports/desempenhoPorImovel";
 import { gerarFluxoFinanceiro, type NoFluxo } from "../domain/reports/fluxoFinanceiro";
 import { formatarMoeda as formatarMoedaCompleta } from "../domain/formatarMoeda";
+import { ultimoDiaDoMes } from "../domain/data";
 import { KpiTile } from "./KpiTile";
 import type { FiltroTransacoesInicial } from "./TransacoesView";
 import type { Imovel } from "../domain/types";
-
-function ultimoDiaDoMes(mesIso: string): string {
-  const [ano, mes] = mesIso.split("-").map(Number);
-  const ultimoDia = new Date(ano, mes, 0).getDate();
-  return `${mesIso}-${String(ultimoDia).padStart(2, "0")}`;
-}
 
 const MESES_ABREVIADOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 function formatarMesAbreviado(mesIso: string): string {
@@ -167,6 +162,15 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
     return new Set(outliers.map((o) => `${o.planoContaCodigo}|${o.data.slice(0, 7)}`));
   }, [db, versao, dataInicio12m, hoje]);
 
+  // Referência estável (useCallback, não uma arrow function recriada a cada render) — o prop
+  // `node` do Sankey do recharts trata identidade de função diferente como um novo tipo de
+  // componente e força desmontar/remontar todos os nós SVG do diagrama a cada render do
+  // Dashboard não relacionado ao Sankey (ex: trocar o filtro de imóvel do DRE).
+  const renderizarNoSankey = useCallback(
+    (props: SankeyNodeProps) => <NoSankeyFluxo {...props} aoDrillDown={aoDrillDown} dataInicio={dataInicio12m} dataFim={hoje} />,
+    [aoDrillDown, dataInicio12m, hoje],
+  );
+
   const aging = useMemo(() => agingPorFaixa(statusInadimplencia), [statusInadimplencia]);
   const dadosAging = Object.entries(aging).map(([faixa, valores]) => ({ faixa, ...valores }));
   const corPorFaixa = ["var(--viz-warning)", "var(--viz-serious)", "var(--viz-critical)"];
@@ -241,7 +245,12 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
                     cursor={etapa.tipo === "despesa" && aoDrillDown ? "pointer" : "default"}
                     onClick={() => {
                       if (etapa.tipo === "despesa" && etapa.codigo && aoDrillDown) {
-                        aoDrillDown({ planoContaCodigo: etapa.codigo, dataInicio: dataInicio12m, dataFim: hoje });
+                        aoDrillDown({
+                          planoContaCodigo: etapa.codigo,
+                          imovelId: imovelFiltroId === "" ? undefined : imovelFiltroId,
+                          dataInicio: dataInicio12m,
+                          dataFim: hoje,
+                        });
                       }
                     }}
                   />
@@ -428,7 +437,7 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
                 nodePadding={18}
                 margin={{ top: 8, right: 160, bottom: 8, left: 160 }}
                 link={LigacaoSankeyFluxo}
-                node={(props: SankeyNodeProps) => <NoSankeyFluxo {...props} aoDrillDown={aoDrillDown} dataInicio={dataInicio12m} dataFim={hoje} />}
+                node={renderizarNoSankey}
               >
                 <Tooltip formatter={(valor) => formatarMoeda(Number(valor))} />
               </Sankey>

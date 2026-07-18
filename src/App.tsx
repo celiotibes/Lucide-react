@@ -53,11 +53,18 @@ function Conteudo() {
   const [aba, setAba] = useState<Aba>("dashboard");
   // Drill-down do Painel (clique numa barra da cascata do DRE ou numa célula do mapa de calor):
   // guarda o filtro e troca de aba pra Transações, que consome esse valor uma única vez ao
-  // montar. Não é reaproveitado entre navegações — cada clique novo sobrescreve o anterior.
+  // montar. Qualquer navegação que NÃO seja um drill-down explícito passa por navegarParaAba,
+  // que limpa esse filtro antes de trocar de aba — sem isso, o filtro do último clique em "Ver"
+  // ficava aplicado silenciosamente mesmo quando o usuário só clica em "Transações" na barra de
+  // navegação, mostrando uma lista incompleta sem nenhuma ação que explique o motivo.
   const [filtroTransacoesDrillDown, setFiltroTransacoesDrillDown] = useState<FiltroTransacoesInicial | null>(null);
   const aoDrillDownTransacoes = useCallback((filtro: FiltroTransacoesInicial) => {
     setFiltroTransacoesDrillDown(filtro);
     setAba("transacoes");
+  }, []);
+  const navegarParaAba = useCallback((destino: Aba) => {
+    setFiltroTransacoesDrillDown(null);
+    setAba(destino);
   }, []);
   const [mensagemSeed, setMensagemSeed] = useState<string | null>(null);
   const [ultimoRegistroBackup, setUltimoRegistroBackup] = useState<RegistroBackup | null>(null);
@@ -198,7 +205,7 @@ function Conteudo() {
 
         <nav className="app-nav">
           {ABAS.map(({ id, rotulo, icone: Icone }) => (
-            <button key={id} aria-current={aba === id ? "page" : undefined} onClick={() => setAba(id)}>
+            <button key={id} aria-current={aba === id ? "page" : undefined} onClick={() => navegarParaAba(id)}>
               <Icone size={15} /> {rotulo}
               {id === "pendencias" && pendenciasCriticas > 0 && (
                 <span className="pill critical" style={{ marginLeft: 6, padding: "1px 6px" }}>{pendenciasCriticas}</span>
@@ -234,7 +241,7 @@ function Conteudo() {
         )}
         <div className="tab-content" key={aba}>
           {aba === "dashboard" && <Dashboard aoDrillDown={aoDrillDownTransacoes} />}
-          {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => setAba(destino as Aba)} />}
+          {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => navegarParaAba(destino as Aba)} />}
           {aba === "imoveis" && <ImoveisView />}
           {aba === "cadastros" && <CadastrosView />}
           {aba === "importar" && <ImportarView />}

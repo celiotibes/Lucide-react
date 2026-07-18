@@ -13,6 +13,10 @@ import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, type C
  * filtros normalmente pelos próprios controles da tela. */
 export interface FiltroTransacoesInicial {
   planoContaCodigo?: string | null;
+  /** Mais de um código do plano de contas (ex: juros + amortização de financiamento) —
+   * combinável com imovelId/data, diferente de transacaoIds abaixo. Usado quando o drill-down
+   * sabe que a evidência está espalhada entre 2+ categorias fixas, não uma só. */
+  planoContaCodigos?: string[] | null;
   imovelId?: number | null;
   dataInicio?: string;
   dataFim?: string;
@@ -54,13 +58,21 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const [filtroDataInicio, setFiltroDataInicio] = useState(filtroInicial?.dataInicio ?? "");
   const [filtroDataFim, setFiltroDataFim] = useState(filtroInicial?.dataFim ?? "");
   const [filtroTransacaoIds, setFiltroTransacaoIds] = useState<number[] | null>(filtroInicial?.transacaoIds ?? null);
+  const [filtroCategorias, setFiltroCategorias] = useState<string[] | null>(filtroInicial?.planoContaCodigos ?? null);
 
   const planoContas = useMemo<PlanoConta[]>(() => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []), [db, versao]);
   const planoContasPorCodigo = useMemo(() => new Map(planoContas.map((p) => [p.codigo, p])), [planoContas]);
   const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
   const regrasSalvas = useMemo(() => (db ? listarRegras(db) : []), [db, versao]);
 
-  const algumFiltroAtivo = somentePendentes || filtroCategoria !== "" || filtroImovel !== "" || filtroDataInicio !== "" || filtroDataFim !== "" || filtroTransacaoIds !== null;
+  // "Somente pendentes" (plano_conta_codigo IS NULL) é incompatível com um filtro de categoria
+  // (plano_conta_codigo = X): toda transação categorizada já tem código preenchido, então a
+  // combinação nunca traria resultado — e com filtroTransacaoIds a lista já é um conjunto exato
+  // de IDs, sem nada a refinar. Desabilita o checkbox nesses dois casos em vez de deixá-lo
+  // "morto" sem indicação visual de que está sendo ignorado.
+  const pendentesIndisponivel = filtroCategoria !== "" || filtroCategorias !== null || filtroTransacaoIds !== null;
+  const algumFiltroAtivo =
+    somentePendentes || filtroCategoria !== "" || filtroImovel !== "" || filtroDataInicio !== "" || filtroDataFim !== "" || filtroTransacaoIds !== null || filtroCategorias !== null;
   function limparFiltros() {
     setSomentePendentes(false);
     setFiltroCategoria("");
@@ -68,6 +80,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     setFiltroDataInicio("");
     setFiltroDataFim("");
     setFiltroTransacaoIds(null);
+    setFiltroCategorias(null);
   }
 
   const transacoes = useMemo<Transacao[]>(() => {
@@ -79,14 +92,23 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     }
     const condicoes: string[] = [];
     const params: (string | number)[] = [];
-    if (somentePendentes) condicoes.push("plano_conta_codigo IS NULL");
+    // "Somente pendentes" e filtro de categoria são mutuamente exclusivos (ver
+    // pendentesIndisponivel) — a guarda aqui é a garantia real de correção, o checkbox
+    // desabilitado na UI é só o reflexo visual dela; sem isso, marcar "pendentes" e DEPOIS
+    // aplicar um filtro de categoria (ex. via drill-down) deixaria as duas condições ativas ao
+    // mesmo tempo, uma combinação estruturalmente impossível que sempre retorna vazio.
+    if (somentePendentes && filtroCategoria === "" && filtroCategorias === null) condicoes.push("plano_conta_codigo IS NULL");
     if (filtroCategoria !== "") { condicoes.push("plano_conta_codigo = ?"); params.push(filtroCategoria); }
+    if (filtroCategorias !== null && filtroCategorias.length > 0) {
+      condicoes.push(`plano_conta_codigo IN (${filtroCategorias.map(() => "?").join(",")})`);
+      params.push(...filtroCategorias);
+    }
     if (filtroImovel !== "") { condicoes.push("imovel_id = ?"); params.push(filtroImovel); }
     if (filtroDataInicio !== "") { condicoes.push("data >= ?"); params.push(filtroDataInicio); }
     if (filtroDataFim !== "") { condicoes.push("data <= ?"); params.push(filtroDataFim); }
     const where = condicoes.length > 0 ? `WHERE ${condicoes.join(" AND ")}` : "";
     return consultar<Transacao>(db, `SELECT * FROM transacoes ${where} ORDER BY data DESC LIMIT 300`, params);
-  }, [db, versao, somentePendentes, filtroCategoria, filtroImovel, filtroDataInicio, filtroDataFim, filtroTransacaoIds]);
+  }, [db, versao, somentePendentes, filtroCategoria, filtroCategorias, filtroImovel, filtroDataInicio, filtroDataFim, filtroTransacaoIds]);
 
   const totalPendentes = useMemo(
     () => (db ? consultar<{ total: number }>(db, "SELECT COUNT(*) as total FROM transacoes WHERE plano_conta_codigo IS NULL")[0]?.total ?? 0 : 0),
@@ -159,8 +181,22 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <h2 className="section-title">Transações {totalPendentes > 0 && <span className="pill warning">{totalPendentes} pendente(s) de categorização</span>}</h2>
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5 }}>
-            <input type="checkbox" checked={somentePendentes} onChange={(e) => setSomentePendentes(e.target.checked)} />
+          <label
+            style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5, opacity: pendentesIndisponivel ? 0.5 : 1 }}
+            title={
+              pendentesIndisponivel
+                ? filtroTransacaoIds !== null
+                  ? "Não se aplica: esta lista já é um conjunto exato de lançamentos vindo de um achado da auditoria"
+                  : "Não se aplica junto com um filtro de categoria — toda transação com categoria já tem plano_conta_codigo preenchido, então a combinação nunca traria resultado"
+                : undefined
+            }
+          >
+            <input
+              type="checkbox"
+              checked={somentePendentes}
+              disabled={pendentesIndisponivel}
+              onChange={(e) => setSomentePendentes(e.target.checked)}
+            />
             Mostrar apenas pendentes
           </label>
           <button className="btn" onClick={exportarMapaConciliacao} title="Exporta todas as transações com Data, Descrição, Valor, Categoria, Imóvel e PF/Negócio">
@@ -212,11 +248,12 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                 <X size={13} /> Limpar filtros
               </button>
             )}
-            {(filtroCategoria !== "" || filtroImovel !== "") && (
-              <span className="pill good" title="Filtro aplicado a partir de um clique no Painel ou na Auditoria forense">
+            {(filtroCategoria !== "" || filtroImovel !== "" || filtroCategorias !== null) && (
+              <span className="pill good" title="Filtro aplicado a partir de um clique no Painel, na Auditoria forense ou em Financiamentos">
                 filtrando:{" "}
                 {[
                   filtroCategoria !== "" ? (planoContasPorCodigo.get(filtroCategoria)?.descricao ?? filtroCategoria) : null,
+                  filtroCategorias !== null ? filtroCategorias.map((c) => planoContasPorCodigo.get(c)?.descricao ?? c).join(" + ") : null,
                   filtroImovel !== "" ? imoveis.find((i) => i.id === filtroImovel)?.apelido : null,
                 ]
                   .filter(Boolean)

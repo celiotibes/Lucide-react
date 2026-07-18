@@ -59,11 +59,12 @@ function agruparTopN(itens: { chave: string; valor: number }[], maxItens: number
  * agrupado em "Outras origens/Outras despesas") para o diagrama continuar legível com
  * portfólios grandes — sem isso, uma carteira de 30+ imóveis vira um emaranhado ilegível. */
 export function gerarFluxoFinanceiro(db: Database, dataInicio: string, dataFim: string): FluxoFinanceiro {
-  const linhasEntrada = consultar<{ origem: string; conta: string; imovel_id: number | null; codigo: string; valor: number }>(
+  const linhasEntrada = consultar<{ origem: string; conta: string; grupo: string; imovel_id: number | null; codigo: string; valor: number }>(
     db,
     `SELECT
         CASE WHEN p.grupo = 'receita' THEN COALESCE(i.apelido, 'Sem imóvel vinculado') ELSE p.descricao END AS origem,
         cb.banco || ' ' || cb.numero AS conta,
+        p.grupo AS grupo,
         i.id AS imovel_id,
         p.codigo AS codigo,
         SUM(t.valor) AS valor
@@ -72,7 +73,7 @@ export function gerarFluxoFinanceiro(db: Database, dataInicio: string, dataFim: 
      JOIN contas_bancarias cb ON cb.id = t.conta_id
      LEFT JOIN imoveis i ON i.id = t.imovel_id
      WHERE p.natureza = 'credito' AND p.grupo != 'transferencia' AND t.data BETWEEN ? AND ?
-     GROUP BY origem, conta, imovel_id, codigo
+     GROUP BY origem, conta, grupo, imovel_id, codigo
      HAVING SUM(t.valor) > 0`,
     [dataInicio, dataFim],
   );
@@ -119,34 +120,71 @@ export function gerarFluxoFinanceiro(db: Database, dataInicio: string, dataFim: 
   // Metadados por nome de nó exibido — capturados ANTES de montar os nós, pro drill-down (ver
   // NoFluxo): "Outras origens/Outras despesas" ficam de fora de propósito (agregam mais de uma
   // categoria/imóvel, não haveria alvo único pra filtrar Transações).
+  //
+  // O critério pra decidir imovelId x codigo é o MESMO que decide o rótulo do nó (l.grupo ===
+  // 'receita'), nunca "l.imovel_id não é nulo" isoladamente — uma transação não-receita (ex:
+  // salário) pode ter um imóvel atribuído manualmente em Transações sem deixar de ser rotulada
+  // pela descrição da conta; usar presença de imovel_id ali faria o nó "Salário" filtrar por
+  // imóvel em vez de pela categoria salário, mostrando lançamentos completamente diferentes do
+  // que o nó exibe.
+  //
+  // Quando duas linhas mapeiam pro MESMO nome exibido mas com imovelId/codigo diferentes (ex:
+  // dois imóveis com apelido idêntico — o schema não exige unicidade), não há um alvo único de
+  // drill-down: em vez de escolher arbitrariamente o primeiro (ocultando parte dos lançamentos
+  // do valor somado no nó), a metadata fica null — sem drill-down é melhor que drill-down
+  // errado/incompleto.
+  function metadataConflitante<T>(a: T, b: T): boolean {
+    return JSON.stringify(a) !== JSON.stringify(b);
+  }
+
   const metadataOrigemPorNome = new Map<string, { imovelId: number | null; codigo: string | null }>();
+  const origensComConflito = new Set<string>();
   for (const l of linhasEntrada) {
     const nome = nomeOrigemExibida(l.origem);
-    if (nome === "Outras origens" || metadataOrigemPorNome.has(nome)) continue;
-    metadataOrigemPorNome.set(nome, { imovelId: l.imovel_id, codigo: l.imovel_id === null ? l.codigo : null });
+    if (nome === "Outras origens") continue;
+    const candidato =
+      l.grupo === "receita"
+        ? l.imovel_id !== null
+          ? { imovelId: l.imovel_id, codigo: null }
+          : { imovelId: null, codigo: l.codigo }
+        : { imovelId: null, codigo: l.codigo };
+    const existente = metadataOrigemPorNome.get(nome);
+    if (existente === undefined) metadataOrigemPorNome.set(nome, candidato);
+    else if (metadataConflitante(existente, candidato)) origensComConflito.add(nome);
   }
+  for (const nome of origensComConflito) metadataOrigemPorNome.set(nome, { imovelId: null, codigo: null });
+
   const metadataDestinoPorNome = new Map<string, { codigo: string | null }>();
+  const destinosComConflito = new Set<string>();
   for (const l of linhasSaida) {
     const nome = nomeCategoriaExibida(l.categoria);
-    if (nome === "Outras despesas" || metadataDestinoPorNome.has(nome)) continue;
-    metadataDestinoPorNome.set(nome, { codigo: l.codigo });
+    if (nome === "Outras despesas") continue;
+    const candidato = { codigo: l.codigo };
+    const existente = metadataDestinoPorNome.get(nome);
+    if (existente === undefined) metadataDestinoPorNome.set(nome, candidato);
+    else if (metadataConflitante(existente, candidato)) destinosComConflito.add(nome);
   }
+  for (const nome of destinosComConflito) metadataDestinoPorNome.set(nome, { codigo: null });
 
   // Monta os nós com a coluna decidida explicitamente por qual papel exerce no grafo (nunca
   // pela profundidade topológica calculada pelo recharts — uma conta que só recebe despesa
   // nesta janela, sem nenhuma origem roteada por ela, não teria link de entrada e o recharts
-  // a trataria como "raiz" da mesma profundidade das origens reais). Como os três universos
-  // de nome (imóvel/descrição de origem, "banco número", descrição de categoria de despesa)
-  // não se sobrepõem na prática, cada nome é inequivocamente de uma única coluna.
+  // a trataria como "raiz" da mesma profundidade das origens reais). Os três universos de nome
+  // (imóvel/descrição de origem, "banco número", descrição de categoria de despesa) raramente
+  // se sobrepõem, mas nada impede um usuário de nomear um imóvel igual a uma categoria do plano
+  // de contas (ambos texto livre) — por isso a deduplicação de nó é chaveada por coluna+nome,
+  // nunca só pelo nome, pra uma coincidência de texto entre colunas diferentes nunca colapsar
+  // dois nós semanticamente distintos (origem × destino) no mesmo índice.
   const nodes: NoFluxo[] = [];
-  const indicePorNome = new Map<string, number>();
+  const indicePorChave = new Map<string, number>();
   function indiceDoNo(name: string, coluna: 0 | 1 | 2): number {
-    const existente = indicePorNome.get(name);
+    const chave = `${coluna}|${name}`;
+    const existente = indicePorChave.get(chave);
     if (existente !== undefined) return existente;
     const indice = nodes.length;
     const metadata = coluna === 0 ? metadataOrigemPorNome.get(name) : coluna === 2 ? metadataDestinoPorNome.get(name) : undefined;
     nodes.push({ name, coluna, imovelId: (metadata as { imovelId?: number | null })?.imovelId ?? null, codigo: metadata?.codigo ?? null });
-    indicePorNome.set(name, indice);
+    indicePorChave.set(chave, indice);
     return indice;
   }
 
