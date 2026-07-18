@@ -1,6 +1,8 @@
 // Serviço de Análise de Contratos com IA
+// FASE 11: Integração com Claude API real
 
 import type { ExtractedContractData, ContractAnalysis, ContractDocument } from '../types/contracts'
+import { ClaudeApiService } from './claudeApiService'
 
 export class ContractAnalysisService {
   // Analisa contrato usando IA (Claude)
@@ -146,18 +148,23 @@ IMPORTANTE:
 - Retorne APENAS JSON, sem markdown ou explicação adicional`
   }
 
-  // Chama a IA para análise
+  // Chama a IA para análise (FASE 11: Integração com Claude API real)
   private static async chamarIA(prompt: string): Promise<string> {
     try {
-      // Simula chamada à IA
-      // Em produção, usaria fetch para chamar Claude API via backend
-      // ou integraria com MCP server
-
-      // Por enquanto, retorna template com dados simulados
-      return this.respostaSimuladoIA(prompt)
+      // Tenta usar Claude API real se configurado
+      if (ClaudeApiService.isConfigured()) {
+        // Extrai apenas o contrato do prompt para passar ao analisarContrato
+        const contratoMatch = prompt.match(/CONTRATO:\n([\s\S]*?)\n\nSOLICITAÇÕES/)
+        const textoContrato = contratoMatch ? contratoMatch[1] : prompt
+        return await ClaudeApiService.analisarContrato(textoContrato)
+      }
     } catch (erro) {
-      throw erro
+      console.warn('Claude API não disponível, usando resposta simulada:', erro)
+      // Fall back para resposta simulada se API falhar
     }
+
+    // Fallback para resposta simulada quando API não está configurada
+    return this.respostaSimuladoIA(prompt)
   }
 
   // Resposta simulada da IA (para desenvolvimento)
@@ -217,11 +224,12 @@ IMPORTANTE:
       ],
       confianca_extracao: 45,
       avisos: [
-        'Análise sem integração com IA - resultados parciais',
+        'Análise sem integração com Claude API - resultados parciais',
+        'Configure sua API Key no LLM Config para análise automática em tempo real',
         'Recomenda-se validação manual de todos os dados',
       ],
       resumo:
-        'Contrato carregado. Requer processamento com IA Claude para extração automática de dados.',
+        'Contrato carregado. Configure Claude API para extração automática de dados com IA em tempo real.',
     })
   }
 

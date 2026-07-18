@@ -38,6 +38,7 @@ import { ReportBuilder } from './components/reports/ReportBuilder'
 import { GoogleDriveSync } from './components/googleDrive/GoogleDriveSync'
 import { GmailIntegration } from './components/gmail/GmailIntegration'
 import { PWAPrompt } from './components/pwa/PWAPrompt'
+import { ContractAnalyzerPanel } from './components/contracts/ContractAnalyzerPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import { aiProviderCache } from './services/aiProviderCache'
@@ -58,7 +59,7 @@ function App() {
 
   // FASE 8: Budget tracking e alertas de custo
   useBudgetAlerts()
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard' | 'financial-dashboard'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard' | 'financial-dashboard' | 'contracts'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -159,7 +160,9 @@ function App() {
                                                               ? '⚡ Otimização de Provedores IA'
                                                               : paginaAtiva === 'budget-dashboard'
                                                                 ? '💰 Controle de Orçamento'
-                                                                : 'Busca Avançada Jurídica'}
+                                                                : paginaAtiva === 'contracts'
+                                                                  ? '🏢 Análise de Contratos Imobiliários'
+                                                                  : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -218,7 +221,9 @@ function App() {
                                                                 ? 'Rastreie gastos mensais e controle seu orçamento de IA em tempo real'
                                                               : paginaAtiva === 'financial-dashboard'
                                                                 ? 'Visualize análises financeiras com gráficos de cascata, fluxo de caixa e KPIs'
-                                                                : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                                                : paginaAtiva === 'contracts'
+                                                                  ? 'Upload automático de contratos com extração de dados e validação de termos'
+                                                                  : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -483,6 +488,15 @@ function App() {
           >
             📊 Financeiro
           </button>
+          <button
+            onClick={() => setPaginaAtiva('contracts')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'contracts' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🏢 Contratos
+          </button>
         </div>
         <div style={styles.versao}>
           <span style={{ display: 'block', marginBottom: '4px' }}>FASE 4.2 - Frontend LLM</span>
@@ -731,6 +745,12 @@ function App() {
         {paginaAtiva === 'financial-dashboard' && (
           <main style={styles.mainFullWidth}>
             <FinancialDashboard />
+          </main>
+        )}
+
+        {paginaAtiva === 'contracts' && (
+          <main style={styles.mainFullWidth}>
+            <ContractAnalyzerPanel />
           </main>
         )}
       </div>

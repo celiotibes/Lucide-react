@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { llmRouter } from '../../services/llmRouter'
 import type { LLMProvider, RoutingStrategy } from '../../types/llm'
+import { ClaudeApiConfig } from './ClaudeApiConfig'
 import './LLMConfigPanel.css'
 
 interface ConfigFormData {
@@ -139,6 +140,11 @@ export function LLMConfigPanel() {
                 <li>Speed: 6/10</li>
                 <li>Quality: 9/10</li>
               </ul>
+            </div>
+
+            {/* FASE 11: Claude API for Contract Analysis */}
+            <div style={{ marginTop: '30px', borderTop: '2px solid #eee', paddingTop: '20px' }}>
+              <ClaudeApiConfig />
             </div>
           </div>
         )}
