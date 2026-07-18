@@ -5,6 +5,9 @@ import {
   BentoItem,
   KPICardModern,
   GlassCard,
+  TrendLineChart,
+  BreakdownPieChart,
+  ComparisonBarChart,
 } from '../../../components/modern';
 import './KPIDashboard.css';
 
@@ -196,6 +199,98 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
                 </div>
               </BentoItem>
             ))}
+          </BentoGrid>
+        </section>
+
+        {/* Charts & Analytics Section */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-[#f1f5f9] mb-6">
+            📈 Análise & Gráficos
+          </h2>
+
+          <BentoGrid gap="md">
+            {/* Revenue Trend Line Chart */}
+            <BentoItem size="lg">
+              <GlassCard variant="premium" title="💹 Tendência de Receita (Últimos 7 dias)">
+                <TrendLineChart
+                  data={[
+                    { date: '17 jul', value: 250000, previousValue: 240000 },
+                    { date: '16 jul', value: 245000, previousValue: 235000 },
+                    { date: '15 jul', value: 255000, previousValue: 238000 },
+                    { date: '14 jul', value: 248000, previousValue: 232000 },
+                    { date: '13 jul', value: 242000, previousValue: 228000 },
+                    { date: '12 jul', value: 240000, previousValue: 225000 },
+                    { date: '11 jul', value: 238000, previousValue: 222000 },
+                  ]}
+                  valueLabel="Receita Atual"
+                  height={250}
+                />
+              </GlassCard>
+            </BentoItem>
+
+            {/* Cost Breakdown Pie Chart */}
+            <BentoItem size="md">
+              <GlassCard title="💰 Distribuição de Custos">
+                <BreakdownPieChart
+                  data={[
+                    { name: 'Operacional', value: 85000 },
+                    { name: 'Administrativo', value: 32000 },
+                    { name: 'Financeiro', value: 15000 },
+                    { name: 'Marketing', value: 18000 },
+                    { name: 'Outros', value: 5000 },
+                  ]}
+                  height={250}
+                />
+              </GlassCard>
+            </BentoItem>
+
+            {/* Period Comparison Bar Chart */}
+            <BentoItem size="lg">
+              <GlassCard title="📊 Comparação: Atual vs Anterior">
+                <ComparisonBarChart
+                  data={[
+                    { category: 'Receita', current: 250000, previous: 220000 },
+                    { category: 'EBITDA', current: 150000, previous: 120000 },
+                    { category: 'Custos', current: 85000, previous: 90000 },
+                    { category: 'Lucro', current: 115000, previous: 100000 },
+                  ]}
+                  currentLabel="Atual"
+                  previousLabel="Anterior"
+                  height={250}
+                />
+              </GlassCard>
+            </BentoItem>
+
+            {/* Performance Summary */}
+            <BentoItem size="md">
+              <GlassCard variant="interactive" title="⚡ Resumo de Performance">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#cbd5e1] text-sm">Crescimento Receita</span>
+                    <span className="text-[#10b981] font-bold">+13.6%</span>
+                  </div>
+                  <div className="h-1 bg-[rgba(226,232,240,0.1)] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#10b981] w-1/3 rounded-full" />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-[#cbd5e1] text-sm">Margem de Lucro</span>
+                    <span className="text-[#d4af37] font-bold">63.8%</span>
+                  </div>
+                  <div className="h-1 bg-[rgba(226,232,240,0.1)] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#d4af37] w-2/3 rounded-full" />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-[#cbd5e1] text-sm">Redução de Custos</span>
+                    <span className="text-[#3b82f6] font-bold">-5.9%</span>
+                  </div>
+                  <div className="h-1 bg-[rgba(226,232,240,0.1)] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#3b82f6] w-1/6 rounded-full" />
+                  </div>
+                </div>
+              </GlassCard>
+            </BentoItem>
           </BentoGrid>
         </section>
 
