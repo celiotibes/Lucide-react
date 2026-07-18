@@ -62,7 +62,7 @@ export default function PaginaDespesasOCR() {
         descricao: dadosEditados.descricao || undefined,
       });
 
-      if (resultado.sucesso) {
+      if (resultado.sucesso && resultado.dadosExtraidos) {
         setExtracao({
           valor: resultado.dadosExtraidos.valor,
           data: resultado.dadosExtraidos.data,

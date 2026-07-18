@@ -275,22 +275,25 @@ export async function dispararNotificacoesAlerta(
     const iconeSeveridade =
       alerta.severidade === 'critico' ? '🚨' : alerta.severidade === 'alerta' ? '⚠️' : 'ℹ️';
 
-    await notificador.enviar({
-      canais: ['email'],
-      destinatario: {
-        email: emailsDestino[0],
-      },
-      template: {
-        titulo: `${iconeSeveridade} ${alerta.titulo}`,
-        corpo: alerta.descricao,
-        acaoUrl: 'https://seu-dominio.com/painel-gestao/bi/dashboard',
-        acaoTexto: 'Ver Dashboard',
-      },
-      variaveis: {
-        severidade: alerta.severidade.toUpperCase(),
-        timestamp: new Date().toLocaleString('pt-BR'),
-      },
-    });
+    for (const email of emailsDestino) {
+      await notificador.enviar({
+        canais: ['email'],
+        destinatario: {
+          email,
+          nome: 'Administrador',
+        },
+        template: {
+          titulo: `${iconeSeveridade} ${alerta.titulo}`,
+          corpo: alerta.descricao,
+          acaoUrl: 'https://seu-dominio.com/painel-gestao/bi/dashboard',
+          acaoTexto: 'Ver Dashboard',
+        },
+        variaveis: {
+          severidade: alerta.severidade.toUpperCase(),
+          timestamp: new Date().toLocaleString('pt-BR'),
+        },
+      });
+    }
   }
 }
 

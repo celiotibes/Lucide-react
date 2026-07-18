@@ -391,7 +391,7 @@ async function gerarExcel(dados: any[], tipo: ExportType): Promise<Buffer> {
 async function gerarPDF(dados: any[], tipo: ExportType): Promise<Buffer> {
   // Usando library de geração de PDF server-side
   const PDFDocument = (await import('pdfkit')).default;
-  const doc = new PDFDocument({ margin: 50, size: 'A4', landscape: true });
+  const doc = new PDFDocument({ margin: 50, size: 'A4', layout: 'landscape' });
 
   // Buffer para acumular
   const chunks: Buffer[] = [];
@@ -430,7 +430,7 @@ async function gerarPDF(dados: any[], tipo: ExportType): Promise<Buffer> {
     dados.slice(0, 100).forEach(row => {
       // Paging
       if (doc.y > doc.page.height - 50) {
-        doc.addPage({ landscape: true });
+        doc.addPage({ layout: 'landscape' });
       }
 
       x = 50;

@@ -45,7 +45,7 @@ export function FechamentosTable({ fechamentos }: FechamentosTableProps) {
     const result = await aprovarFechamento(fechamentoId);
 
     if ('error' in result) {
-      setMessage({ type: 'error', text: result.error });
+      setMessage({ type: 'error', text: result.error || 'Erro ao aprovar fechamento' });
     } else {
       setMessage({ type: 'success', text: 'Fechamento aprovado com sucesso' });
       setActionModal({ type: null });
@@ -64,7 +64,7 @@ export function FechamentosTable({ fechamentos }: FechamentosTableProps) {
     const result = await devolverFechamento(fechamentoId, devolverMotivo);
 
     if ('error' in result) {
-      setMessage({ type: 'error', text: result.error });
+      setMessage({ type: 'error', text: result.error || 'Erro ao devolver fechamento' });
     } else {
       setMessage({ type: 'success', text: 'Fechamento devolvido com sucesso' });
       setActionModal({ type: null });
@@ -79,7 +79,7 @@ export function FechamentosTable({ fechamentos }: FechamentosTableProps) {
     const result = await registrarPagamento(fechamentoId, new Date());
 
     if ('error' in result) {
-      setMessage({ type: 'error', text: result.error });
+      setMessage({ type: 'error', text: result.error || 'Erro ao registrar pagamento' });
     } else {
       setMessage({ type: 'success', text: 'Pagamento registrado com sucesso' });
       setActionModal({ type: null });

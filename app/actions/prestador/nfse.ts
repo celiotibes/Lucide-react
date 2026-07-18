@@ -79,7 +79,7 @@ export async function gerarNfsePorFechamento(fechamentoId: string) {
       servico: {
         descricao: `Serviços prestados em ${mesAno}`,
         valor: fechamento.total_proventos,
-        dataExecucao: dataFim, // Data do último dia do período
+        dataExecucao: dataFim.toISOString().split('T')[0], // 'YYYY-MM-DD', último dia do período
         residencial: 'Conforme contrato',
       },
       referenciaExterna: fechamentoId,

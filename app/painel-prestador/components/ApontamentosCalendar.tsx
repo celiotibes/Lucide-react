@@ -98,7 +98,7 @@ export function ApontamentosCalendar({
       const result = await criarApontamento(input);
 
       if ('error' in result) {
-        setError(result.error);
+        setError(result.error || 'Erro ao salvar apontamento');
       } else {
         setSuccess('Apontamento salvo com sucesso');
         setShowModal(false);

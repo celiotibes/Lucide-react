@@ -92,7 +92,7 @@ export async function submeterParaFechamento(contratoId: string, dataInicio: Dat
   // Calcular total de cada apontamento
   let totalProventos = 0;
   const itemsFechamento: Array<{
-    apontamento_id: string;
+    apontamento_id: string | null;
     descricao: string;
     valor: number;
     tipo: string;

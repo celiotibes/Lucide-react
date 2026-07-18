@@ -158,7 +158,7 @@ export default function PaginaApontamentosOS({ params }: { params: { id: string 
       const resultado = await desassociarApontamentoDeOS(apontamentoId);
 
       if (resultado.sucesso) {
-        setMensagem({ tipo: 'sucesso', texto: resultado.mensagem });
+        setMensagem({ tipo: 'sucesso', texto: resultado.mensagem || 'Apontamento desassociado com sucesso' });
         carregarDados();
       } else {
         setMensagem({ tipo: 'erro', texto: resultado.erro || 'Erro desconhecido' });
@@ -179,7 +179,7 @@ export default function PaginaApontamentosOS({ params }: { params: { id: string 
       );
 
       if (resultado.sucesso) {
-        setMensagem({ tipo: 'sucesso', texto: resultado.mensagem });
+        setMensagem({ tipo: 'sucesso', texto: resultado.mensagem || 'Apontamentos associados com sucesso' });
         setSelecionados(new Set());
         setModalAberta(false);
         carregarDados();

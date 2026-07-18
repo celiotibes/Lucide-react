@@ -212,7 +212,7 @@ export async function editarApontamento(input: EditarApontamentoInput) {
   // Calcular horas
   const horasTrabalhadas =
     input.horaInicio && input.horaSaida
-      ? calculateHours(input.horaInicio, input.horaSaida, input.intervaloAlmocoMinutos)
+      ? calcularHoras(input.horaInicio, input.horaSaida, input.intervaloAlmocoMinutos)
       : 0;
 
   if (horasTrabalhadas < 0 || horasTrabalhadas > 24) {

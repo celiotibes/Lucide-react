@@ -77,11 +77,15 @@ class StorageManager {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(['apontamentos'], 'readonly');
       const store = tx.objectStore('apontamentos');
-      const index = store.index('synced');
-      const request = index.getAll(false);
+      // IndexedDB não aceita boolean como chave de índice válida (spec só
+      // permite number/string/Date/ArrayBuffer/Array) — buscar via
+      // index.getAll(false) sempre retornaria vazio silenciosamente.
+      // Buscamos todos os registros e filtramos em JS.
+      const request = store.getAll();
 
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result as OfflineApontamento[]);
+      request.onsuccess = () =>
+        resolve((request.result as OfflineApontamento[]).filter((a) => !a.synced));
     });
   }
 
@@ -181,13 +185,17 @@ class StorageManager {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(['apontamentos'], 'readwrite');
       const store = tx.objectStore('apontamentos');
-      const index = store.index('synced');
-      const request = index.openCursor(IDBKeyRange.only(true));
+      // Mesma limitação de índice boolean descrita em
+      // obterApontamentosNaoSincronizados: percorremos todos os registros
+      // via cursor no store e filtramos em JS em vez de usar o índice.
+      const request = store.openCursor();
 
       request.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest).result;
         if (cursor) {
-          cursor.delete();
+          if ((cursor.value as OfflineApontamento).synced) {
+            cursor.delete();
+          }
           cursor.continue();
         } else {
           resolve();

@@ -225,7 +225,7 @@ export async function rejeitarReembolsoInsumos(
     // Buscar requisição
     const { data: requisicao, error: erroRequisicao } = await supabase
       .from('adiantamentos_prestador')
-      .select('*, contratos_prestador(prestadores_servico(email))')
+      .select('*, contratos_prestador(prestadores_servico(email, nome_completo))')
       .eq('id', requisicaoId)
       .single();
 
@@ -252,6 +252,7 @@ export async function rejeitarReembolsoInsumos(
         canais: ['email'],
         destinatario: {
           email: prestador.email,
+          nome: prestador.nome_completo,
         },
         template: {
           titulo: 'Reembolso de Insumos Rejeitado ✗',
