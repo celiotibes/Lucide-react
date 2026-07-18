@@ -29,7 +29,7 @@ export async function carregarDimData(): Promise<ETLStatus> {
   };
 
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Gerar 5 anos de datas (para trás e para frente)
     const dataInicio = new Date();
@@ -112,7 +112,7 @@ export async function carregarDimPrestador(): Promise<ETLStatus> {
   };
 
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Buscar prestadores
     const { data: prestadores, error: erroFetch } = await supabase
@@ -174,7 +174,7 @@ export async function carregarFactApontamento(): Promise<ETLStatus> {
   };
 
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Buscar apontamentos do último mês
     const dataInicio = new Date();
@@ -292,7 +292,7 @@ export async function carregarFactFaturamento(): Promise<ETLStatus> {
   };
 
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: faturas, error: erroFetch } = await supabase
       .from('faturas')

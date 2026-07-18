@@ -44,7 +44,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ erro: 'Token inválido' }, { status: 401 });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const resultados: Record<string, unknown> = {};
 
   try {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 // Funções auxiliares
 // ============================================================================
 
-async function lembrarApontamentosNaoFeitos(supabase: ReturnType<typeof createClient>) {
+async function lembrarApontamentosNaoFeitos(supabase: Awaited<ReturnType<typeof createClient>>) {
   try {
     const hoje = new Date().toISOString().split('T')[0];
 
@@ -174,7 +174,7 @@ async function lembrarApontamentosNaoFeitos(supabase: ReturnType<typeof createCl
 }
 
 async function submeterFechamentoAutomatico(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   prestador: 'paulo' | 'cristiano'
 ) {
   try {
@@ -251,7 +251,7 @@ async function submeterFechamentoAutomatico(
   }
 }
 
-async function rastrearTodosOsPix(supabase: ReturnType<typeof createClient>) {
+async function rastrearTodosOsPix(supabase: Awaited<ReturnType<typeof createClient>>) {
   try {
     // Buscar PIXes enviados mas não confirmados
     const { data: fechamentos, error } = await supabase
@@ -285,7 +285,7 @@ async function rastrearTodosOsPix(supabase: ReturnType<typeof createClient>) {
   }
 }
 
-async function gerarNfsesPendentes(supabase: ReturnType<typeof createClient>) {
+async function gerarNfsesPendentes(supabase: Awaited<ReturnType<typeof createClient>>) {
   try {
     // Buscar fechamentos pagos mas sem NFS-e
     const { data: fechamentos, error } = await supabase

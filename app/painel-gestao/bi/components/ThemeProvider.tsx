@@ -15,11 +15,8 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('system');
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-
     // Load saved theme
     const savedTheme = localStorage.getItem('bi-theme') as Theme | null;
     if (savedTheme) {
@@ -65,10 +62,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('bi-theme', newTheme);
     updateEffectiveTheme(newTheme);
   };
-
-  if (!mounted) {
-    return <>{children}</>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, effectiveTheme }}>

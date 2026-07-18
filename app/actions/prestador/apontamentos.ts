@@ -28,7 +28,7 @@ export interface EditarApontamentoInput extends CriarApontamentoInput {
  * Valida permissões (prestador ve apenas seus dados, admin ve todos)
  */
 export async function criarApontamento(input: CriarApontamentoInput) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
@@ -150,7 +150,7 @@ export async function criarApontamento(input: CriarApontamentoInput) {
  * Apenas admin ou o próprio prestador pode editar
  */
 export async function editarApontamento(input: EditarApontamentoInput) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
@@ -284,7 +284,7 @@ export async function editarApontamento(input: EditarApontamentoInput) {
  * Deleta um apontamento (apenas em rascunho)
  */
 export async function deletarApontamento(apontamentoId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {

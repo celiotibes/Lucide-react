@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar autenticação
     const { data: user, error: userError } = await supabase.auth.getUser();

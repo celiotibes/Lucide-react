@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { obterAnaliseCalor } from '@/app/actions/bi/obterAnaliseCalor';
 import { AlertCircle, Maximize2, RefreshCw } from 'lucide-react';
-import { mapearValorParaCor } from '@/server/bi/analiseCalorData';
-import type { DadosAnaliseCalor } from '@/server/bi/analiseCalorData';
+import { mapearValorParaCor, type DadosAnaliseCalor } from '@/server/bi/analiseCalorCores';
 
 export default function PaginaAnaliseCalor() {
   const [dados, setDados] = useState<DadosAnaliseCalor | null>(null);

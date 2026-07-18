@@ -12,7 +12,7 @@ export async function associarApontamentoAOS(
   ordemServicoId: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -108,7 +108,7 @@ export async function associarApontamentoAOS(
  */
 export async function desassociarApontamentoDeOS(apontamentoId: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -185,7 +185,7 @@ export async function desassociarApontamentoDeOS(apontamentoId: string) {
  */
 export async function obterCustosApontamentosOS(ordemServicoId: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -247,7 +247,7 @@ export async function listarApontamentosDisponiveis(
   dataFim: Date
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -295,7 +295,7 @@ export async function associarMultiplosApontamentosAOS(
   ordemServicoId: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');

@@ -21,7 +21,7 @@ export async function executarVerificacaoAlertas(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -92,7 +92,7 @@ export async function configurarAlertas(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
     if (!isAdmin) {
@@ -142,7 +142,7 @@ export async function obterHistoricoAlertas(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
     if (!isAdmin) {

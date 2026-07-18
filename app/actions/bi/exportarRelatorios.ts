@@ -18,7 +18,7 @@ export async function exportarRelatorioBi(config: ConfiguracaoRelatorio): Promis
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -78,7 +78,7 @@ export async function agendarExportacaoPeriodia(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
     if (!isAdmin) {

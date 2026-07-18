@@ -13,7 +13,7 @@ export async function aplicarRateioApontamento(
   residenciaisHoras: Record<string, number> // { residencial_id: horas }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -112,7 +112,7 @@ export async function obterCustosPorResidencial(
   residencialId?: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -217,7 +217,7 @@ export async function gerarFaturaServicosResidencial(
   descricao?: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -348,7 +348,7 @@ export async function gerarFaturaServicosResidencial(
  */
 export async function listarApontamentosNaoRateados() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');

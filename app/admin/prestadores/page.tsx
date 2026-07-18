@@ -4,7 +4,7 @@ import { FechamentosTable } from './components/FechamentosTable';
 import { PrestadoresStats } from './components/PrestadoresStats';
 
 export default async function PrestadoresAdminPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Verificar autenticação e permissão
   const { data: { user }, error: userError } = await supabase.auth.getUser();

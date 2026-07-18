@@ -20,7 +20,7 @@ export interface RegistroDespesaInput {
  */
 export async function registrarDespesaComOCR(input: RegistroDespesaInput) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: user, error: userError } = await supabase.auth.getUser();
@@ -112,7 +112,7 @@ export async function registrarDespesaComOCR(input: RegistroDespesaInput) {
  */
 export async function reprocessarComprovanteOCR(despesaId: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');

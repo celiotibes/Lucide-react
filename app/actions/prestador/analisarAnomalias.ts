@@ -24,7 +24,7 @@ export async function analisarAnomaliasApontamentos(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão (admin ou economista)
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -128,7 +128,7 @@ export async function marcarAnomaliaRevisada(
   observacoes?: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');

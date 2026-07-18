@@ -62,7 +62,7 @@ export async function obterKPIsFinanceiros(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -147,7 +147,7 @@ export async function obterResumoResidenciais(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
     if (!isAdmin) {
@@ -206,7 +206,7 @@ export async function obterPerformancePrestadores(
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
     if (!isAdmin) {

@@ -9,7 +9,7 @@ import { Notificador } from '@/server/notificacao/Notificador';
  */
 export async function aprovarFechamento(fechamentoId: string, observacoes?: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -106,7 +106,7 @@ export async function aprovarFechamento(fechamentoId: string, observacoes?: stri
  */
 export async function devolverFechamento(fechamentoId: string, motivo: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -199,7 +199,7 @@ export async function devolverFechamento(fechamentoId: string, motivo: string) {
  */
 export async function aprovarMultiplosFechamentos(ids: string[], observacoes?: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -255,7 +255,7 @@ export async function aprovarMultiplosFechamentos(ids: string[], observacoes?: s
  */
 export async function devolverMultiplosFechamentos(ids: string[], motivo: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -314,7 +314,7 @@ export async function devolverMultiplosFechamentos(ids: string[], motivo: string
  */
 export async function gerarPdfFechamento(fechamentoId: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Buscar fechamento
     const { data: fechamento, error: erroFechamento } = await supabase

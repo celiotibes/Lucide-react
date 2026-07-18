@@ -35,9 +35,9 @@ const features: FeatureBi[] = [
     icone: <BarChart3 className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      icon: 'text-blue-600',
+      bg: 'bg-blue-500/10',
+      border: 'border-blue-500/30',
+      icon: 'text-blue-400',
     },
   },
   {
@@ -47,9 +47,9 @@ const features: FeatureBi[] = [
     icone: <TrendingUp className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-green-50',
-      border: 'border-green-200',
-      icon: 'text-green-600',
+      bg: 'bg-emerald-500/10',
+      border: 'border-emerald-500/30',
+      icon: 'text-emerald-400',
     },
   },
   {
@@ -59,9 +59,9 @@ const features: FeatureBi[] = [
     icone: <Flame className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-orange-50',
-      border: 'border-orange-200',
-      icon: 'text-orange-600',
+      bg: 'bg-orange-500/10',
+      border: 'border-orange-500/30',
+      icon: 'text-orange-400',
     },
   },
   {
@@ -71,9 +71,9 @@ const features: FeatureBi[] = [
     icone: <FileText className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-purple-50',
-      border: 'border-purple-200',
-      icon: 'text-purple-600',
+      bg: 'bg-purple-500/10',
+      border: 'border-purple-500/30',
+      icon: 'text-purple-400',
     },
   },
   {
@@ -83,9 +83,9 @@ const features: FeatureBi[] = [
     icone: <AlertCircle className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-red-50',
-      border: 'border-red-200',
-      icon: 'text-red-600',
+      bg: 'bg-rose-500/10',
+      border: 'border-rose-500/30',
+      icon: 'text-rose-400',
     },
   },
   {
@@ -95,9 +95,9 @@ const features: FeatureBi[] = [
     icone: <Clock className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-yellow-50',
-      border: 'border-yellow-200',
-      icon: 'text-yellow-600',
+      bg: 'bg-amber-500/10',
+      border: 'border-amber-500/30',
+      icon: 'text-amber-400',
     },
   },
   {
@@ -107,9 +107,9 @@ const features: FeatureBi[] = [
     icone: <Gauge className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-indigo-50',
-      border: 'border-indigo-200',
-      icon: 'text-indigo-600',
+      bg: 'bg-indigo-500/10',
+      border: 'border-indigo-500/30',
+      icon: 'text-indigo-400',
     },
   },
   {
@@ -119,9 +119,9 @@ const features: FeatureBi[] = [
     icone: <Activity className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-cyan-50',
-      border: 'border-cyan-200',
-      icon: 'text-cyan-600',
+      bg: 'bg-cyan-500/10',
+      border: 'border-cyan-500/30',
+      icon: 'text-cyan-400',
     },
   },
   {
@@ -131,9 +131,9 @@ const features: FeatureBi[] = [
     icone: <Settings2 className="w-6 h-6" />,
     status: 'ativo',
     cores: {
-      bg: 'bg-gray-50',
-      border: 'border-gray-200',
-      icon: 'text-gray-600',
+      bg: 'bg-slate-500/10',
+      border: 'border-slate-500/30',
+      icon: 'text-slate-400',
     },
   },
   {
@@ -143,9 +143,9 @@ const features: FeatureBi[] = [
     icone: <Zap className="w-6 h-6" />,
     status: 'planejado',
     cores: {
-      bg: 'bg-pink-50',
-      border: 'border-pink-200',
-      icon: 'text-pink-600',
+      bg: 'bg-pink-500/10',
+      border: 'border-pink-500/30',
+      icon: 'text-pink-400',
     },
   },
 ];
@@ -154,19 +154,19 @@ function getStatusBadge(status: string) {
   switch (status) {
     case 'ativo':
       return (
-        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
           ✓ Ativo
         </span>
       );
     case 'em_desenvolvimento':
       return (
-        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
           🔄 Em Dev
         </span>
       );
     case 'planejado':
       return (
-        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/20 text-slate-400 border border-slate-500/30">
           📅 Planejado
         </span>
       );
@@ -181,12 +181,12 @@ export default function PaginaBi() {
   const featuresPlanejadas = features.filter((f) => f.status === 'planejado');
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-950 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Cabeçalho */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Business Intelligence</h1>
-          <p className="text-gray-600 text-lg">
+        <div className="mb-12 animate-slideDown">
+          <h1 className="text-4xl font-bold text-slate-100 mb-2">Business Intelligence</h1>
+          <p className="text-slate-400 text-lg">
             Plataforma integrada de análise, relatórios e alertas do sistema financeiro
           </p>
         </div>
@@ -230,12 +230,12 @@ export default function PaginaBi() {
                   {getStatusBadge(feature.status)}
                 </div>
 
-                <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
+                <h3 className="text-2xl font-bold text-slate-100 mb-3 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
                   {feature.titulo}
                 </h3>
-                <p className="text-sm text-gray-700 mb-6 leading-relaxed">{feature.descricao}</p>
+                <p className="text-sm text-slate-400 mb-6 leading-relaxed">{feature.descricao}</p>
 
-                <div className="mt-auto text-sm font-semibold group-hover:gap-3 inline-flex items-center gap-2 transition-all text-gray-900">
+                <div className="mt-auto text-sm font-semibold group-hover:gap-3 inline-flex items-center gap-2 transition-all text-slate-300">
                   Acessar
                   <span className="group-hover:translate-x-2 transition-transform">→</span>
                 </div>
@@ -256,12 +256,12 @@ export default function PaginaBi() {
                   {getStatusBadge(feature.status)}
                 </div>
 
-                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
+                <h3 className="text-lg font-bold text-slate-100 mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
                   {feature.titulo}
                 </h3>
-                <p className="text-xs text-gray-700">{feature.descricao}</p>
+                <p className="text-xs text-slate-400">{feature.descricao}</p>
 
-                <div className="mt-4 text-xs font-medium group-hover:gap-2 inline-flex items-center gap-1 transition-all text-gray-900">
+                <div className="mt-4 text-xs font-medium group-hover:gap-2 inline-flex items-center gap-1 transition-all text-slate-300">
                   Acessar
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </div>
@@ -284,12 +284,12 @@ export default function PaginaBi() {
                   {getStatusBadge(feature.status)}
                 </div>
 
-                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
+                <h3 className="text-lg font-bold text-slate-100 mb-2 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-cyan-400 group-hover:to-purple-400 group-hover:bg-clip-text">
                   {feature.titulo}
                 </h3>
-                <p className="text-xs text-gray-700">{feature.descricao}</p>
+                <p className="text-xs text-slate-400">{feature.descricao}</p>
 
-                <div className="mt-4 text-xs font-medium group-hover:gap-2 inline-flex items-center gap-1 transition-all text-gray-900">
+                <div className="mt-4 text-xs font-medium group-hover:gap-2 inline-flex items-center gap-1 transition-all text-slate-300">
                   Acessar
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </div>
@@ -301,22 +301,22 @@ export default function PaginaBi() {
         {/* Recursos em Desenvolvimento */}
         {featuresEmDev.length > 0 && (
           <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Em Desenvolvimento</h2>
+            <h2 className="text-2xl font-bold text-slate-100 mb-6">Em Desenvolvimento</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuresEmDev.map((feature) => (
                 <div
                   key={feature.href}
-                  className={`group rounded-lg shadow p-6 border opacity-60 ${feature.cores.bg} ${feature.cores.border} border-2`}
+                  className={`group rounded-xl p-6 border-2 opacity-60 ${feature.cores.bg} ${feature.cores.border} backdrop-blur-xl`}
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div className={`p-3 rounded-lg bg-white ${feature.cores.icon}`}>
+                    <div className={`p-3 rounded-lg bg-white/10 backdrop-blur ${feature.cores.icon}`}>
                       {feature.icone}
                     </div>
                     {getStatusBadge(feature.status)}
                   </div>
 
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.titulo}</h3>
-                  <p className="text-sm text-gray-700">{feature.descricao}</p>
+                  <h3 className="text-lg font-semibold text-slate-100 mb-2">{feature.titulo}</h3>
+                  <p className="text-sm text-slate-400">{feature.descricao}</p>
                 </div>
               ))}
             </div>
@@ -326,22 +326,22 @@ export default function PaginaBi() {
         {/* Recursos Planejados */}
         {featuresPlanejadas.length > 0 && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Planejados</h2>
+            <h2 className="text-2xl font-bold text-slate-100 mb-6">Planejados</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuresPlanejadas.map((feature) => (
                 <div
                   key={feature.href}
-                  className={`group rounded-lg shadow p-6 border opacity-50 ${feature.cores.bg} ${feature.cores.border} border-2`}
+                  className={`group rounded-xl p-6 border-2 opacity-50 ${feature.cores.bg} ${feature.cores.border} backdrop-blur-xl`}
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div className={`p-3 rounded-lg bg-white ${feature.cores.icon}`}>
+                    <div className={`p-3 rounded-lg bg-white/10 backdrop-blur ${feature.cores.icon}`}>
                       {feature.icone}
                     </div>
                     {getStatusBadge(feature.status)}
                   </div>
 
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.titulo}</h3>
-                  <p className="text-sm text-gray-700">{feature.descricao}</p>
+                  <h3 className="text-lg font-semibold text-slate-100 mb-2">{feature.titulo}</h3>
+                  <p className="text-sm text-slate-400">{feature.descricao}</p>
                 </div>
               ))}
             </div>
@@ -349,10 +349,10 @@ export default function PaginaBi() {
         )}
 
         {/* Footer com info técnica */}
-        <div className="mt-12 pt-8 border-t">
-          <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-            <h3 className="text-sm font-semibold text-blue-900 mb-2">ℹ️ Arquitetura Técnica</h3>
-            <ul className="text-sm text-blue-800 space-y-1">
+        <div className="mt-12 pt-8 border-t border-slate-700/50">
+          <div className="glass rounded-xl p-6 border-2 border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-xl">
+            <h3 className="text-sm font-semibold text-cyan-300 mb-3">ℹ️ Arquitetura Técnica</h3>
+            <ul className="text-sm text-slate-300 space-y-1.5">
               <li>✓ Data Warehouse Star Schema com 5 dimensões e 6 tabelas de fato</li>
               <li>✓ ETL Pipeline automático com execução programada</li>
               <li>✓ Row-Level Security (RLS) para isolamento de dados por papel</li>

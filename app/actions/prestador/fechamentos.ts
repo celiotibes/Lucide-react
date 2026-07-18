@@ -14,7 +14,7 @@ import {
  * Calcula totais, cria registro de fechamento, muda status para "enviado_para_gestao"
  */
 export async function submeterParaFechamento(contratoId: string, dataInicio: Date, dataFim: Date) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
@@ -287,7 +287,7 @@ export async function submeterParaFechamento(contratoId: string, dataInicio: Dat
  * Aprova um fechamento (apenas admin/gestor)
  */
 export async function aprovarFechamento(fechamentoId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
@@ -340,7 +340,7 @@ export async function aprovarFechamento(fechamentoId: string) {
  * Devolve um fechamento para ajuste (apenas admin/gestor)
  */
 export async function devolverFechamento(fechamentoId: string, motivo: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
@@ -408,7 +408,7 @@ export async function registrarPagamento(
   dataPagamento: Date,
   chavePix?: string
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {

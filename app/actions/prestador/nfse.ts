@@ -9,7 +9,7 @@ import { Notificador } from '@/server/notificacao/Notificador';
  * Triggerada automaticamente via cron
  */
 export async function gerarNfsePorFechamento(fechamentoId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Buscar fechamento
   const { data: fechamento, error: fechamentoError } = await supabase
@@ -159,7 +159,7 @@ export async function gerarNfsePorFechamento(fechamentoId: string) {
  * Cancelar uma NFS-e (se necessário)
  */
 export async function cancelarNfse(fechamentoId: string, motivo: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Validar admin
   const { data: user, error: userError } = await supabase.auth.getUser();

@@ -33,7 +33,7 @@ export interface DadosRelatorio {
 export async function prepararDadosRelatorio(
   config: ConfiguracaoRelatorio
 ): Promise<DadosRelatorio> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const periodo = `${config.dataInicio} a ${config.dataFim}`;
   const metadados = {

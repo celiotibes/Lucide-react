@@ -48,21 +48,22 @@ export interface FiscalAuditEntry {
 }
 
 /**
- * Centralizado audit logger para LGPD e compliance
+ * Centralizado audit logger para LGPD e compliance.
+ *
+ * Cada método cria seu próprio client Supabase sob demanda (via
+ * `createClient()`, que lê os cookies da requisição em andamento) em vez de
+ * reutilizar uma instância cacheada — um client vinculado a cookies não pode
+ * ser guardado como estado de módulo/singleton sem vazar a sessão de um
+ * usuário para as requisições de outro.
  */
 export class AuditLogger {
-  private supabase: ReturnType<typeof createClient>;
-
-  constructor() {
-    this.supabase = createClient();
-  }
-
   /**
    * Log general audit trail
    */
   async logAuditoria(entry: AuditLogEntry): Promise<{ sucesso: boolean; erro?: string }> {
     try {
-      const { error } = await this.supabase.from('auditoria_geral').insert({
+      const supabase = await createClient();
+      const { error } = await supabase.from('auditoria_geral').insert({
         usuario_id: entry.usuario_id,
         acao: entry.acao,
         tabela: entry.tabela,
@@ -91,7 +92,8 @@ export class AuditLogger {
    */
   async logAcesso(entry: AcessoLogEntry): Promise<{ sucesso: boolean; erro?: string }> {
     try {
-      const { error } = await this.supabase.from('auditoria_acesso').insert({
+      const supabase = await createClient();
+      const { error } = await supabase.from('auditoria_acesso').insert({
         usuario_id: entry.usuario_id,
         tipo_evento: entry.tipo_evento,
         ip_address: entry.ip_address,
@@ -118,9 +120,10 @@ export class AuditLogger {
    */
   async logFiscal(entry: FiscalAuditEntry): Promise<{ sucesso: boolean; erro?: string }> {
     try {
-      const { data: user } = await this.supabase.auth.getUser();
+      const supabase = await createClient();
+      const { data: user } = await supabase.auth.getUser();
 
-      const { error } = await this.supabase.from('auditoria_fiscal').insert({
+      const { error } = await supabase.from('auditoria_fiscal').insert({
         tipo: entry.tipo,
         pessoa_id: entry.pessoa_id,
         prestador_id: entry.prestador_id,
@@ -160,9 +163,10 @@ export class AuditLogger {
     motivo: string
   ): Promise<{ sucesso: boolean; requisicao_id?: string; erro?: string }> {
     try {
-      const { data: user } = await this.supabase.auth.getUser();
+      const supabase = await createClient();
+      const { data: user } = await supabase.auth.getUser();
 
-      const { data, error } = await this.supabase
+      const { data, error } = await supabase
         .from('requisicoes_lgpd')
         .insert({
           pessoa_id,
@@ -194,7 +198,8 @@ export class AuditLogger {
     requisicao_id: string
   ): Promise<{ sucesso: boolean; resultado?: any; erro?: string }> {
     try {
-      const { data, error } = await this.supabase.rpc('anonimizar_pessoa', {
+      const supabase = await createClient();
+      const { data, error } = await supabase.rpc('anonimizar_pessoa', {
         p_pessoa_id: pessoa_id,
         p_requisicao_id: requisicao_id,
       });
@@ -220,7 +225,8 @@ export class AuditLogger {
     erro?: string;
   }> {
     try {
-      const { data, error } = await this.supabase
+      const supabase = await createClient();
+      const { data, error } = await supabase
         .from('alertas_compliance')
         .select('*')
         .eq('status', 'ativo')
@@ -245,7 +251,8 @@ export class AuditLogger {
     registro_id: string
   ): Promise<{ sucesso: boolean; auditoria?: any[]; erro?: string }> {
     try {
-      const { data, error } = await this.supabase
+      const supabase = await createClient();
+      const { data, error } = await supabase
         .from('auditoria_geral')
         .select('*')
         .eq('tabela', tabela)
@@ -270,8 +277,10 @@ export class AuditLogger {
     fechamento_id: string
   ): Promise<{ sucesso: boolean; reconciliacao?: any; erro?: string }> {
     try {
+      const supabase = await createClient();
+
       // Buscar dados do fechamento
-      const { data: fechamento, error: erroFechamento } = await this.supabase
+      const { data: fechamento, error: erroFechamento } = await supabase
         .from('fechamentos_prestador')
         .select('valor_liquido, criado_em')
         .eq('id', fechamento_id)
@@ -282,7 +291,7 @@ export class AuditLogger {
       }
 
       // Buscar auditoria fiscal correspondente
-      const { data: auditoria, error: erroAuditoria } = await this.supabase
+      const { data: auditoria, error: erroAuditoria } = await supabase
         .from('auditoria_fiscal')
         .select('*')
         .eq('fechamento_id', fechamento_id)
@@ -311,5 +320,6 @@ export class AuditLogger {
   }
 }
 
-// Singleton export
+// Singleton export — seguro porque a classe não guarda mais nenhum client
+// cacheado; cada chamada de método cria o seu próprio via createClient().
 export const auditLogger = new AuditLogger();

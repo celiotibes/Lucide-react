@@ -47,7 +47,7 @@ export async function importarApontamentosHistoricos(
   importados: number;
   erros: string[];
 }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const erros: string[] = [];
   let importados = 0;
 
@@ -137,7 +137,7 @@ export async function importarFechamentosHistoricos(
   importados: number;
   erros: string[];
 }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const erros: string[] = [];
   let importados = 0;
 
@@ -231,7 +231,7 @@ export async function importarOrdensServicoHistoricas(
   importados: number;
   erros: string[];
 }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const erros: string[] = [];
   let importados = 0;
 

@@ -34,7 +34,7 @@ export interface ResultadoAlerta {
 export async function verificarMargemBaixa(
   limiteMinimo: number = 25
 ): Promise<ResultadoAlerta[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const alertas: ResultadoAlerta[] = [];
 
   try {
@@ -72,7 +72,7 @@ export async function verificarMargemBaixa(
  * Verificar anomalias críticas
  */
 export async function verificarAnomaliasCriticas(): Promise<ResultadoAlerta[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const alertas: ResultadoAlerta[] = [];
 
   try {
@@ -118,7 +118,7 @@ export async function verificarAnomaliasCriticas(): Promise<ResultadoAlerta[]> {
 export async function verificarAtrasoRecebimento(
   diasAtraso: number = 15
 ): Promise<ResultadoAlerta[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const alertas: ResultadoAlerta[] = [];
 
   try {
@@ -169,7 +169,7 @@ export async function verificarAtrasoRecebimento(
 export async function verificarCustosAltos(
   percentualLimite: number = 70
 ): Promise<ResultadoAlerta[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const alertas: ResultadoAlerta[] = [];
 
   try {
@@ -214,7 +214,7 @@ export async function verificarCustosAltos(
 export async function verificarNenhumApontamento(
   diasSemApontamento: number = 7
 ): Promise<ResultadoAlerta[]> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const alertas: ResultadoAlerta[] = [];
 
   try {

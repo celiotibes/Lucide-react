@@ -38,7 +38,7 @@ export async function obterDadosFluxoCaixa(
   dataFim: string
 ): Promise<{ sucesso: boolean; dados?: DadosFluxoCaixa; erro?: string }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Buscar KPIs financeiros
     const { data: kpis, error: erroKpi } = await supabase
@@ -69,15 +69,25 @@ export async function obterDadosFluxoCaixa(
       resultadoLiquido += (kpi.faturamento_total || 0) - (kpi.custo_operacional || 0) - (kpi.custo_despesas || 0);
     }
 
-    // Buscar detalhamento de custos por categoria
-    const { data: custosCategoria, error: erroCusto } = await supabase
+    // Buscar detalhamento de custos por categoria. O PostgREST (usado pelo
+    // client do Supabase) não suporta GROUP BY/agregação SQL bruta via
+    // .select() — buscamos os lançamentos crus e agregamos em JS.
+    const { data: despesasBrutas, error: erroCusto } = await supabase
       .from('fact_despesa')
-      .select('categoria_despesa, SUM(valor_total) as total')
+      .select('categoria_despesa, valor_total')
       .gte('data_despesa', dataInicio)
-      .lte('data_despesa', dataFim)
-      .group_by('categoria_despesa');
+      .lte('data_despesa', dataFim);
 
     if (erroCusto) throw erroCusto;
+
+    const totalPorCategoria = new Map<string, number>();
+    for (const despesa of despesasBrutas || []) {
+      const categoria = despesa.categoria_despesa || 'sem_categoria';
+      totalPorCategoria.set(categoria, (totalPorCategoria.get(categoria) || 0) + (despesa.valor_total || 0));
+    }
+    const custosCategoria = Array.from(totalPorCategoria.entries()).map(
+      ([categoria_despesa, total]) => ({ categoria_despesa, total }),
+    );
 
     // Construir nós e links
     const nodes: SankeyNode[] = [

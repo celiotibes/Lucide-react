@@ -32,7 +32,7 @@ interface ArquivoReembolsoItem {
  */
 export async function criarRequisicaoReembolso(input: RequisicaoReembolsoInput) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão (prestador ve apenas seu contrato)
     const { data: user, error: userError } = await supabase.auth.getUser();
@@ -122,7 +122,7 @@ export async function criarRequisicaoReembolso(input: RequisicaoReembolsoInput) 
  */
 export async function aprovarReembolsoInsumos(requisicaoId: string, observacoes?: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -210,7 +210,7 @@ export async function rejeitarReembolsoInsumos(
   motivo: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -293,7 +293,7 @@ export async function rejeitarReembolsoInsumos(
  */
 export async function listarReembolsosPendentes() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');

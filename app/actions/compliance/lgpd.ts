@@ -8,7 +8,7 @@ import { auditLogger } from '@/server/compliance/auditLogger';
  */
 export async function solicitarAnonimizacao(pessoa_id: string, motivo?: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar autenticação
     const { data: user, error: userError } = await supabase.auth.getUser();
@@ -58,7 +58,7 @@ export async function solicitarAnonimizacao(pessoa_id: string, motivo?: string) 
  */
 export async function executarAnonimizacao(requisicao_id: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão (apenas compliance officer)
     const { data: user } = await supabase.auth.getUser();
@@ -117,7 +117,7 @@ export async function executarAnonimizacao(requisicao_id: string) {
  */
 export async function exportarDadosPessoa(pessoa_id: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar que está solicitando seus próprios dados ou é admin
     const { data: user } = await supabase.auth.getUser();
@@ -214,7 +214,7 @@ export async function exportarDadosPessoa(pessoa_id: string) {
  */
 export async function revogarConsentimento(tipo_consentimento: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: user } = await supabase.auth.getUser();
     if (!user) {
@@ -265,7 +265,7 @@ export async function revogarConsentimento(tipo_consentimento: string) {
  */
 export async function listarRequisicoes(filtro?: { status?: string; tipo?: string }) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { ApontamentosCalendar } from './components/ApontamentosCalendar';
 
 export default async function PainelPrestadorPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Verificar autenticação
   const { data: { user }, error: userError } = await supabase.auth.getUser();

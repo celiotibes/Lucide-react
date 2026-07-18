@@ -9,7 +9,7 @@ import { Notificador } from '@/server/notificacao/Notificador';
  * Triggerada automaticamente via cron
  */
 export async function enviarPixPorFechamento(fechamentoId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Buscar fechamento
   const { data: fechamento, error: fechamentoError } = await supabase
@@ -174,7 +174,7 @@ export async function enviarPixPorFechamento(fechamentoId: string) {
  * Rastreia confirmação de PIX (chamado pelo cron)
  */
 export async function rastrearConfirmacaoPix(fechamentoId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Buscar fechamento
   const { data: fechamento, error: fechamentoError } = await supabase

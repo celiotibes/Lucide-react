@@ -25,7 +25,7 @@ export async function exportarDados(options: ExportOptions): Promise<{
   erro?: string;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: user, error: userError } = await supabase.auth.getUser();
@@ -137,7 +137,7 @@ export async function exportarDados(options: ExportOptions): Promise<{
 // ============================================================================
 
 async function buscarFechamentos(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   options: ExportOptions
 ) {
   let query = supabase
@@ -190,7 +190,7 @@ async function buscarFechamentos(
 }
 
 async function buscarApontamentos(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   options: ExportOptions
 ) {
   let query = supabase
@@ -242,7 +242,7 @@ async function buscarApontamentos(
 }
 
 async function buscarResumoFinanceiro(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   options: ExportOptions
 ) {
   const { data, error } = await supabase.rpc('fn_resumo_financeiro_periodo', {
@@ -274,7 +274,7 @@ async function buscarResumoFinanceiro(
 }
 
 async function buscarAdiantamentos(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   options: ExportOptions
 ) {
   let query = supabase

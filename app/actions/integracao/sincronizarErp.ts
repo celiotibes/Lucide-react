@@ -9,7 +9,7 @@ import { auditLogger } from '@/server/compliance/auditLogger';
  */
 export async function sincronizarOmie() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -55,7 +55,7 @@ export async function sincronizarOmie() {
  */
 export async function sincronizarBluesoft() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -105,7 +105,7 @@ export async function notificarMudancaStatus(
   statusAnterior: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Buscar detalhes da ordem
     const { data: ordem, error: erroOrdem } = await supabase
@@ -210,7 +210,7 @@ export async function notificarMudancaStatus(
  */
 export async function reconciliarComErps() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar permissão
     const { data: isAdmin } = await supabase.rpc('fn_eh_admin_ou_economista');
@@ -260,7 +260,7 @@ export async function registrarReferenciaExterna(
   blueSoftId?: string
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Validar que pelo menos um ID foi fornecido
     if (!omieId && !blueSoftId) {
@@ -331,7 +331,7 @@ export async function registrarReferenciaExterna(
  */
 export async function obterStatusSincronizacao(ordemId: string) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data: referencia, error } = await supabase
       .from('referencias_externas')
