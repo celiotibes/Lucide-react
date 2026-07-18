@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo } from "lucide-react";
 import "./App.css";
 import { DbProvider, useDb } from "./db/DbContext";
@@ -7,22 +7,29 @@ import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
 import { registrarBackup, calcularStatusBackup, type RegistroBackup } from "./domain/backupIntegridade";
 import { gerarPainelPendencias } from "./domain/auditoria/painelPendencias";
 import { Dashboard } from "./components/Dashboard";
-import { PendenciasView } from "./components/PendenciasView";
-import { ImportarView } from "./components/ImportarView";
-import { TransacoesView, type FiltroTransacoesInicial } from "./components/TransacoesView";
-import { ContratosInadimplenciaView } from "./components/ContratosInadimplenciaView";
-import { CaucaoView } from "./components/CaucaoView";
-import { FinanciamentosView } from "./components/FinanciamentosView";
-import { AuditoriaView } from "./components/AuditoriaView";
-import { LaudoView } from "./components/LaudoView";
-import { RendaTributavelView } from "./components/RendaTributavelView";
-import { LivroRazaoView } from "./components/LivroRazaoView";
-import { ReajustesRescisaoView } from "./components/ReajustesRescisaoView";
-import { IndicesEconomicosView } from "./components/IndicesEconomicosView";
-import { ImoveisView } from "./components/ImoveisView";
-import { DocumentosView } from "./components/DocumentosView";
-import { CadastrosView } from "./components/CadastrosView";
-import { PatrimonioView } from "./components/PatrimonioView";
+import type { FiltroTransacoesInicial } from "./components/TransacoesView";
+
+// Só uma aba renderiza por vez ({aba === "x" && <X/>}) — carregar as 16 telas que não são o
+// Painel (a aba inicial) de forma preguiçosa evita que o bundle de abertura inclua código que
+// a maioria das sessões nunca visita (ex: Laudo pericial, Índices econômicos). O Dashboard
+// continua com import estático de propósito: é sempre a primeira tela renderizada, então
+// adiá-lo só trocaria "esperar o bundle" por "esperar o Suspense" sem ganho nenhum.
+const PendenciasView = lazy(() => import("./components/PendenciasView").then((m) => ({ default: m.PendenciasView })));
+const ImportarView = lazy(() => import("./components/ImportarView").then((m) => ({ default: m.ImportarView })));
+const TransacoesView = lazy(() => import("./components/TransacoesView").then((m) => ({ default: m.TransacoesView })));
+const ContratosInadimplenciaView = lazy(() => import("./components/ContratosInadimplenciaView").then((m) => ({ default: m.ContratosInadimplenciaView })));
+const CaucaoView = lazy(() => import("./components/CaucaoView").then((m) => ({ default: m.CaucaoView })));
+const FinanciamentosView = lazy(() => import("./components/FinanciamentosView").then((m) => ({ default: m.FinanciamentosView })));
+const AuditoriaView = lazy(() => import("./components/AuditoriaView").then((m) => ({ default: m.AuditoriaView })));
+const LaudoView = lazy(() => import("./components/LaudoView").then((m) => ({ default: m.LaudoView })));
+const RendaTributavelView = lazy(() => import("./components/RendaTributavelView").then((m) => ({ default: m.RendaTributavelView })));
+const LivroRazaoView = lazy(() => import("./components/LivroRazaoView").then((m) => ({ default: m.LivroRazaoView })));
+const ReajustesRescisaoView = lazy(() => import("./components/ReajustesRescisaoView").then((m) => ({ default: m.ReajustesRescisaoView })));
+const IndicesEconomicosView = lazy(() => import("./components/IndicesEconomicosView").then((m) => ({ default: m.IndicesEconomicosView })));
+const ImoveisView = lazy(() => import("./components/ImoveisView").then((m) => ({ default: m.ImoveisView })));
+const DocumentosView = lazy(() => import("./components/DocumentosView").then((m) => ({ default: m.DocumentosView })));
+const CadastrosView = lazy(() => import("./components/CadastrosView").then((m) => ({ default: m.CadastrosView })));
+const PatrimonioView = lazy(() => import("./components/PatrimonioView").then((m) => ({ default: m.PatrimonioView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
@@ -240,23 +247,25 @@ function Conteudo() {
           </div>
         )}
         <div className="tab-content" key={aba}>
-          {aba === "dashboard" && <Dashboard aoDrillDown={aoDrillDownTransacoes} />}
-          {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => navegarParaAba(destino as Aba)} />}
-          {aba === "imoveis" && <ImoveisView />}
-          {aba === "cadastros" && <CadastrosView />}
-          {aba === "importar" && <ImportarView />}
-          {aba === "documentos" && <DocumentosView />}
-          {aba === "transacoes" && <TransacoesView filtroInicial={filtroTransacoesDrillDown} />}
-          {aba === "contratos" && <ContratosInadimplenciaView />}
-          {aba === "reajustes" && <ReajustesRescisaoView />}
-          {aba === "caucao" && <CaucaoView />}
-          {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
-          {aba === "patrimonio" && <PatrimonioView />}
-          {aba === "indices" && <IndicesEconomicosView />}
-          {aba === "renda" && <RendaTributavelView />}
-          {aba === "razao" && <LivroRazaoView />}
-          {aba === "auditoria" && <AuditoriaView aoDrillDown={aoDrillDownTransacoes} />}
-          {aba === "laudo" && <LaudoView />}
+          <Suspense fallback={<div className="skeleton" style={{ height: 280 }} />}>
+            {aba === "dashboard" && <Dashboard aoDrillDown={aoDrillDownTransacoes} />}
+            {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => navegarParaAba(destino as Aba)} />}
+            {aba === "imoveis" && <ImoveisView />}
+            {aba === "cadastros" && <CadastrosView />}
+            {aba === "importar" && <ImportarView />}
+            {aba === "documentos" && <DocumentosView />}
+            {aba === "transacoes" && <TransacoesView filtroInicial={filtroTransacoesDrillDown} />}
+            {aba === "contratos" && <ContratosInadimplenciaView />}
+            {aba === "reajustes" && <ReajustesRescisaoView />}
+            {aba === "caucao" && <CaucaoView />}
+            {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
+            {aba === "patrimonio" && <PatrimonioView />}
+            {aba === "indices" && <IndicesEconomicosView />}
+            {aba === "renda" && <RendaTributavelView />}
+            {aba === "razao" && <LivroRazaoView />}
+            {aba === "auditoria" && <AuditoriaView aoDrillDown={aoDrillDownTransacoes} />}
+            {aba === "laudo" && <LaudoView />}
+          </Suspense>
         </div>
       </main>
     </div>
