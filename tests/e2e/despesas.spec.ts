@@ -196,7 +196,7 @@ test.describe('Fluxo Admin de Reembolso', () => {
     await page.goto('/painel-gestao/reembolsos');
 
     // Verificar tabela de requisições
-    await expect(page.locator('table tbody tr')).toHaveCount(/ 0|[1-9]\\d* /);
+    await expect(page.locator('table')).toBeVisible();
 
     // Verificar colunas
     await expect(page.locator('text=Prestador')).toBeVisible();

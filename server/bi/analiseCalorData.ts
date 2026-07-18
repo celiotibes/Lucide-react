@@ -20,17 +20,22 @@ export async function obterDadosAnaliseCalor(
   try {
     const supabase = await createClient();
 
-    let query = supabase
-      .from('fact_despesa')
-      .select(
-        agruparPor === 'categoria'
-          ? 'data_despesa, categoria_despesa, valor_total'
-          : 'data_despesa, residencial_id, valor_total'
-      )
-      .gte('data_despesa', dataInicio)
-      .lte('data_despesa', dataFim);
-
-    const { data: despesas, error: erroFetch } = await query;
+    // Duas queries com select literal fixo (não escolhido por ternário) —
+    // assim o TS infere o shape de linha de cada branch corretamente, em
+    // vez de uma união onde nenhum dos dois campos (categoria_despesa /
+    // residencial_id) fica disponível sem narrowing.
+    const { data: despesas, error: erroFetch } =
+      agruparPor === 'categoria'
+        ? await supabase
+            .from('fact_despesa')
+            .select('data_despesa, categoria_despesa, valor_total')
+            .gte('data_despesa', dataInicio)
+            .lte('data_despesa', dataFim)
+        : await supabase
+            .from('fact_despesa')
+            .select('data_despesa, residencial_id, valor_total')
+            .gte('data_despesa', dataInicio)
+            .lte('data_despesa', dataFim);
 
     if (erroFetch) throw erroFetch;
 
@@ -51,9 +56,8 @@ export async function obterDadosAnaliseCalor(
       const data = new Date(despesa.data_despesa);
       const periodo = `${String(data.getMonth() + 1).padStart(2, '0')}/${data.getFullYear()}`;
       const categoria =
-        agruparPor === 'categoria'
-          ? despesa.categoria_despesa || 'Sem Categoria'
-          : despesa.residencial_id || 'Sem Residencial';
+        ('categoria_despesa' in despesa ? despesa.categoria_despesa : despesa.residencial_id) ||
+        (agruparPor === 'categoria' ? 'Sem Categoria' : 'Sem Residencial');
 
       setPeriodos.add(periodo);
       setCategorias.add(categoria);

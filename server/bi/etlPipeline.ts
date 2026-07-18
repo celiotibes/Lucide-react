@@ -16,6 +16,24 @@ export interface ETLStatus {
   erro?: string;
 }
 
+// contrato_id é FK direta em apontamentos_prestador → contratos_prestador.id,
+// então o PostgREST retorna objeto singular (não array) para essa relação.
+// Sem tipos gerados do schema (supabase gen types), o client infere array
+// por padrão — sobrescrevemos via .overrideTypes() logo após a query.
+interface ApontamentoParaEtl {
+  id: string;
+  data: string;
+  horas_trabalhadas: number;
+  contrato_id: string;
+  foi_importado_retroativo: boolean;
+  contratos_prestador: {
+    id: string;
+    prestador_id: string;
+    valor_hora_padrao: number;
+  } | null;
+  apontamento_custos: { ordem_servico_id: string; valor_total: number }[] | null;
+}
+
 /**
  * Carregar dimensão de data (se não existir)
  */
@@ -201,7 +219,8 @@ export async function carregarFactApontamento(): Promise<ETLStatus> {
         )
       `
       )
-      .gte('data', dataInicioStr);
+      .gte('data', dataInicioStr)
+      .overrideTypes<ApontamentoParaEtl[], { merge: false }>();
 
     if (erroFetch) throw erroFetch;
 
@@ -251,7 +270,7 @@ export async function carregarFactApontamento(): Promise<ETLStatus> {
           horas_trabalhadas: a.horas_trabalhadas,
           valor_hora: a.contratos_prestador?.valor_hora_padrao || 0,
           valor_total: (a.horas_trabalhadas || 0) * (a.contratos_prestador?.valor_hora_padrao || 0),
-          foi_rateado: a.apontamento_custos?.length > 0,
+          foi_rateado: (a.apontamento_custos?.length || 0) > 0,
           foi_anomalia: false, // TODO: buscar de análise ML
           status: 'processado',
           foi_importado_retroativo: a.foi_importado_retroativo,

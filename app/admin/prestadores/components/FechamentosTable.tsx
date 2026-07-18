@@ -12,7 +12,6 @@ import {
 interface Fechamento {
   id: string;
   contrato_id: string;
-  prestador_id: string;
   data_inicio: string;
   data_fim: string;
   total_proventos: number;

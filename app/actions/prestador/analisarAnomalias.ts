@@ -32,6 +32,21 @@ export async function analisarAnomaliasApontamentos(
       return { sucesso: false, erro: 'Sem permissão' };
     }
 
+    // contrato_id é FK direta em apontamentos_prestador →
+    // contratos_prestador.id, então o PostgREST retorna objeto singular
+    // (não array). Sem tipos gerados do schema, sobrescrevemos via
+    // .overrideTypes().
+    interface ApontamentoComRelacoes {
+      id: string;
+      data: string;
+      horas_trabalhadas: number;
+      contrato_id: string;
+      contratos_prestador: {
+        prestador_id: string;
+        prestadores_servico: { pessoa_id: string; nome_completo: string } | null;
+      } | null;
+    }
+
     // Buscar apontamentos do período
     let query = supabase
       .from('apontamentos_prestador')
@@ -48,7 +63,8 @@ export async function analisarAnomaliasApontamentos(
       `
       )
       .gte('data', dataInicio)
-      .lte('data', dataFim);
+      .lte('data', dataFim)
+      .overrideTypes<ApontamentoComRelacoes[], { merge: false }>();
 
     const { data: apontamentos, error: erroApontamentos } = await query;
 

@@ -54,6 +54,25 @@ export default async function PrestadoresAdminPage() {
     console.error('Erro ao buscar prestadores:', prestadoresError);
   }
 
+  // prestadores_servico é acessível apenas via join com contratos_prestador
+  // (fechamentos_prestador não tem prestador_id direto), e é uma FK
+  // to-one — o PostgREST retorna objeto singular, mas sem tipos gerados
+  // do schema o client infere array; sobrescrevemos via .overrideTypes().
+  interface FechamentoPendenteQuery {
+    id: string;
+    contrato_id: string;
+    data_inicio: string;
+    data_fim: string;
+    total_proventos: number;
+    total_deducoes: number;
+    valor_liquido: number;
+    status: string;
+    motivo_devolucao: string | null;
+    contratos_prestador: {
+      prestadores_servico: { nome_completo: string; categoria: string } | null;
+    } | null;
+  }
+
   // Buscar fechamentos pendentes
   const { data: fechamentosPendentes, error: fechamentosError } = await supabase
     .from('fechamentos_prestador')
@@ -61,7 +80,6 @@ export default async function PrestadoresAdminPage() {
       `
       id,
       contrato_id,
-      prestador_id,
       data_inicio,
       data_fim,
       total_proventos,
@@ -69,18 +87,30 @@ export default async function PrestadoresAdminPage() {
       valor_liquido,
       status,
       motivo_devolucao,
-      prestadores_servico (
-        nome_completo,
-        categoria
+      contratos_prestador (
+        prestadores_servico (
+          nome_completo,
+          categoria
+        )
       )
     `
     )
     .in('status', ['enviado_para_gestao', 'devolvido'])
-    .order('data_fim', { ascending: false });
+    .order('data_fim', { ascending: false })
+    .overrideTypes<FechamentoPendenteQuery[], { merge: false }>();
 
   if (fechamentosError) {
     console.error('Erro ao buscar fechamentos:', fechamentosError);
   }
+
+  // Achata a relação aninhada (contratos_prestador.prestadores_servico)
+  // para o shape que <FechamentosTable> espera (prestadores_servico no
+  // nível raiz do fechamento).
+  const fechamentosParaTabela = (fechamentosPendentes || []).map((f) => ({
+    ...f,
+    motivo_devolucao: f.motivo_devolucao ?? undefined,
+    prestadores_servico: f.contratos_prestador?.prestadores_servico ?? undefined,
+  }));
 
   // Calcular estatísticas
   const { data: statsProventos } = await supabase
@@ -128,8 +158,8 @@ export default async function PrestadoresAdminPage() {
           </div>
 
           {/* Fechamentos Pendentes Table */}
-          {fechamentosPendentes && fechamentosPendentes.length > 0 ? (
-            <FechamentosTable fechamentos={fechamentosPendentes} />
+          {fechamentosParaTabela.length > 0 ? (
+            <FechamentosTable fechamentos={fechamentosParaTabela} />
           ) : (
             <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
               Nenhum fechamento pendente de aprovação

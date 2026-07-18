@@ -229,6 +229,19 @@ export async function gerarFaturaServicosResidencial(
     const dataInicio = new Date(competencia.getFullYear(), competencia.getMonth(), 1);
     const dataFim = new Date(competencia.getFullYear(), competencia.getMonth() + 1, 0);
 
+    // Cada relação abaixo é uma FK direta (to-one), então o PostgREST
+    // retorna objeto singular — sem tipos gerados do schema, o client
+    // infere array por padrão; sobrescrevemos via .overrideTypes().
+    interface RateioComRelacoes {
+      horas_trabalhadas: number;
+      apontamentos_prestador: {
+        data: string;
+        contratos_prestador: {
+          prestadores_servico: { valor_hora_padrao: number } | null;
+        } | null;
+      } | null;
+    }
+
     const { data: rateios, error: erroRateios } = await supabase
       .from('apontamentos_residencial_detalhe')
       .select(
@@ -244,7 +257,8 @@ export async function gerarFaturaServicosResidencial(
       )
       .eq('residencial_id', residencialId)
       .gte('criado_em', dataInicio.toISOString())
-      .lt('criado_em', dataFim.toISOString());
+      .lt('criado_em', dataFim.toISOString())
+      .overrideTypes<RateioComRelacoes[], { merge: false }>();
 
     if (erroRateios) throw erroRateios;
 
