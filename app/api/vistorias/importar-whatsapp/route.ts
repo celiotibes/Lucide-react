@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
 function calcularSeveridadeMedia(danos: any[]): string {
   if (danos.length === 0) return 'indefinida';
 
-  const pesos = { leve: 1, média: 2, grave: 3 };
+  const pesos: Record<string, number> = { leve: 1, média: 2, grave: 3 };
   const media = danos.reduce((acc, d) => acc + (pesos[d.severidade] || 0), 0) / danos.length;
 
   if (media < 1.5) return 'leve';

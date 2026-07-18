@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { ArrowLeft, Edit, Download, Send, X } from 'lucide-react';
@@ -51,7 +52,8 @@ interface ItemFechamento {
   observacoes?: string;
 }
 
-export default function PaginaDetalhesFechamento({ params }: { params: { id: string } }) {
+export default function PaginaDetalhesFechamento({ params }: any) {
+  const router = useRouter();
   const [fechamento, setFechamento] = useState<FechamentoPrestador | null>(null);
   const [itens, setItens] = useState<ItemFechamento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -59,10 +61,13 @@ export default function PaginaDetalhesFechamento({ params }: { params: { id: str
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
 
   const supabase = createClient();
+  const id = params?.id;
 
   useEffect(() => {
-    carregarDados();
-  }, [params.id]);
+    if (id) {
+      carregarDados();
+    }
+  }, [id]);
 
   async function carregarDados() {
     try {

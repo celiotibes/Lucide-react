@@ -35,6 +35,10 @@
     {
       "path": "/api/vistorias/notificacoes/preclusao",
       "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/vistorias/notificacoes/multi-canal",
+      "schedule": "30 9 * * *"
     }
   ]
 }

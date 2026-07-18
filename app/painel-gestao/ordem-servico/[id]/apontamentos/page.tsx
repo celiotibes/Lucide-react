@@ -63,7 +63,7 @@ interface OrdemServico {
   criado_em: string;
 }
 
-export default function PaginaApontamentosOS({ params }: { params: { id: string } }) {
+export default function PaginaApontamentosOS({ params }: any) {
   const [ordemServico, setOrdemServico] = useState<OrdemServico | null>(null);
   const [apontamentosCustos, setApontamentosCustos] = useState<ApontamentoCusto[]>([]);
   const [apontamentosDisponiveis, setApontamentosDisponiveis] = useState<ApontamentoDisponivel[]>([]);

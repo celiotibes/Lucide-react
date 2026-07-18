@@ -8,7 +8,7 @@ const ContestacaoSchema = z.object({
   itemVistoriaId: z.string(),
   motivo: z.string().min(10),
   descricaoDesacordo: z.string().min(20),
-  fotoEvidencia?: z.string(), // URL
+  fotoEvidencia: z.string().optional(),
   contatoInquilino: z.string().email(),
 });
 
@@ -30,7 +30,7 @@ const AtualizarStatusReparoSchema = z.object({
     'concluido',
     'desistido',
   ]),
-  detalhes?: z.string(),
+  detalhes: z.string().optional(),
 });
 
 /**
@@ -149,7 +149,7 @@ export async function avaliarContestacao(
     );
 
     // Se aceita, criar registro de reparo
-    let statusNovoReparo = null;
+    let statusNovoReparo: string | undefined = undefined;
 
     if (validado.aceitar) {
       const contestacao = await pool.query(

@@ -43,7 +43,7 @@ const CORES_STATUS: Record<string, string> = {
   cancelado: 'bg-red-100 text-red-800',
 };
 
-export default function PaginaOrdemServico({ params }: { params: { id: string } }) {
+export default function PaginaOrdemServico({ params }: any) {
   const [ordemServico, setOrdemServico] = useState<OrdemServico | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);

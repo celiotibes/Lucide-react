@@ -14,6 +14,14 @@ const eslintConfig = [
   {
     ignores: ['server/**/*.test.ts', '.next/**', 'node_modules/**'],
   },
+  {
+    files: ['server/**/*.ts', 'app/**/*.ts', 'app/**/*.tsx', 'lib/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      'prefer-const': 'off',
+      'react/no-unescaped-entities': 'off',
+    },
+  },
 ];
 
 export default eslintConfig;

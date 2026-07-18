@@ -9,7 +9,7 @@ const CriarItemDeOCRSchema = z.object({
   leituraOCR: z.number(),
   tipoMedidor: z.enum(['hidrômetro', 'gás', 'eletricidade', 'desconhecido']),
   confiancaOCR: z.number().min(0).max(100),
-  observacoes?: z.string(),
+  observacoes: z.string().optional(),
 });
 
 const CriarItemDeWhatsAppSchema = z.object({
@@ -21,7 +21,7 @@ const CriarItemDeWhatsAppSchema = z.object({
   responsabilidade: z.enum(['inquilino', 'proprietário', 'desgaste_natural', 'indeterminado']),
   severidade: z.enum(['leve', 'média', 'grave']),
   dataRelato: z.string(),
-  remetente?: z.string(),
+  remetente: z.string().optional(),
 });
 
 /**

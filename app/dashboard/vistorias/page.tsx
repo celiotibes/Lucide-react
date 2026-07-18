@@ -1,5 +1,5 @@
 import { obterPool } from '@/server/integracao/db';
-import { formatarData, formatarValor } from '@/lib/formatacao';
+import { formatarData, formatarMoeda } from '@/lib/formatacao';
 import Link from 'next/link';
 
 interface KPI {
@@ -268,7 +268,7 @@ export default async function DashboardVistorias() {
                   Custos Orçados
                 </p>
                 <p style={{ margin: '8px 0 0 0', fontSize: '28px', fontWeight: '600', color: '#c2185b' }}>
-                  {formatarValor(kpis.custosReparos)}
+                  {formatarMoeda(kpis.custosReparos)}
                 </p>
               </div>
               <span style={{ fontSize: '32px' }}>💰</span>
@@ -444,7 +444,7 @@ export default async function DashboardVistorias() {
                         </p>
                       </div>
                       <span style={{ color: '#999', fontSize: '12px', whiteSpace: 'nowrap' }}>
-                        {reparo.orcamento_valor ? formatarValor(reparo.orcamento_valor) : '—'}
+                        {reparo.orcamento_valor ? formatarMoeda(reparo.orcamento_valor) : '—'}
                       </span>
                     </div>
                   </div>
