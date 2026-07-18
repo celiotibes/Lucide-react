@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS contas_bancarias (
 CREATE TABLE IF NOT EXISTS imoveis (
     id              INTEGER PRIMARY KEY,
     apelido         TEXT NOT NULL,              -- ex: "Kitnet 302 - Ed. Aurora"
-    tipo            TEXT NOT NULL CHECK (tipo IN ('apartamento', 'kitnet', 'outro')),
+    tipo            TEXT NOT NULL CHECK (tipo IN ('apartamento', 'kitnet', 'sala_comercial', 'vaga_garagem', 'outro')),
     cidade          TEXT,                       -- ex: "Florianópolis", "Curitiba" — agrupamento regional p/ relatórios e rateio
     endereco        TEXT,
     fracao_ideal    REAL,                       -- para rateio de despesas coletivas por m²/fração

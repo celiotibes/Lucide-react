@@ -8,6 +8,8 @@ import { formatarMoeda } from "../domain/formatarMoeda";
 const ROTULO_TIPO: Record<TipoImovel, string> = {
   apartamento: "Apartamento",
   kitnet: "Kitnet",
+  sala_comercial: "Sala comercial",
+  vaga_garagem: "Vaga de garagem",
   outro: "Outro",
 };
 

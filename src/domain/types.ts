@@ -1,7 +1,7 @@
 // Tipos que espelham contabilidade-reconstituicao/schema.sql.
 
 export type TipoConta = "corrente" | "poupanca" | "investimento";
-export type TipoImovel = "apartamento" | "kitnet" | "outro";
+export type TipoImovel = "apartamento" | "kitnet" | "sala_comercial" | "vaga_garagem" | "outro";
 export type TipoContrato = "residencial_fixo" | "airbnb_temporada";
 export type IndiceReajuste = "igpm" | "ipca" | "nenhum";
 export type IndiceCorrecao = "poupanca" | "igpm" | "ipca" | "nenhum";
