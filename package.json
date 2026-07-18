@@ -14,10 +14,12 @@
     "typecheck:server": "tsc -p tsconfig.server.json"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.3",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",
     "date-fns": "^4.4.0",
     "exceljs": "^4.4.0",
+    "libphonenumber-js": "^1.11.8",
     "lucide-react": "^0.469.0",
     "next": "^15.5.4",
     "node-cache": "^5.1.2",
