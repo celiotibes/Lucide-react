@@ -57,12 +57,12 @@ export default function PaginaFluxoCaixa() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-950 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Cabeçalho */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Fluxo de Caixa</h1>
-          <p className="text-gray-600">Visualização do fluxo de receitas, deduções, custos e resultado</p>
+        <div className="mb-8 animate-slideDown">
+          <h1 className="text-4xl font-bold text-slate-100 mb-2">Fluxo de Caixa</h1>
+          <p className="text-slate-400">Visualização do fluxo de receitas, deduções, custos e resultado</p>
         </div>
 
         {/* Mensagem */}
