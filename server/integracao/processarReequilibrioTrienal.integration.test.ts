@@ -81,4 +81,26 @@ describe.skipIf(!DATABASE_URL)('processarReequilibrioTrienal (integração real 
     ]);
     expect(rows[0].notificacao_oficial_enviada_em).not.toBeNull();
   });
+
+  it('reequilíbrio descartado: nunca envia a notificação oficial, mesmo dentro da janela de 30 dias', async () => {
+    const contratoId = await criarContrato('2023-04-19'); // marco 2026-04-19
+
+    // Primeiro run: dentro da janela de planejamento (90d), cria a linha.
+    await processarReequilibrioTrienal(pool, new Date('2026-01-19T00:00:00Z'));
+
+    // Operador descarta manualmente (mesma ação de app/contratos/[id]/reequilibrio/actions.ts).
+    await pool.query(`update reequilibrios_contratuais set status = 'descartado' where contrato_id = $1`, [
+      contratoId,
+    ]);
+
+    // Segundo run: já dentro da janela de 30 dias — não deve notificar mais nada.
+    const resultado = await processarReequilibrioTrienal(pool, new Date('2026-03-20T00:00:00Z'));
+    expect(resultado[0].planejamentoEnviado).toBe(false);
+    expect(resultado[0].oficialEnviado).toBe(false);
+
+    const { rows } = await pool.query(`select * from reequilibrios_contratuais where contrato_id = $1`, [
+      contratoId,
+    ]);
+    expect(rows[0].notificacao_oficial_enviada_em).toBeNull();
+  });
 });

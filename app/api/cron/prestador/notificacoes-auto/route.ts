@@ -15,10 +15,16 @@ import { rastrearConfirmacaoPix } from '@/app/actions/prestador/pix';
 
 export const dynamic = 'force-dynamic';
 
-// Usar header X-CRON-SECRET para validação
+// CRON_SECRET é a variável que a Vercel injeta automaticamente como
+// "Authorization: Bearer" em todo cron agendado via vercel.json — mesma
+// variável usada pelos demais crons do projeto. Corrigido de
+// X-CRON-SECRET/CRON_SECRET_KEY (nunca bateria com o que a Vercel envia) e
+// removido o bypass "=== 'dev'" (autenticava qualquer chamada se essa
+// variável de ambiente estivesse com o valor literal "dev").
 function validarTokenCron(request: NextRequest): boolean {
-  const token = request.headers.get('X-CRON-SECRET');
-  return token === process.env.CRON_SECRET_KEY || process.env.CRON_SECRET_KEY === 'dev';
+  const segredoEsperado = process.env.CRON_SECRET;
+  if (!segredoEsperado) return false;
+  return request.headers.get('authorization') === `Bearer ${segredoEsperado}`;
 }
 
 function agora(): Date {
@@ -39,7 +45,10 @@ function ehDiaDaSemana(dia: number): boolean {
   return agora.getDate() === dia;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+// GET é o método que a Vercel usa para disparar crons agendados via
+// vercel.json — POST continua suportado (delegando para cá) para quem
+// preferir chamar assim manualmente.
+export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!validarTokenCron(request)) {
     return NextResponse.json({ erro: 'Token inválido' }, { status: 401 });
   }
@@ -100,6 +109,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 500 }
     );
   }
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  return GET(request);
 }
 
 // ============================================================================

@@ -14,6 +14,7 @@
 import type { Pool } from 'pg';
 import { calcularJanelasReequilibrio } from '../juridico/reequilibrioTrienal';
 import { criarNotificador } from '../notificacao/Notificador';
+import { registrarFalhasEnvio } from '../notificacao/registrarFalhasEnvio';
 
 const EMAIL_ADMIN_PADRAO = process.env.EMAIL_ADMIN_NOTIFICACOES || 'admin@crmt.dev';
 
@@ -72,20 +73,32 @@ export async function processarReequilibrioTrienal(
     );
     const reequilibrio = upsert[0];
 
+    // Reequilíbrio descartado pelo operador (app/contratos/[id]/reequilibrio/
+    // actions.ts) — não dispara nenhuma notificação, nem a de planejamento
+    // nem a oficial. Sem este corte, descartar não tinha efeito real: a
+    // notificação oficial saía do mesmo jeito 30 dias antes do marco.
+    if (reequilibrio.status === 'descartado') {
+      resultados.push({ contratoId: contrato.id, marco: marcoIso, planejamentoEnviado: false, oficialEnviado: false });
+      continue;
+    }
+
     let planejamentoEnviado = false;
     let oficialEnviado = false;
 
     if (!reequilibrio.notificacao_planejamento_enviada_em) {
-      await notificador.enviar({
-        canais: ['email'],
-        destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
-        template: {
-          titulo: `Reequilíbrio contratual em 90 dias — ${contrato.imovel_identificacao}`,
-          corpo:
-            `O contrato de ${contrato.imovel_identificacao} completa 3 anos em ${marcoIso} (Art. 19, Lei 8.245/91). ` +
-            'Defina os critérios de mercado a serem usados na eventual revisão antes do prazo da notificação oficial (30 dias).',
-        },
-      });
+      registrarFalhasEnvio(
+        await notificador.enviar({
+          canais: ['email'],
+          destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
+          template: {
+            titulo: `Reequilíbrio contratual em 90 dias — ${contrato.imovel_identificacao}`,
+            corpo:
+              `O contrato de ${contrato.imovel_identificacao} completa 3 anos em ${marcoIso} (Art. 19, Lei 8.245/91). ` +
+              'Defina os critérios de mercado a serem usados na eventual revisão antes do prazo da notificação oficial (30 dias).',
+          },
+        }),
+        `reequilibrio planejamento contrato=${contrato.id}`,
+      );
       await pool.query(
         `update reequilibrios_contratuais set notificacao_planejamento_enviada_em = now() where id = $1`,
         [reequilibrio.id],
@@ -98,31 +111,37 @@ export async function processarReequilibrioTrienal(
         ? ` O valor de referência proposto pela administração é R$ ${Number(reequilibrio.valor_proposto).toFixed(2)}.`
         : '';
 
-      await notificador.enviar({
-        canais: ['email'],
-        destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
-        template: {
-          titulo: `Notificação oficial de reequilíbrio pendente — ${contrato.imovel_identificacao}`,
-          corpo:
-            `Faltam 30 dias para o marco trienal (${marcoIso}) do contrato de ${contrato.imovel_identificacao}. ` +
-            (reequilibrio.status === 'criterios_definidos'
-              ? 'Critérios já definidos — envie a notificação formal ao inquilino.'
-              : 'Critérios AINDA NÃO foram definidos — defina-os antes de notificar o inquilino.'),
-        },
-      });
-
-      if (contrato.locatario_email) {
+      registrarFalhasEnvio(
         await notificador.enviar({
           canais: ['email'],
-          destinatario: { email: contrato.locatario_email, nome: contrato.locatario_nome ?? 'Locatário' },
+          destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
           template: {
-            titulo: 'Aviso sobre revisão do valor do aluguel',
+            titulo: `Notificação oficial de reequilíbrio pendente — ${contrato.imovel_identificacao}`,
             corpo:
-              `Seu contrato de locação de ${contrato.imovel_identificacao} completa 3 anos em ${marcoIso}. ` +
-              'Conforme o Art. 19 da Lei 8.245/91, a partir dessa data o valor do aluguel pode ser objeto de revisão ' +
-              `para ajuste ao preço de mercado.${trechoValor} Entraremos em contato para tratar os detalhes.`,
+              `Faltam 30 dias para o marco trienal (${marcoIso}) do contrato de ${contrato.imovel_identificacao}. ` +
+              (reequilibrio.status === 'criterios_definidos'
+                ? 'Critérios já definidos — envie a notificação formal ao inquilino.'
+                : 'Critérios AINDA NÃO foram definidos — defina-os antes de notificar o inquilino.'),
           },
-        });
+        }),
+        `reequilibrio oficial (admin) contrato=${contrato.id}`,
+      );
+
+      if (contrato.locatario_email) {
+        registrarFalhasEnvio(
+          await notificador.enviar({
+            canais: ['email'],
+            destinatario: { email: contrato.locatario_email, nome: contrato.locatario_nome ?? 'Locatário' },
+            template: {
+              titulo: 'Aviso sobre revisão do valor do aluguel',
+              corpo:
+                `Seu contrato de locação de ${contrato.imovel_identificacao} completa 3 anos em ${marcoIso}. ` +
+                'Conforme o Art. 19 da Lei 8.245/91, a partir dessa data o valor do aluguel pode ser objeto de revisão ' +
+                `para ajuste ao preço de mercado.${trechoValor} Entraremos em contato para tratar os detalhes.`,
+            },
+          }),
+          `reequilibrio oficial (inquilino) contrato=${contrato.id}`,
+        );
       }
 
       await pool.query(`update reequilibrios_contratuais set notificacao_oficial_enviada_em = now() where id = $1`, [

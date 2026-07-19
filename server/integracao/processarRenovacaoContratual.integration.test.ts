@@ -96,4 +96,42 @@ describe.skipIf(!DATABASE_URL)('processarRenovacaoContratual (integração real 
     const { rows } = await pool.query(`select * from reajustes_contrato where contrato_id = $1`, [contratoId]);
     expect(rows).toHaveLength(1);
   });
+
+  it('re-tenta gerar proposta depois de rejeição, quando um índice mais recente é cadastrado', async () => {
+    await pool.query(
+      `insert into indices_economicos (indice, competencia, percentual_acumulado_12m) values ('IPCA', '2026-06-01', 0.045)
+       on conflict (indice, competencia) do nothing`,
+    );
+    const contratoId = await criarContrato({ dataFim: '2026-08-10', indiceReajuste: 'IPCA' });
+
+    const primeiro = await processarRenovacaoContratual(pool, new Date('2026-07-15T00:00:00Z'));
+    const primeiraPropostaId = primeiro[0].reajustePropostoId;
+    expect(primeiraPropostaId).toBeDefined();
+
+    // Operador rejeita a proposta gerada.
+    await pool.query(`update reajustes_contrato set status = 'rejeitado' where id = $1`, [primeiraPropostaId]);
+
+    // Sem índice mais novo: roda de novo e não deve gerar outra proposta.
+    const segundo = await processarRenovacaoContratual(pool, new Date('2026-07-16T00:00:00Z'));
+    expect(segundo[0].reajustePropostoId).toBeUndefined();
+
+    let { rows } = await pool.query(`select * from reajustes_contrato where contrato_id = $1`, [contratoId]);
+    expect(rows).toHaveLength(1);
+
+    // Cadastra um índice mais recente (competência posterior à da proposta rejeitada).
+    await pool.query(
+      `insert into indices_economicos (indice, competencia, percentual_acumulado_12m) values ('IPCA', '2026-07-01', 0.05)`,
+    );
+
+    const terceiro = await processarRenovacaoContratual(pool, new Date('2026-07-17T00:00:00Z'));
+    expect(terceiro[0].reajustePropostoId).toBeDefined();
+    expect(terceiro[0].reajustePropostoId).not.toBe(primeiraPropostaId);
+
+    ({ rows } = await pool.query(`select * from reajustes_contrato where contrato_id = $1 order by data_proposta`, [
+      contratoId,
+    ]));
+    expect(rows).toHaveLength(2);
+    expect(rows[0].status).toBe('rejeitado');
+    expect(rows[1].status).toBe('proposto');
+  });
 });

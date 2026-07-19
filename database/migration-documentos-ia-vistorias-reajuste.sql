@@ -18,15 +18,38 @@ create table if not exists documentos_anexados (
   nome_arquivo text not null,
   mime_type text not null,
   tamanho_bytes bigint not null check (tamanho_bytes > 0),
-  hash_sha256 text not null unique,
+  hash_sha256 text not null,
   storage_path text not null,
   texto_extraido_md text,
   status_extracao text not null default 'pendente'
     check (status_extracao in ('pendente','processando','concluida','falhou')),
   erro_extracao text,
   enviado_por uuid references pessoas(id),
-  criado_em timestamptz not null default now()
+  criado_em timestamptz not null default now(),
+  constraint uq_documentos_anexados_contrato_hash unique (contrato_id, hash_sha256)
 );
+
+-- Correção: bancos onde esta migração já tinha rodado antes ficaram com
+-- `hash_sha256 unique` GLOBAL (bug — um arquivo idêntico anexado a dois
+-- contratos diferentes fazia o segundo upload apontar silenciosamente para
+-- o documento do primeiro contrato). Troca para unique composto
+-- (contrato_id, hash_sha256), que é o que o CREATE TABLE acima já cria em
+-- bancos novos.
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'documentos_anexados_hash_sha256_key' and conrelid = 'documentos_anexados'::regclass
+  ) then
+    alter table documentos_anexados drop constraint documentos_anexados_hash_sha256_key;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'uq_documentos_anexados_contrato_hash' and conrelid = 'documentos_anexados'::regclass
+  ) then
+    alter table documentos_anexados add constraint uq_documentos_anexados_contrato_hash unique (contrato_id, hash_sha256);
+  end if;
+end $$;
 
 create index if not exists idx_documentos_anexados_contrato on documentos_anexados(contrato_id);
 
@@ -272,6 +295,39 @@ do $$
 begin
   if not exists (select 1 from pg_trigger where tgname = 'trg_audit_perguntas_analise_documento') then
     create trigger trg_audit_perguntas_analise_documento after insert or update or delete on perguntas_analise_documento
+      for each row execute function fn_audit_trigger();
+  end if;
+end $$;
+
+-- ============================================================================
+-- Correção pós-auditoria: reajuste anual por índice
+-- ============================================================================
+create table if not exists reajustes_anuais_notificacoes (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  marco_data date not null,
+  notificacao_enviada_em timestamptz,
+  reajuste_id uuid references reajustes_contrato(id),
+  criado_em timestamptz not null default now(),
+  unique (contrato_id, marco_data)
+);
+
+create index if not exists idx_reajustes_anuais_notificacoes_contrato on reajustes_anuais_notificacoes(contrato_id);
+
+alter table reajustes_anuais_notificacoes enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'reajustes_anuais_notificacoes' and policyname = 'admin_full_access_reajustes_anuais_notificacoes') then
+    create policy admin_full_access_reajustes_anuais_notificacoes on reajustes_anuais_notificacoes
+      for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_audit_reajustes_anuais_notificacoes') then
+    create trigger trg_audit_reajustes_anuais_notificacoes after insert or update or delete on reajustes_anuais_notificacoes
       for each row execute function fn_audit_trigger();
   end if;
 end $$;

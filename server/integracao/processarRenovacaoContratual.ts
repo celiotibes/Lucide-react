@@ -1,20 +1,25 @@
 // Elo entre o calendário puro (server/juridico/renovacaoContratual.ts), o
-// cálculo puro de reajuste (server/financeiro/calcularReajuste.ts) e o
-// schema (renovacoes_contratuais_notificacoes + reajustes_contrato). Mesmo
-// padrão idempotente de processarReequilibrioTrienal.ts.
+// resolvedor de proposta (server/financeiro/resolverPropostaReajuste.ts) e
+// o schema (renovacoes_contratuais_notificacoes + reajustes_contrato).
+// Mesmo padrão idempotente de processarReequilibrioTrienal.ts.
 //
 // Aos 60 dias: aviso de planejamento (interno). Aos 30 dias: aviso de
 // ajuste + proposta de novo valor gravada em reajustes_contrato como
 // 'proposto' — SEMPRE aguardando confirmação humana (nunca 'aplicado'
 // automaticamente). Se o contrato não define índice, usa o padrão de
 // configuracoes_sistema (IPCA/IGPM, editável pelo admin). Se não houver
-// percentual cadastrado para o índice resolvido, a notificação avisa que a
-// confirmação de valores precisa ser manual (sem inventar número).
+// percentual cadastrado, ou se a proposta anterior foi rejeitada sem um
+// índice mais recente disponível, o resolvedor devolve o motivo — e o cron
+// TENTA DE NOVO no próximo run em vez de desistir para sempre (diferente da
+// versão anterior desta função, que marcava "já notificado" e nunca mais
+// olhava o contrato).
 
 import type { Pool } from 'pg';
 import { calcularJanelasRenovacao } from '../juridico/renovacaoContratual';
-import { calcularReajuste, resolverIndiceContrato, type IndiceReajuste } from '../financeiro/calcularReajuste';
+import { resolverPropostaReajuste } from '../financeiro/resolverPropostaReajuste';
+import type { IndiceReajuste } from '../financeiro/calcularReajuste';
 import { criarNotificador } from '../notificacao/Notificador';
+import { registrarFalhasEnvio } from '../notificacao/registrarFalhasEnvio';
 
 const EMAIL_ADMIN_PADRAO = process.env.EMAIL_ADMIN_NOTIFICACOES || 'admin@crmt.dev';
 
@@ -81,14 +86,17 @@ export async function processarRenovacaoContratual(
     let reajustePropostoId: string | undefined;
 
     if (!renovacao.notificacao_planejamento_enviada_em) {
-      await notificador.enviar({
-        canais: ['email'],
-        destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
-        template: {
-          titulo: `Renovação em 60 dias — ${contrato.imovel_identificacao}`,
-          corpo: `O contrato de ${contrato.imovel_identificacao} vence em ${dataFimIso}. Planeje a renovação/renegociação.`,
-        },
-      });
+      registrarFalhasEnvio(
+        await notificador.enviar({
+          canais: ['email'],
+          destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
+          template: {
+            titulo: `Renovação em 60 dias — ${contrato.imovel_identificacao}`,
+            corpo: `O contrato de ${contrato.imovel_identificacao} vence em ${dataFimIso}. Planeje a renovação/renegociação.`,
+          },
+        }),
+        `renovacao planejamento contrato=${contrato.id}`,
+      );
       await pool.query(
         `update renovacoes_contratuais_notificacoes set notificacao_planejamento_enviada_em = now() where id = $1`,
         [renovacao.id],
@@ -96,55 +104,50 @@ export async function processarRenovacaoContratual(
       planejamentoEnviado = true;
     }
 
-    if (janelas.devidoAjuste && !renovacao.notificacao_ajuste_enviada_em) {
-      const indiceResolvido = resolverIndiceContrato(contrato.indice_reajuste, indicePadraoSistema);
-
-      const { rows: indiceRows } = await pool.query<{ percentual_acumulado_12m: string }>(
-        `select percentual_acumulado_12m from indices_economicos
-         where indice = $1
-         order by competencia desc
-         limit 1`,
-        [indiceResolvido],
-      );
-      const percentual = indiceRows[0] ? Number(indiceRows[0].percentual_acumulado_12m) : null;
-
-      const calculo = calcularReajuste({
+    if (janelas.devidoAjuste) {
+      const resolucao = await resolverPropostaReajuste(pool, {
+        contratoId: contrato.id,
         valorAtual: Number(contrato.valor_aluguel),
-        indice: indiceResolvido,
-        percentualAcumulado12m: percentual,
+        indiceContrato: contrato.indice_reajuste,
+        indicePadraoSistema,
+        reajusteVinculadoId: renovacao.reajuste_id,
       });
 
-      let mensagemValor: string;
-      if (calculo.disponivel) {
-        const { rows: reajusteRows } = await pool.query<{ id: string }>(
-          `insert into reajustes_contrato (contrato_id, indice, percentual, valor_anterior, valor_novo, status)
-           values ($1, $2, $3, $4, $5, 'proposto')
-           returning id`,
-          [contrato.id, calculo.indice, calculo.percentual, contrato.valor_aluguel, calculo.valorNovo],
-        );
-        reajustePropostoId = reajusteRows[0].id;
+      if (resolucao.reajusteId !== renovacao.reajuste_id) {
         await pool.query(`update renovacoes_contratuais_notificacoes set reajuste_id = $1 where id = $2`, [
-          reajustePropostoId,
+          resolucao.reajusteId,
           renovacao.id,
         ]);
-        mensagemValor = `Proposta gerada: R$ ${contrato.valor_aluguel} → R$ ${calculo.valorNovo?.toFixed(2)} (${indiceResolvido} ${(calculo.percentual! * 100).toFixed(2)}%). Confirme em Contratos > Reajustes.`;
-      } else {
-        mensagemValor = calculo.motivoIndisponivel ?? 'Sem índice cadastrado — confirme o novo valor manualmente.';
+        reajustePropostoId = resolucao.criouNovaProposta ? (resolucao.reajusteId ?? undefined) : undefined;
       }
 
-      await notificador.enviar({
-        canais: ['email'],
-        destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
-        template: {
-          titulo: `Ajuste de renovação em 30 dias — ${contrato.imovel_identificacao}`,
-          corpo: `O contrato de ${contrato.imovel_identificacao} vence em ${dataFimIso}. ${mensagemValor}`,
-        },
-      });
-      await pool.query(
-        `update renovacoes_contratuais_notificacoes set notificacao_ajuste_enviada_em = now() where id = $1`,
-        [renovacao.id],
-      );
-      ajusteEnviado = true;
+      // Notifica no primeiro contato do ciclo, e de novo sempre que uma
+      // proposta nova é de fato gerada (inclusive um retry pós-rejeição).
+      if (!renovacao.notificacao_ajuste_enviada_em || resolucao.criouNovaProposta) {
+        const mensagemValor = resolucao.criouNovaProposta
+          ? `Proposta de reajuste gerada: R$ ${contrato.valor_aluguel} → confira em Contratos > Reajustes.`
+          : (resolucao.motivoIndisponivel ?? 'Sem índice cadastrado — confirme o novo valor manualmente.');
+
+        registrarFalhasEnvio(
+          await notificador.enviar({
+            canais: ['email'],
+            destinatario: { email: EMAIL_ADMIN_PADRAO, nome: 'Administrador' },
+            template: {
+              titulo: `Ajuste de renovação em 30 dias — ${contrato.imovel_identificacao}`,
+              corpo: `O contrato de ${contrato.imovel_identificacao} vence em ${dataFimIso}. ${mensagemValor}`,
+            },
+          }),
+          `renovacao ajuste contrato=${contrato.id}`,
+        );
+
+        if (!renovacao.notificacao_ajuste_enviada_em) {
+          await pool.query(
+            `update renovacoes_contratuais_notificacoes set notificacao_ajuste_enviada_em = now() where id = $1`,
+            [renovacao.id],
+          );
+        }
+        ajusteEnviado = true;
+      }
     }
 
     resultados.push({

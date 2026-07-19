@@ -21,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/faturas">Faturas</Link>
               <Link href="/ordens-servico">Ordens de Serviço</Link>
               <Link href="/quebras-contrato">Quebras de Contrato</Link>
+              <Link href="/confissoes-divida">Confissões de Dívida</Link>
               <Link href="/extratos">Extratos</Link>
               <Link href="/conciliacao-bancaria">Conciliação Bancária</Link>
               <Link href="/energia-solar">Energia Solar</Link>

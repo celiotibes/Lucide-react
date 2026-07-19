@@ -64,13 +64,20 @@ export async function registrarDocumentoAnexado(
   pool: Pool,
   dados: DadosDocumentoAnexado,
 ): Promise<ResultadoRegistrarDocumento> {
-  // Idempotência por conteúdo: o mesmo arquivo (mesmo hash) enviado duas
-  // vezes não gera um segundo upload nem uma segunda linha — devolve o
-  // documento já existente. Evita reprocessamento de IA duplicado (Fase 4)
-  // se o operador re-enviar o mesmo PDF por engano.
+  // Idempotência por conteúdo, escopada por contrato: o mesmo arquivo (mesmo
+  // hash) enviado duas vezes PARA O MESMO CONTRATO não gera um segundo
+  // upload nem uma segunda linha — devolve o documento já existente. Evita
+  // reprocessamento de IA duplicado (Fase 4) se o operador re-enviar o
+  // mesmo PDF por engano. Escopado por contrato_id (não global) porque um
+  // arquivo byte-idêntico (ex.: um modelo de aditivo em branco) pode ser
+  // legitimamente anexado a dois contratos diferentes — um unique global
+  // faria o segundo upload apontar silenciosamente para o documento do
+  // PRIMEIRO contrato, sumindo da tela do segundo. `is not distinct from`
+  // trata contrato_id nulo corretamente (NULL = NULL aqui, ao contrário de
+  // `=` puro em SQL).
   const { rows: existentes } = await pool.query<{ id: string }>(
-    `select id from documentos_anexados where hash_sha256 = $1`,
-    [dados.hashSha256],
+    `select id from documentos_anexados where hash_sha256 = $1 and contrato_id is not distinct from $2`,
+    [dados.hashSha256, dados.contratoId],
   );
   if (existentes.length > 0) {
     return { sucesso: true, documentoId: existentes[0].id, jaExistia: true };

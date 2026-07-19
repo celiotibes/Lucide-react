@@ -3106,7 +3106,12 @@ create table documentos_anexados (
   nome_arquivo text not null,
   mime_type text not null,
   tamanho_bytes bigint not null check (tamanho_bytes > 0),
-  hash_sha256 text not null unique,   -- também evita reprocessar o mesmo arquivo duas vezes
+  -- Único por (contrato_id, hash) e não globalmente: também evita reprocessar
+  -- o mesmo arquivo duas vezes NO MESMO CONTRATO, sem impedir que um arquivo
+  -- byte-idêntico (ex.: um modelo de aditivo em branco) seja legitimamente
+  -- anexado a dois contratos diferentes — um unique global fazia o segundo
+  -- upload apontar silenciosamente para o documento do PRIMEIRO contrato.
+  hash_sha256 text not null,
   storage_path text not null,
   -- Resultado da conversão (server/documentos/converterParaMarkdown.ts) —
   -- é o que a IA de fato lê; nunca o binário original.
@@ -3115,7 +3120,8 @@ create table documentos_anexados (
     check (status_extracao in ('pendente','processando','concluida','falhou')),
   erro_extracao text,
   enviado_por uuid references pessoas(id),
-  criado_em timestamptz not null default now()
+  criado_em timestamptz not null default now(),
+  constraint uq_documentos_anexados_contrato_hash unique (contrato_id, hash_sha256)
 );
 
 create index idx_documentos_anexados_contrato on documentos_anexados(contrato_id);
@@ -3325,4 +3331,33 @@ alter table perguntas_analise_documento enable row level security;
 create policy admin_full_access_perguntas_analise_documento on perguntas_analise_documento
   for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
 create trigger trg_audit_perguntas_analise_documento after insert or update or delete on perguntas_analise_documento
+  for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 41. REAJUSTE ANUAL POR ÍNDICE (independente da renovação/fim de contrato)
+-- ============================================================================
+-- `contratos.data_proximo_reajuste`/`data_ultimo_reajuste` existiam no
+-- schema desde antes desta seção mas nunca tiveram nenhum código
+-- lendo/escrevendo — auditoria encontrou o gap: o motor da seção 39/40 só
+-- cobria reajuste ligado à RENOVAÇÃO (fim de contrato). Prática de mercado
+-- é reajuste a cada 12 meses dentro do próprio prazo do contrato (ex.:
+-- contrato de 30 meses reajusta 2x antes de renovar). Mesma disciplina das
+-- demais: nunca aplica o valor sozinho, só propõe em reajustes_contrato
+-- (status='proposto') — ver server/integracao/processarReajusteAnual.ts.
+create table reajustes_anuais_notificacoes (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  marco_data date not null,
+  notificacao_enviada_em timestamptz,
+  reajuste_id uuid references reajustes_contrato(id),
+  criado_em timestamptz not null default now(),
+  unique (contrato_id, marco_data)
+);
+
+create index idx_reajustes_anuais_notificacoes_contrato on reajustes_anuais_notificacoes(contrato_id);
+
+alter table reajustes_anuais_notificacoes enable row level security;
+create policy admin_full_access_reajustes_anuais_notificacoes on reajustes_anuais_notificacoes
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_reajustes_anuais_notificacoes after insert or update or delete on reajustes_anuais_notificacoes
   for each row execute function fn_audit_trigger();

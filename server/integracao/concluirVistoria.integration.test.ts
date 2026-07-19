@@ -63,9 +63,9 @@ describe.skipIf(!DATABASE_URL)('concluirVistoria (integração real com Postgres
     expect(rows[0].checklist_json.retencaoCaucao).toBeUndefined();
   });
 
-  it('vistoria de saída sem danos: devolve o caução inteiro, sem confissão de dívida', async () => {
-    await pool.query(
-      `insert into garantias (contrato_id, tipo, valor, status) values ($1, 'caucao', 1500, 'ativa')`,
+  it('vistoria de saída sem danos: devolve o caução inteiro, sem confissão de dívida, e baixa a garantia', async () => {
+    const { rows: garantiaRows } = await pool.query<{ id: string }>(
+      `insert into garantias (contrato_id, tipo, valor, status) values ($1, 'caucao', 1500, 'ativa') returning id`,
       [contratoId],
     );
     const vistoriaId = await criarVistoria('saida', checklistVazio());
@@ -76,11 +76,14 @@ describe.skipIf(!DATABASE_URL)('concluirVistoria (integração real com Postgres
 
     const { rows } = await pool.query(`select checklist_json from vistorias where id = $1`, [vistoriaId]);
     expect(rows[0].checklist_json.retencaoCaucao.valorDevolvido).toBe(1500);
+
+    const { rows: garantia } = await pool.query(`select status from garantias where id = $1`, [garantiaRows[0].id]);
+    expect(garantia[0].status).toBe('baixada');
   });
 
-  it('vistoria de saída com danos maiores que o caução: abre confissão de dívida com o saldo devedor', async () => {
-    await pool.query(
-      `insert into garantias (contrato_id, tipo, valor, status) values ($1, 'caucao', 500, 'ativa')`,
+  it('vistoria de saída com danos maiores que o caução: abre confissão de dívida com o saldo devedor e baixa a garantia', async () => {
+    const { rows: garantiaRows } = await pool.query<{ id: string }>(
+      `insert into garantias (contrato_id, tipo, valor, status) values ($1, 'caucao', 500, 'ativa') returning id`,
       [contratoId],
     );
     const vistoriaId = await criarVistoria('saida', checklistComDano('pintura', 900));
@@ -92,6 +95,17 @@ describe.skipIf(!DATABASE_URL)('concluirVistoria (integração real com Postgres
     const { rows } = await pool.query(`select * from confissoes_divida where id = $1`, [resultado.confissaoDividaId]);
     expect(Number(rows[0].valor_principal)).toBe(400);
     expect(rows[0].status).toBe('pendente');
+
+    const { rows: garantia } = await pool.query(`select status from garantias where id = $1`, [garantiaRows[0].id]);
+    expect(garantia[0].status).toBe('baixada');
+  });
+
+  it('vistoria de saída sem garantia cadastrada: conclui normalmente, sem erro', async () => {
+    const vistoriaId = await criarVistoria('saida', checklistVazio());
+
+    const resultado = await concluirVistoria(pool, vistoriaId, contratoId);
+    expect(resultado.sucesso).toBe(true);
+    expect(resultado.confissaoDividaId).toBeUndefined();
   });
 
   it('devolve falha ao tentar concluir uma vistoria já concluída', async () => {

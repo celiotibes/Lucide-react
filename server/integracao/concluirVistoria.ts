@@ -38,11 +38,13 @@ export async function concluirVistoria(pool: Pool, vistoriaId: string, contratoI
 
     if (vistoria.tipo === 'saida') {
       const totalDanos = totalDanosChecklist(checklist);
-      const { rows: garantiaRows } = await client.query<{ valor: string }>(
-        `select valor from garantias where contrato_id = $1 and tipo = 'caucao' order by criado_em desc limit 1`,
+      const { rows: garantiaRows } = await client.query<{ id: string; valor: string }>(
+        `select id, valor from garantias where contrato_id = $1 and tipo = 'caucao' and status = 'ativa'
+         order by criado_em desc limit 1`,
         [contratoId],
       );
-      const valorCaucao = garantiaRows[0] ? Number(garantiaRows[0].valor) : 0;
+      const garantia = garantiaRows[0];
+      const valorCaucao = garantia ? Number(garantia.valor) : 0;
       const retencao = calcularRetencaoCaucao(valorCaucao, totalDanos);
 
       checklist = { ...checklist, retencaoCaucao: retencao };
@@ -55,6 +57,15 @@ export async function concluirVistoria(pool: Pool, vistoriaId: string, contratoI
           [vistoriaId, contratoId, retencao.saldoDevedor],
         );
         confissaoDividaId = confissaoRows[0].id;
+      }
+
+      // A vistoria de saída sempre encerra o ciclo de vida do caução — seja
+      // devolvido integralmente (sem danos), parcialmente devolvido, ou
+      // totalmente retido (danos >= caução, com o excedente virando
+      // confissão de dívida acima). Sem este update, `garantias.status`
+      // ficava 'ativa' para sempre depois do fim do contrato.
+      if (garantia) {
+        await client.query(`update garantias set status = 'baixada' where id = $1`, [garantia.id]);
       }
     }
 

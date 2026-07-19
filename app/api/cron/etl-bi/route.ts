@@ -7,9 +7,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executarPipelineCompleto } from '@/server/bi/etlPipeline';
 
 export async function GET(request: NextRequest) {
-  // Verificar token de autorização (importante para segurança)
+  // Verificar token de autorização — CRON_SECRET é a variável que a Vercel
+  // injeta automaticamente como "Authorization: Bearer" em todo cron
+  // agendado via vercel.json (mesma variável usada pelos demais crons do
+  // projeto). Corrigido de CRON_SECRET_TOKEN, que nunca bateria com o
+  // header que a Vercel envia.
   const authHeader = request.headers.get('Authorization');
-  const expectedToken = process.env.CRON_SECRET_TOKEN;
+  const expectedToken = process.env.CRON_SECRET;
 
   if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
     return NextResponse.json(

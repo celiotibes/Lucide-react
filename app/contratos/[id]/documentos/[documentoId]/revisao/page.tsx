@@ -7,11 +7,17 @@ import { aprovarExtracao, rejeitarExtracao, perguntarSobreDocumentoAction } from
 
 export const dynamic = 'force-dynamic';
 
+interface CamposAplicadosExtracao {
+  custosNaoAplicados?: { tipo: string; motivo: string }[];
+  [chave: string]: unknown;
+}
+
 interface LinhaExtracao {
   id: string;
   status: string;
   erro_ia: string | null;
   dados_extraidos: DadosContratoExtraidos | null;
+  campos_aplicados: CamposAplicadosExtracao | null;
   criado_em: string;
 }
 
@@ -35,7 +41,7 @@ interface LinhaPergunta {
 async function buscarExtracao(documentoId: string): Promise<LinhaExtracao | null> {
   const pool = obterPool();
   const { rows } = await pool.query<LinhaExtracao>(
-    `select id, status, erro_ia, dados_extraidos, criado_em
+    `select id, status, erro_ia, dados_extraidos, campos_aplicados, criado_em
      from extracoes_documento_ia
      where documento_id = $1
      order by criado_em desc
@@ -189,6 +195,19 @@ export default async function PaginaRevisaoExtracao({
         <p className="section-hint">
           Esta extração já foi revisada (status: <strong>{extracao.status}</strong>).
         </p>
+        {(extracao.campos_aplicados?.custosNaoAplicados?.length ?? 0) > 0 && (
+          <div className="erro-conexao" style={{ marginBottom: '1rem' }}>
+            <strong>Atenção:</strong> os custos obrigatórios abaixo foram marcados na aprovação, mas não puderam ser
+            aplicados:
+            <ul>
+              {extracao.campos_aplicados!.custosNaoAplicados!.map((item) => (
+                <li key={item.tipo}>
+                  <strong>{RUBRICA_TIPO_CUSTO[item.tipo] ?? item.tipo}:</strong> {item.motivo}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <SecaoPerguntas contratoId={contratoId} documentoId={documentoId} perguntas={perguntas} />
       </>
     );
