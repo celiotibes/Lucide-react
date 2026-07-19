@@ -39,6 +39,7 @@ import { GoogleDriveSync } from './components/googleDrive/GoogleDriveSync'
 import { GmailIntegration } from './components/gmail/GmailIntegration'
 import { PWAPrompt } from './components/pwa/PWAPrompt'
 import { ContractAnalyzerPanel } from './components/contracts/ContractAnalyzerPanel'
+import { SecurityPerformanceDashboard } from './components/audit/SecurityPerformanceDashboard'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import { aiProviderCache } from './services/aiProviderCache'
@@ -59,7 +60,7 @@ function App() {
 
   // FASE 8: Budget tracking e alertas de custo
   useBudgetAlerts()
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard' | 'financial-dashboard' | 'contracts'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard' | 'financial-dashboard' | 'contracts' | 'security-audit'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -162,7 +163,9 @@ function App() {
                                                                 ? '💰 Controle de Orçamento'
                                                                 : paginaAtiva === 'contracts'
                                                                   ? '🏢 Análise de Contratos Imobiliários'
-                                                                  : 'Busca Avançada Jurídica'}
+                                                                  : paginaAtiva === 'security-audit'
+                                                                    ? '🔒 Security & Performance Audit'
+                                                                    : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -223,7 +226,9 @@ function App() {
                                                                 ? 'Visualize análises financeiras com gráficos de cascata, fluxo de caixa e KPIs'
                                                                 : paginaAtiva === 'contracts'
                                                                   ? 'Upload automático de contratos com extração de dados e validação de termos'
-                                                                  : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                                                  : paginaAtiva === 'security-audit'
+                                                                    ? 'Monitore segurança e performance em tempo real com auditoria contínua'
+                                                                    : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -497,6 +502,15 @@ function App() {
           >
             🏢 Contratos
           </button>
+          <button
+            onClick={() => setPaginaAtiva('security-audit')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'security-audit' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🔒 Audit
+          </button>
         </div>
         <div style={styles.versao}>
           <span style={{ display: 'block', marginBottom: '4px' }}>FASE 4.2 - Frontend LLM</span>
@@ -751,6 +765,12 @@ function App() {
         {paginaAtiva === 'contracts' && (
           <main style={styles.mainFullWidth}>
             <ContractAnalyzerPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'security-audit' && (
+          <main style={styles.mainFullWidth}>
+            <SecurityPerformanceDashboard />
           </main>
         )}
       </div>
