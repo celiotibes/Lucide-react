@@ -40,6 +40,8 @@ import { GmailIntegration } from './components/gmail/GmailIntegration'
 import { PWAPrompt } from './components/pwa/PWAPrompt'
 import { ContractAnalyzerPanel } from './components/contracts/ContractAnalyzerPanel'
 import { SecurityPerformanceDashboard } from './components/audit/SecurityPerformanceDashboard'
+import { IPCACalculatorPanel } from './components/ipca/IPCACalculatorPanel'
+import { RenewalComparatorPanel } from './components/renewal/RenewalComparatorPanel'
 import { CORES_JUDICIAIS } from './utils/sistemaDesignJudicial'
 import type { FatoProva } from './types/jurimetriaBR'
 import { aiProviderCache } from './services/aiProviderCache'
@@ -60,7 +62,7 @@ function App() {
 
   // FASE 8: Budget tracking e alertas de custo
   useBudgetAlerts()
-  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard' | 'financial-dashboard' | 'contracts' | 'security-audit'>('dashboard')
+  const [paginaAtiva, setPaginaAtiva] = useState<'dashboard' | 'documents' | 'document-search' | 'editor' | 'editor-novo' | 'calculadores' | 'pesquisa' | 'llm-config' | 'llm-test' | 'rag-analysis' | 'petition-transformer' | 'timeline' | 'strategic-analysis' | 'outcome-prediction' | 'template-matching' | 'advanced-search' | 'search-manager' | 'import-export' | 'templates' | 'sharing' | 'pdf-export' | 'annotations' | 'analytics' | 'reports' | 'google-drive' | 'gmail' | 'ai-optimization' | 'budget-dashboard' | 'financial-dashboard' | 'contracts' | 'security-audit' | 'ipca' | 'renewal'>('dashboard')
 
   const atualizarFatos = useCallback((novosFatos: FatoProva[]) => {
     setFatos(novosFatos)
@@ -165,7 +167,11 @@ function App() {
                                                                   ? '🏢 Análise de Contratos Imobiliários'
                                                                   : paginaAtiva === 'security-audit'
                                                                     ? '🔒 Security & Performance Audit'
-                                                                    : 'Busca Avançada Jurídica'}
+                                                                    : paginaAtiva === 'ipca'
+                                                                      ? '📈 Calculador IPCA'
+                                                                      : paginaAtiva === 'renewal'
+                                                                        ? '🏢 Comparador de Contratos'
+                                                                        : 'Busca Avançada Jurídica'}
           </h1>
           <p style={styles.subtitulo}>
             {paginaAtiva === 'dashboard'
@@ -228,7 +234,11 @@ function App() {
                                                                   ? 'Upload automático de contratos com extração de dados e validação de termos'
                                                                   : paginaAtiva === 'security-audit'
                                                                     ? 'Monitore segurança e performance em tempo real com auditoria contínua'
-                                                                    : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
+                                                                    : paginaAtiva === 'ipca'
+                                                                      ? 'Calcule o impacto da inflação IPCA em contratos imobiliários'
+                                                                      : paginaAtiva === 'renewal'
+                                                                        ? 'Análise detalhada de renovação de contratos com validação de equidade'
+                                                                        : 'Pesquise jurisprudência, legislação e doutrina em múltiplas jurisdições'}
           </p>
         </div>
         <div style={styles.navButtons}>
@@ -368,10 +378,10 @@ function App() {
             📚 Modelos
           </button>
           <button
-            onClick={() => setPaginaAtiva('advanced-search' | 'search-manager')}
+            onClick={() => setPaginaAtiva('advanced-search')}
             style={{
               ...styles.navButton,
-              ...(paginaAtiva === 'advanced-search' | 'search-manager' ? styles.navButtonAtivo : {}),
+              ...(paginaAtiva === 'advanced-search' || paginaAtiva === 'search-manager' ? styles.navButtonAtivo : {}),
             }}
           >
             🔎 Avançada
@@ -510,6 +520,24 @@ function App() {
             }}
           >
             🔒 Audit
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('ipca')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'ipca' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            📈 IPCA
+          </button>
+          <button
+            onClick={() => setPaginaAtiva('renewal')}
+            style={{
+              ...styles.navButton,
+              ...(paginaAtiva === 'renewal' ? styles.navButtonAtivo : {}),
+            }}
+          >
+            🏢 Renovação
           </button>
         </div>
         <div style={styles.versao}>
@@ -670,9 +698,9 @@ function App() {
           </main>
         )}
 
-        {paginaAtiva === 'advanced-search' | 'search-manager' && (
+        {(paginaAtiva === 'advanced-search' || paginaAtiva === 'search-manager') && (
           <main style={styles.mainFullWidth}>
-            <AdvancedSearchPanel />
+            <AdvancedSearchUI />
           </main>
         )}
 
@@ -771,6 +799,18 @@ function App() {
         {paginaAtiva === 'security-audit' && (
           <main style={styles.mainFullWidth}>
             <SecurityPerformanceDashboard />
+          </main>
+        )}
+
+        {paginaAtiva === 'ipca' && (
+          <main style={styles.mainFullWidth}>
+            <IPCACalculatorPanel />
+          </main>
+        )}
+
+        {paginaAtiva === 'renewal' && (
+          <main style={styles.mainFullWidth}>
+            <RenewalComparatorPanel />
           </main>
         )}
       </div>
