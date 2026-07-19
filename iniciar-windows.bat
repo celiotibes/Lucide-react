@@ -30,6 +30,10 @@ echo Iniciando o sistema... o navegador vai abrir sozinho em alguns segundos.
 echo Para desligar, feche esta janela ou aperte Ctrl+C.
 echo.
 
-start "" http://localhost:5173
+rem Abre o navegador so depois de um pequeno atraso, numa janela minimizada
+rem a parte - sem esperar, o navegador abriria antes do servidor Vite estar
+rem pronto para responder e mostraria erro de conexao. A URL nao tem espaco,
+rem entao "start http://..." dispensa o truque do titulo vazio entre aspas.
+start /min "" cmd /c "ping -n 4 127.0.0.1 >nul & start http://localhost:5173"
 
 call npm run dev
