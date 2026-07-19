@@ -19,7 +19,7 @@ const CLAUDE_HAIKU: ModelRef = {
 
 const CLAUDE_SONNET: ModelRef = {
   provider: 'claude',
-  model: 'claude-sonnet-4-6',
+  model: 'claude-sonnet-5',
   tierGratuita: false,
 };
 
@@ -69,6 +69,18 @@ function decisaoBase(task: TaskType, ctx: TaskRequestContext): RoutingDecision {
           'competitivo em preço para texto puro, mas não compensa integrar um quarto provedor ' +
           'para economizar frações de centavo no volume atual — revisitar se o volume de ' +
           'mensagens passar de milhares por dia.',
+      };
+
+    case 'extracao_dados_contrato':
+      return {
+        primary: CLAUDE_SONNET,
+        motivo:
+          'Extração estruturada de valores (aluguel, caução, custos obrigatórios, índice de ' +
+          'reajuste) a partir do texto do contrato convertido para Markdown. Mesmo raciocínio de ' +
+          'redacao_documento_juridico: volume baixo, custo de erro alto (valor errado de aluguel ' +
+          'vira fatura errada), e o resultado SEMPRE aguarda validação humana antes de preencher ' +
+          'o cadastro do contrato (nunca é gravado direto) — um "plano B" automatizado não agrega. ' +
+          'Sem fallback automático pelo mesmo motivo.',
       };
 
     case 'classificacao_extrato_historico':

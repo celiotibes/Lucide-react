@@ -17,7 +17,14 @@ describe('selecionarProvedor', () => {
   it('roteia redação jurídica para Claude Sonnet sem fallback automático', () => {
     const decisao = selecionarProvedor({ task: 'redacao_documento_juridico', contemDadosPessoais: true });
     expect(decisao.primary.provider).toBe('claude');
-    expect(decisao.primary.model).toBe('claude-sonnet-4-6');
+    expect(decisao.primary.model).toBe('claude-sonnet-5');
+    expect(decisao.fallback).toBeUndefined();
+  });
+
+  it('roteia extração de dados de contrato para Claude Sonnet sem fallback automático', () => {
+    const decisao = selecionarProvedor({ task: 'extracao_dados_contrato', contemDadosPessoais: true });
+    expect(decisao.primary.provider).toBe('claude');
+    expect(decisao.primary.model).toBe('claude-sonnet-5');
     expect(decisao.fallback).toBeUndefined();
   });
 

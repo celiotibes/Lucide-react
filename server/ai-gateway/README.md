@@ -23,7 +23,7 @@ const decisao = selecionarProvedor({
 // decisao.motivo => string explicando a escolha, para log/auditoria
 ```
 
-Este módulo **não implementa as chamadas HTTP reais** aos provedores (não há chaves de API neste repositório). A implementação dos adapters (`GeminiProvider`, `ClaudeProvider`, `OllamaProvider`) que efetivamente chamam cada API fica para quando a Fase 1 (M7 — Energia) entrar em desenvolvimento; o contrato de cada adapter deve ser definido nessa hora a partir do SDK oficial de cada provedor, não adivinhado aqui sem uso real.
+Este módulo não implementa chamadas HTTP para todos os provedores — só para os que já têm uso real. `GeminiProvider` e `OllamaProvider` continuam pendentes (ficam para quando a Fase 1 de M7 — Energia entrar em desenvolvimento). `ClaudeProvider` (`providers/claudeProvider.ts`) já é real: usa `@anthropic-ai/sdk` com `output_config.format` (json_schema) para extração estruturada de dados de contrato (tarefa `extracao_dados_contrato`, Fase 4 do M-imobiliária — ver `server/documentos/extrairDadosContrato.ts`). Como em todo o resto do gateway, o resultado é sempre uma proposta: quem chama `extrairDadosEstruturados` é responsável por tratar o retorno como sujeito a validação humana, nunca gravar direto.
 
 ## Rodando os testes
 
