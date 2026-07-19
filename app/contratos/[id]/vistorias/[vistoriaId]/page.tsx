@@ -26,6 +26,14 @@ interface LinhaFoto {
   capturado_em: string;
 }
 
+interface VistoriaColegaDeQuarto {
+  id: string;
+  contrato_id: string;
+  tipo: string;
+  data: string;
+  quarto: string;
+}
+
 async function buscarVistoria(vistoriaId: string): Promise<LinhaVistoria | null> {
   const pool = obterPool();
   const { rows } = await pool.query<LinhaVistoria>(
@@ -33,6 +41,29 @@ async function buscarVistoria(vistoriaId: string): Promise<LinhaVistoria | null>
     [vistoriaId],
   );
   return rows[0] ?? null;
+}
+
+// Coliving por quarto (contrato com comodo_id): o morador que entra depois
+// tem direito a ver a vistoria de entrada do colega de quarto que já mora
+// no imóvel — hoje cada quarto tem seu próprio contrato/vistoria,
+// corretamente independentes, mas sem visibilidade cruzada nenhuma
+// (docs/40). Puramente aditivo — sem mudança de schema.
+async function buscarVistoriasColegasDeQuarto(contratoId: string): Promise<VistoriaColegaDeQuarto[]> {
+  const pool = obterPool();
+  const { rows } = await pool.query<VistoriaColegaDeQuarto>(
+    `select v.id, v.contrato_id, v.tipo, v.data, quarto_colega.identificacao as quarto
+     from contratos c
+     join vistorias v on v.imovel_id = c.imovel_id
+     join contratos contrato_colega on contrato_colega.id = v.contrato_id
+     join comodos quarto_colega on quarto_colega.id = contrato_colega.comodo_id
+     where c.id = $1 and c.comodo_id is not null
+       and contrato_colega.comodo_id is not null and contrato_colega.comodo_id <> c.comodo_id
+       and contrato_colega.status = 'ativo' and v.status = 'concluida'
+     order by v.data desc
+     limit 5`,
+    [contratoId],
+  );
+  return rows;
 }
 
 async function buscarFotos(vistoriaId: string): Promise<LinhaFoto[]> {
@@ -59,10 +90,12 @@ export default async function PaginaDetalheVistoria({
 
   let vistoria: LinhaVistoria | null;
   let fotos: LinhaFoto[] = [];
+  let vistoriasColegas: VistoriaColegaDeQuarto[] = [];
   try {
     vistoria = await buscarVistoria(vistoriaId);
     if (vistoria) {
       fotos = await buscarFotos(vistoriaId);
+      vistoriasColegas = await buscarVistoriasColegasDeQuarto(contratoId);
     }
   } catch {
     return (
@@ -105,6 +138,24 @@ export default async function PaginaDetalheVistoria({
       <p className="section-hint">
         Status: <span className="tag">{somenteLeitura ? 'Concluída' : 'Em andamento'}</span>
       </p>
+
+      {vistoriasColegas.length > 0 && (
+        <section style={{ border: '1px solid #d1d5db', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+          <h3>Vistorias de colegas de quarto</h3>
+          <p className="section-hint">
+            Este é um imóvel de coliving — as áreas comuns são compartilhadas. Vistorias concluídas de outros
+            contratos ativos do mesmo imóvel:
+          </p>
+          <ul>
+            {vistoriasColegas.map((v) => (
+              <li key={v.id}>
+                {v.quarto} — {RUBRICA_TIPO[v.tipo] ?? v.tipo} em {formatarDataHora(v.data)}{' '}
+                <Link href={`/contratos/${v.contrato_id}/vistorias/${v.id}`}>Abrir</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {checklist.retencaoCaucao && (
         <section style={{ border: '1px solid #d1d5db', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
