@@ -12,6 +12,7 @@ interface LinhaDocumento {
   status_extracao: string;
   erro_extracao: string | null;
   criado_em: string;
+  status_extracao_ia: string | null;
 }
 
 const RUBRICA_TIPO: Record<string, string> = {
@@ -29,13 +30,26 @@ const RUBRICA_STATUS: Record<string, string> = {
   falhou: 'Falha na leitura',
 };
 
+const RUBRICA_STATUS_IA: Record<string, string> = {
+  aprovada: 'Aprovada',
+  rejeitada: 'Rejeitada',
+  falhou: 'Falha na leitura por IA',
+};
+
 async function buscarDocumentos(contratoId: string): Promise<LinhaDocumento[]> {
   const pool = obterPool();
   const { rows } = await pool.query<LinhaDocumento>(
-    `select id, tipo, nome_arquivo, status_extracao, erro_extracao, criado_em
-     from documentos_anexados
-     where contrato_id = $1
-     order by criado_em desc`,
+    `select da.id, da.tipo, da.nome_arquivo, da.status_extracao, da.erro_extracao, da.criado_em,
+            edi.status as status_extracao_ia
+     from documentos_anexados da
+     left join lateral (
+       select status from extracoes_documento_ia
+       where documento_id = da.id
+       order by criado_em desc
+       limit 1
+     ) edi on true
+     where da.contrato_id = $1
+     order by da.criado_em desc`,
     [contratoId],
   );
   return rows;
@@ -79,6 +93,7 @@ export default async function PaginaDocumentosContrato({ params }: { params: Pro
               <th>Arquivo</th>
               <th>Tipo</th>
               <th>Status</th>
+              <th>Leitura por IA</th>
               <th>Enviado em</th>
             </tr>
           </thead>
@@ -91,6 +106,13 @@ export default async function PaginaDocumentosContrato({ params }: { params: Pro
                   <span className="tag">{RUBRICA_STATUS[doc.status_extracao] ?? doc.status_extracao}</span>
                   {doc.status_extracao === 'falhou' && doc.erro_extracao && (
                     <p className="erro-conexao">{doc.erro_extracao}</p>
+                  )}
+                </td>
+                <td>
+                  {doc.status_extracao_ia === 'pendente_revisao' ? (
+                    <Link href={`/contratos/${id}/documentos/${doc.id}/revisao`}>Revisar leitura da IA</Link>
+                  ) : (
+                    <span className="tag">{RUBRICA_STATUS_IA[doc.status_extracao_ia ?? ''] ?? '—'}</span>
                   )}
                 </td>
                 <td>{formatarDataHora(doc.criado_em)}</td>

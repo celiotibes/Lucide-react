@@ -3152,3 +3152,40 @@ create policy admin_upload_documentos on storage.objects
 create policy admin_leitura_documentos on storage.objects
   for select to authenticated
   using (bucket_id = 'documentos' and fn_eh_admin_ou_economista());
+
+-- ============================================================================
+-- 38. EXTRAÇÕES DE DOCUMENTO POR IA (proposta sujeita a validação humana)
+-- ============================================================================
+-- Resultado da leitura por IA (server/ai-gateway/providers/claudeProvider.ts
+-- + server/documentos/extrairDadosContrato.ts) do texto Markdown de um
+-- `documentos_anexados`. Tabela DISTINTA de `documentos_anexados` porque o
+-- mesmo documento pode ser reprocessado (nova tentativa após falha, ou nova
+-- versão do prompt) sem perder o histórico de propostas anteriores — e
+-- porque `dados_extraidos` é sempre uma PROPOSTA: nada aqui é gravado em
+-- `contratos`/`garantias`/`contrato_componentes_mensais` automaticamente.
+-- Só a ação de revisão do operador (status -> 'aprovada', com
+-- `campos_aplicados` registrando o que de fato foi copiado para o contrato)
+-- move dado desta tabela para o cadastro real.
+create table extracoes_documento_ia (
+  id uuid primary key default gen_random_uuid(),
+  documento_id uuid not null references documentos_anexados(id) on delete cascade,
+  contrato_id uuid references contratos(id),
+  modelo_ia text not null,             -- ex.: 'claude-sonnet-5' — auditoria de qual modelo gerou a proposta
+  dados_extraidos jsonb,                -- null quando status = 'falhou'
+  erro_ia text,
+  status text not null default 'pendente_revisao'
+    check (status in ('pendente_revisao','aprovada','rejeitada','falhou')),
+  campos_aplicados jsonb,               -- preenchido só quando aprovada: quais campos foram de fato copiados para o contrato
+  revisado_por uuid references pessoas(id),
+  revisado_em timestamptz,
+  criado_em timestamptz not null default now()
+);
+
+create index idx_extracoes_documento_ia_documento on extracoes_documento_ia(documento_id);
+create index idx_extracoes_documento_ia_contrato on extracoes_documento_ia(contrato_id);
+
+alter table extracoes_documento_ia enable row level security;
+create policy admin_full_access_extracoes_documento_ia on extracoes_documento_ia
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_extracoes_documento_ia after insert or update or delete on extracoes_documento_ia
+  for each row execute function fn_audit_trigger();

@@ -73,3 +73,42 @@ begin
       using (bucket_id = 'documentos' and fn_eh_admin_ou_economista());
   end if;
 end $$;
+
+-- ============================================================================
+-- Fase 4: extracoes_documento_ia
+-- ============================================================================
+create table if not exists extracoes_documento_ia (
+  id uuid primary key default gen_random_uuid(),
+  documento_id uuid not null references documentos_anexados(id) on delete cascade,
+  contrato_id uuid references contratos(id),
+  modelo_ia text not null,
+  dados_extraidos jsonb,
+  erro_ia text,
+  status text not null default 'pendente_revisao'
+    check (status in ('pendente_revisao','aprovada','rejeitada','falhou')),
+  campos_aplicados jsonb,
+  revisado_por uuid references pessoas(id),
+  revisado_em timestamptz,
+  criado_em timestamptz not null default now()
+);
+
+create index if not exists idx_extracoes_documento_ia_documento on extracoes_documento_ia(documento_id);
+create index if not exists idx_extracoes_documento_ia_contrato on extracoes_documento_ia(contrato_id);
+
+alter table extracoes_documento_ia enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'extracoes_documento_ia' and policyname = 'admin_full_access_extracoes_documento_ia') then
+    create policy admin_full_access_extracoes_documento_ia on extracoes_documento_ia
+      for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_audit_extracoes_documento_ia') then
+    create trigger trg_audit_extracoes_documento_ia after insert or update or delete on extracoes_documento_ia
+      for each row execute function fn_audit_trigger();
+  end if;
+end $$;
