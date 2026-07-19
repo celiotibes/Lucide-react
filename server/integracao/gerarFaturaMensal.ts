@@ -56,14 +56,14 @@ interface LinhaContrato {
   valor_aluguel: string;
 }
 
-interface LinhaComponente {
+interface LinhaComponenteResolvido {
   id: string;
-  contrato_id: string;
   tipo: string;
   descricao: string | null;
-  natureza: 'valor_fixo' | 'percentual_do_aluguel' | 'repassado_variavel';
+  natureza: string;
   valor_fixo: string | null;
   percentual: string | null;
+  percentual_final: string | null;  // Resolvido pela função de ocupação
   valor_repassado_mes: string | null;
 }
 
@@ -89,25 +89,29 @@ export async function gerarFaturaMensal(pool: Pool, competencia: Date): Promise<
   const puladas: ContratoPulado[] = [];
 
   for (const contrato of contratos) {
-    const { rows: componenteRows } = await pool.query<LinhaComponente>(
-      `select cm.id, cm.contrato_id, cm.tipo, cm.descricao, cm.natureza, cm.valor_fixo, cm.percentual,
-              cv.valor as valor_repassado_mes
-       from contrato_componentes_mensais cm
-       left join contrato_componente_valores_mensais cv
-         on cv.componente_id = cm.id and cv.competencia = $2::date
-       where cm.contrato_id = $1
-       order by cm.criado_em`,
+    // Usar função de banco para resolver componentes com ocupação
+    const { rows: componentesResolvidos } = await pool.query<LinhaComponenteResolvido>(
+      `select * from fn_resolver_componentes_ocupacao($1, $2::date)`,
       [contrato.id, competenciaISO],
     );
 
-    const componentes: ComponenteMensal[] = componenteRows.map((c) => ({
-      tipo: c.tipo,
-      descricao: c.descricao,
-      natureza: c.natureza,
-      valorFixo: c.valor_fixo == null ? null : Number(c.valor_fixo),
-      percentual: c.percentual == null ? null : Number(c.percentual),
-      valorRepassadoMes: c.valor_repassado_mes == null ? null : Number(c.valor_repassado_mes),
-    }));
+    // Converter para ComponenteMensal (usar percentual_final se disponível)
+    const componentes: ComponenteMensal[] = componentesResolvidos.map((c) => {
+      const natureza = c.natureza as 'valor_fixo' | 'percentual_do_aluguel' | 'repassado_variavel' | 'rateado_por_ocupacao_comodo';
+      return {
+        tipo: c.tipo,
+        descricao: c.descricao,
+        natureza,
+        valorFixo: c.valor_fixo == null ? null : Number(c.valor_fixo),
+        percentual:
+          natureza === 'rateado_por_ocupacao_comodo' && c.percentual_final != null
+            ? Number(c.percentual_final)
+            : c.percentual == null
+              ? null
+              : Number(c.percentual),
+        valorRepassadoMes: c.valor_repassado_mes == null ? null : Number(c.valor_repassado_mes),
+      };
+    });
 
     const calculo = calcularValorMensalContrato(Number(contrato.valor_aluguel), componentes);
 

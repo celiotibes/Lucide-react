@@ -23,7 +23,7 @@
 //     ou pula o contrato inteiro (mesmo princípio de `faturarEnergia.ts`:
 //     dado insuficiente nunca vira fatura errada).
 
-export type NaturezaComponente = 'valor_fixo' | 'percentual_do_aluguel' | 'repassado_variavel';
+export type NaturezaComponente = 'valor_fixo' | 'percentual_do_aluguel' | 'repassado_variavel' | 'rateado_por_ocupacao_comodo';
 
 export interface ComponenteMensal {
   tipo: string;

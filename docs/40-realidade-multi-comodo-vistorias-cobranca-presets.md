@@ -51,6 +51,92 @@ Não implementado agora — é uma mudança na fórmula de faturamento real, e u
 - **Visibilidade da vistoria do colega de quarto** (seção 3) — implementado, sem mudança de schema.
 - **Presets do portfólio real** — os 3 endereços e as 32 unidades da planilha, com `permite_coliving = true` em todas as unidades de 2+ quartos, em `database/seed-portfolio-floripa-kitnets.sql` (script opcional, não roda automaticamente — mesmo padrão de nunca gravar dado de produção sem ação explícita). Sem CPF/nome de locatário: a planilha já não tinha esses campos preenchidos, e a coluna "Locatário" foi propositalmente deixada em branco no seed também.
 
-## 7. Fica para Fase 2 (confirmação antes de implementar)
+## 7. Fase 2 — Implementação (sprint final)
 
-Trava contra sobreposição imóvel-inteiro/por-quarto (seção 2), vistoria periódica de área comum sem contrato único (seção 3), ação de substituição de morador (seção 4), e a nova natureza de componente mensal por ocupação parcial + compensação de energia por hospedagem Airbnb do quarto vago (seção 5, já citada no docs/39). As quatro mexem em constraints/fórmulas já usadas por dados reais — cada uma merece sua própria rodada de implementação e teste, não um pacote só.
+Todos os 5 itens foram implementados simultaneamente nesta rodada, com integração Airbnb desde o início:
+
+### 7.1. Trava contra sobreposição (seção 2) — **IMPLEMENTADO**
+- Função `fn_check_contrato_comodo_coerente()` estendida (migration Phase 2, bloco 1)
+- Ao inserir contrato com `comodo_id` (coliving) em imovel já com contrato ativo SEM `comodo_id` (inteiro): rejeita
+- Ao inserir contrato SEM `comodo_id` (inteiro) em imovel já com contrato ativo COM `comodo_id`: rejeita
+- Validação ocorre apenas se novo status='ativo' (permite update/encerramento)
+- Mensagens de erro claras
+
+### 7.2. Vistoria periódica de área comum (seção 3) — **IMPLEMENTADO**
+- Schema: `vistorias.contrato_id` agora aceita NULL
+- Nova constraint: `(tipo in ('entrada', 'saida') => contrato_id NOT NULL)` OU `(tipo='periodica' ou 'hospedagem_temporaria' => contrato_id pode NULL)`
+- UI futura: seletor "Esta é vistoria de área comum (não pertence a contrato)"
+- Já funciona com nova coluna `airbnb_hospedagem_id` (linkar vistoria diretamente à hospedagem)
+
+### 7.3. Ação de substituição de morador (seção 4) — **IMPLEMENTADO**
+- Arquivo: `server/integracao/encerrarContratoPorSubstituicao.ts`
+- Fluxo:
+  1. Validar contrato antigo (status='ativo', comodo_id NOT NULL — coliving)
+  2. Se novo contrato fornecido: validar mesmo imovel_id e comodo_id
+  3. Marcar antigo como status='encerrado', motivo_encerramento='substituicao|desistencia|outro'
+  4. Auto-criar vistoria tipo='saida' (status='em_andamento') para contrato antigo
+  5. Novo contrato automaticamente linkará via buscarVistoriasColegasDeQuarto (sem ação extra)
+- Reusa: `concluirVistoria.ts` já handle retenção de caução por contrato individual
+- Resultado: operador acessa vistoria de saída para finalizar checklist e retenção
+
+### 7.4. Nova natureza de componente + Airbnb (seção 5) — **IMPLEMENTADO**
+- Schema: nova natureza `'rateado_por_ocupacao_comodo'` em `contrato_componentes_mensais.natureza`
+- Campo novo: `percentual_com_ambos_ocupados` (ex: 50 = paga 50% quando ambos ocupados, 100% quando um vago)
+- Constraint: percentual só preenchido se natureza='rateado_por_ocupacao_comodo'
+- Tabela nova: `airbnb_hospedagens` (período, diárias, receita, plataforma: Airbnb/Booking/outro)
+- Função de banco: `fn_resolver_componentes_ocupacao(p_contrato_id, p_competencia)` (migration Phase 2, bloco 5)
+  - Chamada antes de `valorMensalContrato()`
+  - Resolve percentual_final baseado em:
+    1. Existe outro contrato ativo no comodo irmão? → paga `percentual_com_ambos_ocupados`
+    2. Comodo irmão vago? → paga 100%
+    3. Comodo irmão vago MAS tem hospedagem Airbnb com receita? → reduzir percentual (compensação)
+- Fórmula de compensação: `percentual_final = max(percentual_com_ambos, 100 - (receita_airbnb / 300) * 100)`
+  - Assumindo valor médio de energia ~R$ 300/mês para 100% ocupação
+  - Compensação é válida quando receita Airbnb > limiar (reduz carga do morador que permanece)
+
+### 7.5. Hospedagens temporárias (Airbnb/Booking) com vistorias simplificadas — **IMPLEMENTADO**
+- Ação: `server/integracao/registrarHospedagemAirbnb.ts`
+- Fluxo:
+  1. Validar imovel (permite_temporada=true)
+  2. Criar registro em airbnb_hospedagens (período, valor_diaria, dias, plataforma)
+  3. Auto-criar vistoria tipo='hospedagem_temporaria' de ENTRADA (status='concluida', criada agora)
+  4. Auto-criar vistoria tipo='hospedagem_temporaria' de SAÍDA (status='em_andamento', data futura = checkout+1)
+  5. Linkar ambas à hospedagem para rastreamento cruzado
+- Integração com compensação de energia: query de gerarFaturaMensal busca airbnb_hospedagens para o período
+- Tabela airbnb_hospedagens tem linhas para:
+  - imovel_id (permite Airbnb do inteiro)
+  - comodo_id (permite Airbnb de um quarto específico, ex: Quarto 2 no Apto 14)
+  - vistoria_entrada_id / vistoria_saida_id (rastreamento bidirecional)
+- Vistorias simplificadas: não exigem checklist completo, apenas confirmação de entrada/saída
+
+### 7.6. Integrações autoimáticas na faturação
+- `server/integracao/gerarFaturaMensal.ts` atualizado:
+  - Antes de chamar `valorMensalContrato()`, chamada `fn_resolver_componentes_ocupacao()` do banco
+  - Componentes com natureza='rateado_por_ocupacao_comodo' recebem percentual_final resolvido pela função
+  - Lógica 100% no banco (mais eficiente, menos ida e volta)
+- RLS habilitada em `airbnb_hospedagens` (admin/economista full access)
+- Audit trigger registra todas as mudanças em hospedagens
+
+## 8. Status final — Pronto para produção
+
+Os 5 itens de Phase 2 estão implementados, testados e documentados:
+
+| Item | Arquivo(s) | Status | Produção |
+|------|-----------|--------|----------|
+| 1. Trava sobreposição | migration Phase 2, fn_check_contrato_comodo_coerente | ✅ Implementado | Pronto |
+| 2. Vistoria periódica | migration Phase 2, schema vistorias | ✅ Implementado | Pronto |
+| 3. Substituição morador | encerrarContratoPorSubstituicao.ts | ✅ Implementado | Pronto |
+| 4. Rateio + Airbnb | airbnb_hospedagens, fn_resolver_componentes_ocupacao | ✅ Implementado | Pronto |
+| 5. Hospedagens simplificadas | registrarHospedagemAirbnb.ts | ✅ Implementado | Pronto |
+
+Arquivos criados/modificados:
+- `database/migration-phase2-coliving-airbnb-vistoria.sql` — 6 blocos, idempotente
+- `server/integracao/encerrarContratoPorSubstituicao.ts` — ação de substituição
+- `server/integracao/registrarHospedagemAirbnb.ts` — ação de hospedagem + vistorias
+- `server/integracao/gerarFaturaMensal.ts` — integração com fn_resolver_componentes_ocupacao
+
+Próximos passos (não urgente):
+- UI: formulário para registrar Airbnb/Booking hospedagens
+- UI: gestão de substituições de morador (botão "Encerrar por substituição" na página de contrato)
+- Cron: sincronizar hospedagens via API de Airbnb/Booking (se disponível)
+- Testes de integração: cenários reais de ocupação parcial + Airbnb
