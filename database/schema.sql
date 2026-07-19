@@ -3361,3 +3361,115 @@ create policy admin_full_access_reajustes_anuais_notificacoes on reajustes_anuai
   for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
 create trigger trg_audit_reajustes_anuais_notificacoes after insert or update or delete on reajustes_anuais_notificacoes
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 42. TRIAGEM E MATCHING DE COMPATIBILIDADE PARA COLIVING
+-- ============================================================================
+-- `comodos`/`imoveis.permite_coliving` (seção 26) guardam a estrutura física
+-- do coliving desde docs/27, mas nunca tiveram nenhum dado de perfil
+-- comportamental — a triagem/comparação de candidatos rodava inteiramente
+-- fora do sistema (formulário externo + comparação manual colada num
+-- assistente de IA, docs/39). Esta seção formaliza o que já estava em
+-- produção informal: mesmo vetor de 7 variáveis (5 com peso + 2 filtros de
+-- exclusão), mesma filosofia de decisão sempre humana do resto do sistema —
+-- ver server/coliving/calcularCompatibilidade.ts.
+
+-- Quarto pretendido (1ª e 2ª opção) — só relevante quando o imóvel de
+-- interesse permite coliving; leads de locação tradicional deixam nulo.
+alter table leads add column comodo_interesse_id uuid references comodos(id);
+alter table leads add column imovel_interesse_2_id uuid references imoveis(id);
+alter table leads add column comodo_interesse_2_id uuid references comodos(id);
+
+-- Perfil comportamental: 1:1 com um `lead` (candidato ainda não contratado)
+-- OU com uma `pessoa` (morador já com contrato ativo) — nunca os dois, e
+-- nunca nenhum dos dois (todo perfil pertence a exatamente um).
+create table perfis_convivencia (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid references leads(id),
+  pessoa_id uuid references pessoas(id),
+  constraint chk_perfil_convivencia_um_dono check (
+    (lead_id is not null and pessoa_id is null) or (lead_id is null and pessoa_id is not null)
+  ),
+
+  -- Vetor comportamental, escala 1-3 — mesmos rótulos do formulário real:
+  -- v1 limpeza (1 baixa, 2 moderada, 3 alta), v2 ruído/visitas (1
+  -- hipersensível, 2 moderada, 3 tolerância normal), v3 cronotipo (1
+  -- diurna, 2 mista, 3 noturna), v4 tabagismo — FILTRO (1 exijo livre de
+  -- fumo, 2 não fumante mas tolera externo, 3 fumante ativo), v5 pets —
+  -- FILTRO (1 intolerância/alergia severa, 2 restrita, 3 alta
+  -- tolerância/possui), v6 dieta (1 onívoro, 2 vegetariano/vegano, 3
+  -- restrição severa), v7 resolução de conflito (1 evitação, 2 mediação
+  -- via gestão, 3 comunicação direta).
+  v1_limpeza smallint not null check (v1_limpeza between 1 and 3),
+  v2_ruido smallint not null check (v2_ruido between 1 and 3),
+  v3_rotina smallint not null check (v3_rotina between 1 and 3),
+  v4_fumo smallint not null check (v4_fumo between 1 and 3),
+  v5_pets smallint not null check (v5_pets between 1 and 3),
+  v6_dieta smallint not null check (v6_dieta between 1 and 3),
+  v7_conflito smallint not null check (v7_conflito between 1 and 3),
+
+  tem_pet boolean not null default false,
+  descricao_pet text,
+
+  genero text,
+  preferencia_genero_convivio text check (preferencia_genero_convivio in ('mesmo_genero', 'indiferente')),
+  neurodivergencia text,
+  pcd text,
+  condicao_saude text,
+  quadro_alergico text not null default 'nenhuma' check (quadro_alergico in
+    ('nenhuma', 'respiratoria', 'animais', 'alimentar', 'medicamentosa_insetos', 'outras', 'prefiro_nao_responder')),
+  quadro_alergico_detalhe text,
+
+  aceite_lgpd_em timestamptz not null default now(),
+  criado_em timestamptz not null default now(),
+  unique (lead_id),
+  unique (pessoa_id)
+);
+
+create index idx_perfis_convivencia_lead on perfis_convivencia(lead_id);
+create index idx_perfis_convivencia_pessoa on perfis_convivencia(pessoa_id);
+
+-- Resultado de uma comparação cruzada entre dois perfis — nunca
+-- sobrescrito (mesmo espírito de reajustes_contrato): se um formulário
+-- mudar, recalcula e grava uma nova linha, mantendo o histórico.
+create table compatibilidades_coliving (
+  id uuid primary key default gen_random_uuid(),
+  imovel_id uuid not null references imoveis(id),
+  perfil_a_id uuid not null references perfis_convivencia(id),
+  perfil_b_id uuid not null references perfis_convivencia(id),
+
+  score_geral numeric(5, 2) not null check (score_geral between 0 and 100),
+  pontos_atrito jsonb not null,     -- [{variavel, descricao}] — nunca só o número
+  alertas_criticos jsonb not null,  -- [{tipo, descricao}] — vetos de fumo/pets, cruzamento com saúde
+
+  status text not null default 'calculado'
+    check (status in ('calculado', 'aprovado', 'reprovado', 'entrevista_requerida')),
+  decidido_por uuid references pessoas(id),
+  parecer text,
+  decidido_em timestamptz,
+
+  criado_em timestamptz not null default now(),
+  constraint chk_compatibilidade_perfis_distintos check (perfil_a_id <> perfil_b_id),
+  unique (perfil_a_id, perfil_b_id)
+);
+
+create index idx_compatibilidades_coliving_imovel on compatibilidades_coliving(imovel_id);
+create index idx_compatibilidades_coliving_perfil_a on compatibilidades_coliving(perfil_a_id);
+create index idx_compatibilidades_coliving_perfil_b on compatibilidades_coliving(perfil_b_id);
+
+alter table perfis_convivencia enable row level security;
+create policy admin_full_access_perfis_convivencia on perfis_convivencia
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+-- Mesmo padrão de `leads`: candidato público pode submeter o próprio
+-- perfil (via lead_id), nunca ler o de outro candidato nem gravar um
+-- perfil de morador já contratado (pessoa_id é só admin).
+create policy publico_pode_cadastrar_perfil_convivencia on perfis_convivencia
+  for insert with check (lead_id is not null and pessoa_id is null);
+create trigger trg_audit_perfis_convivencia after insert or update or delete on perfis_convivencia
+  for each row execute function fn_audit_trigger();
+
+alter table compatibilidades_coliving enable row level security;
+create policy admin_full_access_compatibilidades_coliving on compatibilidades_coliving
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_compatibilidades_coliving after insert or update or delete on compatibilidades_coliving
+  for each row execute function fn_audit_trigger();

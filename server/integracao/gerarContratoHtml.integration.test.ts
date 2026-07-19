@@ -264,4 +264,98 @@ describe.skipIf(!DATABASE_URL)('gerarContratoHtml (integração real com Postgre
     expect(resultado.html).toContain('<td>Vaga de garagem</td><td>10% do aluguel (já incluído)</td>');
     expect(resultado.html).toContain('<td>IPTU</td><td>repassado ao valor de face');
   });
+
+  it('coliving: compatibilidade aprovada vira tabela comparativa automaticamente (docs/39)', async () => {
+    const modeloComCompatibilidade = `
+      <p>Score: {{compatibilidade_score}}%</p>
+      <p>Parecer: {{compatibilidade_parecer}}</p>
+      <table>{{#each compatibilidade_coliving}}<tr><td>{{parametro}}</td><td>{{valor_a}}</td><td>{{valor_b}}</td></tr>{{/each}}</table>
+    `;
+    await pool.query(`update modelos_contrato set corpo_html = $1 where cidade_id = $2 and categoria = 'geral'`, [
+      modeloComCompatibilidade,
+      cidadeId,
+    ]);
+
+    const imovel = await pool.query(
+      `insert into imoveis (cidade_id, identificacao, tipo, permite_coliving) values ($1, $2, 'apartamento', true) returning id`,
+      [cidadeId, `Coliving Compatibilidade ${randomUUID()}`],
+    );
+    const imovelId = imovel.rows[0].id;
+    const quarto1 = await pool.query(`insert into comodos (imovel_id, identificacao) values ($1, 'Quarto 1') returning id`, [imovelId]);
+    const quarto2 = await pool.query(`insert into comodos (imovel_id, identificacao) values ($1, 'Quarto 2') returning id`, [imovelId]);
+
+    const leadA = await pool.query(
+      `insert into leads (nome, status, imovel_interesse_id, comodo_interesse_id) values ('Candidato A', 'novo', $1, $2) returning id`,
+      [imovelId, quarto1.rows[0].id],
+    );
+    const leadB = await pool.query(
+      `insert into leads (nome, status, imovel_interesse_id, comodo_interesse_id) values ('Candidato B', 'novo', $1, $2) returning id`,
+      [imovelId, quarto2.rows[0].id],
+    );
+    const perfilA = await pool.query(
+      `insert into perfis_convivencia (lead_id, v1_limpeza, v2_ruido, v3_rotina, v4_fumo, v5_pets, v6_dieta, v7_conflito, tem_pet, quadro_alergico)
+       values ($1, 2, 2, 2, 1, 2, 1, 3, false, 'respiratoria') returning id`,
+      [leadA.rows[0].id],
+    );
+    const perfilB = await pool.query(
+      `insert into perfis_convivencia (lead_id, v1_limpeza, v2_ruido, v3_rotina, v4_fumo, v5_pets, v6_dieta, v7_conflito, tem_pet, quadro_alergico)
+       values ($1, 1, 2, 2, 1, 2, 1, 3, false, 'nenhuma') returning id`,
+      [leadB.rows[0].id],
+    );
+    const [perfilAId, perfilBId] = [perfilA.rows[0].id, perfilB.rows[0].id].sort();
+    await pool.query(
+      `insert into compatibilidades_coliving (imovel_id, perfil_a_id, perfil_b_id, score_geral, pontos_atrito, alertas_criticos, status, parecer, decidido_em)
+       values ($1, $2, $3, 86.36, '[]', '[]', 'aprovado', 'Divergência de limpeza, resolvida por acordo interno.', now())`,
+      [imovelId, perfilAId, perfilBId],
+    );
+
+    const contratoA = await pool.query(
+      `insert into contratos (imovel_id, comodo_id, tipo, data_inicio, dia_vencimento, valor_aluguel, status)
+       values ($1, $2, 'locacao_padrao', '2026-07-08', 10, 1200, 'ativo') returning id`,
+      [imovelId, quarto1.rows[0].id],
+    );
+    const contratoB = await pool.query(
+      `insert into contratos (imovel_id, comodo_id, tipo, data_inicio, dia_vencimento, valor_aluguel, status)
+       values ($1, $2, 'locacao_padrao', '2026-07-08', 10, 1200, 'ativo') returning id`,
+      [imovelId, quarto2.rows[0].id],
+    );
+
+    const resultado = await gerarContratoHtml(pool, contratoA.rows[0].id);
+
+    expect(resultado.html).toContain('Score: 86%');
+    expect(resultado.html).toContain('Parecer: Divergência de limpeza, resolvida por acordo interno.');
+    expect(resultado.html).toContain('<td>Limpeza e organização</td><td>Nível 2 (Moderado)</td><td>Nível 1 (Básico)</td>');
+    expect(resultado.html).toContain(
+      '<td>Quadro alérgico/condição de saúde declarada</td><td>Respiratória (ácaro/mofo/poeira)</td><td>Nenhuma</td>',
+    );
+
+    // Contrato B (o outro quarto) enxerga a mesma comparação, em qualquer ordem de perfil_a/perfil_b.
+    const resultadoB = await gerarContratoHtml(pool, contratoB.rows[0].id);
+    expect(resultadoB.html).toContain('Score: 86%');
+  });
+
+  it('coliving: sem colega de quarto com contrato ativo ainda, a tabela de compatibilidade fica vazia sem quebrar a geração', async () => {
+    const modeloComCompatibilidade = `<p>Score: {{compatibilidade_score}}</p><table>{{#each compatibilidade_coliving}}<tr><td>{{parametro}}</td></tr>{{/each}}</table>`;
+    await pool.query(`update modelos_contrato set corpo_html = $1 where cidade_id = $2 and categoria = 'geral'`, [
+      modeloComCompatibilidade,
+      cidadeId,
+    ]);
+
+    const imovel = await pool.query(
+      `insert into imoveis (cidade_id, identificacao, tipo, permite_coliving) values ($1, $2, 'apartamento', true) returning id`,
+      [cidadeId, `Coliving Sem Colega ${randomUUID()}`],
+    );
+    const quarto1 = await pool.query(`insert into comodos (imovel_id, identificacao) values ($1, 'Quarto 1') returning id`, [
+      imovel.rows[0].id,
+    ]);
+    const contrato = await pool.query(
+      `insert into contratos (imovel_id, comodo_id, tipo, data_inicio, dia_vencimento, valor_aluguel, status)
+       values ($1, $2, 'locacao_padrao', '2026-07-08', 10, 1200, 'ativo') returning id`,
+      [imovel.rows[0].id, quarto1.rows[0].id],
+    );
+
+    const resultado = await gerarContratoHtml(pool, contrato.rows[0].id);
+    expect(resultado.html).toContain('Score:');
+    expect(resultado.html).not.toContain('<td>');
+  });
 });

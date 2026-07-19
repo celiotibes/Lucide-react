@@ -8,6 +8,7 @@
 
 import type { Pool, PoolClient } from 'pg';
 import { mesclarTemplate, paragrafosParaHtml, type DadosTemplate, type LinhaTemplate } from '../legaldesign/mesclarTemplate';
+import { RUBRICA_NIVEL, type NivelVetor, type QuadroAlergico } from '../coliving/calcularCompatibilidade';
 
 const RUBRICA_PAPEL: Record<string, string> = {
   locatario_principal: 'Locatário',
@@ -147,6 +148,9 @@ export async function gerarContratoHtml(pool: Pool | PoolClient, contratoId: str
 
   const mobilia = await buscarMobiliaDoContrato(pool, contrato.imovel_id, contrato.comodo_id);
   const componentesMensais = await buscarComponentesMensais(pool, contratoId);
+  const compatibilidade = contrato.comodo_id
+    ? await buscarCompatibilidadeAprovada(pool, contrato.imovel_id, contratoId, contrato.comodo_id)
+    : null;
 
   const modalidade: 'kitnet_integral' | 'coliving_quarto' = contrato.comodo_id ? 'coliving_quarto' : 'kitnet_integral';
   const objetoLocacao = contrato.comodo_id
@@ -177,11 +181,129 @@ export async function gerarContratoHtml(pool: Pool | PoolClient, contratoId: str
     mobilia,
     componentes_mensais: componentesMensais,
     clausulas_adicionais_html: paragrafosParaHtml(contrato.clausulas_adicionais),
+    compatibilidade_coliving: compatibilidade?.tabela ?? [],
+    compatibilidade_score: compatibilidade ? compatibilidade.scoreGeral.toFixed(0) : '',
+    compatibilidade_parecer: compatibilidade?.parecer ?? '',
   };
 
   const html = mesclarTemplate(modeloRows[0].corpo_html, dados);
 
   return { html, modeloVersao: modeloRows[0].versao, modalidade };
+}
+
+// Compatibilidade de coliving aprovada para o par (este contrato, colega de
+// quarto) — vira o Anexo/cláusula de compatibilidade automaticamente, em
+// vez de digitada à mão a partir do laudo (docs/39, achado do contrato
+// assinado). Limitação conhecida: o vínculo é feito por
+// `leads.comodo_interesse_id` (o quarto pretendido na triagem), não por
+// `pessoa_id` — não há hoje uma migração formal de "perfil do candidato"
+// para "perfil do morador" quando o contrato é assinado. Se a alocação de
+// quarto mudar entre a triagem e a assinatura, ou se o colega de quarto
+// ainda não tiver contrato ativo, a busca não encontra nada e a tabela
+// fica vazia — degrada graciosamente, sem quebrar a geração do contrato.
+interface CompatibilidadeParaContrato {
+  scoreGeral: number;
+  parecer: string | null;
+  tabela: LinhaTemplate[];
+}
+
+interface LinhaPerfilPar {
+  nome_a: string;
+  v1_limpeza_a: NivelVetor;
+  v2_ruido_a: NivelVetor;
+  v3_rotina_a: NivelVetor;
+  v4_fumo_a: NivelVetor;
+  v5_pets_a: NivelVetor;
+  v6_dieta_a: NivelVetor;
+  v7_conflito_a: NivelVetor;
+  quadro_alergico_a: QuadroAlergico;
+  nome_b: string;
+  v1_limpeza_b: NivelVetor;
+  v2_ruido_b: NivelVetor;
+  v3_rotina_b: NivelVetor;
+  v4_fumo_b: NivelVetor;
+  v5_pets_b: NivelVetor;
+  v6_dieta_b: NivelVetor;
+  v7_conflito_b: NivelVetor;
+  quadro_alergico_b: QuadroAlergico;
+  score_geral: string;
+  parecer: string | null;
+}
+
+function nivelFormatado(chave: keyof typeof RUBRICA_NIVEL, valor: NivelVetor): string {
+  return `Nível ${valor} (${RUBRICA_NIVEL[chave][valor]})`;
+}
+
+const RUBRICA_QUADRO_ALERGICO: Record<QuadroAlergico, string> = {
+  nenhuma: 'Nenhuma',
+  respiratoria: 'Respiratória (ácaro/mofo/poeira)',
+  animais: 'Animais (pelos/saliva)',
+  alimentar: 'Alimentar',
+  medicamentosa_insetos: 'Medicamentosa/picada de insetos',
+  outras: 'Outras',
+  prefiro_nao_responder: 'Prefiro não responder',
+};
+
+async function buscarCompatibilidadeAprovada(
+  pool: Pool | PoolClient,
+  imovelId: string,
+  contratoId: string,
+  comodoId: string,
+): Promise<CompatibilidadeParaContrato | null> {
+  const { rows: siblingRows } = await pool.query<{ comodo_id: string }>(
+    `select comodo_id from contratos
+     where imovel_id = $1 and comodo_id is not null and comodo_id <> $2 and status = 'ativo' and id <> $3
+     limit 1`,
+    [imovelId, comodoId, contratoId],
+  );
+  const comodoIrmaoId = siblingRows[0]?.comodo_id;
+  if (!comodoIrmaoId) return null;
+
+  const { rows } = await pool.query<LinhaPerfilPar>(
+    `select coalesce(la.nome, pa.nome) as nome_a,
+            pfa.v1_limpeza as v1_limpeza_a, pfa.v2_ruido as v2_ruido_a, pfa.v3_rotina as v3_rotina_a,
+            pfa.v4_fumo as v4_fumo_a, pfa.v5_pets as v5_pets_a, pfa.v6_dieta as v6_dieta_a,
+            pfa.v7_conflito as v7_conflito_a, pfa.quadro_alergico as quadro_alergico_a,
+            coalesce(lb.nome, pb.nome) as nome_b,
+            pfb.v1_limpeza as v1_limpeza_b, pfb.v2_ruido as v2_ruido_b, pfb.v3_rotina as v3_rotina_b,
+            pfb.v4_fumo as v4_fumo_b, pfb.v5_pets as v5_pets_b, pfb.v6_dieta as v6_dieta_b,
+            pfb.v7_conflito as v7_conflito_b, pfb.quadro_alergico as quadro_alergico_b,
+            cc.score_geral, cc.parecer
+     from compatibilidades_coliving cc
+     join perfis_convivencia pfa on pfa.id = cc.perfil_a_id
+     join perfis_convivencia pfb on pfb.id = cc.perfil_b_id
+     left join leads la on la.id = pfa.lead_id
+     left join pessoas pa on pa.id = pfa.pessoa_id
+     left join leads lb on lb.id = pfb.lead_id
+     left join pessoas pb on pb.id = pfb.pessoa_id
+     where cc.imovel_id = $1 and cc.status = 'aprovado'
+       and (
+         (la.comodo_interesse_id = $2 and lb.comodo_interesse_id = $3) or
+         (la.comodo_interesse_id = $3 and lb.comodo_interesse_id = $2)
+       )
+     order by cc.decidido_em desc nulls last
+     limit 1`,
+    [imovelId, comodoId, comodoIrmaoId],
+  );
+  const linha = rows[0];
+  if (!linha) return null;
+
+  const tabela: LinhaTemplate[] = [
+    { parametro: 'Limpeza e organização', valor_a: nivelFormatado('limpeza', linha.v1_limpeza_a), valor_b: nivelFormatado('limpeza', linha.v1_limpeza_b) },
+    { parametro: 'Tolerância a ruído em áreas comuns', valor_a: nivelFormatado('ruido', linha.v2_ruido_a), valor_b: nivelFormatado('ruido', linha.v2_ruido_b) },
+    { parametro: 'Cronotipo de rotina', valor_a: nivelFormatado('rotina', linha.v3_rotina_a), valor_b: nivelFormatado('rotina', linha.v3_rotina_b) },
+    { parametro: 'Política de tabagismo', valor_a: nivelFormatado('fumo', linha.v4_fumo_a), valor_b: nivelFormatado('fumo', linha.v4_fumo_b) },
+    { parametro: 'Tolerância a animais de estimação', valor_a: nivelFormatado('pets', linha.v5_pets_a), valor_b: nivelFormatado('pets', linha.v5_pets_b) },
+    { parametro: 'Hábitos alimentares', valor_a: nivelFormatado('dieta', linha.v6_dieta_a), valor_b: nivelFormatado('dieta', linha.v6_dieta_b) },
+    { parametro: 'Resolução de conflitos', valor_a: nivelFormatado('conflito', linha.v7_conflito_a), valor_b: nivelFormatado('conflito', linha.v7_conflito_b) },
+    {
+      parametro: 'Quadro alérgico/condição de saúde declarada',
+      valor_a: RUBRICA_QUADRO_ALERGICO[linha.quadro_alergico_a],
+      valor_b: RUBRICA_QUADRO_ALERGICO[linha.quadro_alergico_b],
+    },
+  ];
+
+  return { scoreGeral: Number(linha.score_geral), parecer: linha.parecer, tabela };
 }
 
 async function buscarMobiliaDoContrato(
