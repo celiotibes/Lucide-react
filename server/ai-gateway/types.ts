@@ -8,7 +8,8 @@ export type TaskType =
   | 'triagem_sac_whatsapp'
   | 'classificacao_extrato_historico'
   | 'credit_scoring'
-  | 'extracao_dados_contrato';
+  | 'extracao_dados_contrato'
+  | 'pergunta_livre_documento';
 
 export type ProviderId = 'gemini' | 'claude' | 'ollama';
 

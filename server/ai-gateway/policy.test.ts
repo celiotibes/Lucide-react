@@ -28,6 +28,13 @@ describe('selecionarProvedor', () => {
     expect(decisao.fallback).toBeUndefined();
   });
 
+  it('roteia pergunta livre sobre documento para Claude Sonnet sem fallback automático', () => {
+    const decisao = selecionarProvedor({ task: 'pergunta_livre_documento', contemDadosPessoais: true });
+    expect(decisao.primary.provider).toBe('claude');
+    expect(decisao.primary.model).toBe('claude-sonnet-5');
+    expect(decisao.fallback).toBeUndefined();
+  });
+
   it('roteia triagem de SAC para Gemini Flash-Lite, não Grok', () => {
     const decisao = selecionarProvedor({ task: 'triagem_sac_whatsapp', contemDadosPessoais: false });
     expect(decisao.primary.provider).toBe('gemini');

@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { obterPool } from '@/server/integracao/db';
-import { formatarMoeda, formatarData } from '@/lib/formatacao';
+import { formatarMoeda, formatarData, formatarDataHora } from '@/lib/formatacao';
 import type { DadosContratoExtraidos } from '@/server/documentos/extrairDadosContrato';
-import { aprovarExtracao, rejeitarExtracao } from './actions';
+import { aprovarExtracao, rejeitarExtracao, perguntarSobreDocumentoAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +21,15 @@ interface LinhaContrato {
   data_inicio: string;
   data_fim: string | null;
   dia_vencimento: number | null;
+}
+
+interface LinhaPergunta {
+  id: string;
+  pergunta: string;
+  resposta: string | null;
+  status: string;
+  erro_ia: string | null;
+  criado_em: string;
 }
 
 async function buscarExtracao(documentoId: string): Promise<LinhaExtracao | null> {
@@ -52,6 +61,66 @@ async function buscarValorCaucaoAtual(contratoId: string): Promise<number | null
     [contratoId],
   );
   return rows[0] ? Number(rows[0].valor) : null;
+}
+
+async function buscarPerguntas(documentoId: string): Promise<LinhaPergunta[]> {
+  const pool = obterPool();
+  const { rows } = await pool.query<LinhaPergunta>(
+    `select id, pergunta, resposta, status, erro_ia, criado_em
+     from perguntas_analise_documento
+     where documento_id = $1
+     order by criado_em desc`,
+    [documentoId],
+  );
+  return rows;
+}
+
+function SecaoPerguntas({
+  contratoId,
+  documentoId,
+  perguntas,
+}: {
+  contratoId: string;
+  documentoId: string;
+  perguntas: LinhaPergunta[];
+}) {
+  return (
+    <section style={{ marginTop: '2rem' }}>
+      <h3>Perguntar à IA sobre este documento</h3>
+      <p className="section-hint">
+        Pergunte qualquer coisa sobre o texto do documento (ex.: &quot;existe cláusula de multa rescisória?&quot;).
+        A resposta é baseada só no texto convertido — nunca inventa o que não está lá.
+      </p>
+      <form action={perguntarSobreDocumentoAction} className="formulario">
+        <input type="hidden" name="documento_id" value={documentoId} />
+        <input type="hidden" name="contrato_id" value={contratoId} />
+        <label>
+          Pergunta
+          <textarea name="pergunta" rows={2} required />
+        </label>
+        <button type="submit" className="botao-secundario">
+          Perguntar
+        </button>
+      </form>
+
+      {perguntas.length > 0 && (
+        <div style={{ marginTop: '1rem' }}>
+          {perguntas.map((p) => (
+            <div key={p.id} style={{ marginBottom: '1rem', borderLeft: '3px solid #d1d5db', paddingLeft: '0.75rem' }}>
+              <p>
+                <strong>{p.pergunta}</strong> <span className="section-hint">({formatarDataHora(p.criado_em)})</span>
+              </p>
+              {p.status === 'respondida' ? (
+                <p>{p.resposta}</p>
+              ) : (
+                <p className="erro-conexao">Falha ao responder: {p.erro_ia ?? 'erro desconhecido'}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 const RUBRICA_TIPO_CUSTO: Record<string, string> = {
@@ -91,6 +160,8 @@ export default async function PaginaRevisaoExtracao({
     notFound();
   }
 
+  const perguntas = await buscarPerguntas(documentoId).catch(() => [] as LinhaPergunta[]);
+
   if (extracao.status === 'falhou') {
     return (
       <>
@@ -101,6 +172,7 @@ export default async function PaginaRevisaoExtracao({
           </Link>
         </div>
         <p className="erro-conexao">A leitura por IA falhou: {extracao.erro_ia ?? 'erro desconhecido'}</p>
+        <SecaoPerguntas contratoId={contratoId} documentoId={documentoId} perguntas={perguntas} />
       </>
     );
   }
@@ -117,6 +189,7 @@ export default async function PaginaRevisaoExtracao({
         <p className="section-hint">
           Esta extração já foi revisada (status: <strong>{extracao.status}</strong>).
         </p>
+        <SecaoPerguntas contratoId={contratoId} documentoId={documentoId} perguntas={perguntas} />
       </>
     );
   }
@@ -256,6 +329,8 @@ export default async function PaginaRevisaoExtracao({
           Rejeitar esta leitura
         </button>
       </form>
+
+      <SecaoPerguntas contratoId={contratoId} documentoId={documentoId} perguntas={perguntas} />
     </>
   );
 }

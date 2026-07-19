@@ -83,6 +83,16 @@ function decisaoBase(task: TaskType, ctx: TaskRequestContext): RoutingDecision {
           'Sem fallback automático pelo mesmo motivo.',
       };
 
+    case 'pergunta_livre_documento':
+      return {
+        primary: CLAUDE_SONNET,
+        motivo:
+          'Pergunta livre em texto sobre um documento de contrato/aditivo/comunicação já convertido para ' +
+          'Markdown — mesmo risco de redacao_documento_juridico e extracao_dados_contrato: uma resposta errada ' +
+          'sobre cláusula contratual pode levar o operador a uma decisão errada. Sem fallback automático pelo ' +
+          'mesmo motivo dessas duas tarefas.',
+      };
+
     case 'classificacao_extrato_historico':
       if (ctx.hardwareOllamaDisponivel) {
         return {

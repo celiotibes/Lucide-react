@@ -15,6 +15,25 @@
 import { revalidatePath } from 'next/cache';
 import { obterPool } from '@/server/integracao/db';
 import type { DadosContratoExtraidos } from '@/server/documentos/extrairDadosContrato';
+import { perguntarSobreDocumento } from '@/server/documentos/perguntarDocumento';
+
+// Fase 7: pergunta livre sobre o documento — síncrona (o operador espera a
+// resposta na tela), independente do status da extração estruturada acima.
+export async function perguntarSobreDocumentoAction(formData: FormData): Promise<void> {
+  const documentoId = String(formData.get('documento_id') ?? '');
+  const contratoId = String(formData.get('contrato_id') ?? '');
+  const pergunta = String(formData.get('pergunta') ?? '');
+  if (!documentoId || !contratoId) {
+    throw new Error('documento_id ou contrato_id ausente');
+  }
+
+  const resultado = await perguntarSobreDocumento(obterPool(), documentoId, pergunta);
+  if (!resultado.sucesso) {
+    throw new Error(resultado.erro ?? 'Falha ao perguntar à IA');
+  }
+
+  revalidatePath(`/contratos/${contratoId}/documentos/${documentoId}/revisao`);
+}
 
 export async function rejeitarExtracao(formData: FormData): Promise<void> {
   const extracaoId = String(formData.get('extracao_id') ?? '');

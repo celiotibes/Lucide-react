@@ -3295,3 +3295,34 @@ create policy admin_full_access_renovacoes_notificacoes on renovacoes_contratuai
   for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
 create trigger trg_audit_renovacoes_notificacoes after insert or update or delete on renovacoes_contratuais_notificacoes
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 40. PERGUNTA LIVRE PARA ANÁLISE DE DOCUMENTO POR IA
+-- ============================================================================
+-- Complementa a extração estruturada (seção 38, extracoes_documento_ia, que
+-- só cobre os campos fixos do schema): o operador pode fazer qualquer
+-- pergunta em texto livre sobre o documento já convertido para Markdown
+-- ("tem cláusula de multa rescisória?", "o contrato menciona animal de
+-- estimação?") — resposta síncrona (não passa pelo cron de processamento
+-- em lote), sempre com o texto do documento como única fonte, nunca
+-- conhecimento geral do modelo.
+create table perguntas_analise_documento (
+  id uuid primary key default gen_random_uuid(),
+  documento_id uuid not null references documentos_anexados(id) on delete cascade,
+  pergunta text not null,
+  resposta text,
+  modelo_ia text,
+  status text not null default 'pendente' check (status in ('pendente','respondida','falhou')),
+  erro_ia text,
+  perguntado_por uuid references pessoas(id),
+  criado_em timestamptz not null default now(),
+  respondido_em timestamptz
+);
+
+create index idx_perguntas_analise_documento on perguntas_analise_documento(documento_id);
+
+alter table perguntas_analise_documento enable row level security;
+create policy admin_full_access_perguntas_analise_documento on perguntas_analise_documento
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_perguntas_analise_documento after insert or update or delete on perguntas_analise_documento
+  for each row execute function fn_audit_trigger();

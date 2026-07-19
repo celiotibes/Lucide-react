@@ -239,3 +239,39 @@ begin
       for each row execute function fn_audit_trigger();
   end if;
 end $$;
+
+-- ============================================================================
+-- Fase 7: pergunta livre para análise de documento por IA
+-- ============================================================================
+create table if not exists perguntas_analise_documento (
+  id uuid primary key default gen_random_uuid(),
+  documento_id uuid not null references documentos_anexados(id) on delete cascade,
+  pergunta text not null,
+  resposta text,
+  modelo_ia text,
+  status text not null default 'pendente' check (status in ('pendente','respondida','falhou')),
+  erro_ia text,
+  perguntado_por uuid references pessoas(id),
+  criado_em timestamptz not null default now(),
+  respondido_em timestamptz
+);
+
+create index if not exists idx_perguntas_analise_documento on perguntas_analise_documento(documento_id);
+
+alter table perguntas_analise_documento enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'perguntas_analise_documento' and policyname = 'admin_full_access_perguntas_analise_documento') then
+    create policy admin_full_access_perguntas_analise_documento on perguntas_analise_documento
+      for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_audit_perguntas_analise_documento') then
+    create trigger trg_audit_perguntas_analise_documento after insert or update or delete on perguntas_analise_documento
+      for each row execute function fn_audit_trigger();
+  end if;
+end $$;
