@@ -25,6 +25,13 @@ Abra o app e clique em **"Carregar dados de demonstração"** para popular o ban
 um dataset simulado (3 anos, 6 contas, 10 imóveis, ~40 contratos, inadimplência e
 cauções fictícias) e explorar todas as telas sem precisar de documentos reais.
 
+**Nunca instalou Node.js ou rodou um projeto assim antes?** Veja
+[`GUIA_INSTALACAO_E_USO.md`](./GUIA_INSTALACAO_E_USO.md) — passo a passo completo
+do zero (instalar Node, baixar o projeto, primeiro uso, onde os dados ficam salvos,
+backup, problemas comuns), sem presumir experiência prévia com programação. Inclui
+atalhos de clique duplo (`iniciar-windows.bat` / `iniciar-mac-linux.command`) que
+instalam e abrem o sistema sozinhos.
+
 ## Funcionalidades
 
 - **Imóveis**: cadastro dos seus imóveis reais (apelido, tipo, cidade/grupo — ex: Floripa,
