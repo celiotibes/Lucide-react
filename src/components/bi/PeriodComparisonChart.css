@@ -1,0 +1,123 @@
+.period-comparison-chart {
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.comparison-canvas {
+  width: 100%;
+  height: 280px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.comparison-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 12px;
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr 100px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.comparison-row:last-child {
+  border-bottom: none;
+}
+
+.metric-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 13px;
+}
+
+.metric-values {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.metric-values .value {
+  font-weight: 500;
+  color: #666;
+}
+
+.metric-values .arrow {
+  color: #999;
+}
+
+.change {
+  text-align: right;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.change.increase {
+  color: #4caf50;
+}
+
+.change.decrease {
+  color: #f44336;
+}
+
+.change.stable {
+  color: #2196f3;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .period-comparison-chart {
+    background: #2d2d2d;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .comparison-details {
+    border-top-color: #404040;
+  }
+
+  .comparison-row {
+    border-bottom-color: #383838;
+  }
+
+  .metric-name {
+    color: #e0e0e0;
+  }
+
+  .metric-values .value {
+    color: #b0b0b0;
+  }
+
+  .metric-values .arrow {
+    color: #666;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .period-comparison-chart {
+    padding: 12px;
+  }
+
+  .comparison-canvas {
+    height: 250px;
+    margin-bottom: 12px;
+  }
+
+  .comparison-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .change {
+    text-align: left;
+  }
+}

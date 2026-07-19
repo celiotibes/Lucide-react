@@ -1,0 +1,155 @@
+.kpi-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 4px solid #2196f3;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.kpi-trend {
+  font-size: 18px;
+}
+
+.kpi-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.2;
+}
+
+.kpi-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.comparison-label {
+  color: #999;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.comparison-value {
+  font-weight: 600;
+  color: #2196f3;
+}
+
+.kpi-status {
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  align-self: flex-start;
+}
+
+.kpi-status-good {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.kpi-status-warning {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.kpi-status-critical {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* Status-specific card styling */
+.kpi-good {
+  border-left-color: #4caf50;
+}
+
+.kpi-good .kpi-value {
+  color: #4caf50;
+}
+
+.kpi-warning {
+  border-left-color: #ff9800;
+}
+
+.kpi-warning .kpi-value {
+  color: #f57c00;
+}
+
+.kpi-critical {
+  border-left-color: #f44336;
+}
+
+.kpi-critical .kpi-value {
+  color: #c62828;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .kpi-card {
+    background: #2d2d2d;
+    color: #e0e0e0;
+  }
+
+  .kpi-label {
+    color: #888;
+  }
+
+  .kpi-value {
+    color: #e0e0e0;
+  }
+
+  .comparison-label {
+    color: #666;
+  }
+
+  .comparison-value {
+    color: #4db8ff;
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .kpi-cards-container {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .kpi-value {
+    font-size: 20px;
+  }
+
+  .kpi-card {
+    padding: 12px;
+  }
+}

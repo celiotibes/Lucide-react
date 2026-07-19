@@ -1,0 +1,182 @@
+{
+  "server_id": "google-drive",
+  "name": "Google Drive",
+  "description": "File storage, search, sharing, and document management integration with Google Drive",
+  "version": "1.0.0",
+  "enabled": true,
+  "capabilities": [
+    "search_files",
+    "upload_documents",
+    "download_documents",
+    "share_files",
+    "create_folders",
+    "list_files",
+    "delete_files",
+    "move_files",
+    "get_file_metadata"
+  ],
+  "supported_file_types": {
+    "documents": [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".txt",
+      ".odt",
+      ".rtf"
+    ],
+    "spreadsheets": [
+      ".xlsx",
+      ".xls",
+      ".ods",
+      ".csv"
+    ],
+    "presentations": [
+      ".pptx",
+      ".ppt",
+      ".odp"
+    ],
+    "images": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".svg",
+      ".webp"
+    ],
+    "archives": [
+      ".zip",
+      ".rar",
+      ".7z",
+      ".tar"
+    ]
+  },
+  "use_cases": {
+    "research_storage": "Store legal documents, academic papers, accounting records",
+    "document_sharing": "Share research results with collaborators",
+    "version_control": "Maintain versions of important documents",
+    "collaborative_editing": "Real-time editing with teammates",
+    "file_organization": "Organize documents by jurisdiction, subject, date"
+  },
+  "authentication": {
+    "type": "OAuth 2.0",
+    "scope": "drive.file",
+    "envVar": "VITE_GOOGLE_DRIVE_API_KEY",
+    "endpoint": "https://www.googleapis.com/drive/v3"
+  },
+  "api_operations": {
+    "search": {
+      "method": "GET /files",
+      "parameters": ["q (query)", "pageSize", "orderBy", "spaces"],
+      "returns": "List of matching files with metadata"
+    },
+    "upload": {
+      "method": "POST /upload/drive/v3/files",
+      "parameters": ["name", "parents", "mimeType"],
+      "returns": "File metadata including ID"
+    },
+    "download": {
+      "method": "GET /files/{fileId}/export",
+      "parameters": ["mimeType"],
+      "returns": "File content"
+    },
+    "share": {
+      "method": "POST /files/{fileId}/permissions",
+      "parameters": ["role", "type", "emailAddress"],
+      "returns": "Permission object"
+    },
+    "create_folder": {
+      "method": "POST /files",
+      "parameters": ["name", "parents", "mimeType=folder"],
+      "returns": "Folder metadata"
+    }
+  },
+  "folder_structure": {
+    "research_root": {
+      "name": "Lucide-react Research",
+      "subfolders": {
+        "legal_research": {
+          "jurisdiction_folders": ["Brazil (BR)", "USA (US)", "EU", "UK", "Canada"],
+          "document_folders": ["Statutes", "Case Law", "Doctrine", "Petitions", "Analyses"]
+        },
+        "academic_research": {
+          "document_folders": ["Articles", "Meta-analyses", "Reviews", "Citations"]
+        },
+        "accounting_research": {
+          "document_folders": ["Tax Documents", "Audit Reports", "Compliance", "Forensic"]
+        },
+        "shared_resources": {
+          "document_folders": ["Templates", "References", "Guidelines"]
+        }
+      }
+    }
+  },
+  "search_query_syntax": {
+    "name": "Search by filename: name='petition.pdf'",
+    "mimeType": "Filter by file type: mimeType='application/pdf'",
+    "parents": "Find in folder: parents='folder_id'",
+    "trashed": "Include deleted: trashed=false",
+    "modifiedTime": "Filter by date: modifiedTime > '2024-01-01T00:00:00'",
+    "fullText": "Search content: fullText contains 'keyword'",
+    "or": "Combine conditions: (name contains 'legal') or (description contains 'statute')"
+  },
+  "file_metadata": {
+    "id": "Unique file identifier",
+    "name": "File name",
+    "mimeType": "File type",
+    "size": "File size in bytes",
+    "createdTime": "Creation date",
+    "modifiedTime": "Last modification date",
+    "owners": "List of owners",
+    "permissions": "Sharing permissions",
+    "webViewLink": "View-only link",
+    "webContentLink": "Download link",
+    "description": "File description/notes"
+  },
+  "sharing_options": {
+    "anyone": "Anyone with link can access",
+    "user": "Specific user email address",
+    "group": "Google Group",
+    "domain": "Anyone in organization domain"
+  },
+  "permissions_roles": {
+    "owner": "Full control",
+    "organizer": "Full control of shared drive",
+    "fileOrganizer": "Can move and delete",
+    "editor": "Can edit",
+    "commenter": "Can comment only",
+    "viewer": "Can view only"
+  },
+  "rate_limiting": {
+    "requests_per_user_per_second": 1000,
+    "requests_per_user_per_100seconds": 10000,
+    "timeout_seconds": 30,
+    "max_file_size": "5GB per file",
+    "storage_limit": "2TB per user (Free tier)"
+  },
+  "integration_patterns": {
+    "research_workflow": {
+      "step1": "Create folder structure for jurisdiction/subject",
+      "step2": "Upload legal documents and research papers",
+      "step3": "Share findings with collaborators",
+      "step4": "Link Google Drive references in React app",
+      "step5": "Sync research metadata with Lucide-react database"
+    },
+    "document_versioning": {
+      "workflow": "Use Google Drive version history for document tracking",
+      "benefits": "Automatic backup, easy rollback, change tracking"
+    }
+  },
+  "example_queries": {
+    "find_petitions": "name contains 'petition' and mimeType='application/pdf'",
+    "find_recent": "modifiedTime > '2024-01-01T00:00:00' and trashed=false",
+    "find_in_folder": "parents='folder_id_here' and name contains 'statute'",
+    "find_by_content": "fullText contains 'IRPF' and mimeType='application/pdf'"
+  },
+  "security_considerations": {
+    "oauth_scope": "Use minimal required scope (drive.file, not drive)",
+    "token_storage": "Store OAuth tokens securely in environment variables",
+    "file_encryption": "Google Drive provides encryption in transit and at rest",
+    "sharing_audit": "Monitor who has access to shared documents",
+    "compliance": "Ensure compliance with data privacy regulations (LGPD, GDPR)"
+  }
+}

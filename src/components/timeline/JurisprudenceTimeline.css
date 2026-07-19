@@ -1,0 +1,563 @@
+/**
+ * Jurisprudence Timeline Component Styles
+ * Professional legal case law timeline visualization
+ */
+
+.jurisprudence-timeline {
+  max-width: 1200px;
+  margin: 20px auto;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef7 100%);
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.timeline-header {
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 3px solid #1b3a57;
+  padding-bottom: 20px;
+}
+
+.timeline-header h2 {
+  margin: 0 0 10px 0;
+  color: #1b3a57;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.timeline-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Search and Filter Section */
+.timeline-controls {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border-left: 4px solid #d4af37;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.search-input-group {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.timeline-search {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.3s;
+}
+
+.timeline-search:focus {
+  outline: none;
+  border-color: #1b3a57;
+  box-shadow: 0 0 8px rgba(27, 58, 87, 0.15);
+}
+
+.year-range {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.year-input {
+  width: 80px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.search-button {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #1b3a57 0%, #4a7ba7 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.search-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(27, 58, 87, 0.3);
+}
+
+.search-button:active {
+  transform: translateY(0);
+}
+
+.search-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Timeline Container */
+.timeline-container {
+  position: relative;
+  padding: 20px 0;
+}
+
+/* Central vertical line */
+.timeline-line {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(180deg, #1b3a57 0%, #d4af37 50%, #4a7ba7 100%);
+  z-index: 0;
+}
+
+.timeline-events {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.timeline-event {
+  display: flex;
+  margin-bottom: 30px;
+  opacity: 0;
+  animation: slideIn 0.5s ease-out forwards;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.timeline-event:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.timeline-event:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.timeline-event:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.timeline-event:nth-child(4) {
+  animation-delay: 0.4s;
+}
+.timeline-event:nth-child(5) {
+  animation-delay: 0.5s;
+}
+
+/* Alternate left and right */
+.timeline-event:nth-child(odd) {
+  flex-direction: row;
+}
+
+.timeline-event:nth-child(even) {
+  flex-direction: row-reverse;
+}
+
+.timeline-event-content {
+  width: calc(50% - 40px);
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #d4af37;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.timeline-event:hover .timeline-event-content {
+  box-shadow: 0 6px 20px rgba(27, 58, 87, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Marker circle */
+.timeline-marker {
+  width: 80px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.timeline-dot {
+  width: 20px;
+  height: 20px;
+  background: white;
+  border: 4px solid #1b3a57;
+  border-radius: 50%;
+  z-index: 2;
+  transition: all 0.3s;
+  box-shadow: 0 0 0 4px #f5f7fa;
+}
+
+.timeline-event:hover .timeline-dot {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+  background: #d4af37;
+  border-color: #1b3a57;
+  box-shadow: 0 0 0 6px rgba(212, 175, 55, 0.2);
+}
+
+.timeline-year {
+  text-align: center;
+  color: #1b3a57;
+  font-weight: 700;
+  font-size: 14px;
+  margin-top: 30px;
+}
+
+/* Event Content Styling */
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+
+.event-title {
+  margin: 0;
+  color: #1b3a57;
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.event-decision {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.decision-favorable {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-left: 3px solid #4caf50;
+}
+
+.decision-unfavorable {
+  background: #ffebee;
+  color: #c62828;
+  border-left: 3px solid #ef5350;
+}
+
+.decision-mixed {
+  background: #fff3e0;
+  color: #e65100;
+  border-left: 3px solid #ff9800;
+}
+
+.event-tribunal {
+  display: inline-block;
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.event-case-number {
+  display: block;
+  font-size: 12px;
+  color: #999;
+  font-family: 'Monaco', 'Courier New', monospace;
+  margin-bottom: 8px;
+}
+
+.event-description {
+  margin: 0 0 12px 0;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.event-impact {
+  background: #f9f9f9;
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid #2196f3;
+  margin: 12px 0;
+  font-size: 12px;
+  color: #1976d2;
+  font-style: italic;
+}
+
+.event-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.keyword-tag {
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #666;
+}
+
+/* Summary Section */
+.timeline-summary {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #d4af37;
+  margin-top: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.summary-title {
+  margin: 0 0 15px 0;
+  color: #1b3a57;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.summary-text {
+  margin: 0 0 15px 0;
+  color: #555;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin: 15px 0;
+}
+
+.stat-item {
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 3px solid #d4af37;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  font-size: 18px;
+  color: #1b3a57;
+  font-weight: 700;
+}
+
+.stat-percentage {
+  font-size: 14px;
+  color: #d4af37;
+  margin-top: 3px;
+}
+
+/* Recommendations */
+.recommendations-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #2196f3;
+  margin-top: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.recommendations-title {
+  margin: 0 0 15px 0;
+  color: #1b3a57;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.recommendation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recommendation-item {
+  padding: 10px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  border-left: 3px solid #2196f3;
+  font-size: 13px;
+  color: #555;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.recommendation-item:before {
+  content: '💡';
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .jurisprudence-timeline {
+    padding: 20px;
+    margin: 10px;
+  }
+
+  .timeline-header h2 {
+    font-size: 22px;
+  }
+
+  .timeline-line {
+    left: 20px;
+  }
+
+  .timeline-event {
+    flex-direction: column !important;
+    align-items: flex-start;
+    padding-left: 50px;
+    margin-bottom: 20px;
+  }
+
+  .timeline-event-content {
+    width: 100%;
+  }
+
+  .timeline-marker {
+    position: absolute;
+    left: 0;
+    width: 40px;
+    height: 40px;
+  }
+
+  .timeline-dot {
+    width: 16px;
+    height: 16px;
+  }
+
+  .timeline-year {
+    position: absolute;
+    left: 50px;
+    top: -25px;
+    text-align: left;
+  }
+
+  .search-input-group {
+    flex-direction: column;
+  }
+
+  .year-range {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .year-input {
+    width: 100%;
+  }
+
+  .timeline-search {
+    width: 100%;
+  }
+
+  .search-button {
+    width: 100%;
+  }
+
+  .summary-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .jurisprudence-timeline {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  }
+
+  .timeline-header h2 {
+    color: #f4e4c1;
+  }
+
+  .timeline-controls,
+  .timeline-summary,
+  .recommendations-section,
+  .timeline-event-content {
+    background: #2d2d2d;
+  }
+
+  .timeline-search,
+  .year-input {
+    background: #1a1a1a;
+    border-color: #444;
+    color: #f4e4c1;
+  }
+
+  .timeline-search:focus,
+  .year-input:focus {
+    border-color: #d4af37;
+  }
+
+  .event-title,
+  .summary-title,
+  .recommendations-title {
+    color: #f4e4c1;
+  }
+
+  .timeline-header p,
+  .event-description,
+  .summary-text,
+  .recommendation-item {
+    color: #aaa;
+  }
+
+  .stat-item {
+    background: #1a1a1a;
+  }
+
+  .stat-value {
+    color: #f4e4c1;
+  }
+
+  .event-tribunal,
+  .keyword-tag {
+    background: #1a1a1a;
+    color: #aaa;
+  }
+
+  .timeline-dot {
+    background: #2d2d2d;
+    border-color: #f4e4c1;
+    box-shadow: 0 0 0 4px #1a1a1a;
+  }
+
+  .timeline-event:hover .timeline-dot {
+    background: #d4af37;
+    border-color: #f4e4c1;
+    box-shadow: 0 0 0 6px rgba(212, 175, 55, 0.2);
+  }
+}

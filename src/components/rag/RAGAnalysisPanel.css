@@ -1,0 +1,579 @@
+/**
+ * RAG Analysis Panel Styles
+ */
+
+.rag-analysis-panel {
+  max-width: 1100px;
+  margin: 20px auto;
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.panel-header {
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #1b3a57;
+  padding-bottom: 20px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  color: #1b3a57;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.panel-header p {
+  margin: 10px 0 0 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Analysis Tabs */
+.analysis-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #ddd;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+
+.tab-button {
+  padding: 12px 20px;
+  border: none;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  font-weight: 500;
+  border-radius: 8px 8px 0 0;
+  transition: all 0.3s;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.tab-button:hover {
+  background: #f0f0f0;
+  color: #1b3a57;
+}
+
+.tab-button.active {
+  background: #1b3a57;
+  color: white;
+  border-bottom: 3px solid #d4af37;
+}
+
+/* Analysis Content */
+.analysis-content {
+  margin-bottom: 30px;
+}
+
+.tab-pane {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Form Groups */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #1b3a57;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.3s;
+  box-sizing: border-box;
+  color: #333;
+}
+
+.form-group textarea {
+  resize: vertical;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.form-group input:hover,
+.form-group textarea:hover,
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: #d4af37;
+  outline: none;
+}
+
+/* Analysis Options */
+.analysis-options {
+  background: #f5f7fa;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 3px solid #d4af37;
+  margin-bottom: 20px;
+}
+
+.analysis-options label {
+  display: block;
+  margin-bottom: 12px;
+  color: #1b3a57;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.checkbox-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Buttons */
+.btn-analyze {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #1b3a57 0%, #4a7ba7 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(27, 58, 87, 0.3);
+}
+
+.btn-analyze:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(27, 58, 87, 0.4);
+}
+
+.btn-analyze:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Error Message */
+.error-message {
+  background: #ffebee;
+  border: 2px solid #ef5350;
+  border-radius: 6px;
+  padding: 15px;
+  color: #c62828;
+  margin: 15px 0;
+  font-size: 14px;
+}
+
+/* Results Section */
+.results-section {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #d4af37;
+  margin-top: 20px;
+}
+
+.results-section h3 {
+  margin: 0 0 15px 0;
+  color: #1b3a57;
+  font-size: 16px;
+}
+
+.summary {
+  background: #e3f2fd;
+  border-left: 3px solid #2196f3;
+  padding: 12px;
+  border-radius: 4px;
+  color: #1565c0;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* Findings */
+.findings {
+  margin-bottom: 20px;
+}
+
+.findings h4 {
+  margin: 0 0 12px 0;
+  color: #1b3a57;
+  font-size: 14px;
+}
+
+.finding {
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-left-width: 4px;
+  border-left-color: #4a7ba7;
+}
+
+.finding-critical {
+  border-left-color: #f44336;
+  background: #ffebee;
+}
+
+.finding-high {
+  border-left-color: #ff9800;
+  background: #fff3e0;
+}
+
+.finding-medium {
+  border-left-color: #ffc107;
+  background: #fffde7;
+}
+
+.finding-low {
+  border-left-color: #4caf50;
+  background: #f1f8e9;
+}
+
+.finding-info {
+  border-left-color: #2196f3;
+  background: #e3f2fd;
+}
+
+.finding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.finding .type {
+  font-weight: 600;
+  color: #1b3a57;
+}
+
+.severity {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: white;
+}
+
+.severity-critical {
+  color: #f44336;
+  background: #ffebee;
+}
+
+.severity-high {
+  color: #ff9800;
+  background: #fff3e0;
+}
+
+.severity-medium {
+  color: #ffc107;
+  background: #fffde7;
+}
+
+.finding p {
+  margin: 8px 0;
+  font-size: 13px;
+  color: #333;
+}
+
+.suggestion {
+  color: #1976d2;
+  font-style: italic;
+  margin-top: 8px !important;
+}
+
+/* Jurisprudence Section */
+.jurisprudence-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #ddd;
+}
+
+.jurisprudence-section h4 {
+  margin: 0 0 12px 0;
+  color: #1b3a57;
+}
+
+.jurisprudence-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-left: 4px solid #d4af37;
+}
+
+.jurisprudence-item strong {
+  display: block;
+  color: #1b3a57;
+  margin-bottom: 8px;
+}
+
+.jurisprudence-item p {
+  margin: 6px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.tribunal {
+  display: inline-block;
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #666;
+  margin-right: 10px;
+  margin-top: 8px;
+}
+
+.relevance {
+  display: inline-block;
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Conflict Section */
+.conflict-section,
+.counter-section,
+.search-section {
+  padding: 20px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.conflict-section p,
+.counter-section p,
+.search-section p {
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.no-conflicts {
+  background: #e8f5e9;
+  border: 2px solid #4caf50;
+  color: #2e7d32;
+  padding: 15px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.conflict {
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-left-width: 4px;
+}
+
+.conflict-critical {
+  border-left-color: #f44336;
+  background: #ffebee;
+}
+
+.conflict-high {
+  border-left-color: #ff9800;
+  background: #fff3e0;
+}
+
+.conflict p {
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.resolution {
+  color: #1976d2;
+  font-style: italic;
+  margin-top: 8px !important;
+}
+
+.conflict-results {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #ddd;
+}
+
+.conflict-results h4 {
+  color: #1b3a57;
+  margin-bottom: 12px;
+}
+
+/* Search Results */
+.search-results {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #ddd;
+}
+
+.search-results h4 {
+  color: #1b3a57;
+  margin-bottom: 12px;
+}
+
+.search-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.search-item strong {
+  display: block;
+  color: #1b3a57;
+  margin-bottom: 6px;
+}
+
+.search-item p {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .rag-analysis-panel {
+    padding: 20px;
+    margin: 10px;
+  }
+
+  .panel-header h2 {
+    font-size: 22px;
+  }
+
+  .analysis-tabs {
+    flex-wrap: wrap;
+  }
+
+  .tab-button {
+    padding: 10px 15px;
+    font-size: 12px;
+  }
+
+  .checkbox-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .rag-analysis-panel {
+    background: #2d2d2d;
+  }
+
+  .panel-header h2,
+  .results-section h3,
+  .finding .type,
+  .jurisprudence-item strong,
+  .conflict-results h4,
+  .search-results h4 {
+    color: #f4e4c1;
+  }
+
+  .panel-header p,
+  .form-group label,
+  .analysis-options label,
+  .checkbox-label,
+  .finding p,
+  .jurisprudence-item p,
+  .conflict p {
+    color: #aaa;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    background: #1a1a1a;
+    color: #f4e4c1;
+    border-color: #444;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    border-color: #d4af37;
+  }
+
+  .analysis-options {
+    background: #1a1a1a;
+    border-left-color: #d4af37;
+  }
+
+  .results-section,
+  .conflict-section,
+  .counter-section,
+  .search-section {
+    background: #1a1a1a;
+  }
+
+  .summary {
+    background: #1b3d4a;
+    color: #6ee7de;
+    border-left-color: #2196f3;
+  }
+
+  .finding {
+    background: #1a1a1a;
+    border-color: #444;
+  }
+
+  .jurisprudence-item,
+  .search-item {
+    background: #1a1a1a;
+    border-color: #444;
+  }
+
+  .tribunal,
+  .relevance {
+    background: #444;
+    color: #aaa;
+  }
+
+  .tab-button {
+    background: #1a1a1a;
+    color: #aaa;
+  }
+
+  .tab-button.active {
+    background: #1b3a57;
+    color: white;
+  }
+}

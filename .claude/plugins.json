@@ -1,0 +1,222 @@
+{
+  "version": "1.0.0",
+  "plugins": [
+    {
+      "id": "legal-plugins",
+      "name": "Legal Research Suite",
+      "version": "1.0.0",
+      "description": "Suite completa de pesquisa jurídica com análise crítica de documentos, comparação de jurisdições e blindagem estratégica",
+      "category": "research",
+      "enabled": true,
+      "tools": [
+        {
+          "id": "legal-search",
+          "name": "Legal Document Search",
+          "description": "Pesquisa de legislação, jurisprudência e doutrinas em 230+ jurisdições"
+        },
+        {
+          "id": "petition-analysis",
+          "name": "Petition Analysis",
+          "description": "Análise crítica de petições jurídicas para detecção de falhas, omissões e erros de estratégia"
+        },
+        {
+          "id": "jurisdiction-comparison",
+          "name": "Jurisdiction Comparison",
+          "description": "Comparação de legislação entre jurisdições diferentes"
+        },
+        {
+          "id": "strategic-blindage",
+          "name": "Strategic Blindage",
+          "description": "Análise de vulnerabilidades processuais e planejamento de contra-ataques (advogado do diabo)"
+        },
+        {
+          "id": "case-law-research",
+          "name": "Case Law Research",
+          "description": "Pesquisa avançada de jurisprudência com análise de precedentes"
+        }
+      ],
+      "requiredServers": ["legal-data-hunter"],
+      "tags": ["legal", "research", "analysis", "jurisdiction", "litigation"]
+    },
+    {
+      "id": "accounting-plugins",
+      "name": "Accounting & Tax Suite",
+      "version": "1.0.0",
+      "description": "Suite de análise contábil, fiscal, de auditoria e perícia contábil",
+      "category": "research",
+      "enabled": true,
+      "tools": [
+        {
+          "id": "accounting-regulation-search",
+          "name": "Accounting Regulation Search",
+          "description": "Pesquisa de legislação contábil, fiscal e de conformidade"
+        },
+        {
+          "id": "tax-analysis",
+          "name": "Tax Analysis",
+          "description": "Análise de impostos, IRPF, NF-e, ECD, conformidade fiscal"
+        },
+        {
+          "id": "audit-trail",
+          "name": "Audit Trail",
+          "description": "Rastreamento de auditoria e análise de conformidade"
+        },
+        {
+          "id": "forensic-accounting",
+          "name": "Forensic Accounting",
+          "description": "Análise forense de documentos contábeis e detecção de irregularidades"
+        },
+        {
+          "id": "compliance-check",
+          "name": "Compliance Check",
+          "description": "Verificação de conformidade com regulamentações contábeis"
+        }
+      ],
+      "requiredServers": ["legal-data-hunter"],
+      "tags": ["accounting", "tax", "audit", "compliance", "forensic", "fiscal"]
+    },
+    {
+      "id": "academic-plugins",
+      "name": "Academic Research Suite",
+      "version": "1.0.0",
+      "description": "Suite de pesquisa acadêmica com PubMed, análise de citações e formatação de referências",
+      "category": "research",
+      "enabled": true,
+      "tools": [
+        {
+          "id": "pubmed-search",
+          "name": "PubMed Search",
+          "description": "Busca de artigos científicos em MEDLINE, PubMed Central e EMBASE"
+        },
+        {
+          "id": "article-metadata",
+          "name": "Article Metadata",
+          "description": "Obtenção de metadados completos de artigos (autores, journal, data, citações)"
+        },
+        {
+          "id": "related-articles",
+          "name": "Related Articles",
+          "description": "Busca de artigos relacionados a um tema específico"
+        },
+        {
+          "id": "citation-analysis",
+          "name": "Citation Analysis",
+          "description": "Análise de citações e formatação em diferentes estilos (APA, ABNT, Chicago)"
+        },
+        {
+          "id": "full-text-search",
+          "name": "Full Text Search",
+          "description": "Busca em texto completo de artigos acadêmicos"
+        }
+      ],
+      "requiredServers": ["pubmed"],
+      "tags": ["academic", "research", "pubmed", "citations", "medicine", "science"]
+    }
+  ],
+  "connectors": [
+    {
+      "id": "google-drive",
+      "name": "Google Drive",
+      "type": "document-storage",
+      "description": "Integração com Google Drive para armazenamento e gerenciamento de documentos",
+      "enabled": true,
+      "requiredAuth": "OAuth 2.0",
+      "features": [
+        "upload-documents",
+        "search-files",
+        "download-documents",
+        "share-results",
+        "sync-research"
+      ]
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "type": "email-integration",
+      "description": "Integração com Gmail para importar referências e enviar resultados",
+      "enabled": false,
+      "requiredAuth": "OAuth 2.0",
+      "features": [
+        "read-emails",
+        "import-references",
+        "send-results",
+        "manage-labels"
+      ]
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "type": "notification-channel",
+      "description": "Notificações e compartilhamento de resultados via Slack",
+      "enabled": false,
+      "requiredAuth": "Slack API Token",
+      "features": [
+        "send-messages",
+        "upload-files",
+        "create-channels",
+        "post-notifications"
+      ]
+    },
+    {
+      "id": "lovable",
+      "name": "Lovable",
+      "type": "app-builder",
+      "description": "Lovable AI app builder para prototipagem e desenvolvimento rápido",
+      "enabled": false,
+      "requiredAuth": "Lovable API Key",
+      "features": [
+        "create-projects",
+        "update-designs",
+        "deploy-apps",
+        "preview-live"
+      ]
+    }
+  ],
+  "mcp_servers": [
+    {
+      "id": "legal-data-hunter",
+      "name": "Legal Data Hunter",
+      "description": "Pesquisa jurídica multi-jurisdicional com 230+ jurisdições, legislação, jurisprudência e doutrinas",
+      "version": "1.0.0",
+      "enabled": true,
+      "configFile": ".claude/mcp/legal-data-hunter.json",
+      "capabilityCount": 5,
+      "relatedPlugins": ["legal-plugins"]
+    },
+    {
+      "id": "pubmed",
+      "name": "PubMed",
+      "description": "Pesquisa de artigos científicos em MEDLINE, PubMed Central e EMBASE",
+      "version": "1.0.0",
+      "enabled": true,
+      "configFile": ".claude/mcp/pubmed.json",
+      "capabilityCount": 5,
+      "relatedPlugins": ["academic-plugins"]
+    },
+    {
+      "id": "google-drive",
+      "name": "Google Drive",
+      "description": "Gerenciamento de documentos, armazenamento e compartilhamento",
+      "version": "1.0.0",
+      "enabled": true,
+      "configFile": ".claude/mcp/google-drive.json",
+      "capabilityCount": 4
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "description": "Leitura e gerenciamento de email",
+      "version": "1.0.0",
+      "enabled": false,
+      "capabilityCount": 3
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "description": "Integração com Slack para notificações",
+      "version": "1.0.0",
+      "enabled": false,
+      "capabilityCount": 4
+    }
+  ]
+}

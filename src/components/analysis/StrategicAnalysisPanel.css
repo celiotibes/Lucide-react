@@ -1,0 +1,560 @@
+/**
+ * Strategic Analysis Panel Styles
+ * Professional legal weakness detection and blindaging UI
+ */
+
+.strategic-analysis-panel {
+  max-width: 1200px;
+  margin: 20px auto;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef7 100%);
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.analysis-header {
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 3px solid #1b3a57;
+  padding-bottom: 20px;
+}
+
+.analysis-header h2 {
+  margin: 0 0 10px 0;
+  color: #1b3a57;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.analysis-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Input Section */
+.analysis-inputs {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border-left: 4px solid #d4af37;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.input-group {
+  margin-bottom: 15px;
+}
+
+.input-group:last-child {
+  margin-bottom: 0;
+}
+
+.input-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #1b3a57;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.analysis-input-text,
+.analysis-textarea,
+.analysis-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.3s;
+  box-sizing: border-box;
+}
+
+.analysis-textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.analysis-input-text:focus,
+.analysis-textarea:focus,
+.analysis-select:focus {
+  outline: none;
+  border-color: #1b3a57;
+  box-shadow: 0 0 8px rgba(27, 58, 87, 0.15);
+}
+
+.analyze-button {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #1b3a57 0%, #4a7ba7 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: 100%;
+}
+
+.analyze-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(27, 58, 87, 0.3);
+}
+
+.analyze-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Results Section */
+.analysis-results {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Tabs */
+.analysis-tabs {
+  display: flex;
+  gap: 10px;
+  border-bottom: 2px solid #ddd;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.tab-btn {
+  padding: 10px 16px;
+  border: none;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  font-weight: 500;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.3s;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.tab-btn:hover {
+  background: #f5f5f5;
+  color: #1b3a57;
+}
+
+.tab-btn.active {
+  background: #1b3a57;
+  color: white;
+  border-bottom: 3px solid #d4af37;
+}
+
+/* Summary Card */
+.analysis-summary {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #d4af37;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.summary-title {
+  margin: 0 0 15px 0;
+  color: #1b3a57;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.summary-text {
+  margin: 0 0 15px 0;
+  color: #555;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.executive-summary {
+  background: #f0f0f0;
+  padding: 12px;
+  border-radius: 4px;
+  border-left: 3px solid #2196f3;
+  font-size: 13px;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+/* Metrics Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.metric-card {
+  background: #f5f7fa;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 3px solid #d4af37;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 22px;
+  color: #1b3a57;
+  font-weight: 700;
+}
+
+.metric-subtitle {
+  font-size: 11px;
+  color: #999;
+  margin-top: 5px;
+}
+
+/* Weaknesses Section */
+.weaknesses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.weakness-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  border-left: 4px solid #ff9800;
+  transition: all 0.3s;
+}
+
+.weakness-item.critical {
+  border-left-color: #f44336;
+  background: #ffebee;
+}
+
+.weakness-item.high {
+  border-left-color: #ff9800;
+  background: #fff3e0;
+}
+
+.weakness-item.medium {
+  border-left-color: #ffc107;
+  background: #fffde7;
+}
+
+.weakness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.weakness-title {
+  margin: 0;
+  color: #1b3a57;
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.severity-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.severity-critical {
+  background: #f44336;
+  color: white;
+}
+
+.severity-high {
+  background: #ff9800;
+  color: white;
+}
+
+.severity-medium {
+  background: #ffc107;
+  color: #333;
+}
+
+.severity-low {
+  background: #4caf50;
+  color: white;
+}
+
+.weakness-description {
+  margin: 0 0 8px 0;
+  color: #555;
+  font-size: 13px;
+}
+
+.weakness-impact {
+  background: rgba(244, 67, 54, 0.1);
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #c62828;
+  font-weight: 500;
+  margin-top: 10px;
+}
+
+/* Counter Arguments Section */
+.counter-arguments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.counter-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  border-left: 4px solid #2196f3;
+}
+
+.counter-title {
+  margin: 0 0 8px 0;
+  color: #1b3a57;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.counter-basis {
+  display: inline-block;
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 10px;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.counter-description {
+  margin: 0 0 10px 0;
+  color: #555;
+  font-size: 13px;
+}
+
+.counter-likelihood {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.refutation-box {
+  background: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid #4caf50;
+  font-size: 12px;
+  color: #333;
+  margin-top: 10px;
+}
+
+.refutation-strength {
+  font-weight: 600;
+  color: #2e7d32;
+  margin-bottom: 5px;
+}
+
+/* Recommendations Section */
+.recommendations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recommendation-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  border-left: 4px solid #9c27b0;
+}
+
+.recommendation-priority {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.priority-critical {
+  background: #f44336;
+  color: white;
+}
+
+.priority-high {
+  background: #ff9800;
+  color: white;
+}
+
+.priority-medium {
+  background: #ffc107;
+  color: #333;
+}
+
+.priority-low {
+  background: #4caf50;
+  color: white;
+}
+
+.rec-title {
+  margin: 0 0 8px 0;
+  color: #1b3a57;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rec-type {
+  display: inline-block;
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.rec-description {
+  margin: 0 0 8px 0;
+  color: #555;
+  font-size: 13px;
+}
+
+.rec-implementation {
+  background: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid #9c27b0;
+  font-size: 12px;
+  color: #333;
+}
+
+.rec-impact {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+  font-size: 12px;
+  color: #2e7d32;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .strategic-analysis-panel {
+    padding: 20px;
+    margin: 10px;
+  }
+
+  .analysis-header h2 {
+    font-size: 22px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .weakness-header {
+    flex-direction: column;
+  }
+
+  .analysis-tabs {
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .strategic-analysis-panel {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  }
+
+  .analysis-header h2 {
+    color: #f4e4c1;
+  }
+
+  .analysis-inputs,
+  .analysis-summary,
+  .weakness-item,
+  .counter-item,
+  .recommendation-item,
+  .metric-card {
+    background: #2d2d2d;
+  }
+
+  .analysis-input-text,
+  .analysis-textarea,
+  .analysis-select {
+    background: #1a1a1a;
+    border-color: #444;
+    color: #f4e4c1;
+  }
+
+  .weakness-title,
+  .rec-title,
+  .counter-title,
+  .summary-title {
+    color: #f4e4c1;
+  }
+
+  .weakness-description,
+  .counter-description,
+  .rec-description,
+  .summary-text {
+    color: #aaa;
+  }
+
+  .metric-value {
+    color: #f4e4c1;
+  }
+
+  .metric-card {
+    background: #1a1a1a;
+  }
+
+  .tab-btn {
+    background: #1a1a1a;
+    color: #aaa;
+  }
+
+  .tab-btn.active {
+    background: #1b3a57;
+  }
+
+  .refutation-box,
+  .rec-implementation {
+    background: #1a1a1a;
+    color: #aaa;
+  }
+}

@@ -1,0 +1,275 @@
+/* Document Sharing Manager Styles */
+
+.document-sharing-manager {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #FAFAFA;
+  min-height: calc(100vh - 200px);
+}
+
+.sharing-container {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 20px;
+}
+
+/* Selection Panel */
+.selection-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: white;
+  border: 1px solid #E0E0E0;
+  border-radius: 8px;
+  padding: 12px;
+  height: fit-content;
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+}
+
+.selection-header {
+  padding: 12px;
+  border-bottom: 2px solid #E0E0E0;
+  sticky: top 0;
+  background: white;
+  z-index: 10;
+}
+
+.selection-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1b3a57;
+}
+
+/* Filtros */
+.filtros-compartilhamento {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+
+.filtro-select {
+  padding: 8px;
+  border: 1px solid #D0D0D0;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #333;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filtro-select:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+/* Documentos List */
+.documentos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.documento-item {
+  padding: 12px;
+  background: white;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.documento-item:hover {
+  border-color: #2196f3;
+  background: #f9f9f9;
+  transform: translateX(4px);
+}
+
+.documento-item.ativo {
+  border-color: #2196f3;
+  background: #e3f2fd;
+}
+
+.doc-titulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b3a57;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 10px;
+}
+
+.meta-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: #e3f2fd;
+  color: #1565c0;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.meta-data {
+  color: #999;
+  font-size: 10px;
+}
+
+.empty-state {
+  padding: 24px 12px;
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+/* Sharing Detail Panel */
+.sharing-detail-panel {
+  flex: 1;
+  min-height: 400px;
+}
+
+.no-selection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: white;
+  border: 2px dashed #D0D0D0;
+  border-radius: 8px;
+  color: #999;
+  font-size: 16px;
+  text-align: center;
+}
+
+.no-selection p {
+  margin: 0;
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  .document-sharing-manager {
+    background: #1a1a1a;
+  }
+
+  .selection-panel {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .selection-header {
+    border-bottom-color: #444;
+    background: #2a2a2a;
+  }
+
+  .selection-header h3 {
+    color: #7fa3c8;
+  }
+
+  .filtro-select {
+    background: #3a3a3a;
+    color: #e0e0e0;
+    border-color: #555;
+  }
+
+  .filtro-select:focus {
+    border-color: #64b5f6;
+    box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.1);
+  }
+
+  .documento-item {
+    background: #3a3a3a;
+    border-color: #555;
+    color: #e0e0e0;
+  }
+
+  .documento-item:hover {
+    border-color: #64b5f6;
+    background: #4a4a4a;
+  }
+
+  .documento-item.ativo {
+    border-color: #64b5f6;
+    background: rgba(100, 181, 246, 0.2);
+  }
+
+  .doc-titulo {
+    color: #7fa3c8;
+  }
+
+  .meta-badge {
+    background: rgba(33, 150, 243, 0.2);
+    color: #64b5f6;
+  }
+
+  .empty-state {
+    color: #666;
+  }
+
+  .no-selection {
+    background: #2a2a2a;
+    border-color: #555;
+    color: #666;
+  }
+}
+
+/* Mobile */
+@media (max-width: 1024px) {
+  .sharing-container {
+    grid-template-columns: 1fr;
+  }
+
+  .selection-panel {
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 767px) {
+  .document-sharing-manager {
+    padding: 12px;
+  }
+
+  .sharing-container {
+    gap: 12px;
+  }
+
+  .selection-panel {
+    max-height: 250px;
+    padding: 8px;
+  }
+
+  .filtros-compartilhamento {
+    padding: 0 8px;
+  }
+
+  .documentos-list {
+    padding: 0 8px;
+  }
+
+  .documento-item {
+    padding: 8px;
+  }
+
+  .doc-titulo {
+    font-size: 12px;
+  }
+}
