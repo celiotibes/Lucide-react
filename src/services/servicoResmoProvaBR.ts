@@ -14,8 +14,8 @@ import type {
   EscudoContraargumento,
   CadeiasilogisticaBR,
   MatrizRespostaContestacao,
-  ParRefutacao,
-  SalvaguardaProcessual,
+  
+  
 } from '@/types/resumoProvaBR'
 import type { FatoProva } from '@/types/jurimetriaBR'
 

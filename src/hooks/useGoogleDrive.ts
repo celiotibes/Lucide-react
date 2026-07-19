@@ -5,7 +5,7 @@ import type {
   SincronizacaoStatus,
   EstadoSincronizacao,
   GoogleDriveFile,
-  ResultadoSincronizacao,
+  
 } from '../types/googleDrive'
 
 interface UseGoogleDriveReturn {

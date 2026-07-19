@@ -54,7 +54,7 @@ function App() {
   const { estaLogado, usuario, logout, carregando } = useAuth()
   const [fatos, setFatos] = useState<FatoProva[]>([])
   const [_htmlAtual, _setHtmlAtual] = useState<string>('')
-  const [tituloDocumento, setTituloDocumento] = useState('Nova Petição Judicial')
+  const [tituloDocumento, _setTituloDocumento] = useState('Nova Petição Judicial')
   const [documentoAtual, setDocumentoAtual] = useState<{ id: string; tipo: 'editor-novo' | 'editor' | 'analise' | 'transformacao' } | null>(null)
 
   // FASE 7.4: Toast notifications para alertas do AI Provider
@@ -581,7 +581,13 @@ function App() {
               onCriarNovo={(tipo) => {
                 console.log('Criando novo documento:', tipo)
                 setDocumentoAtual(null)
-                setPaginaAtiva(tipo)
+                if (tipo === 'analise') {
+                  setPaginaAtiva('rag-analysis')
+                } else if (tipo === 'transformacao') {
+                  setPaginaAtiva('petition-transformer')
+                } else {
+                  setPaginaAtiva(tipo)
+                }
               }}
             />
           </main>

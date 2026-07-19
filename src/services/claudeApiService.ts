@@ -16,7 +16,7 @@ export interface ClaudeResponse {
 }
 
 export class ClaudeApiService {
-  private static apiKey = process.env.VITE_CLAUDE_API_KEY || ''
+  private static apiKey = import.meta.env.VITE_CLAUDE_API_KEY || ''
   private static model = 'claude-opus-4-1'
   private static apiUrl = 'https://api.anthropic.com/v1/messages'
   private static timeout = 60000 // 60s timeout for analysis

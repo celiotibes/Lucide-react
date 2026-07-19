@@ -9,11 +9,11 @@ import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
-import { CORES_JUDICIAIS, ESPACAMENTO_PRE_ATENTIVO, gerarCssHeadingJudicial, gerarCssCorporo } from '@/utils/sistemaDesignJudicial'
+import { CORES_JUDICIAIS, ESPACAMENTO_PRE_ATENTIVO } from '@/utils/sistemaDesignJudicial'
 import { MatrizProvaVisual } from '../visualization/MatrizProvaVisual'
 import { ValidadorSemantico } from './ValidadorSemantico'
 import { ServicoJurimetriaBR } from '@/services/servicoJurimetriaBR'
-import type { FatoProva, AnalisejurimetricaResult } from '@/types/jurimetriaBR'
+import type { FatoProva, Analisejurimetrica } from '@/types/jurimetriaBR'
 
 interface EditorLegalVisualProps {
   titulo?: string
@@ -38,7 +38,7 @@ export function EditorLegalVisual({
 }: EditorLegalVisualProps) {
   const [tamanhoFonte, setTamanhoFonte] = useState<TamanhoFonte>('normal')
   const [modo, setModo] = useState<'editor' | 'preview' | 'dualview'>(modoVisualizacao)
-  const [analiseJurimetria, setAnaliseJurimetria] = useState<AnalisejurimetricaResult | null>(null)
+  const [analiseJurimetria, setAnaliseJurimetria] = useState<Analisejurimetrica | null>(null)
   const [errosValidacao, setErrosValidacao] = useState<string[]>([])
 
   const editor = useEditor({
@@ -571,7 +571,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   labelPainel: {
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderBottom: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
     fontSize: '10pt',

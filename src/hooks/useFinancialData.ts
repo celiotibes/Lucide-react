@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { FinancialData, KPIMetric } from '../types/financial'
+import type { FinancialData, KPIMetric } from '../types/financial'
 import { FinancialAnalysisService } from '../services/bi/financialAnalysis'
 
 interface FinancialState {

@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react'
 import type {
-  DocumentoJuridico,
+  
   JurisprudenciaResultado,
   LegislacaoResultado,
   BuscaAvancadaParams,

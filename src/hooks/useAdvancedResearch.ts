@@ -3,7 +3,7 @@
  * Custom hook para integração com Advanced Research API (RAG + 4-Tier)
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import axios from 'axios'
 
 export type ResearchMode = 'rag_enhanced' | 'quick_analysis' | 'hybrid'

@@ -3,9 +3,7 @@
  * Handles ABNT-compliant PDF generation with tribunal compatibility
  */
 
-import type { LegalDocument, ExportFormat } from '../types/editor'
-
-const generateId = () => crypto.randomUUID()
+import type { LegalDocument } from '../types/editor'
 
 export class ExportService {
   /**

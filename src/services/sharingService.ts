@@ -6,7 +6,7 @@
 import type {
   CompartilhamentoDocumento,
   PermissaoCompartilhamento,
-  TipoCompartilhamento,
+  
   ResultadoCompartilhamento,
   ResultadoDeletarCompartilhamento,
   VisualizacaoCompartilhado,

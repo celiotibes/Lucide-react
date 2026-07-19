@@ -5,7 +5,6 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import type { LegalDocument, TemplateType, DocumentStatus } from '../types/editor'
-import { getTemplate } from '../constants/documentTemplates'
 
 const generateId = () => crypto.randomUUID()
 

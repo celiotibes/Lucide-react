@@ -14,7 +14,7 @@ import type {
   CounterargumentShield,
   SyllogisticChain,
   ContestationResponseMatrix,
-  RefutationPair,
+  
   ProceduralSafeguard,
 } from '@/types/proofSummary'
 import type { FactProof } from '@/types/jurimetry'

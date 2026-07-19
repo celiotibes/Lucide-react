@@ -3,7 +3,7 @@
  * Gerencia fila de notificações em toda a aplicação
  */
 
-import { createContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useState, useCallback, type ReactNode } from 'react'
 import type { Notificacao } from '../types/notification'
 
 interface NotificationContextType {

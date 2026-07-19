@@ -5,10 +5,10 @@
 
 import React, { useMemo } from 'react'
 import { CORES_JUDICIAIS, ESPACAMENTO_PRE_ATENTIVO } from '@/utils/sistemaDesignJudicial'
-import type { AnalisejurimetricaResult } from '@/types/jurimetriaBR'
+import type { Analisejurimetrica } from '@/types/jurimetriaBR'
 
 interface HeatmapLacunasProps {
-  analise: AnalisejurimetricaResult | null
+  analise: Analisejurimetrica | null
   largura?: number
   altura?: number
 }
@@ -249,7 +249,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   cabecalho: {
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
-    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderBottom: `2px solid ${CORES_JUDICIAIS.azulPrincipal}`,
   },
 
@@ -268,7 +268,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   escala: {
     display: 'flex',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
     justifyContent: 'center',
   },
@@ -306,12 +306,12 @@ const styles: Record<string, React.CSSProperties> = {
   resumoRiscos: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   resumoItem: {
     borderLeft: '4px solid',
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderRadius: '3px',
     display: 'flex',
@@ -335,15 +335,15 @@ const styles: Record<string, React.CSSProperties> = {
   listaLacunas: {
     display: 'flex',
     flexDirection: 'column',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     paddingTop: ESPACAMENTO_PRE_ATENTIVO.grande,
     borderTop: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
   },
 
   itemLacuna: {
     display: 'flex',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderRadius: '4px',
   },

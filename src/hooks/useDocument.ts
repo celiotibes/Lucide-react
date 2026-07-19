@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { servicoDocumento } from '../services/documentService'
-import type { Documento, OpcoesCriacao, ResultadoSave } from '../types/document'
+import type { Documento, OpcoesCriacao } from '../types/document'
 
 interface UseDocumentState {
   documento: Documento | null

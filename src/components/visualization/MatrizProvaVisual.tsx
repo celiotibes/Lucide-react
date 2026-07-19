@@ -6,10 +6,10 @@
 
 import React, { useMemo } from 'react'
 import { CORES_JUDICIAIS, FORCA_PROVA, ESPACAMENTO_PRE_ATENTIVO } from '@/utils/sistemaDesignJudicial'
-import type { FatoProva, AnalisejurimetricaResult } from '@/types/jurimetriaBR'
+import type { FatoProva, Analisejurimetrica } from '@/types/jurimetriaBR'
 
 interface MatrizProvaVisualProps {
-  analise: AnalisejurimetricaResult | null
+  analise: Analisejurimetrica | null
   fatos?: FatoProva[]
   exibirDetalhes?: boolean
   tamanho?: 'compacto' | 'normal' | 'expandido'
@@ -270,7 +270,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
-    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderBottom: `2px solid ${CORES_JUDICIAIS.azulPrincipal}`,
   },
 
@@ -327,7 +327,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   th: {
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     textAlign: 'left',
     fontWeight: 'bold',
     color: CORES_JUDICIAIS.azulPrincipal,
@@ -339,13 +339,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   td: {
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderLeft: `4px solid transparent`,
     verticalAlign: 'middle',
   },
 
   tdCentrado: {
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     textAlign: 'center',
   },
 

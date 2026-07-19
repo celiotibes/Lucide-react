@@ -322,7 +322,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
-    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderBottom: `2px solid ${CORES_JUDICIAIS.azulPrincipal}`,
   },
 
@@ -346,7 +346,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   botaoAdicionarEvento: {
     marginTop: ESPACAMENTO_PRE_ATENTIVO.grande,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.azulPrincipal,
     color: CORES_JUDICIAIS.brancoFundo,
     border: 'none',
@@ -364,7 +364,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
     display: 'flex',
     flexDirection: 'column',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   tituloFormulario: {
@@ -377,7 +377,7 @@ const styles: Record<string, React.CSSProperties> = {
   linhaFormulario: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   grupoFormulario: {
@@ -419,9 +419,9 @@ const styles: Record<string, React.CSSProperties> = {
 
   acoesFormulario: {
     display: 'flex',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     justifyContent: 'flex-end',
-    paddingTop: ESPACAMENTO_PRE_ATENTIVO.media,
+    paddingTop: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderTop: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
   },
 
@@ -449,7 +449,7 @@ const styles: Record<string, React.CSSProperties> = {
   timelineContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     position: 'relative',
     paddingLeft: '60px',
   },
@@ -489,7 +489,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   conteudoEvento: {
     flex: 1,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderRadius: '4px',
     border: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,

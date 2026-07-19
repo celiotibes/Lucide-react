@@ -5,7 +5,8 @@
 
 import { useState } from 'react'
 import { llmRouter } from '../../services/llmRouter'
-import type { LLMProvider, RoutingStrategy } from '../../types/llm'
+import { LLMProvider, LLMModel } from '../../types/llm'
+import type { RoutingStrategy } from '../../types/llm'
 import { ClaudeApiConfig } from './ClaudeApiConfig'
 import './LLMConfigPanel.css'
 

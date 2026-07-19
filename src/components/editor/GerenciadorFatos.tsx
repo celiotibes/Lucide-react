@@ -478,7 +478,7 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     border: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
     borderRadius: '4px',
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     fontFamily: 'Arial, Helvetica, sans-serif',
     fontSize: '11pt',
   },
@@ -488,7 +488,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
-    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderBottom: `2px solid ${CORES_JUDICIAIS.azulPrincipal}`,
   },
 
@@ -496,7 +496,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    marginBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     fontSize: '10pt',
     fontWeight: 'bold',
     color: CORES_JUDICIAIS.azulPrincipal,
@@ -521,7 +521,7 @@ const styles: Record<string, React.CSSProperties> = {
   listaFatos: {
     display: 'flex',
     flexDirection: 'column',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
   },
 
@@ -529,22 +529,22 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: ESPACAMENTO_PRE_ATENTIVO.pequeno,
-    marginTop: ESPACAMENTO_PRE_ATENTIVO.media,
+    marginTop: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   itemFato: {
     borderLeft: '4px solid',
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderRadius: '4px',
     display: 'flex',
     flexDirection: 'column',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   itemFatoCompacto: {
     borderLeft: '3px solid',
-    padding: `${ESPACAMENTO_PRE_ATENTIVO.pequeno} ${ESPACAMENTO_PRE_ATENTIVO.media}`,
+    padding: `${ESPACAMENTO_PRE_ATENTIVO.pequeno} ${ESPACAMENTO_PRE_ATENTIVO.medio}`,
     borderRadius: '3px',
     display: 'flex',
     justifyContent: 'space-between',
@@ -554,7 +554,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   headerItemFato: {
     display: 'flex',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     alignItems: 'flex-start',
   },
 
@@ -663,7 +663,7 @@ const styles: Record<string, React.CSSProperties> = {
   formulario: {
     display: 'flex',
     flexDirection: 'column',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   tituloFormulario: {
@@ -766,9 +766,9 @@ const styles: Record<string, React.CSSProperties> = {
 
   acoesFormulario: {
     display: 'flex',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     justifyContent: 'flex-end',
-    paddingTop: ESPACAMENTO_PRE_ATENTIVO.media,
+    paddingTop: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderTop: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
   },
 

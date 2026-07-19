@@ -3,7 +3,7 @@
  * Integration with Brazilian court systems (TJPR, TJSC, TRF4, PJe, Eproc)
  */
 
-import type { PetitionAnalysis, StrategicAnalysis } from './legal'
+import type { PetitionAnalysis } from './legal'
 
 // ============================================================================
 // PROOF CORRELATION MATRIX (Matriz de Correlação Probatória)

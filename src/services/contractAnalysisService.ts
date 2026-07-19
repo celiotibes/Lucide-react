@@ -7,7 +7,7 @@ import { ClaudeApiService } from './claudeApiService'
 export class ContractAnalysisService {
   // Analisa contrato usando IA (Claude)
   static async analisarContratoComIA(
-    documento: ContractDocument,
+    _documento: ContractDocument,
     markdownText: string,
   ): Promise<{
     dados: ExtractedContractData
@@ -168,10 +168,7 @@ IMPORTANTE:
   }
 
   // Resposta simulada da IA (para desenvolvimento)
-  private static respostaSimuladoIA(prompt: string): string {
-    // Extrai texto do contrato da prompt para análise básica
-    const temContrato = prompt.includes('CONTRATO:')
-
+  private static respostaSimuladoIA(_prompt: string): string {
     // Resposta padrão quando não há integração com IA real
     return JSON.stringify({
       partes: {

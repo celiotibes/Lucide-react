@@ -12,11 +12,11 @@ import {
   type ResumoExecutivoGerado,
 } from '@/services/servicoAssistenteIA'
 import { CORES_JUDICIAIS, ESPACAMENTO_PRE_ATENTIVO, HERMENAUTICA_PILARES } from '@/utils/sistemaDesignJudicial'
-import type { FatoProva, AnalisejurimetricaResult } from '@/types/jurimetriaBR'
+import type { FatoProva, Analisejurimetrica } from '@/types/jurimetriaBR'
 
 interface PainelAssistenteIAProps {
   fatos: FatoProva[]
-  analise: AnalisejurimetricaResult | null
+  analise: Analisejurimetrica | null
   tituloAcao?: string
   teseAutor?: string
   onGenarHermenautica?: (hermenautica: PropostaHermenautica) => void
@@ -436,14 +436,14 @@ const styles: Record<string, React.CSSProperties> = {
   menuTarefas: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     padding: ESPACAMENTO_PRE_ATENTIVO.grande,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderBottom: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
   },
 
   botaoTarefa: {
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
@@ -533,7 +533,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    marginBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    marginBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   tituloContestacao: {
@@ -559,10 +559,10 @@ const styles: Record<string, React.CSSProperties> = {
 
   boxResposta: {
     backgroundColor: CORES_JUDICIAIS.brancoFundo,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderRadius: '3px',
     borderLeft: `3px solid ${CORES_JUDICIAIS.verdeApoio}`,
-    marginBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    marginBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   labelResposta: {
@@ -581,7 +581,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   boxJurisprudencia: {
     backgroundColor: CORES_JUDICIAIS.brancoFundo,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderRadius: '3px',
     borderLeft: `3px solid ${CORES_JUDICIAIS.azulPrincipal}`,
   },
@@ -624,9 +624,9 @@ const styles: Record<string, React.CSSProperties> = {
 
   boxEstrategia: {
     backgroundColor: CORES_JUDICIAIS.brancoFundo,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderRadius: '3px',
-    marginBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    marginBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   labelEstrategia: {
@@ -645,7 +645,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   boxDocumentacao: {
     backgroundColor: CORES_JUDICIAIS.brancoFundo,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderRadius: '3px',
   },
 
@@ -691,7 +691,7 @@ const styles: Record<string, React.CSSProperties> = {
   gridResumo: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   cardResumo: {
@@ -735,7 +735,7 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#FFF3E0',
     border: `1px solid ${CORES_JUDICIAIS.amareloAviso}`,
     borderTop: 'none',
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     fontSize: '10pt',
     color: CORES_JUDICIAIS.cinzaTextoSecundario,
   },

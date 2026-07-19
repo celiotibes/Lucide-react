@@ -6,8 +6,6 @@
 import { llmRouter } from './llmRouter'
 import { ragService } from './ragService'
 import type {
-  InputFormat,
-  OutputFormat,
   DocumentMetadata,
   ParsedDocument,
   DocumentSection,

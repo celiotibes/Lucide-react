@@ -7,7 +7,7 @@
 import type {
   ModeloJuridico,
   ResultadoCorrespondencia,
-  CorrespondenciaSecao,
+  
   BuscaTemplateParams,
   BibliotecaModelos,
 } from '../types/templateMatching'

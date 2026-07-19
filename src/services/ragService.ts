@@ -12,7 +12,6 @@ import type {
   PetitionAnalysisRequest,
   PetitionAnalysisResult,
   PetitionFinding,
-  AnalysisType,
   RAGConfig,
   CacheEntry,
   ConflictDetection,
@@ -392,15 +391,15 @@ Format findings clearly with severity levels (critical, high, medium, low, info)
   private parseCounterArguments(response: string): string[] {
     // Split response by numbered items or bullet points
     const lines = response.split('\n').filter((line) => line.trim())
-    const arguments: string[] = []
+    const args: string[] = []
 
     for (const line of lines) {
       if (line.match(/^[\d\-\*•]/)) {
-        arguments.push(line.replace(/^[\d\-\*•\s]+/, '').trim())
+        args.push(line.replace(/^[\d\-\*•\s]+/, '').trim())
       }
     }
 
-    return arguments.length > 0 ? arguments : [response]
+    return args.length > 0 ? args : [response]
   }
 
   /**

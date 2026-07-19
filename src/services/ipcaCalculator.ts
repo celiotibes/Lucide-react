@@ -82,40 +82,35 @@ export class IPCACalculator {
       valueToDate: number
     }> = []
 
-    let currentValue = originalValue
-    let accumulatedRate = 0
-    let currentDate = new Date(start)
+    // Juros compostos: fator = Π (1 + taxa_mensal/100)
+    // Dia normalizado para 1 — setMonth() em dia 29-31 pularia meses (ex: 31/jan → 03/mar)
+    let factor = 1
+    const currentDate = new Date(start.getFullYear(), start.getMonth(), 1)
 
-    // Iterar mês a mês
     while (currentDate < end) {
       const monthKey = this.getMonthKey(currentDate)
-      const monthlyRate = this.ipcaData[monthKey] || 0.3 // Usar 0.3% se não tiver dado
+      const monthlyRate = this.ipcaData[monthKey] ?? 0.3 // Usar 0.3% se não tiver dado
 
-      accumulatedRate = (accumulatedRate + monthlyRate) / (1 + accumulatedRate / 100)
-      accumulatedRate = accumulatedRate * (1 + monthlyRate / 100) - accumulatedRate
-
-      currentValue = originalValue * (1 + (accumulatedRate + monthlyRate) / 100)
+      factor *= 1 + monthlyRate / 100
 
       monthlyBreakdown.push({
         month: monthKey,
         monthlyRate,
-        accumulatedToDate: accumulatedRate,
-        valueToDate: currentValue,
+        accumulatedToDate: (factor - 1) * 100,
+        valueToDate: originalValue * factor,
       })
 
-      // Avança 1 mês
       currentDate.setMonth(currentDate.getMonth() + 1)
     }
 
-    // Calcula taxa acumulada corretamente
-    accumulatedRate = ((currentValue - originalValue) / originalValue) * 100
+    const accumulatedRate = (factor - 1) * 100
 
     return {
       periodStart: startDate,
       periodEnd: endDate,
       originalValue,
       accumulatedRate,
-      calculatedValue: currentValue,
+      calculatedValue: originalValue * factor,
       monthlyBreakdown,
     }
   }
@@ -166,11 +161,12 @@ export class IPCACalculator {
     const end = new Date(endDate)
 
     let accumulated = 0
-    let currentDate = new Date(start)
+    // Dia normalizado para 1 — setMonth() em dia 29-31 pularia meses
+    const currentDate = new Date(start.getFullYear(), start.getMonth(), 1)
 
     while (currentDate < end) {
       const monthKey = this.getMonthKey(currentDate)
-      const rate = this.ipcaData[monthKey] || 0.3
+      const rate = this.ipcaData[monthKey] ?? 0.3
 
       // Acumula: (1 + r1) * (1 + r2) - 1
       accumulated = (1 + accumulated / 100) * (1 + rate / 100) - 1

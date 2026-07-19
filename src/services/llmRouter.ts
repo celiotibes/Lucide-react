@@ -10,9 +10,6 @@ import type {
   ModelMetrics,
   RoutingDecision,
   LLMRouterConfig,
-  LLMProvider,
-  LLMModel,
-  RoutingStrategy,
 } from '../types/llm'
 import { LLMProvider, LLMModel, RoutingStrategy } from '../types/llm'
 
@@ -352,7 +349,7 @@ class LLMRouter {
     config: LLMConfig,
     _model: LLMModel
   ): Promise<string> {
-    const apiKey = config.apiKey || process.env.VITE_CLAUDE_API_KEY
+    const apiKey = config.apiKey || import.meta.env.VITE_CLAUDE_API_KEY
     if (!apiKey) {
       throw new Error('Claude API key not configured')
     }
@@ -388,7 +385,7 @@ class LLMRouter {
     config: LLMConfig,
     _model: LLMModel
   ): Promise<string> {
-    const apiKey = config.apiKey || process.env.VITE_GROQ_API_KEY
+    const apiKey = config.apiKey || import.meta.env.VITE_GROQ_API_KEY
     if (!apiKey) {
       throw new Error('Groq API key not configured')
     }
@@ -426,7 +423,7 @@ class LLMRouter {
     config: LLMConfig,
     _model: LLMModel
   ): Promise<string> {
-    const apiKey = config.apiKey || process.env.VITE_GEMINI_API_KEY
+    const apiKey = config.apiKey || import.meta.env.VITE_GEMINI_API_KEY
     if (!apiKey) {
       throw new Error('Gemini API key not configured')
     }

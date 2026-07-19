@@ -8,7 +8,7 @@ import type {
   PredictionFactor,
   HistoricalComparison,
   StrengthScores,
-  PredictionDetails,
+  
 } from '../types/outcomePredictor'
 
 export class OutcomePredictorService {

@@ -12,7 +12,7 @@ import type {
   ResultadoBuscaComPaginacao,
   PaginacaoBusca,
   EstatisticasBusca,
-  NivelRelevancia,
+  
 } from '../types/advancedSearch'
 
 class ServicoAdvancedSearch {

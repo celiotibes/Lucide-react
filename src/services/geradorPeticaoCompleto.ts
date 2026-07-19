@@ -8,7 +8,7 @@ import { ServicoJurimetriaBR } from './servicoJurimetriaBR'
 import { ServicoResmoProvaBR } from './servicoResmoProvaBR'
 import { ServicoFormatacaoPaginaBR } from './servicoFormatacaoPaginaBR'
 import type { FatoProva } from '@/types/jurimetriaBR'
-import type { Tribunal, PetiacaoFormatada } from '@/types/formatacaoPaginaBR'
+import type { Tribunal } from '@/types/formatacaoPaginaBR'
 
 export interface ConfiguracaoPeticaoCompleta {
   tribunal: Tribunal

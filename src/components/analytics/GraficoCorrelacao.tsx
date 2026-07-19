@@ -5,11 +5,11 @@
 
 import React, { useMemo } from 'react'
 import { CORES_JUDICIAIS, ESPACAMENTO_PRE_ATENTIVO, FORCA_PROVA } from '@/utils/sistemaDesignJudicial'
-import type { FatoProva, AnalisejurimetricaResult } from '@/types/jurimetriaBR'
+import type { FatoProva, Analisejurimetrica } from '@/types/jurimetriaBR'
 
 interface GraficoCorrelacaoProps {
   fatos: FatoProva[]
-  analise: AnalisejurimetricaResult | null
+  analise: Analisejurimetrica | null
   largura?: number
   altura?: number
 }
@@ -252,7 +252,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   cabecalho: {
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
-    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderBottom: `2px solid ${CORES_JUDICIAIS.azulPrincipal}`,
   },
 
@@ -278,7 +278,7 @@ const styles: Record<string, React.CSSProperties> = {
   legenda: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
     marginBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
     paddingBottom: ESPACAMENTO_PRE_ATENTIVO.grande,
     borderBottom: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
@@ -315,7 +315,7 @@ const styles: Record<string, React.CSSProperties> = {
   resumo: {
     display: 'flex',
     gap: ESPACAMENTO_PRE_ATENTIVO.grande,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderRadius: '4px',
   },

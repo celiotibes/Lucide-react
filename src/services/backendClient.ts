@@ -9,7 +9,7 @@
  * - Request/response interceptors
  */
 
-import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios'
+import axios, { type AxiosInstance, AxiosError, type AxiosRequestConfig } from 'axios'
 
 // Types
 export interface ApiError {

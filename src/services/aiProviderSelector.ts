@@ -357,9 +357,9 @@ class AIProviderSelector {
 // Singleton instance
 const config: ProviderConfig = {
   apiKeys: {
-    claude: process.env.VITE_CLAUDE_API_KEY,
-    gemini: process.env.VITE_GEMINI_API_KEY,
-    grok: process.env.VITE_GROK_API_KEY,
+    claude: import.meta.env.VITE_CLAUDE_API_KEY,
+    gemini: import.meta.env.VITE_GEMINI_API_KEY,
+    grok: import.meta.env.VITE_GROK_API_KEY,
     ollama: 'http://localhost:11434', // Local Ollama
   },
   fallbackChain: FALLBACK_CHAIN,

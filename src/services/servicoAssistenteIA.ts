@@ -4,7 +4,7 @@
  * Sugestão de hermenêutica, previsão de contestações, blindagem preemptiva
  */
 
-import type { FatoProva, AnalisejurimetricaResult } from '@/types/jurimetriaBR'
+import type { FatoProva, Analisejurimetrica } from '@/types/jurimetriaBR'
 
 export interface PropostaHermenautica {
   ethos: string // Argumento de credibilidade
@@ -37,7 +37,7 @@ export interface ResumoExecutivoGerado {
 }
 
 export class ServicoAssistenteIA {
-  private static apiKey: string = process.env.VITE_CLAUDE_API_KEY || ''
+  private static apiKey: string = import.meta.env.VITE_CLAUDE_API_KEY || ''
   private static baseUrl: string = 'https://api.anthropic.com/v1'
 
   /**
@@ -45,7 +45,7 @@ export class ServicoAssistenteIA {
    */
   static async gerarHermenauticaBlindada(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     tituloAcao: string
   ): Promise<PropostaHermenautica> {
     const prompt = this._construirPromptHermenautica(fatos, analise, tituloAcao)
@@ -63,7 +63,7 @@ export class ServicoAssistenteIA {
    */
   static async preverContestacoes(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     teseAutor: string
   ): Promise<ContestacaoEsperada[]> {
     const prompt = this._construirPromptContestacoes(fatos, analise, teseAutor)
@@ -81,7 +81,7 @@ export class ServicoAssistenteIA {
    */
   static async gerarSugestoesBlindagem(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     lacunasIdentificadas: any[]
   ): Promise<SugestaoBlindagem[]> {
     const prompt = this._construirPromptBlindagem(fatos, analise, lacunasIdentificadas)
@@ -99,7 +99,7 @@ export class ServicoAssistenteIA {
    */
   static async gerarResumoExecutivo(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     objetivoAcao: string
   ): Promise<ResumoExecutivoGerado> {
     const prompt = this._construirPromptResumo(fatos, analise, objetivoAcao)
@@ -145,7 +145,7 @@ Respond ONLY with valid JSON.
 
   private static _construirPromptHermenautica(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     tituloAcao: string
   ): string {
     const fatosTexto = fatos
@@ -182,7 +182,7 @@ Return ONLY this JSON:
 
   private static _construirPromptContestacoes(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     teseAutor: string
   ): string {
     const fatosTexto = fatos
@@ -222,7 +222,7 @@ Return ONLY this JSON array:
 
   private static _construirPromptBlindagem(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     lacunasIdentificadas: any[]
   ): string {
     const lacunasTexto =
@@ -258,7 +258,7 @@ Return ONLY this JSON array:
 
   private static _construirPromptResumo(
     fatos: FatoProva[],
-    analise: AnalisejurimetricaResult,
+    analise: Analisejurimetrica,
     objetivoAcao: string
   ): string {
     const fatosTexto = fatos

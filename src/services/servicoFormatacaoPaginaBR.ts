@@ -5,11 +5,11 @@
  */
 
 import type {
-  ConfiguracaoPaginaJudicial,
+  
   Tribunal,
   PetiacaoFormatada,
   ValidacaoSemantica,
-  TemplateSecaoPeticao,
+  
   ConfiguracaoPadraoesbr,
 } from '@/types/formatacaoPaginaBR'
 

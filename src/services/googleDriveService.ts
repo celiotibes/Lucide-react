@@ -6,7 +6,7 @@
 import type {
   GoogleDriveFile,
   ResultadoSincronizacao,
-  GoogleDriveConfig,
+  
   GoogleDriveSyncConfig,
   SincronizacaoStatus,
   TokenGoogle,

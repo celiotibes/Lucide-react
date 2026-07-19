@@ -8,7 +8,7 @@ import { GraficoCorrelacao } from './GraficoCorrelacao'
 import { HeatmapLacunas } from './HeatmapLacunas'
 import { TimelineEventos } from './TimelineEventos'
 import { CORES_JUDICIAIS, ESPACAMENTO_PRE_ATENTIVO } from '@/utils/sistemaDesignJudicial'
-import type { FatoProva, AnalisejurimetricaResult } from '@/types/jurimetriaBR'
+import type { FatoProva, Analisejurimetrica } from '@/types/jurimetriaBR'
 
 interface EventoCaso {
   id: string
@@ -22,7 +22,7 @@ interface EventoCaso {
 
 interface DashboardAnalyticsProps {
   fatos: FatoProva[]
-  analise: AnalisejurimetricaResult | null
+  analise: Analisejurimetrica | null
   onExportarDados?: (dados: any) => void
 }
 
@@ -176,7 +176,7 @@ function BotaoAba({ ativo, onClick, children }: BotaoAbaProps) {
 
 interface ResumoExecutivoProps {
   fatos: FatoProva[]
-  analise: AnalisejurimetricaResult | null
+  analise: Analisejurimetrica | null
   eventos: EventoCaso[]
 }
 
@@ -406,7 +406,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   acoesHeader: {
     display: 'flex',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   botaoAcao: {
@@ -428,7 +428,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   botaoAba: {
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: 'transparent',
     border: 'none',
     borderBottom: '1px solid transparent',
@@ -445,7 +445,7 @@ const styles: Record<string, React.CSSProperties> = {
   rodape: {
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderTop: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     textAlign: 'center',
     fontSize: '10pt',
     color: CORES_JUDICIAIS.cinzaTextoSecundario,
@@ -470,7 +470,7 @@ const styles: Record<string, React.CSSProperties> = {
   gridMetricas: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   cartaoMetrica: {
@@ -531,14 +531,14 @@ const styles: Record<string, React.CSSProperties> = {
   analiseGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   itemAnalise: {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderRadius: '4px',
   },
@@ -557,12 +557,12 @@ const styles: Record<string, React.CSSProperties> = {
 
   cronologia: {
     display: 'flex',
-    gap: ESPACAMENTO_PRE_ATENTIVO.media,
+    gap: ESPACAMENTO_PRE_ATENTIVO.medio,
   },
 
   itemCronologia: {
     flex: 1,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
     borderRadius: '4px',
     display: 'flex',

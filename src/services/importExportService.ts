@@ -4,7 +4,7 @@
  */
 
 import { servicoDocumento } from './documentService'
-import type { DocumentoSalvo, Documento } from '../types/document'
+import type { Documento } from '../types/document'
 
 export type FormatoExportacao = 'json' | 'markdown' | 'texto-plano' | 'html' | 'backup'
 

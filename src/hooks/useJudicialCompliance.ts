@@ -3,7 +3,7 @@
  * Integration with Brazilian judicial infrastructure
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { judicialComplianceService } from '@/services/judicialComplianceService'
 import type {
   ProofCorrelationMatrix,

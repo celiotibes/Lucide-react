@@ -4,7 +4,7 @@
  */
 
 import { servicoDocumento } from './documentService'
-import type { DocumentoSalvo, Documento } from '../types/document'
+import type { DocumentoSalvo } from '../types/document'
 
 export interface CritériosBusca {
   texto?: string

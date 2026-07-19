@@ -8,7 +8,7 @@ import type {
   DocumentoRecente,
   EstatisticasDashboard,
   AtividadeRecente,
-  ConfiguracaoDashboard,
+  
 } from '../types/dashboard'
 
 interface UseDashboardState {

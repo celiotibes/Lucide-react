@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react'
-import BackendClient, { ApiError } from '@/services/backendClient'
+import BackendClient, { type ApiError } from '@/services/backendClient'
 
 export interface FetchState<T> {
   data: T | null

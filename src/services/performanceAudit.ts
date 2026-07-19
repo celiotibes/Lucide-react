@@ -169,7 +169,7 @@ export class PerformanceAudit {
     let totalSize = 0
 
     try {
-      for (let key in localStorage) {
+      for (const key in localStorage) {
         if (localStorage.hasOwnProperty(key)) {
           totalSize += localStorage[key].length + key.length
         }

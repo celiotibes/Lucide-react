@@ -139,7 +139,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: ESPACAMENTO_PRE_ATENTIVO.pequeno,
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderRadius: '4px',
     backgroundColor: CORES_JUDICIAIS.cinzaPaginaBg,
   },
@@ -170,8 +170,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: ESPACAMENTO_PRE_ATENTIVO.media,
-    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    marginBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
+    paddingBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     borderBottom: `1px solid ${CORES_JUDICIAIS.cinzaBorda}`,
   },
 
@@ -189,8 +189,8 @@ const styles: Record<string, React.CSSProperties> = {
 
   secao: {
     borderLeft: '4px solid',
-    padding: ESPACAMENTO_PRE_ATENTIVO.media,
-    marginBottom: ESPACAMENTO_PRE_ATENTIVO.media,
+    padding: ESPACAMENTO_PRE_ATENTIVO.medio,
+    marginBottom: ESPACAMENTO_PRE_ATENTIVO.medio,
     backgroundColor: CORES_JUDICIAIS.brancoFundo,
     borderRadius: '2px',
   },
