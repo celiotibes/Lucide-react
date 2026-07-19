@@ -70,9 +70,17 @@ export default async function PaginaDocumentosContrato({ params }: { params: Pro
     <>
       <div className="cabecalho-lista">
         <h2>Documentos do contrato</h2>
-        <Link href="/contratos" className="botao-secundario">
-          ← Voltar
-        </Link>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link href={`/contratos/${id}/reajustes`} className="botao-secundario">
+            Reajustes
+          </Link>
+          <Link href={`/contratos/${id}/reequilibrio`} className="botao-secundario">
+            Reequilíbrio trienal
+          </Link>
+          <Link href="/contratos" className="botao-secundario">
+            ← Voltar
+          </Link>
+        </div>
       </div>
       <p className="section-hint">
         Contrato assinado, aditivo, ou comunicação de renovação/negociação por e-mail. O sistema converte o arquivo

@@ -3189,3 +3189,109 @@ create policy admin_full_access_extracoes_documento_ia on extracoes_documento_ia
   for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
 create trigger trg_audit_extracoes_documento_ia after insert or update or delete on extracoes_documento_ia
   for each row execute function fn_audit_trigger();
+
+-- ============================================================================
+-- 39. REEQUILÍBRIO CONTRATUAL TRIENAL (ART. 19, LEI 8.245/91) E NOTIFICAÇÃO
+-- ANTECIPADA DE RENOVAÇÃO
+-- ============================================================================
+-- Configuração de gestão (não código): valor editável pelo admin, não
+-- hardcoded — hoje só guarda o índice padrão usado quando um contrato não
+-- define `indice_reajuste` (ver server/financeiro/calcularReajuste.ts).
+create table configuracoes_sistema (
+  chave text primary key,
+  valor text not null,
+  descricao text,
+  atualizado_em timestamptz not null default now()
+);
+
+insert into configuracoes_sistema (chave, valor, descricao) values
+  ('indice_reajuste_padrao', 'IPCA',
+   'Índice usado para propor reajuste de renovação quando o contrato não define indice_reajuste (IPCA ou IGPM).');
+
+alter table configuracoes_sistema enable row level security;
+create policy admin_full_access_configuracoes_sistema on configuracoes_sistema
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_configuracoes_sistema after insert or update or delete on configuracoes_sistema
+  for each row execute function fn_audit_trigger();
+
+-- Valores de índice econômico cadastrados manualmente pelo admin todo mês —
+-- este sistema não tem integração com IBGE/FGV para buscar automaticamente
+-- (nenhuma API foi evidenciada/pedida; inventar uma aqui seria fabricar
+-- automação que não existe, o mesmo cuidado já tomado em
+-- solicitacoes_quebra_contrato ao marcar "sem cálculo automático" quando
+-- não há fórmula confirmada). `percentual_acumulado_12m` é o que
+-- calcularReajuste.ts usa para propor o novo valor de aluguel na renovação.
+create table indices_economicos (
+  id uuid primary key default gen_random_uuid(),
+  indice text not null check (indice in ('IGPM','IPCA','INPC')),
+  competencia date not null,
+  percentual_acumulado_12m numeric(8,5) not null,
+  criado_em timestamptz not null default now(),
+  unique (indice, competencia)
+);
+
+alter table indices_economicos enable row level security;
+create policy admin_full_access_indices_economicos on indices_economicos
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_indices_economicos after insert or update or delete on indices_economicos
+  for each row execute function fn_audit_trigger();
+
+-- Ação revisional de aluguel (Art. 19, Lei 8.245/91): decorridos 3 anos sem
+-- acordo, qualquer parte pode pedir revisão judicial para ajustar ao preço
+-- de mercado. Isso NÃO é uma fórmula (diferente do reajuste anual por
+-- índice) — exige avaliação humana de mercado. O sistema automatiza só o
+-- CALENDÁRIO (avisar 90 dias antes para planejar, 30 dias antes para a
+-- notificação oficial) e pede explicitamente ao operador os critérios de
+-- mercado usados, nunca calcula um valor sozinho. Uma linha por marco
+-- trienal do contrato (Art. 19 permite pedir de novo a cada 3 anos).
+create table reequilibrios_contratuais (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  marco_data date not null,
+  status text not null default 'aguardando_criterios'
+    check (status in ('aguardando_criterios','criterios_definidos','descartado')),
+  criterios text,
+  valor_proposto numeric(14,2),
+  definido_por uuid references pessoas(id),
+  definido_em timestamptz,
+  notificacao_planejamento_enviada_em timestamptz,
+  notificacao_oficial_enviada_em timestamptz,
+  criado_em timestamptz not null default now(),
+  unique (contrato_id, marco_data)
+);
+
+create index idx_reequilibrios_contratuais_contrato on reequilibrios_contratuais(contrato_id);
+
+alter table reequilibrios_contratuais enable row level security;
+create policy admin_full_access_reequilibrios_contratuais on reequilibrios_contratuais
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_reequilibrios_contratuais after insert or update or delete on reequilibrios_contratuais
+  for each row execute function fn_audit_trigger();
+
+-- Notificação antecipada de renovação: 60 dias antes de `data_fim` para
+-- planejamento, 30 dias antes para ajuste no sistema e confirmação de
+-- novos valores. Ao contrário do reequilíbrio trienal, aqui HÁ uma fórmula
+-- (índice de reajuste do contrato, ou o padrão de configuracoes_sistema na
+-- ausência) — por isso o resultado é uma proposta gravada em
+-- `reajustes_contrato` (status='proposto', nunca 'aplicado' automaticamente;
+-- essa tabela já existia no schema desde a auditoria original mas nunca
+-- teve nenhum código escrevendo nela — ver docs/08, seção "correção", e
+-- server/integracao/processarRenovacaoContratual.ts).
+create table renovacoes_contratuais_notificacoes (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  data_fim_referencia date not null,
+  notificacao_planejamento_enviada_em timestamptz,
+  notificacao_ajuste_enviada_em timestamptz,
+  reajuste_id uuid references reajustes_contrato(id),
+  criado_em timestamptz not null default now(),
+  unique (contrato_id, data_fim_referencia)
+);
+
+create index idx_renovacoes_notificacoes_contrato on renovacoes_contratuais_notificacoes(contrato_id);
+
+alter table renovacoes_contratuais_notificacoes enable row level security;
+create policy admin_full_access_renovacoes_notificacoes on renovacoes_contratuais_notificacoes
+  for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+create trigger trg_audit_renovacoes_notificacoes after insert or update or delete on renovacoes_contratuais_notificacoes
+  for each row execute function fn_audit_trigger();

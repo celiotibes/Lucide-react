@@ -71,7 +71,22 @@ export default async function PaginaRevisaoExtracao({
 }) {
   const { id: contratoId, documentoId } = await params;
 
-  const extracao = await buscarExtracao(documentoId);
+  let extracao: LinhaExtracao | null;
+  try {
+    extracao = await buscarExtracao(documentoId);
+  } catch {
+    return (
+      <>
+        <div className="cabecalho-lista">
+          <h2>Revisão da leitura por IA</h2>
+          <Link href={`/contratos/${contratoId}/documentos`} className="botao-secundario">
+            ← Voltar
+          </Link>
+        </div>
+        <p className="erro-conexao">Não foi possível conectar ao banco (DATABASE_URL não configurada ou banco fora do ar).</p>
+      </>
+    );
+  }
   if (!extracao) {
     notFound();
   }

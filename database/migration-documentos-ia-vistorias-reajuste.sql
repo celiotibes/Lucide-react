@@ -112,3 +112,130 @@ begin
       for each row execute function fn_audit_trigger();
   end if;
 end $$;
+
+-- ============================================================================
+-- Fase 5: reequilíbrio trienal (Art. 19 Lei 8.245/91) + renovação
+-- ============================================================================
+create table if not exists configuracoes_sistema (
+  chave text primary key,
+  valor text not null,
+  descricao text,
+  atualizado_em timestamptz not null default now()
+);
+
+insert into configuracoes_sistema (chave, valor, descricao) values
+  ('indice_reajuste_padrao', 'IPCA',
+   'Índice usado para propor reajuste de renovação quando o contrato não define indice_reajuste (IPCA ou IGPM).')
+on conflict (chave) do nothing;
+
+alter table configuracoes_sistema enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'configuracoes_sistema' and policyname = 'admin_full_access_configuracoes_sistema') then
+    create policy admin_full_access_configuracoes_sistema on configuracoes_sistema
+      for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_audit_configuracoes_sistema') then
+    create trigger trg_audit_configuracoes_sistema after insert or update or delete on configuracoes_sistema
+      for each row execute function fn_audit_trigger();
+  end if;
+end $$;
+
+create table if not exists indices_economicos (
+  id uuid primary key default gen_random_uuid(),
+  indice text not null check (indice in ('IGPM','IPCA','INPC')),
+  competencia date not null,
+  percentual_acumulado_12m numeric(8,5) not null,
+  criado_em timestamptz not null default now(),
+  unique (indice, competencia)
+);
+
+alter table indices_economicos enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'indices_economicos' and policyname = 'admin_full_access_indices_economicos') then
+    create policy admin_full_access_indices_economicos on indices_economicos
+      for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_audit_indices_economicos') then
+    create trigger trg_audit_indices_economicos after insert or update or delete on indices_economicos
+      for each row execute function fn_audit_trigger();
+  end if;
+end $$;
+
+create table if not exists reequilibrios_contratuais (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  marco_data date not null,
+  status text not null default 'aguardando_criterios'
+    check (status in ('aguardando_criterios','criterios_definidos','descartado')),
+  criterios text,
+  valor_proposto numeric(14,2),
+  definido_por uuid references pessoas(id),
+  definido_em timestamptz,
+  notificacao_planejamento_enviada_em timestamptz,
+  notificacao_oficial_enviada_em timestamptz,
+  criado_em timestamptz not null default now(),
+  unique (contrato_id, marco_data)
+);
+
+create index if not exists idx_reequilibrios_contratuais_contrato on reequilibrios_contratuais(contrato_id);
+
+alter table reequilibrios_contratuais enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'reequilibrios_contratuais' and policyname = 'admin_full_access_reequilibrios_contratuais') then
+    create policy admin_full_access_reequilibrios_contratuais on reequilibrios_contratuais
+      for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_audit_reequilibrios_contratuais') then
+    create trigger trg_audit_reequilibrios_contratuais after insert or update or delete on reequilibrios_contratuais
+      for each row execute function fn_audit_trigger();
+  end if;
+end $$;
+
+create table if not exists renovacoes_contratuais_notificacoes (
+  id uuid primary key default gen_random_uuid(),
+  contrato_id uuid not null references contratos(id) on delete cascade,
+  data_fim_referencia date not null,
+  notificacao_planejamento_enviada_em timestamptz,
+  notificacao_ajuste_enviada_em timestamptz,
+  reajuste_id uuid references reajustes_contrato(id),
+  criado_em timestamptz not null default now(),
+  unique (contrato_id, data_fim_referencia)
+);
+
+create index if not exists idx_renovacoes_notificacoes_contrato on renovacoes_contratuais_notificacoes(contrato_id);
+
+alter table renovacoes_contratuais_notificacoes enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'renovacoes_contratuais_notificacoes' and policyname = 'admin_full_access_renovacoes_notificacoes') then
+    create policy admin_full_access_renovacoes_notificacoes on renovacoes_contratuais_notificacoes
+      for all using (fn_eh_admin_ou_economista()) with check (fn_eh_admin_ou_economista());
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_audit_renovacoes_notificacoes') then
+    create trigger trg_audit_renovacoes_notificacoes after insert or update or delete on renovacoes_contratuais_notificacoes
+      for each row execute function fn_audit_trigger();
+  end if;
+end $$;
