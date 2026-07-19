@@ -77,6 +77,9 @@ export default async function PaginaDocumentosContrato({ params }: { params: Pro
           <Link href={`/contratos/${id}/reequilibrio`} className="botao-secundario">
             Reequilíbrio trienal
           </Link>
+          <Link href={`/contratos/${id}/vistorias`} className="botao-secundario">
+            Vistorias
+          </Link>
           <Link href="/contratos" className="botao-secundario">
             ← Voltar
           </Link>
