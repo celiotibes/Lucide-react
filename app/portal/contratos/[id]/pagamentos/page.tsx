@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 
 interface Pagamento {
   id: string;
@@ -26,10 +27,24 @@ export default function PaginaHistoricoPagamentos() {
 
   async function buscarPagamentos() {
     try {
-      const res = await fetch(`/api/portal/contratos/${contratoId}/pagamentos`);
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+      );
+
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch(`/api/portal/contratos/${contratoId}/pagamentos`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
+      });
+
       if (res.ok) {
         const data = await res.json();
         setPagamentos(data);
+      } else if (res.status === 401 || res.status === 403) {
+        setErro('Você não tem permissão para acessar este histórico');
       } else {
         setErro('Erro ao carregar histórico de pagamentos');
       }

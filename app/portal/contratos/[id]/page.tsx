@@ -149,6 +149,21 @@ export default async function PaginaDetalheContratoPortal({
           </div>
         </div>
 
+        <div className="card-acoes">
+          <h3>Ações</h3>
+          <div className="grid-acoes">
+            <Link href={`/portal/contratos/${id}/pagamentos`} className="botao-acao">
+              📋 Histórico de Pagamentos
+            </Link>
+            <Link href={`/portal/contratos/${id}/segunda-via`} className="botao-acao">
+              📄 2ª Via de Boletos
+            </Link>
+            <Link href={`/portal/contratos/${id}/suporte`} className="botao-acao">
+              💬 Entre em Contato
+            </Link>
+          </div>
+        </div>
+
         <div className="card-aviso">
           <p>
             Para mais detalhes ou para solicitações relacionadas ao contrato, entre em contato com o proprietário ou gestor do imóvel.
@@ -258,6 +273,56 @@ export default async function PaginaDetalheContratoPortal({
           border-radius: 4px;
           margin-bottom: 15px;
           border: 1px solid #f5c6cb;
+        }
+
+        .card-acoes {
+          background: white;
+          border-radius: 8px;
+          padding: 20px;
+          margin: 20px 0;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-acoes h3 {
+          margin: 0 0 20px 0;
+          color: #333;
+          font-size: 16px;
+          padding-bottom: 10px;
+          border-bottom: 2px solid #f0f0f0;
+        }
+
+        .grid-acoes {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 12px;
+        }
+
+        .botao-acao {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px 16px;
+          background: #f3f4f6;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+          color: #1f2937;
+          text-decoration: none;
+          font-weight: 500;
+          font-size: 14px;
+          transition: all 0.2s;
+          cursor: pointer;
+          gap: 8px;
+        }
+
+        .botao-acao:hover {
+          background: #e5e7eb;
+          border-color: #d1d5db;
+        }
+
+        @media (max-width: 600px) {
+          .grid-acoes {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </>
