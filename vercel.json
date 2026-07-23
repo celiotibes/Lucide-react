@@ -67,6 +67,22 @@
     {
       "path": "/api/cron/reajuste-anual",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/alertar-vencimento-seguro",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/notificar-preferencia",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/expirar-preferencias",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/gerar-multa-juros",
+      "schedule": "0 7 * * *"
     }
   ]
 }
