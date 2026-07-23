@@ -71,6 +71,12 @@ export default async function PaginaDocumentosContrato({ params }: { params: Pro
       <div className="cabecalho-lista">
         <h2>Documentos do contrato</h2>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link href={`/contratos/${id}/editar`} className="botao-secundario">
+            Editar
+          </Link>
+          <Link href={`/contratos/${id}/garantias`} className="botao-secundario">
+            Garantias
+          </Link>
           <Link href={`/contratos/${id}/reajustes`} className="botao-secundario">
             Reajustes
           </Link>
