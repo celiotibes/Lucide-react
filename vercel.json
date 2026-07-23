@@ -5,6 +5,10 @@
       "schedule": "0 6 1 * *"
     },
     {
+      "path": "/api/cron/notificar-vencimentos",
+      "schedule": "30 6 * * *"
+    },
+    {
       "path": "/api/cron/emitir-cobrancas",
       "schedule": "0 7 * * *"
     },
