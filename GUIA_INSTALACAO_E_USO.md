@@ -92,6 +92,29 @@ npm run dev
 atalho) e aperte `Ctrl + C`. Fechar só a aba do navegador não desliga nada,
 mas também não é necessário desligar — pode deixar rodando em segundo plano.
 
+### Modo produção (opcional)
+
+Os atalhos acima rodam em **modo desenvolvimento** — perfeito para o uso do
+dia a dia. Existe também um modo **produção**, que gera antes um pacote
+otimizado (arquivos minificados, carregamento mais rápido) e só depois abre
+o sistema — a mesma forma como o sistema rodaria se fosse publicado num
+site de verdade, mas continuando 100% local. A diferença prática no uso é
+pequena; vale a pena quando quiser a experiência de carregamento mais
+rápida, ou antes de uma apresentação/demonstração importante.
+
+- **Windows**: duplo clique em `instalar-producao-windows.bat`.
+- **Mac**: duplo clique em `instalar-producao-mac-linux.command` (mesma
+  liberação de segurança da seção acima, se pedida).
+- **Linux**: `./instalar-producao-mac-linux.command` no terminal.
+
+Esse atalho instala as dependências (só na primeira vez), gera o pacote de
+produção (`npm run build` — leva alguns segundos, e falha alto, sem abrir
+nada, se houver algum erro de código) e depois serve esse pacote pronto,
+abrindo o navegador em `http://localhost:4173` (porta diferente da 5173 do
+modo desenvolvimento, para os dois poderem rodar ao mesmo tempo se
+precisar). Para desligar, o procedimento é o mesmo: `Ctrl + C` ou fechar a
+janela.
+
 ---
 
 ## 5. Primeiro uso dentro do sistema

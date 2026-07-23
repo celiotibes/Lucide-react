@@ -30,7 +30,10 @@ cauções fictícias) e explorar todas as telas sem precisar de documentos reais
 do zero (instalar Node, baixar o projeto, primeiro uso, onde os dados ficam salvos,
 backup, problemas comuns), sem presumir experiência prévia com programação. Inclui
 atalhos de clique duplo (`iniciar-windows.bat` / `iniciar-mac-linux.command`) que
-instalam e abrem o sistema sozinhos.
+instalam e abrem o sistema sozinhos, e uma variante em modo produção
+(`instalar-producao-windows.bat` / `instalar-producao-mac-linux.command`) que gera
+o pacote otimizado (`npm run build`, falha alto sem servir nada quebrado) antes de
+servi-lo em `http://localhost:4173`.
 
 ## Funcionalidades
 
