@@ -11,8 +11,9 @@ import {
   DateRangePicker,
   CategoryFilter,
   FilterPills,
+  FilterPresets,
 } from '../../../components/modern';
-import { useFilteredKPIs } from '../../../hooks/useFilteredKPIs';
+import { useFilteredKPIs, useFilterPersistence } from '../../../hooks';
 import './KPIDashboard.css';
 
 interface KPIDashboardProps {
@@ -30,12 +31,21 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
 }) => {
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<string>();
+
+  // Usar hook de persistência
+  const { filters: persistedFilters, saveFilters, presets, applyPreset } = useFilterPersistence();
+
   const [startDate, setStartDate] = useState<Date>(() => {
+    if (persistedFilters?.startDate) return persistedFilters.startDate;
     const date = new Date();
     date.setDate(1);
     return date;
   });
-  const [endDate, setEndDate] = useState<Date>(new Date());
+
+  const [endDate, setEndDate] = useState<Date>(() => {
+    return persistedFilters?.endDate || new Date();
+  });
 
   // Usar hook customizado para fetchar dados com filtros
   const { kpis: fetchedKpis, isLoading, error } = useFilteredKPIs({
@@ -61,6 +71,14 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
   const handleDateRangeChange = (start: Date, end: Date) => {
     setStartDate(start);
     setEndDate(end);
+    setSelectedPreset(undefined); // Deselect preset when manually changing dates
+
+    // Salvar em localStorage
+    saveFilters({
+      startDate: start,
+      endDate: end,
+      categories: selectedCategories,
+    });
 
     if (onFilterChange && filters) {
       onFilterChange({
@@ -74,10 +92,34 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
   const handleCategoryChange = (categoryIds: string[]) => {
     setSelectedCategories(categoryIds);
 
+    // Salvar em localStorage
+    saveFilters({
+      startDate,
+      endDate,
+      categories: categoryIds,
+    });
+
     if (onFilterChange && filters) {
       onFilterChange({
         ...filters,
         categories: categoryIds,
+      });
+    }
+  };
+
+  const handlePresetSelect = (presetKey: string) => {
+    setSelectedPreset(presetKey);
+    applyPreset(presetKey);
+
+    const { startDate: newStart, endDate: newEnd } = presets[presetKey].getDateRange();
+    setStartDate(newStart);
+    setEndDate(newEnd);
+
+    if (onFilterChange && filters) {
+      onFilterChange({
+        ...filters,
+        startDate: newStart,
+        endDate: newEnd,
       });
     }
   };
@@ -149,6 +191,13 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
             />
           </div>
 
+          {/* Filter Presets */}
+          <FilterPresets
+            presets={presets}
+            onPresetSelect={handlePresetSelect}
+            selectedPreset={selectedPreset}
+          />
+
           {/* Active Filters Display */}
           {(selectedCategories.length > 0) && (
             <FilterPills
@@ -160,12 +209,25 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
                     label: category?.name || '',
                     icon: category?.icon,
                     onClear: () => {
-                      setSelectedCategories(selectedCategories.filter((id) => id !== catId));
+                      const newCategories = selectedCategories.filter((id) => id !== catId);
+                      setSelectedCategories(newCategories);
+                      saveFilters({
+                        startDate,
+                        endDate,
+                        categories: newCategories,
+                      });
                     },
                   };
                 }),
               ]}
-              onClearAll={() => setSelectedCategories([])}
+              onClearAll={() => {
+                setSelectedCategories([]);
+                saveFilters({
+                  startDate,
+                  endDate,
+                  categories: [],
+                });
+              }}
               showClearAll={true}
             />
           )}

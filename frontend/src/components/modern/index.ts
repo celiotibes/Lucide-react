@@ -13,6 +13,7 @@ export { ComparisonBarChart } from './ComparisonBarChart';
 export { DateRangePicker } from './DateRangePicker';
 export { CategoryFilter } from './CategoryFilter';
 export { FilterPills } from './FilterPills';
+export { FilterPresets } from './FilterPresets';
 
 export default {
   GlassCard,
