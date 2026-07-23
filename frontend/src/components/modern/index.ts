@@ -16,6 +16,10 @@ export { FilterPills } from './FilterPills';
 export { FilterPresets } from './FilterPresets';
 export { ExportMenu } from './ExportMenu';
 export { ChartExportMenu } from './ChartExportMenu';
+export { AnomalyIndicator } from './AnomalyIndicator';
+export { AlertBanner, type AlertBannerAlert } from './AlertBanner';
+export { ForecastChart } from './ForecastChart';
+export { MetricsPanel } from './MetricsPanel';
 
 export default {
   GlassCard,
