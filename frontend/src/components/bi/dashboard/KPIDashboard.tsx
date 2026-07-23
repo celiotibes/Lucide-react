@@ -12,23 +12,40 @@ import {
   CategoryFilter,
   FilterPills,
 } from '../../../components/modern';
+import { useFilteredKPIs } from '../../../hooks/useFilteredKPIs';
 import './KPIDashboard.css';
 
 interface KPIDashboardProps {
-  kpis: FinancialKPIs | null;
+  kpis?: FinancialKPIs | null;
   isLoading?: boolean;
   filters?: BiFilterState;
   onFilterChange?: (filters: BiFilterState) => void;
 }
 
 export const KPIDashboard: React.FC<KPIDashboardProps> = ({
-  kpis,
-  isLoading = false,
+  kpis: initialKpis,
+  isLoading: initialIsLoading = false,
   filters,
   onFilterChange,
 }) => {
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const date = new Date();
+    date.setDate(1);
+    return date;
+  });
+  const [endDate, setEndDate] = useState<Date>(new Date());
+
+  // Usar hook customizado para fetchar dados com filtros
+  const { kpis: fetchedKpis, isLoading, error } = useFilteredKPIs({
+    startDate,
+    endDate,
+    categories: selectedCategories,
+  });
+
+  // Usar dados fetchados ou dados iniciais (para backward compatibility)
+  const kpis = fetchedKpis || initialKpis;
 
   const categories = [
     { id: 'operational', name: 'Operacional', icon: '⚙️', color: '#3b82f6' },
@@ -41,21 +58,54 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
     console.log('KPIs atualizados:', kpis);
   }, [kpis]);
 
-  const handleDateRangeChange = (startDate: string, endDate: string) => {
+  const handleDateRangeChange = (start: Date, end: Date) => {
+    setStartDate(start);
+    setEndDate(end);
+
     if (onFilterChange && filters) {
       onFilterChange({
         ...filters,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: start,
+        endDate: end,
       });
     }
   };
 
-  if (!kpis) {
+  const handleCategoryChange = (categoryIds: string[]) => {
+    setSelectedCategories(categoryIds);
+
+    if (onFilterChange && filters) {
+      onFilterChange({
+        ...filters,
+        categories: categoryIds,
+      });
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="kpi-dashboard-empty flex items-center justify-center min-h-[400px]">
+        <GlassCard title="Erro ao Carregar Dados" variant="interactive">
+          <p className="text-[#ef4444] mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-[#3b82f6] text-white rounded-lg text-sm hover:bg-[#1e40af] transition-all"
+          >
+            Tentar Novamente
+          </button>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  if (isLoading || !kpis) {
     return (
       <div className="kpi-dashboard-empty flex items-center justify-center min-h-[400px]">
         <GlassCard title="Carregando">
-          <p className="text-[#cbd5e1]">Carregando dados financeiros...</p>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-[#3b82f6] rounded-full animate-spin"></div>
+            <p className="text-[#cbd5e1]">Carregando dados financeiros...</p>
+          </div>
         </GlassCard>
       </div>
     );
@@ -88,22 +138,14 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
           {/* Advanced Filters */}
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center mb-4">
             <DateRangePicker
-              startDate={filters?.startDate || new Date()}
-              endDate={filters?.endDate || new Date()}
-              onDateChange={(start, end) => {
-                if (onFilterChange && filters) {
-                  onFilterChange({
-                    ...filters,
-                    startDate: start,
-                    endDate: end,
-                  });
-                }
-              }}
+              startDate={startDate}
+              endDate={endDate}
+              onDateChange={handleDateRangeChange}
             />
             <CategoryFilter
               categories={categories}
               selectedCategories={selectedCategories}
-              onCategoryChange={setSelectedCategories}
+              onCategoryChange={handleCategoryChange}
             />
           </div>
 
@@ -131,7 +173,7 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
       </div>
 
       {/* Main Content */}
-      <div className="container px-4 max-w-7xl mx-auto">
+      <div className={`container px-4 max-w-7xl mx-auto transition-opacity ${isLoading ? 'opacity-60' : 'opacity-100'}`}>
         {/* Indicadores Principais */}
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-[#f1f5f9] mb-6">

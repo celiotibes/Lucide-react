@@ -16,11 +16,12 @@ const router = Router();
 
 /**
  * GET /api/bi/kpis
- * Busca KPIs principais para um período e propriedades
+ * Busca KPIs principais para um período, propriedades e categorias
+ * Query params: startDate, endDate, propertyIds[], categories[]
  */
 router.post('/kpis', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, propertyIds = [] } = req.body;
+    const { startDate, endDate, propertyIds = [], categories = [] } = req.body;
 
     if (!startDate || !endDate) {
       return res.status(400).json({
@@ -28,10 +29,15 @@ router.post('/kpis', async (req: Request, res: Response) => {
       });
     }
 
-    logger.info('Buscando KPIs', { startDate, endDate, propertyCount: propertyIds.length });
+    logger.info('Buscando KPIs com filtros', {
+      startDate,
+      endDate,
+      propertyCount: propertyIds.length,
+      categoryCount: categories.length
+    });
 
     // Tentar cache primeiro
-    const cacheKey = `bi:kpis:${startDate}:${endDate}:${propertyIds.join(',')}`;
+    const cacheKey = `bi:kpis:${startDate}:${endDate}:${propertyIds.join(',')}:${categories.join(',')}`;
     const cached = await redis.get(cacheKey);
 
     if (cached) {
@@ -45,15 +51,28 @@ router.post('/kpis', async (req: Request, res: Response) => {
       });
     }
 
-    // Buscar movimentações do período
-    const query = `
+    // Construir query com filtros dinâmicos
+    let paramIndex = 1;
+    let query = `
       SELECT * FROM fact_financial_movements
-      WHERE date_id BETWEEN $1::DATE AND $2::DATE
-      ${propertyIds.length > 0 ? 'AND property_id = ANY($3::uuid[])' : ''}
-      ORDER BY date_id DESC
+      WHERE date_id BETWEEN $${paramIndex}::DATE AND $${paramIndex + 1}::DATE
     `;
+    const params: any[] = [startDate, endDate];
+    paramIndex = 3;
 
-    const params = propertyIds.length > 0 ? [startDate, endDate, propertyIds] : [startDate, endDate];
+    if (propertyIds.length > 0) {
+      query += ` AND property_id = ANY($${paramIndex}::uuid[])`;
+      params.push(propertyIds);
+      paramIndex++;
+    }
+
+    if (categories.length > 0) {
+      query += ` AND category = ANY($${paramIndex}::text[])`;
+      params.push(categories);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY date_id DESC';
     const result = await pool.query(query, params);
 
     const movements = result.rows.map((row) => ({
