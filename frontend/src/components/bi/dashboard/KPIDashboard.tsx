@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FinancialKPIs, BiFilterState } from '../../../types/bi';
 import {
   BentoGrid,
@@ -13,6 +13,7 @@ import {
   FilterPills,
   FilterPresets,
   ExportMenu,
+  ChartExportMenu,
 } from '../../../components/modern';
 import { useFilteredKPIs, useFilterPersistence } from '../../../hooks';
 import './KPIDashboard.css';
@@ -33,6 +34,11 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>();
+
+  // Chart refs for export
+  const trendChartRef = useRef<HTMLDivElement>(null);
+  const breakdownChartRef = useRef<HTMLDivElement>(null);
+  const comparisonChartRef = useRef<HTMLDivElement>(null);
 
   // Usar hook de persistência
   const { filters: persistedFilters, saveFilters, presets, applyPreset } = useFilterPersistence();
@@ -360,53 +366,86 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
           <BentoGrid gap="md">
             {/* Revenue Trend Line Chart */}
             <BentoItem size="lg">
-              <GlassCard variant="premium" title="💹 Tendência de Receita (Últimos 7 dias)">
-                <TrendLineChart
-                  data={[
-                    { date: '17 jul', value: 250000, previousValue: 240000 },
-                    { date: '16 jul', value: 245000, previousValue: 235000 },
-                    { date: '15 jul', value: 255000, previousValue: 238000 },
-                    { date: '14 jul', value: 248000, previousValue: 232000 },
-                    { date: '13 jul', value: 242000, previousValue: 228000 },
-                    { date: '12 jul', value: 240000, previousValue: 225000 },
-                    { date: '11 jul', value: 238000, previousValue: 222000 },
-                  ]}
-                  valueLabel="Receita Atual"
-                  height={250}
-                />
+              <GlassCard variant="premium">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-[#f1f5f9]">💹 Tendência de Receita (Últimos 7 dias)</h3>
+                  <ChartExportMenu
+                    chartRef={trendChartRef.current}
+                    title="Tendência de Receita"
+                    dateRange={{ start: startDate, end: endDate }}
+                    categories={selectedCategories}
+                  />
+                </div>
+                <div ref={trendChartRef}>
+                  <TrendLineChart
+                    data={[
+                      { date: '17 jul', value: 250000, previousValue: 240000 },
+                      { date: '16 jul', value: 245000, previousValue: 235000 },
+                      { date: '15 jul', value: 255000, previousValue: 238000 },
+                      { date: '14 jul', value: 248000, previousValue: 232000 },
+                      { date: '13 jul', value: 242000, previousValue: 228000 },
+                      { date: '12 jul', value: 240000, previousValue: 225000 },
+                      { date: '11 jul', value: 238000, previousValue: 222000 },
+                    ]}
+                    valueLabel="Receita Atual"
+                    height={250}
+                  />
+                </div>
               </GlassCard>
             </BentoItem>
 
             {/* Cost Breakdown Pie Chart */}
             <BentoItem size="md">
-              <GlassCard title="💰 Distribuição de Custos">
-                <BreakdownPieChart
-                  data={[
-                    { name: 'Operacional', value: 85000 },
-                    { name: 'Administrativo', value: 32000 },
-                    { name: 'Financeiro', value: 15000 },
-                    { name: 'Marketing', value: 18000 },
-                    { name: 'Outros', value: 5000 },
-                  ]}
-                  height={250}
-                />
+              <GlassCard>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-[#f1f5f9]">💰 Distribuição de Custos</h3>
+                  <ChartExportMenu
+                    chartRef={breakdownChartRef.current}
+                    title="Distribuição de Custos"
+                    dateRange={{ start: startDate, end: endDate }}
+                    categories={selectedCategories}
+                  />
+                </div>
+                <div ref={breakdownChartRef}>
+                  <BreakdownPieChart
+                    data={[
+                      { name: 'Operacional', value: 85000 },
+                      { name: 'Administrativo', value: 32000 },
+                      { name: 'Financeiro', value: 15000 },
+                      { name: 'Marketing', value: 18000 },
+                      { name: 'Outros', value: 5000 },
+                    ]}
+                    height={250}
+                  />
+                </div>
               </GlassCard>
             </BentoItem>
 
             {/* Period Comparison Bar Chart */}
             <BentoItem size="lg">
-              <GlassCard title="📊 Comparação: Atual vs Anterior">
-                <ComparisonBarChart
-                  data={[
-                    { category: 'Receita', current: 250000, previous: 220000 },
-                    { category: 'EBITDA', current: 150000, previous: 120000 },
-                    { category: 'Custos', current: 85000, previous: 90000 },
-                    { category: 'Lucro', current: 115000, previous: 100000 },
-                  ]}
-                  currentLabel="Atual"
-                  previousLabel="Anterior"
-                  height={250}
-                />
+              <GlassCard>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-[#f1f5f9]">📊 Comparação: Atual vs Anterior</h3>
+                  <ChartExportMenu
+                    chartRef={comparisonChartRef.current}
+                    title="Comparação Atual vs Anterior"
+                    dateRange={{ start: startDate, end: endDate }}
+                    categories={selectedCategories}
+                  />
+                </div>
+                <div ref={comparisonChartRef}>
+                  <ComparisonBarChart
+                    data={[
+                      { category: 'Receita', current: 250000, previous: 220000 },
+                      { category: 'EBITDA', current: 150000, previous: 120000 },
+                      { category: 'Custos', current: 85000, previous: 90000 },
+                      { category: 'Lucro', current: 115000, previous: 100000 },
+                    ]}
+                    currentLabel="Atual"
+                    previousLabel="Anterior"
+                    height={250}
+                  />
+                </div>
               </GlassCard>
             </BentoItem>
 
