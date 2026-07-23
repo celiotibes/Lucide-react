@@ -30,8 +30,15 @@ import { concluirVistoria as concluirVistoriaLogica } from '@/server/integracao/
 export async function criarVistoria(formData: FormData): Promise<void> {
   const contratoId = String(formData.get('contrato_id') ?? '');
   const tipo = String(formData.get('tipo') ?? '');
+  const ehAreaComum = formData.get('eh_area_comum') === 'true';
+
   if (!contratoId || !['entrada', 'periodica', 'saida'].includes(tipo)) {
     throw new Error('contrato_id ou tipo inválido');
+  }
+
+  // Se for vistoria de área comum, tipo deve ser 'periodica'
+  if (ehAreaComum && tipo !== 'periodica') {
+    throw new Error('Apenas vistorias periódicas podem ser de área comum');
   }
 
   const pool = obterPool();
@@ -42,10 +49,13 @@ export async function criarVistoria(formData: FormData): Promise<void> {
     throw new Error('Contrato não encontrado');
   }
 
+  // Se for área comum, contrato_id fica NULL
+  const idContratoParaGravar = ehAreaComum ? null : contratoId;
+
   await pool.query(
     `insert into vistorias (contrato_id, imovel_id, tipo, checklist_json, status)
      values ($1, $2, $3, $4, 'em_andamento')`,
-    [contratoId, rows[0].imovel_id, tipo, JSON.stringify(checklistVazio())],
+    [idContratoParaGravar, rows[0].imovel_id, tipo, JSON.stringify(checklistVazio())],
   );
 
   revalidatePath(`/contratos/${contratoId}/vistorias`);
