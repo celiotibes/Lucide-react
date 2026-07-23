@@ -12,6 +12,7 @@ import {
   CategoryFilter,
   FilterPills,
   FilterPresets,
+  ExportMenu,
 } from '../../../components/modern';
 import { useFilteredKPIs, useFilterPersistence } from '../../../hooks';
 import './KPIDashboard.css';
@@ -170,9 +171,23 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
       {/* Header */}
       <div className="bg-gradient-to-r from-[#1a2332] to-[#243549] border-b border-[#334155] py-8 mb-8">
         <div className="container px-4 max-w-7xl mx-auto">
-          <h1 className="text-4xl font-bold text-[#f1f5f9] mb-2">
-            📊 Dashboard Financeiro
-          </h1>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-4xl font-bold text-[#f1f5f9]">
+                📊 Dashboard Financeiro
+              </h1>
+            </div>
+            {kpis && (
+              <ExportMenu
+                kpis={kpis}
+                filters={{
+                  startDate,
+                  endDate,
+                  categories: selectedCategories,
+                }}
+              />
+            )}
+          </div>
           <p className="text-[#cbd5e1] mb-6">
             Visão geral dos KPIs contábeis e financeiros
           </p>
