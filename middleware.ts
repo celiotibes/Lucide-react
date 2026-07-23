@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 
 // Rotas que requerem autenticação
 const PROTECTED_ROUTES = [
+  '/admin',
   '/dashboard',
   '/contratos',
   '/imoveis',
