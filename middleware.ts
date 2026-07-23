@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 
 // Rotas que requerem autenticação
 const PROTECTED_ROUTES = [
+  '/dashboard',
   '/contratos',
   '/imoveis',
   '/pessoas',
@@ -11,6 +12,7 @@ const PROTECTED_ROUTES = [
   '/extratos',
   '/conciliacao-bancaria',
   '/configuracoes',
+  '/meu-perfil',
 ];
 
 export async function middleware(request: NextRequest) {
@@ -18,6 +20,8 @@ export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Rotas públicas (não requerem autenticação)
+    // Nota: /auth/setup permite acesso a usuários autenticados que ainda não
+    // completaram o vínculo com uma pessoa (RLS bridge)
     if (pathname === '/' || pathname === '/auth/login' || pathname.startsWith('/auth/')) {
       return NextResponse.next();
     }
