@@ -15,33 +15,37 @@
     "test:report": "playwright show-report"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
-    "@tanstack/react-query": "^5.25.0",
-    "zustand": "^4.4.0",
-    "axios": "^1.6.5",
+    "@hookform/resolvers": "^3.3.4",
     "@stripe/react-stripe-js": "^2.4.0",
     "@stripe/stripe-js": "^2.1.9",
+    "@tanstack/react-query": "^5.25.0",
+    "@types/html2canvas": "^0.5.35",
+    "axios": "^1.6.5",
     "date-fns": "^2.30.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.292.0",
+    "react": "^18.2.0",
     "react-calendar": "^4.2.1",
-    "zod": "^3.22.4",
+    "react-dom": "^18.2.0",
     "react-hook-form": "^7.48.0",
-    "@hookform/resolvers": "^3.3.4"
+    "react-router-dom": "^6.20.0",
+    "recharts": "^3.10.0",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
+    "@playwright/test": "^1.40.1",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.0.8",
+    "autoprefixer": "^10.4.16",
     "eslint": "^8.54.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
-    "tailwindcss": "^3.3.0",
     "postcss": "^8.4.32",
-    "autoprefixer": "^10.4.16",
-    "@playwright/test": "^1.40.1"
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
   }
 }

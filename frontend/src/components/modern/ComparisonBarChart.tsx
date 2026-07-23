@@ -3,7 +3,7 @@
  * Side-by-side bars for comparing current vs previous period
  */
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 import {
   BarChart,
   Bar,
@@ -30,37 +30,38 @@ interface ComparisonBarChartProps {
   showLegend?: boolean;
 }
 
-export const ComparisonBarChart: React.FC<ComparisonBarChartProps> = ({
-  data,
-  title = 'Comparison',
-  currentLabel = 'Current',
-  previousLabel = 'Previous',
-  height = 300,
-  showLegend = true,
-}) => {
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-[#243549] border border-[#334155] rounded-lg p-3 shadow-lg">
-          <p className="text-[#f1f5f9] text-sm font-medium">{payload[0]?.payload?.category}</p>
-          {payload.map((entry: any, index: number) => {
-            const change = (
-              ((entry.value - payload[1-index]?.value) / payload[1-index]?.value) * 100
-            ).toFixed(1);
-            return (
-              <p key={index} style={{ color: entry.color }} className="text-xs mt-1">
-                {entry.name}: R$ {entry.value?.toLocaleString('pt-BR')}
-              </p>
-            );
-          })}
-        </div>
-      );
-    }
-    return null;
-  };
+export const ComparisonBarChart = forwardRef<HTMLDivElement, ComparisonBarChartProps>(
+  ({
+    data,
+    title = 'Comparison',
+    currentLabel = 'Current',
+    previousLabel = 'Previous',
+    height = 300,
+    showLegend = true,
+  }, ref) => {
+    const CustomTooltip = ({ active, payload }: any) => {
+      if (active && payload && payload.length) {
+        return (
+          <div className="bg-[#243549] border border-[#334155] rounded-lg p-3 shadow-lg">
+            <p className="text-[#f1f5f9] text-sm font-medium">{payload[0]?.payload?.category}</p>
+            {payload.map((entry: any, index: number) => {
+              const change = (
+                ((entry.value - payload[1-index]?.value) / payload[1-index]?.value) * 100
+              ).toFixed(1);
+              return (
+                <p key={index} style={{ color: entry.color }} className="text-xs mt-1">
+                  {entry.name}: R$ {entry.value?.toLocaleString('pt-BR')}
+                </p>
+              );
+            })}
+          </div>
+        );
+      }
+      return null;
+    };
 
-  return (
-    <div className="w-full h-full">
+    return (
+      <div className="w-full h-full" ref={ref}>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart
           data={data}
@@ -107,8 +108,11 @@ export const ComparisonBarChart: React.FC<ComparisonBarChartProps> = ({
           />
         </BarChart>
       </ResponsiveContainer>
-    </div>
-  );
-};
+      </div>
+    );
+  }
+);
+
+ComparisonBarChart.displayName = 'ComparisonBarChart';
 
 export default ComparisonBarChart;

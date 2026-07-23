@@ -15,6 +15,7 @@ export { CategoryFilter } from './CategoryFilter';
 export { FilterPills } from './FilterPills';
 export { FilterPresets } from './FilterPresets';
 export { ExportMenu } from './ExportMenu';
+export { ChartExportMenu } from './ChartExportMenu';
 
 export default {
   GlassCard,

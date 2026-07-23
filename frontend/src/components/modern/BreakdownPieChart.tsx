@@ -3,7 +3,7 @@
  * Circular chart for displaying financial breakdown (revenue/costs by category)
  */
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 import {
   PieChart,
   Pie,
@@ -37,38 +37,39 @@ const DEFAULT_COLORS = [
   '#06b6d4', // Cyan
 ];
 
-export const BreakdownPieChart: React.FC<BreakdownPieChartProps> = ({
-  data,
-  title = 'Breakdown',
-  height = 300,
-  showLegend = true,
-}) => {
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const { name, value, color } = payload[0];
-      const total = data.reduce((sum, item) => sum + item.value, 0);
-      const percentage = ((value / total) * 100).toFixed(1);
+export const BreakdownPieChart = forwardRef<HTMLDivElement, BreakdownPieChartProps>(
+  ({
+    data,
+    title = 'Breakdown',
+    height = 300,
+    showLegend = true,
+  }, ref) => {
+    const CustomTooltip = ({ active, payload }: any) => {
+      if (active && payload && payload.length) {
+        const { name, value, color } = payload[0];
+        const total = data.reduce((sum, item) => sum + item.value, 0);
+        const percentage = ((value / total) * 100).toFixed(1);
 
-      return (
-        <div className="bg-[#243549] border border-[#334155] rounded-lg p-3 shadow-lg">
-          <p className="text-[#f1f5f9] text-sm font-medium">{name}</p>
-          <p style={{ color }} className="text-sm font-bold mt-1">
-            R$ {value?.toLocaleString('pt-BR')}
-          </p>
-          <p className="text-[#94a3b8] text-xs mt-1">{percentage}% do total</p>
-        </div>
-      );
-    }
-    return null;
-  };
+        return (
+          <div className="bg-[#243549] border border-[#334155] rounded-lg p-3 shadow-lg">
+            <p className="text-[#f1f5f9] text-sm font-medium">{name}</p>
+            <p style={{ color }} className="text-sm font-bold mt-1">
+              R$ {value?.toLocaleString('pt-BR')}
+            </p>
+            <p className="text-[#94a3b8] text-xs mt-1">{percentage}% do total</p>
+          </div>
+        );
+      }
+      return null;
+    };
 
-  const chartData = data.map((item, index) => ({
-    ...item,
-    color: item.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
-  }));
+    const chartData = data.map((item, index) => ({
+      ...item,
+      color: item.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+    }));
 
-  return (
-    <div className="w-full h-full">
+    return (
+      <div className="w-full h-full" ref={ref}>
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Pie
@@ -96,8 +97,11 @@ export const BreakdownPieChart: React.FC<BreakdownPieChartProps> = ({
           )}
         </PieChart>
       </ResponsiveContainer>
-    </div>
-  );
-};
+      </div>
+    );
+  }
+);
+
+BreakdownPieChart.displayName = 'BreakdownPieChart';
 
 export default BreakdownPieChart;

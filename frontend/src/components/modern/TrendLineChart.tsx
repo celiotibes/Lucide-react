@@ -3,7 +3,7 @@
  * Interactive line chart for displaying financial trends over time
  */
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 import {
   LineChart,
   Line,
@@ -29,31 +29,32 @@ interface TrendLineChartProps {
   showLegend?: boolean;
 }
 
-export const TrendLineChart: React.FC<TrendLineChartProps> = ({
-  data,
-  title = 'Trend',
-  valueLabel = 'Value',
-  height = 300,
-  showLegend = true,
-}) => {
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-[#243549] border border-[#334155] rounded-lg p-3 shadow-lg">
-          <p className="text-[#f1f5f9] text-sm font-medium">{payload[0]?.payload?.date}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} style={{ color: entry.color }} className="text-xs mt-1">
-              {entry.name}: {entry.value?.toLocaleString('pt-BR')}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
+export const TrendLineChart = forwardRef<HTMLDivElement, TrendLineChartProps>(
+  ({
+    data,
+    title = 'Trend',
+    valueLabel = 'Value',
+    height = 300,
+    showLegend = true,
+  }, ref) => {
+    const CustomTooltip = ({ active, payload }: any) => {
+      if (active && payload && payload.length) {
+        return (
+          <div className="bg-[#243549] border border-[#334155] rounded-lg p-3 shadow-lg">
+            <p className="text-[#f1f5f9] text-sm font-medium">{payload[0]?.payload?.date}</p>
+            {payload.map((entry: any, index: number) => (
+              <p key={index} style={{ color: entry.color }} className="text-xs mt-1">
+                {entry.name}: {entry.value?.toLocaleString('pt-BR')}
+              </p>
+            ))}
+          </div>
+        );
+      }
+      return null;
+    };
 
-  return (
-    <div className="w-full h-full">
+    return (
+      <div className="w-full h-full" ref={ref}>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
           <CartesianGrid
@@ -106,8 +107,11 @@ export const TrendLineChart: React.FC<TrendLineChartProps> = ({
           )}
         </LineChart>
       </ResponsiveContainer>
-    </div>
-  );
-};
+      </div>
+    );
+  }
+);
+
+TrendLineChart.displayName = 'TrendLineChart';
 
 export default TrendLineChart;
