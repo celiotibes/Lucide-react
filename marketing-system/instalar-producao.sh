@@ -2,7 +2,7 @@
 
 #############################################################################
 #                                                                           #
-#  INSTALADOR AUTOMATIZADO — Kitnets UFSC                                 #
+#  INSTALADOR AUTOMATIZADO — CRMT Marketing e Anúncios                                 #
 #  Sistema de Marketing & Lead Management v2.0                            #
 #                                                                           #
 #  Uso: bash instalar-producao.sh                                         #
@@ -130,15 +130,15 @@ criar_config() {
         PROPRIEDADES="Pottker 25, Milton Sullivan 142, Ana Maria Nunes 214"
     fi
 
-    read -p "🔗 URL da landing page (ex: https://kitnets-ufsc.com ou vazio para localhost): " LANDING_URL
+    read -p "🔗 URL da landing page (ex: https://crmt-marketing.com ou vazio para localhost): " LANDING_URL
     LANDING_URL=${LANDING_URL:-"http://localhost:8080"}
 
-    read -p "📊 URL do dashboard (ex: https://dashboard-kitnets.com ou vazio para localhost): " DASHBOARD_URL
+    read -p "📊 URL do dashboard (ex: https://dashboard-propriedade CRMTs.com ou vazio para localhost): " DASHBOARD_URL
     DASHBOARD_URL=${DASHBOARD_URL:-"http://localhost:8081"}
 
     # Criar arquivo de configuração
     cat > "$CONFIG_FILE" << EOF
-# Configuração de Produção — Kitnets UFSC
+# Configuração de Produção — CRMT Marketing e Anúncios
 # Gerado em: $TIMESTAMP
 
 # Email do Operador (recebe alertas SLA, follow-ups, reviews)
@@ -302,7 +302,7 @@ criar_deploy_script() {
     cat > "$deploy_script" << 'DEPLOY_EOF'
 #!/bin/bash
 
-# Script de Deployment — Kitnets UFSC v2.0
+# Script de Deployment — CRMT Marketing e Anúncios v2.0
 
 set -e
 
@@ -410,7 +410,7 @@ criar_checklist() {
     local checklist_file="$SCRIPT_DIR/CHECKLIST-INSTALACAO.md"
 
     cat > "$checklist_file" << EOF
-# ✅ Checklist de Instalação — Kitnets UFSC
+# ✅ Checklist de Instalação — CRMT Marketing e Anúncios
 
 **Data de Início**: $TIMESTAMP
 **Email do Operador**: $OPERATOR_EMAIL
@@ -423,7 +423,7 @@ criar_checklist() {
 ## Fase 1: Google Sheets (15 min)
 
 - [ ] Criar planilha Google central com propriedades
-- [ ] Importar central-leads-kitnets-ufsc.xlsx como Google Sheet
+- [ ] Importar central-leads-crmt-marketing.xlsx como Google Sheet
 - [ ] Copiar ID da URL: https://docs.google.com/spreadsheets/d/[ID]/...
 - [ ] Criar sheet "Dashboard Geral" com headers
 - [ ] Criar sheets para cada propriedade (Pottker 25, Milton Sullivan 142, Ana Maria Nunes 214)
@@ -606,7 +606,7 @@ relatorio_final() {
 
     cat > "$report_file" << EOF
 ╔════════════════════════════════════════════════════════════════╗
-║         RELATÓRIO DE INSTALAÇÃO — Kitnets UFSC v2.0           ║
+║         RELATÓRIO DE INSTALAÇÃO — CRMT Marketing e Anúncios v2.0           ║
 ╚════════════════════════════════════════════════════════════════╝
 
 DATA/HORA: $TIMESTAMP
@@ -680,7 +680,7 @@ main() {
     clear
 
     echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║     INSTALADOR DE PRODUÇÃO — Kitnets UFSC v2.0       ║${NC}"
+    echo -e "${BLUE}║     INSTALADOR DE PRODUÇÃO — CRMT Marketing e Anúncios v2.0       ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
 

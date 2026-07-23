@@ -19,7 +19,7 @@ This sheet tracks which properties are occupied and will sync with your leads sy
 
 1. Go to [sheets.google.com](https://sheets.google.com)
 2. Click **+ New** → **Spreadsheet**
-3. Name it: `Planilha Central — Kitnets UFSC 2026`
+3. Name it: `Planilha Central — CRMT Marketing e Anúncios 2026`
 4. **Note the URL** — copy the spreadsheet ID from the URL:
    ```
    https://docs.google.com/spreadsheets/d/[SPREADSHEET_ID]/edit
@@ -82,13 +82,13 @@ For each property in your central sheet, create a separate sheet:
 
 ### Step 1.4: Import Leads Workbook
 
-1. Download **central-leads-kitnets-ufsc.xlsx** from the marketing-system folder
+1. Download **central-leads-crmt-marketing.xlsx** from the marketing-system folder
 2. Go to [sheets.google.com](https://sheets.google.com)
 3. Click **+ New** → **File upload** → Select the .xlsx file
 4. Click "Import spreadsheet"
 5. Select **Create new spreadsheet**
 6. Click **Import**
-7. Rename the sheet to: `Central de Leads — Kitnets UFSC 2026`
+7. Rename the sheet to: `Central de Leads — CRMT Marketing e Anúncios 2026`
 8. **Note this spreadsheet's ID** — you'll use it for Apps Script
 
 ### Step 1.5: Update IMPORTRANGE in Painel Sheet
@@ -343,7 +343,7 @@ The dashboard (`dashboard/painel.html`) is optional but recommended for visualiz
 
 **Check:** Unit identification
 1. Format must match: "Property Name - Kitnet #"
-2. Example: "Pottker 25 - Kitnet 6" (not "Pottker 25 kitnet 6")
+2. Example: "Pottker 25 - Kitnet 6" (not "Pottker 25 propriedade CRMT 6")
 3. Check central sheet has that exact unit number in column A
 
 **Check:** Status permission

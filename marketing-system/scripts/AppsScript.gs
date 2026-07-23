@@ -1,6 +1,6 @@
 /**
- * Kitnets UFSC — Script de Automação (v2, auditado)
- * Cole este código em: Planilha "Central de Leads — Kitnets UFSC 2026"
+ * CRMT Marketing e Anúncios — Script de Automação (v2, auditado)
+ * Cole este código em: Planilha "Central de Leads — CRMT Marketing e Anúncios 2026"
  *   > Extensões > Apps Script > cole tudo aqui > Salvar
  * Depois configure os gatilhos (Triggers) conforme instruído no final deste arquivo.
  */

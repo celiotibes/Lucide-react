@@ -1,4 +1,4 @@
-# Marketing & Lead Management System — Kitnets UFSC
+# Marketing & Lead Management System — CRMT Marketing e Anúncios
 
 A complete marketing automation and lead management system for student housing rentals near UFSC (Universidade Federal de Santa Catarina) in Florianópolis, Brazil.
 
@@ -16,7 +16,7 @@ This system automates:
 
 ```
 marketing-system/
-├── central-leads-kitnets-ufsc.xlsx    # Google Sheets workbook (export as .xlsx)
+├── central-leads-crmt-marketing.xlsx    # Google Sheets workbook (export as .xlsx)
 ├── dashboard/painel.html               # Live KPI dashboard (glassmorphism UI)
 ├── landing/index.html                  # Property landing page with WhatsApp CTAs
 ├── scripts/AppsScript.gs              # Google Apps Script automation code
@@ -27,7 +27,7 @@ marketing-system/
 
 ### 1. Google Sheets Setup
 
-1. Download **central-leads-kitnets-ufsc.xlsx** and import it into Google Sheets:
+1. Download **central-leads-crmt-marketing.xlsx** and import it into Google Sheets:
    - Go to [sheets.google.com](https://sheets.google.com)
    - New → Upload file → Select the .xlsx file → Convert to Google Sheets
 

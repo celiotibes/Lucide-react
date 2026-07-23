@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script de Instalação em Produção — Kitnets UFSC v2.0
+Script de Instalação em Produção — CRMT Marketing e Anúncios v2.0
 
 Uso:
     python3 instalar-producao.py
@@ -188,7 +188,7 @@ def salvar_configuracao(config: dict):
 
     # Salvar como shell format
     with open(CONFIG_FILE, 'w') as f:
-        f.write(f"# Configuração de Produção — Kitnets UFSC\n")
+        f.write(f"# Configuração de Produção — CRMT Marketing e Anúncios\n")
         f.write(f"# Gerado em: {config['INSTALACAO_DATA']}\n\n")
 
         for key, value in config.items():
@@ -382,7 +382,7 @@ def gerar_relatorio(config: dict):
 
     relatorio = f"""
 ╔════════════════════════════════════════════════════════════════╗
-║      RELATÓRIO DE INSTALAÇÃO — Kitnets UFSC v2.0              ║
+║      RELATÓRIO DE INSTALAÇÃO — CRMT Marketing e Anúncios v2.0              ║
 ╚════════════════════════════════════════════════════════════════╝
 
 DATA/HORA: {config['INSTALACAO_DATA']}
@@ -464,7 +464,7 @@ def main():
 
     print(f"{Colors.BOLD}{Colors.BLUE}")
     print("╔════════════════════════════════════════════════════════╗")
-    print("║  INSTALADOR DE PRODUÇÃO — Kitnets UFSC v2.0           ║")
+    print("║  INSTALADOR DE PRODUÇÃO — CRMT Marketing e Anúncios v2.0           ║")
     print("╚════════════════════════════════════════════════════════╝")
     print(f"{Colors.END}")
     print()

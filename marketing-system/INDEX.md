@@ -1,6 +1,6 @@
 # Marketing System — Quick Navigation
 
-Welcome to the Kitnets UFSC Marketing & Lead Management System. Start here.
+Welcome to the CRMT Marketing e Anúncios Marketing & Lead Management System. Start here.
 
 ## 📦 What's Included
 
@@ -47,7 +47,7 @@ marketing-system/
 ├── README.md                         # Full reference (architecture, features)
 ├── SETUP.md                          # Installation guide (6 parts)
 │
-├── central-leads-kitnets-ufsc.xlsx   # Google Sheets workbook
+├── central-leads-crmt-marketing.xlsx   # Google Sheets workbook
 │   ├── Leads sheet                   # CRM data (17 columns)
 │   ├── Campanhas sheet               # Weekly channel tracking
 │   ├── Painel sheet                  # Dashboard with IMPORTRANGE

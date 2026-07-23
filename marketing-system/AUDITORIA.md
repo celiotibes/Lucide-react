@@ -1,4 +1,4 @@
-# 🔍 Auditoria Completa — Sistema de Marketing Kitnets UFSC
+# 🔍 Auditoria Completa — Sistema de Marketing CRMT Marketing e Anúncios
 
 **Data**: 23 de julho de 2026  
 **Status**: ✅ **APROVADO PARA PRODUÇÃO**  
@@ -321,7 +321,7 @@ dashboard/painel.html:
 ```
 CONFIGURAÇÃO INICIAL:
 ☐ Criar planilha Google central com propriedades
-☐ Importar central-leads-kitnets-ufsc.xlsx como Google Sheet
+☐ Importar central-leads-crmt-marketing.xlsx como Google Sheet
 ☐ Atualizar PLANILHA_CENTRAL_ID em AppsScript.gs linha 9
 ☐ Atualizar OPERATOR_EMAIL em AppsScript.gs linha 8
 ☐ Atualizar número WhatsApp em landing/index.html
@@ -371,7 +371,7 @@ PERFORMANCE:
 ### 📋 Sumário Executivo
 
 ```
-SISTEMA: Kitnets UFSC — Marketing & Lead Management v2.0
+SISTEMA: CRMT Marketing e Anúncios — Marketing & Lead Management v2.0
 
 CÓDIGO:
   - 173 linhas (AppsScript)
