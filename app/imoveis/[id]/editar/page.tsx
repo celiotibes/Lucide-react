@@ -119,6 +119,35 @@ export default function PaginaEditarImovel({ params }: { params: Promise<{ id: s
     }
   }
 
+  async function handleDelete() {
+    if (!confirm('Tem certeza que deseja deletar este imóvel? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    setLoading(true);
+    setErro('');
+
+    try {
+      const res = await fetch(`/api/imoveis/${imovelId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setSucesso('Imóvel deletado com sucesso!');
+        setTimeout(() => {
+          router.push('/imoveis');
+        }, 2000);
+      } else {
+        const erro = await res.json();
+        setErro(erro.erro || 'Erro ao deletar imóvel');
+      }
+    } catch (e) {
+      setErro('Erro ao conectar ao servidor');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!imovel) {
     return <p>Carregando...</p>;
   }
@@ -248,6 +277,15 @@ export default function PaginaEditarImovel({ params }: { params: Promise<{ id: s
           <Link href="/imoveis" className="botao-cancelar">
             Cancelar
           </Link>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="botao-deletar"
+            disabled={loading}
+            title="Deletar este imóvel"
+          >
+            {loading ? '⏳ Processando...' : '🗑️ Deletar'}
+          </button>
           <button type="submit" className="botao-enviar" disabled={loading}>
             {loading ? 'Salvando...' : '✓ Salvar alterações'}
           </button>
@@ -363,6 +401,7 @@ export default function PaginaEditarImovel({ params }: { params: Promise<{ id: s
         }
 
         .botao-cancelar,
+        .botao-deletar,
         .botao-enviar {
           padding: 10px 20px;
           border: none;
@@ -383,6 +422,20 @@ export default function PaginaEditarImovel({ params }: { params: Promise<{ id: s
 
         .botao-cancelar:hover {
           background: #e0e0e0;
+        }
+
+        .botao-deletar {
+          background: #dc3545;
+          color: white;
+        }
+
+        .botao-deletar:hover:not(:disabled) {
+          background: #c82333;
+        }
+
+        .botao-deletar:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .botao-enviar {
