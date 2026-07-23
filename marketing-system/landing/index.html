@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kitnets &amp; Apartamentos UFSC Floripa — Trindade / Carvoeira / Córrego Grande</title>
+<meta name="description" content="Kitnets e apartamentos de 1, 2 e 3 quartos a poucos minutos da UFSC, em Florianópolis. Tudo incluso: condomínio, IPTU, água, internet. Fale agora no WhatsApp." />
+<style>
+@font-face {
+  font-family: 'ui-serif-stack';
+  src: local('Iowan Old Style'), local('Georgia');
+}
+:root {
+  --paper: #eef1ea;
+  --paper-raised: #ffffff;
+  --paper-sunken: #e2e6dc;
+  --ink: #1b2420;
+  --ink-soft: #4b564e;
+  --ink-faint: #7b877d;
+  --accent: #1f6f63;
+  --accent-soft: #dbe9e4;
+  --accent-warm: #b8791e;
+  --accent-warm-soft: #f2e3c8;
+  --border: rgba(27,36,32,0.13);
+  --shadow: 0 1px 2px rgba(27,36,32,.06), 0 8px 24px -12px rgba(27,36,32,.18);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #101512; --paper-raised: #1a211d; --paper-sunken: #0b0f0d;
+    --ink: #eaeee7; --ink-soft: #a7b2a9; --ink-faint: #6f7a72;
+    --accent: #59c2ac; --accent-soft: #1c332c; --accent-warm: #e3ac52; --accent-warm-soft: #3a2f18;
+    --border: rgba(234,238,231,.14); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #101512; --paper-raised: #1a211d; --paper-sunken: #0b0f0d;
+  --ink: #eaeee7; --ink-soft: #a7b2a9; --ink-faint: #6f7a72;
+  --accent: #59c2ac; --accent-soft: #1c332c; --accent-warm: #e3ac52; --accent-warm-soft: #3a2f18;
+  --border: rgba(234,238,231,.14); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.5; }
+.serif { font-family:'ui-serif-stack',Georgia,serif; }
+a { color: inherit; text-decoration: none; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* whatsapp floating button */
+.wa-float {
+  position: fixed; bottom: 20px; right: 20px; z-index: 50;
+  background: var(--accent); color: #fff; border-radius: 100px;
+  padding: 13px 20px; font-weight: 600; font-size: 14px;
+  box-shadow: 0 6px 20px -4px rgba(0,0,0,.35);
+  display: flex; align-items: center; gap: 8px;
+}
+
+header.hero {
+  padding: 64px 0 56px;
+  border-bottom: 1px solid var(--border);
+}
+.hero .eyebrow { text-transform: uppercase; letter-spacing: .09em; font-size: 12px; color: var(--accent); font-weight: 700; margin: 0 0 12px; }
+.hero h1 { font-size: clamp(32px, 5vw, 48px); margin: 0 0 16px; font-weight: 600; text-wrap: balance; max-width: 16ch; }
+.hero p.lede { font-size: 17px; color: var(--ink-soft); max-width: 52ch; margin: 0 0 28px; }
+.cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn { display:inline-flex; align-items:center; gap:8px; padding: 13px 22px; border-radius: 9px; font-weight: 600; font-size: 15px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--paper-raised); border: 1px solid var(--border); color: var(--ink); }
+
+section { padding: 56px 0; }
+section.alt { background: var(--paper-raised); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+h2 { font-size: 26px; margin: 0 0 8px; font-weight: 600; }
+p.section-desc { color: var(--ink-soft); margin: 0 0 32px; max-width: 60ch; }
+
+.audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.audience-card { background: var(--paper-raised); border: 1px solid var(--border); border-radius: 14px; padding: 26px; box-shadow: var(--shadow); }
+.audience-card .tag { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; padding: 3px 10px; border-radius: 100px; background: var(--accent-soft); color: var(--accent); margin-bottom: 12px; }
+.audience-card h3 { font-size: 19px; margin: 0 0 10px; }
+.audience-card p { color: var(--ink-soft); font-size: 14.5px; margin: 0 0 16px; }
+.audience-card ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--ink-soft); }
+.audience-card li { margin-bottom: 5px; }
+
+.included-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.included-item { background: var(--paper); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start; }
+.included-item .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 6px; flex-shrink: 0; }
+.included-note { font-size: 13px; color: var(--ink-faint); margin-top: 16px; }
+
+.props-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.prop-card { background: var(--paper-raised); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+.prop-card .prop-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); }
+.prop-card h3 { font-size: 16px; margin: 0 0 4px; }
+.prop-card .loc { font-size: 13px; color: var(--ink-faint); }
+.prop-card .prop-body { padding: 16px 20px 20px; }
+.prop-card .stat { display: flex; justify-content: space-between; font-size: 13.5px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.prop-card .stat:last-of-type { border-bottom: none; }
+.prop-card .stat .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.vacancy-pill { display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 100px; background: var(--accent-warm-soft); color: var(--accent-warm); }
+.prop-cta { display: block; margin-top: 14px; text-align: center; padding: 11px 14px; border-radius: 9px; background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; }
+
+.faq { max-width: 720px; }
+.faq-item { border-bottom: 1px solid var(--border); padding: 18px 0; }
+.faq-item h4 { font-size: 15.5px; margin: 0 0 6px; }
+.faq-item p { font-size: 14.5px; color: var(--ink-soft); margin: 0; }
+
+footer { padding: 40px 0; text-align: center; color: var(--ink-faint); font-size: 13px; }
+
+@media (max-width: 760px) {
+  .audience-grid, .props-grid, .included-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<a class="wa-float" href="https://wa.me/554140425242?text=Ol%C3%A1!%20Vi%20o%20site%20e%20quero%20saber%20mais%20sobre%20as%20unidades%20dispon%C3%ADveis%20perto%20da%20UFSC." target="_blank" rel="noopener">
+  💬 Falar no WhatsApp
+</a>
+
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Trindade · Carvoeira · Córrego Grande — Florianópolis</p>
+    <h1 class="serif">Morar a 5 minutos da UFSC, com tudo incluso</h1>
+    <p class="lede">Kitnets e apartamentos de 1, 2 e 3 quartos, mobiliados, com condomínio, IPTU, água e internet já no aluguel. Só a energia elétrica é medida à parte.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://wa.me/554140425242?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20as%20unidades%20dispon%C3%ADveis." target="_blank" rel="noopener">Ver unidades disponíveis no WhatsApp →</a>
+      <a class="btn btn-secondary" href="#unidades">Ver imóveis</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>Para quem é</h2>
+    <p class="section-desc">Dois perfis, duas necessidades diferentes — atendemos os dois.</p>
+    <div class="audience-grid">
+      <div class="audience-card">
+        <span class="tag">Estudantes</span>
+        <h3>Kitnets prontas pro semestre</h3>
+        <p>Unidades individuais mobiliadas, a poucos minutos a pé da UFSC. Ideal para quem chega para o semestre e quer resolver a moradia rápido.</p>
+        <ul>
+          <li>Cama, geladeira, guarda-roupa e mesa de estudo inclusos</li>
+          <li>Lavanderia coletiva no prédio</li>
+          <li>Contrato direto com o proprietário, sem intermediários</li>
+        </ul>
+      </div>
+      <div class="audience-card">
+        <span class="tag">Profissionais &amp; nômades digitais</span>
+        <h3>Espaço tranquilo para trabalhar</h3>
+        <p>Apartamentos de 2 e 3 quartos com estrutura para home office, longe da correria do centro mas perto de tudo.</p>
+        <ul>
+          <li>Ambiente silencioso, ideal para reuniões remotas</li>
+          <li>Contratos mensais ou anuais, conforme disponibilidade</li>
+          <li>Bairros arborizados: Carvoeira e Córrego Grande</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <h2>O que está incluso no aluguel</h2>
+    <p class="section-desc">Sem letra miúda: isto está no valor mensal anunciado.</p>
+    <div class="included-grid">
+      <div class="included-item"><span class="dot"></span>Condomínio</div>
+      <div class="included-item"><span class="dot"></span>IPTU</div>
+      <div class="included-item"><span class="dot"></span>Água e esgoto</div>
+      <div class="included-item"><span class="dot"></span>Internet Wi-Fi</div>
+      <div class="included-item"><span class="dot"></span>Coleta de lixo</div>
+      <div class="included-item"><span class="dot"></span>Manutenção externa</div>
+    </div>
+    <p class="included-note">Apenas a energia elétrica é medida e cobrada individualmente por unidade. Caução: 1x o valor do aluguel.</p>
+  </section>
+
+  <section id="unidades">
+    <h2>Onde estamos</h2>
+    <p class="section-desc">Três endereços, todos a curta distância da UFSC. Fale no WhatsApp para saber quais unidades estão disponíveis agora.</p>
+    <div class="props-grid">
+      <div class="prop-card">
+        <div class="prop-head">
+          <h3>Residencial Pottker</h3>
+          <div class="loc">Servidão Prof. João Carlos Pottker, 25 — Carvoeira</div>
+        </div>
+        <div class="prop-body">
+          <div class="stat"><span>Tipo</span><span class="v">Kitnets 1 quarto e aptos 2 quartos</span></div>
+          <div class="stat"><span>Área</span><span class="v">22–50 m²</span></div>
+          <div class="stat"><span>A partir de</span><span class="v">~R$ 1.600/mês</span></div>
+          <span class="vacancy-pill">Unidades disponíveis</span>
+          <a class="prop-cta" href="https://wa.me/554140425242?text=Ol%C3%A1!%20Tenho%20interesse%20no%20Residencial%20Pottker%20(Carvoeira).%20Quais%20unidades%20est%C3%A3o%20dispon%C3%ADveis%3F" target="_blank" rel="noopener">Perguntar sobre este imóvel →</a>
+        </div>
+      </div>
+      <div class="prop-card">
+        <div class="prop-head">
+          <h3>Residencial Milton Sullivan</h3>
+          <div class="loc">Rua Prof. Milton Sullivan, 142 — Carvoeira</div>
+        </div>
+        <div class="prop-body">
+          <div class="stat"><span>Tipo</span><span class="v">Apartamentos 2 quartos compactos</span></div>
+          <div class="stat"><span>Área</span><span class="v">30–35 m²</span></div>
+          <div class="stat"><span>A partir de</span><span class="v">~R$ 2.150/mês</span></div>
+          <span class="vacancy-pill">Unidade disponível</span>
+          <a class="prop-cta" href="https://wa.me/554140425242?text=Ol%C3%A1!%20Tenho%20interesse%20no%20Residencial%20Milton%20Sullivan%20(Carvoeira).%20Quais%20unidades%20est%C3%A3o%20dispon%C3%ADveis%3F" target="_blank" rel="noopener">Perguntar sobre este imóvel →</a>
+        </div>
+      </div>
+      <div class="prop-card">
+        <div class="prop-head">
+          <h3>Residencial Ana Maria</h3>
+          <div class="loc">Rua Ana Maria Nunes, 214 — Córrego Grande</div>
+        </div>
+        <div class="prop-body">
+          <div class="stat"><span>Tipo</span><span class="v">1, 2 e 3 quartos</span></div>
+          <div class="stat"><span>Área</span><span class="v">35–80 m²</span></div>
+          <div class="stat"><span>A partir de</span><span class="v">~R$ 1.850/mês</span></div>
+          <span class="vacancy-pill">Unidade disponível</span>
+          <a class="prop-cta" href="https://wa.me/554140425242?text=Ol%C3%A1!%20Tenho%20interesse%20no%20Residencial%20Ana%20Maria%20(C%C3%B3rrego%20Grande).%20Quais%20unidades%20est%C3%A3o%20dispon%C3%ADveis%3F" target="_blank" rel="noopener">Perguntar sobre este imóvel →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <h2>Perguntas frequentes</h2>
+    <div class="faq">
+      <div class="faq-item">
+        <h4>Como funciona a caução?</h4>
+        <p>O valor padrão é de 1x o aluguel mensal. Consulte condições de parcelamento no WhatsApp.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Aceitam pets?</h4>
+        <p>Aceitamos animais de pequeno porte e temperamento manso — consulte restrições por unidade.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Qual a distância até a UFSC?</h4>
+        <p>Todas as unidades ficam a poucos minutos a pé ou de bicicleta do campus, nos bairros Carvoeira e Córrego Grande.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Como agendar uma visita?</h4>
+        <p>Chame no WhatsApp — respondemos rápido e organizamos a visita (presencial ou tour em vídeo) no mesmo dia.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Kitnets &amp; Apartamentos UFSC Floripa · Carvoeira &amp; Córrego Grande, Florianópolis — SC
+  </footer>
+</div>
+
+</body>
+</html>

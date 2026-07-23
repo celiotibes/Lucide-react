@@ -1,0 +1,776 @@
+<title>Central de Marketing &amp; Ocupação — Kitnets UFSC</title>
+<style>
+@font-face {
+  font-family: 'ui-serif-stack';
+  src: local('Iowan Old Style'), local('Georgia');
+}
+
+:root {
+  --bg: #0a0f0c;
+  --bg-glass: rgba(255,255,255,.045);
+  --bg-glass-strong: rgba(255,255,255,.075);
+  --bg-sunken: rgba(0,0,0,.22);
+  --ink: #edf2ed;
+  --ink-soft: #9fada4;
+  --ink-faint: #66766c;
+  --gold: #d9af6b;
+  --gold-soft: rgba(217,175,107,.15);
+  --emerald: #34b78a;
+  --emerald-soft: rgba(52,183,138,.15);
+  --critical: #e8776a;
+  --critical-soft: rgba(232,119,106,.15);
+  --warning: #e0b15c;
+  --warning-soft: rgba(224,177,92,.15);
+  --border-glass: rgba(255,255,255,.1);
+  --border-glass-strong: rgba(255,255,255,.18);
+  --shadow-glass: 0 8px 32px -8px rgba(0,0,0,.55);
+  --blur: blur(20px) saturate(160%);
+}
+
+:root[data-theme="light"] {
+  --bg: #eef0e8;
+  --bg-glass: rgba(255,255,255,.6);
+  --bg-glass-strong: rgba(255,255,255,.85);
+  --bg-sunken: rgba(24,32,25,.05);
+  --ink: #182019;
+  --ink-soft: #4c594f;
+  --ink-faint: #7c8880;
+  --gold: #a97a2e;
+  --gold-soft: rgba(169,122,46,.12);
+  --emerald: #1f7a57;
+  --emerald-soft: rgba(31,122,87,.12);
+  --critical: #b23a2e;
+  --critical-soft: rgba(178,58,46,.12);
+  --warning: #9c6b0a;
+  --warning-soft: rgba(156,107,10,.12);
+  --border-glass: rgba(24,32,25,.1);
+  --border-glass-strong: rgba(24,32,25,.18);
+  --shadow-glass: 0 8px 28px -10px rgba(24,32,25,.18);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef0e8;
+    --bg-glass: rgba(255,255,255,.6);
+    --bg-glass-strong: rgba(255,255,255,.85);
+    --bg-sunken: rgba(24,32,25,.05);
+    --ink: #182019;
+    --ink-soft: #4c594f;
+    --ink-faint: #7c8880;
+    --gold: #a97a2e;
+    --gold-soft: rgba(169,122,46,.12);
+    --emerald: #1f7a57;
+    --emerald-soft: rgba(31,122,87,.12);
+    --critical: #b23a2e;
+    --critical-soft: rgba(178,58,46,.12);
+    --warning: #9c6b0a;
+    --warning-soft: rgba(156,107,10,.12);
+    --border-glass: rgba(24,32,25,.1);
+    --border-glass-strong: rgba(24,32,25,.18);
+    --shadow-glass: 0 8px 28px -10px rgba(24,32,25,.18);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 520px at 82% -8%, var(--gold-soft), transparent 60%),
+    radial-gradient(900px 480px at 8% 12%, var(--emerald-soft), transparent 55%),
+    var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 96px;
+}
+
+.serif { font-family: 'ui-serif-stack', Georgia, "Iowan Old Style", ui-serif, serif; }
+.mono, .num { font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; }
+a { color: var(--emerald); }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 40px; }
+
+/* ---------- Glass primitive ---------- */
+.glass {
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border-glass);
+  border-radius: 18px;
+  box-shadow: var(--shadow-glass);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+@media (hover:hover) {
+  .glass.tappable:hover { transform: translateY(-2px); border-color: var(--border-glass-strong); }
+}
+.glass.tappable:active { transform: scale(.985); }
+
+/* ---------- Header ---------- */
+header.top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 20px 24px;
+  margin-bottom: 22px;
+}
+header.top .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 11.5px;
+  color: var(--emerald);
+  font-weight: 700;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+header.top .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px 1px var(--gold); }
+header.top h1 {
+  font-size: clamp(24px, 3.4vw, 30px);
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+header.top .sub { color: var(--ink-soft); font-size: 14px; margin-top: 8px; max-width: 50ch; }
+header.top .meta { text-align: right; font-size: 12px; color: var(--ink-faint); line-height: 1.6; }
+
+/* ---------- Bento grid ---------- */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: minmax(86px, auto);
+  gap: 12px;
+  margin-bottom: 26px;
+}
+.bento-card {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.bento-card.hero { grid-column: span 4; grid-row: span 2; justify-content: space-between; }
+.bento-card.tall { grid-row: span 2; }
+.bento-card.s2 { grid-column: span 2; }
+.bento-card.s3 { grid-column: span 3; }
+.bento-card.s4 { grid-column: span 4; }
+.bento-card.s6 { grid-column: span 6; }
+
+.bento-card .label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-faint); font-weight: 700; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.bento-card .value { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.bento-card.hero .value { font-size: 44px; }
+.bento-card .value.gold { color: var(--gold); }
+.bento-card .value.critical { color: var(--critical); text-shadow: 0 0 22px color-mix(in srgb, var(--critical) 45%, transparent); }
+.bento-card .value.emerald { color: var(--emerald); }
+.bento-card .note { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; }
+.bento-card .glow-orb {
+  position: absolute; width: 160px; height: 160px; border-radius: 50%;
+  filter: blur(50px); opacity: .35; pointer-events: none;
+}
+.bento-card.hero .glow-orb { background: var(--critical); top: -50px; right: -40px; }
+
+.mini-bar { display: flex; gap: 4px; margin-top: 12px; }
+.mini-bar .seg { height: 6px; flex: 1; border-radius: 4px; background: var(--bg-sunken); overflow: hidden; }
+.mini-bar .seg .fill { height: 100%; background: linear-gradient(90deg, var(--emerald), var(--gold)); border-radius: 4px; }
+
+/* ---------- Sections ---------- */
+.zone { scroll-margin-top: 90px; }
+section.panel {
+  padding: 26px 26px 30px;
+  margin-bottom: 20px;
+  scroll-margin-top: 90px;
+}
+section.panel > .head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  margin-bottom: 6px; flex-wrap: wrap;
+}
+section.panel h2 { font-size: 19px; margin: 0 0 4px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+section.panel h2 .icon { color: var(--gold); }
+section.panel .desc { font-size: 13px; color: var(--ink-soft); margin: 0 0 20px; max-width: 68ch; }
+.tag { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; padding: 4px 10px; border-radius: 100px; white-space: nowrap; }
+.tag.emerald { color: var(--emerald); background: var(--emerald-soft); }
+.tag.gold { color: var(--gold); background: var(--gold-soft); }
+
+/* ---------- Property bento cards ---------- */
+.prop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+.prop-card { padding: 18px 20px; }
+.prop-card h3 { font-size: 14.5px; margin: 0 0 3px; }
+.prop-card .prop-loc { font-size: 12px; color: var(--ink-faint); margin-bottom: 14px; }
+.prop-card .prop-stats { display: flex; justify-content: space-between; align-items: baseline; }
+.prop-card .prop-stats .v { font-size: 22px; font-weight: 600; }
+.prop-card .prop-stats .l { font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .05em; }
+
+details.expand { margin-top: 6px; }
+details.expand summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink-soft); padding: 10px 4px;
+  border-top: 1px solid var(--border-glass);
+}
+details.expand summary::-webkit-details-marker { display: none; }
+details.expand summary .chevron { transition: transform .2s ease; }
+details.expand[open] summary .chevron { transform: rotate(90deg); }
+details.expand summary:hover { color: var(--ink); }
+
+.scrollx { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 560px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border-glass); }
+th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); font-weight: 700; }
+td.num, th.num { text-align: right; }
+tr.total td { font-weight: 600; border-top: 1.5px solid var(--border-glass-strong); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 100px; }
+.pill.ok { background: var(--emerald-soft); color: var(--emerald); }
+.pill.mid { background: var(--warning-soft); color: var(--warning); }
+.pill.bad { background: var(--critical-soft); color: var(--critical); }
+
+/* ---------- Channel ranking ---------- */
+.chart-row { display: grid; grid-template-columns: 168px 1fr 84px; align-items: center; gap: 12px; padding: 9px 4px; border-radius: 10px; }
+.chart-row .name { font-size: 13px; font-weight: 500; }
+.chart-row .name small { display: block; font-size: 11px; color: var(--ink-faint); font-weight: 400; }
+.chart-track { background: var(--bg-sunken); border-radius: 7px; height: 20px; overflow: hidden; border: 1px solid var(--border-glass); }
+.chart-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--emerald), color-mix(in srgb, var(--emerald) 60%, transparent)); }
+.chart-fill.best { background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 55%, transparent)); box-shadow: 0 0 14px -2px var(--gold); }
+.chart-val { text-align: right; font-size: 13px; font-weight: 600; }
+.chart-val small { display: block; font-weight: 400; color: var(--ink-faint); font-size: 11px; }
+
+/* ---------- Simulator ---------- */
+.sim-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: start; }
+.slider-block label { font-size: 12.5px; color: var(--ink-soft); display: flex; justify-content: space-between; margin-bottom: 10px; }
+.slider-block label .num { color: var(--gold); font-weight: 700; }
+input[type="range"] {
+  width: 100%; -webkit-appearance: none; height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--emerald), var(--gold));
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bg); border: 3px solid var(--gold);
+  box-shadow: 0 0 0 4px var(--gold-soft), 0 2px 8px rgba(0,0,0,.4); cursor: pointer;
+  transition: box-shadow .15s ease;
+}
+input[type="range"]:active::-webkit-slider-thumb { box-shadow: 0 0 0 7px var(--gold-soft); }
+input[type="range"]::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--bg); border: 3px solid var(--gold); cursor: pointer;
+}
+.tier-labels { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-faint); margin-top: 8px; }
+.sim-results { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.res-card { background: var(--bg-sunken); border: 1px solid var(--border-glass); border-radius: 12px; padding: 14px 15px; }
+.res-card .l { font-size: 10.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.res-card .v { font-size: 19px; font-weight: 600; }
+.res-card.hero { grid-column: 1 / -1; background: linear-gradient(120deg, var(--emerald-soft), var(--gold-soft)); border-color: var(--border-glass-strong); }
+.res-card.hero .v { color: var(--emerald); font-size: 23px; }
+.payback { font-size: 12.5px; color: var(--ink-soft); margin-top: 14px; line-height: 1.6; }
+.payback strong { color: var(--ink); }
+
+/* ---------- Pipeline ---------- */
+.pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stage { background: var(--bg-sunken); border: 1px solid var(--border-glass); border-radius: 14px; padding: 14px; min-height: 128px; }
+.stage .stage-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.stage .stage-head span:first-child { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+.stage .stage-count { font-size: 11px; background: var(--bg-glass-strong); border: 1px solid var(--border-glass); border-radius: 100px; padding: 1px 9px; font-weight: 700; }
+.card-lead { background: var(--bg-glass-strong); border: 1px solid var(--border-glass); border-radius: 10px; padding: 9px 11px; margin-bottom: 8px; font-size: 12.5px; }
+.card-lead .n { font-weight: 600; }
+.card-lead .m { color: var(--ink-faint); font-size: 11px; margin-top: 3px; display: flex; justify-content: space-between; }
+.sla-late { color: var(--critical); font-weight: 700; }
+
+/* ---------- Checklist ---------- */
+details.phase-d { border-radius: 14px; overflow: hidden; margin-bottom: 10px; background: var(--bg-sunken); border: 1px solid var(--border-glass); }
+details.phase-d summary {
+  cursor: pointer; list-style: none; padding: 14px 16px; display: flex; align-items: center; gap: 10px; justify-content: space-between;
+}
+details.phase-d summary::-webkit-details-marker { display: none; }
+details.phase-d summary .left { display: flex; align-items: center; gap: 10px; }
+details.phase-d summary .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px 1px var(--emerald); flex-shrink: 0; }
+details.phase-d summary h3 { font-size: 13.5px; margin: 0; font-weight: 600; }
+details.phase-d summary .range { font-size: 11px; color: var(--ink-faint); }
+details.phase-d summary .chevron { transition: transform .2s ease; color: var(--ink-faint); }
+details.phase-d[open] summary .chevron { transform: rotate(90deg); }
+.tasks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; padding: 4px 16px 16px; }
+.task { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; padding: 6px 0; }
+.task input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin-top: 2px;
+  border: 1.5px solid var(--border-glass-strong); border-radius: 5px; flex-shrink: 0; cursor: pointer;
+  display: grid; place-content: center; transition: background .15s, border-color .15s;
+}
+.task input[type="checkbox"]::before {
+  content: ""; width: 9px; height: 9px; transform: scale(0);
+  transition: transform .15s ease; box-shadow: inset 1em 1em white; clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+.task input[type="checkbox"]:checked { background: var(--emerald); border-color: var(--emerald); box-shadow: 0 0 10px 0 var(--emerald-soft); }
+.task input[type="checkbox"]:checked::before { transform: scale(1); }
+.task label span.k { display: block; font-size: 11px; color: var(--ink-faint); }
+.progress-bar { background: var(--bg-sunken); border-radius: 100px; height: 8px; overflow: hidden; margin-top: 4px; border: 1px solid var(--border-glass); }
+.progress-fill { background: linear-gradient(90deg, var(--emerald), var(--gold)); height: 100%; border-radius: 100px; transition: width .3s ease; }
+
+/* ---------- Recommendation / callouts ---------- */
+.stack-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.stack-card { padding: 18px 20px; }
+.stack-card.recommended { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald), var(--shadow-glass); }
+.stack-card.caution { border-color: var(--critical); }
+.stack-card h4 { margin: 0 0 4px; font-size: 14px; }
+.stack-card .price { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
+.stack-card ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--ink-soft); }
+.stack-card li { margin-bottom: 4px; }
+.stack-card .verdict { margin-top: 10px; font-size: 11.5px; font-weight: 700; }
+.stack-card.recommended .verdict { color: var(--emerald); }
+.stack-card.caution .verdict { color: var(--critical); }
+
+.callout { border-radius: 14px; padding: 15px 17px; font-size: 13px; line-height: 1.6; margin: 14px 0; border: 1px solid var(--border-glass); }
+.callout.danger { background: var(--critical-soft); border-color: color-mix(in srgb, var(--critical) 35%, transparent); }
+.callout .callout-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--critical); margin-bottom: 5px; }
+.callout.danger p { margin: 0; color: var(--ink); }
+.risk-badge { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 100px; white-space: nowrap; }
+.risk-badge.high { background: var(--critical-soft); color: var(--critical); }
+.risk-badge.med { background: var(--warning-soft); color: var(--warning); }
+.risk-badge.low { background: var(--emerald-soft); color: var(--emerald); }
+.verdict-box { border: 1px solid var(--emerald); background: var(--emerald-soft); border-radius: 14px; padding: 18px 20px; font-size: 13.5px; line-height: 1.65; margin-top: 16px; }
+.verdict-box strong { color: var(--emerald); }
+
+footer.note { font-size: 12px; color: var(--ink-faint); text-align: center; margin-top: 22px; padding: 0 24px; }
+
+/* ---------- Bottom ergonomic nav ---------- */
+nav.dock {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; gap: 2px; padding: 6px; z-index: 40;
+  border-radius: 20px;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom));
+}
+nav.dock a {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 8px 14px; border-radius: 14px; color: var(--ink-faint);
+  font-size: 10px; font-weight: 600; text-decoration: none; transition: color .15s, background .15s, transform .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+nav.dock a svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+nav.dock a:active { transform: scale(.9); }
+nav.dock a.active { color: var(--emerald); background: var(--emerald-soft); }
+nav.dock a.active svg { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--emerald) 60%, transparent)); }
+@media (hover:hover) { nav.dock a:hover:not(.active) { color: var(--ink); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, .glass, .task input, nav.dock a, details summary .chevron { transition: none !important; animation: none !important; }
+  html { scroll-behavior: auto; }
+}
+
+@media (max-width: 860px) {
+  .bento { grid-template-columns: repeat(2, 1fr); }
+  .bento-card.hero { grid-column: span 2; grid-row: span 1; }
+  .bento-card.s2, .bento-card.s3, .bento-card.s4, .bento-card.s6 { grid-column: span 2; }
+  .sim-grid, .prop-grid, .pipeline, .stack-grid { grid-template-columns: 1fr; }
+  .tasks { grid-template-columns: 1fr; }
+  .chart-row { grid-template-columns: 110px 1fr 70px; }
+  body { padding-bottom: 112px; }
+}
+</style>
+
+<div class="wrap">
+
+  <header class="top glass">
+    <div>
+      <p class="eyebrow"><span class="dot"></span>Kitnets &amp; Apartamentos UFSC · Central de Inteligência Comercial</p>
+      <h1 class="serif">Da vaga ao contrato assinado, em uma tela</h1>
+      <p class="sub">Bento grid cognitivo para decisão rápida, navegação inferior para uso no celular durante visitas, e camadas expansíveis para não sobrecarregar quem só quer o número do dia.</p>
+    </div>
+    <div class="meta">Pottker 25 · Milton Sullivan 142<br>Ana Maria Nunes 214</div>
+  </header>
+
+  <!-- ================= VISÃO GERAL ================= -->
+  <section id="visao" class="zone">
+  <div class="bento">
+    <div class="bento-card hero glass tappable">
+      <div class="glow-orb"></div>
+      <div class="label">Receita mensal em risco</div>
+      <div class="value critical">R$ 18.700</div>
+      <div class="note">soma do aluguel das 8 unidades vagas — este é o número que deveria decidir o orçamento de mídia, não o inverso.</div>
+    </div>
+    <div class="bento-card s2 glass tappable">
+      <div class="label">Vacância atual</div>
+      <div class="value gold">25%</div>
+      <div class="mini-bar"><div class="seg"><div class="fill" style="width:75%"></div></div></div>
+      <div class="note">8 de 32 unidades paradas</div>
+    </div>
+    <div class="bento-card s2 glass tappable">
+      <div class="label">Meta do sprint</div>
+      <div class="value emerald">100%</div>
+      <div class="note">7 novos contratos até 31/jul</div>
+    </div>
+    <div class="bento-card s3 glass tappable">
+      <div class="label">Caução potencial parada</div>
+      <div class="value">R$ 18.700</div>
+      <div class="note">1x aluguel por unidade vaga, mesmo valor liberado ao fechar</div>
+    </div>
+    <div class="bento-card s3 glass tappable">
+      <div class="label">Portfólio</div>
+      <div class="value">3 <span style="font-size:16px; color:var(--ink-faint); font-weight:500;">imóveis</span></div>
+      <div class="note">32 unidades entre Carvoeira e Córrego Grande</div>
+    </div>
+  </div>
+
+  <section class="panel glass">
+    <div class="head">
+      <div>
+        <h2><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Vacância por imóvel</h2>
+        <p class="desc">Cada endereço tem um mix de unidades diferente — a mensagem certa de anúncio muda conforme o cartão abaixo.</p>
+      </div>
+    </div>
+    <div class="prop-grid">
+      <div class="prop-card glass tappable">
+        <h3>Pottker 25</h3>
+        <div class="prop-loc">Carvoeira — kitnets 1 qt + 2 aptos 2 qt</div>
+        <div class="prop-stats"><span class="v">6<span style="font-size:13px;color:var(--ink-faint);">/21</span></span><span class="pill bad">28,6%</span></div>
+      </div>
+      <div class="prop-card glass tappable">
+        <h3>Milton Sullivan 142</h3>
+        <div class="prop-loc">Carvoeira — 6 aptos 2 qt (casal/roommates)</div>
+        <div class="prop-stats"><span class="v">1<span style="font-size:13px;color:var(--ink-faint);">/6</span></span><span class="pill mid">16,7%</span></div>
+      </div>
+      <div class="prop-card glass tappable">
+        <h3>Ana Maria Nunes 214</h3>
+        <div class="prop-loc">Córrego Grande — 1 a 3 quartos</div>
+        <div class="prop-stats"><span class="v">1<span style="font-size:13px;color:var(--ink-faint);">/5</span></span><span class="pill mid">20,0%</span></div>
+      </div>
+    </div>
+
+    <details class="expand">
+      <summary><svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>Ver detalhamento completo e leitura crítica</summary>
+      <div class="scrollx" style="margin-top:12px;">
+        <table>
+          <thead><tr><th>Endereço</th><th>Perfil de unidade</th><th class="num">Unid.</th><th class="num">Vacantes</th><th class="num">Receita máx.</th></tr></thead>
+          <tbody>
+            <tr><td>Pottker 25</td><td>18 kitnets 1 quarto (22–28 m²) + 2 aptos 2 qt suíte + 1 apto 2 qt</td><td class="num mono">21</td><td class="num mono">6</td><td class="num mono">R$ 39.550</td></tr>
+            <tr><td>Milton Sullivan 142</td><td>6 apartamentos 2 quartos compactos (30–35 m²)</td><td class="num mono">6</td><td class="num mono">1</td><td class="num mono">R$ 13.500</td></tr>
+            <tr><td>Ana Maria Nunes 214</td><td>1 apto 3 qt (80 m²) + 2× 1 qt/sala + 2× 2 qt</td><td class="num mono">5</td><td class="num mono">1</td><td class="num mono">R$ 12.150</td></tr>
+            <tr class="total"><td colspan="2">Total do portfólio</td><td class="num mono">32</td><td class="num mono">8</td><td class="num mono">R$ 65.200</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="payback" style="margin-top:14px;">
+        <strong>Leitura crítica:</strong> só a Pottker 25 é majoritariamente kitnet solo — é a única propriedade em que "Kitnet completa, tudo incluso, a 5 min da UFSC" bate 100% com o produto. Milton Sullivan é 100% 2‑quartos e Ana Maria Nunes tem um apto de 3 quartos por R$ 3.700 — para essas duas, mensagem de coliving/roommates ou família/profissional visitante converte melhor.
+      </p>
+    </details>
+  </section>
+  </section>
+
+  <!-- ================= CANAIS ================= -->
+  <section id="canais" class="zone">
+  <section class="panel glass" style="margin-bottom:16px;">
+    <div class="head">
+      <div>
+        <h2><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>Ranking de canais por custo real</h2>
+        <p class="desc">Reconstruído a partir do seu Guia de Custo — ordenado por custo por contrato fechado, não por custo por clique.</p>
+      </div>
+      <span class="tag emerald">dado extraído dos seus documentos</span>
+    </div>
+    <div class="chart-row"><div class="name">Reels / TikTok orgânico<small>0–1 contrato/mês</small></div><div class="chart-track"><div class="chart-fill best" style="width:8%"></div></div><div class="chart-val">R$ 0–30<small>por contrato</small></div></div>
+    <div class="chart-row"><div class="name">Google Business (Maps)<small>gratuito, exige reviews</small></div><div class="chart-track"><div class="chart-fill best" style="width:2%"></div></div><div class="chart-val">R$ 0<small>por contrato</small></div></div>
+    <div class="chart-row"><div class="name">OLX Imóveis<small>5 leads/mês, baixa conversão</small></div><div class="chart-track"><div class="chart-fill" style="width:18%"></div></div><div class="chart-val">≈ R$ 60<small>por contrato</small></div></div>
+    <div class="chart-row"><div class="name">Meta Ads (raio 5 km UFSC)<small>4 contratos / R$ 400</small></div><div class="chart-track"><div class="chart-fill" style="width:28%"></div></div><div class="chart-val">≈ R$ 100<small>por contrato</small></div></div>
+    <div class="chart-row"><div class="name">Google Ads (busca)<small>1,5 contrato / R$ 200</small></div><div class="chart-track"><div class="chart-fill" style="width:38%"></div></div><div class="chart-val">≈ R$ 133<small>por contrato</small></div></div>
+    <div class="chart-row"><div class="name">Airbnb (mensal)<small>comissão de 20% na reserva</small></div><div class="chart-track"><div class="chart-fill" style="width:100%"></div></div><div class="chart-val">≈ R$ 380–460<small>por contrato*</small></div></div>
+    <p class="payback">*20% sobre a primeira mensalidade — 4x mais caro por contrato que Meta Ads. Papel certo: hedge de baixa temporada, não motor principal de custo‑benefício.</p>
+  </section>
+
+  <section class="panel glass">
+    <div class="head">
+      <div>
+        <h2><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>Simulador de investimento</h2>
+        <p class="desc">Interpola os patamares do seu Guia de Custo. Quanto investir, dado que a vacância custa R$ 18.700/mês parada?</p>
+      </div>
+    </div>
+    <div class="sim-grid">
+      <div class="slider-block">
+        <label>Orçamento mensal de mídia paga <span class="num" id="budgetLabel">R$ 800</span></label>
+        <input type="range" id="budget" min="0" max="1200" step="10" value="800">
+        <div class="tier-labels"><span>Básico · R$0</span><span>Intermediário · R$550</span><span>Profissional · R$1.200</span></div>
+        <p class="payback" id="simExplain"></p>
+      </div>
+      <div class="sim-results">
+        <div class="res-card"><div class="l">Leads/mês estimados</div><div class="v num" id="outLeads">–</div></div>
+        <div class="res-card"><div class="l">Contratos/mês estimados</div><div class="v num" id="outContracts">–</div></div>
+        <div class="res-card"><div class="l">Custo por contrato</div><div class="v num" id="outCPA">–</div></div>
+        <div class="res-card"><div class="l">Dias p/ zerar vacância</div><div class="v num" id="outDays">–</div></div>
+        <div class="res-card hero"><div class="l">Receita destravada no mês vs. investimento</div><div class="v num" id="outROI">–</div></div>
+      </div>
+    </div>
+  </section>
+  </section>
+
+  <!-- ================= FUNIL ================= -->
+  <section id="funil" class="panel glass">
+    <div class="head">
+      <div>
+        <h2><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16l-6 8v6l-4 2v-8L4 4z"/></svg>Funil de leads</h2>
+        <p class="desc">Kanban com alerta de SLA — resposta em até 10 min no WhatsApp aumenta conversão em 60%, conforme seu próprio Guia.</p>
+      </div>
+    </div>
+    <div class="pipeline">
+      <div class="stage"><div class="stage-head"><span>Contato inicial</span><span class="stage-count">1</span></div>
+        <div class="card-lead"><div class="n">Maria</div><div class="m"><span>Google Maps</span><span class="sla-late">atrasado 14 min</span></div></div>
+      </div>
+      <div class="stage"><div class="stage-head"><span>Visitou</span><span class="stage-count">1</span></div>
+        <div class="card-lead"><div class="n">João</div><div class="m"><span>Instagram Ads</span><span>agendar assinatura</span></div></div>
+      </div>
+      <div class="stage"><div class="stage-head"><span>Confirmado</span><span class="stage-count">1</span></div>
+        <div class="card-lead"><div class="n">Lucas</div><div class="m"><span>Airbnb</span><span>long stay</span></div></div>
+      </div>
+      <div class="stage"><div class="stage-head"><span>Contrato assinado</span><span class="stage-count">0</span></div>
+        <div class="card-lead" style="opacity:.5; text-align:center; color:var(--ink-faint);">— aguardando —</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CHECKLIST ================= -->
+  <section id="checklist" class="panel glass">
+    <div class="head">
+      <div>
+        <h2><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Checklist — sprint de 20 dias</h2>
+        <p class="desc">Fases da Agenda Diário‑Executiva. Toque para expandir cada fase.</p>
+      </div>
+      <div style="min-width:160px;">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        <div style="font-size:11px; color:var(--ink-faint); margin-top:5px; text-align:right;" id="progressLabel">0 / 20 tarefas</div>
+      </div>
+    </div>
+
+    <details class="phase-d" open>
+      <summary><span class="left"><span class="dot"></span><h3>Fase 1 — Conteúdo e estrutura digital</h3></span><span style="display:flex; align-items:center; gap:10px;"><span class="range">dias 1–5</span><svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></span></summary>
+      <div class="tasks">
+        <div class="task"><input type="checkbox" class="chk"><label>Fotografar 5 kitnets/corredores <span class="k">Câmera / Canva</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Padronizar pastas no Drive por unidade <span class="k">Google Drive</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Reativar Marketplace / OLX <span class="k">Meta, OLX</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Completar perfil Google Business <span class="k">Google Maps</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Ativar Airbnb modo mensal (desconto 25%) <span class="k">Airbnb</span></label></div>
+      </div>
+    </details>
+
+    <details class="phase-d">
+      <summary><span class="left"><span class="dot"></span><h3>Fase 2 — Publicação e tráfego local</h3></span><span style="display:flex; align-items:center; gap:10px;"><span class="range">dias 6–10</span><svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></span></summary>
+      <div class="tasks">
+        <div class="task"><input type="checkbox" class="chk"><label>Lançar Meta Ads — campanha estudantes <span class="k">R$10–15/dia</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Lançar Meta Ads — campanha profissionais <span class="k">copy "trabalho remoto"</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Publicar landing page one‑page <span class="k">Wix / Carrd</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Publicar Reels "Tour Kitnet UFSC" <span class="k">meta: 1.000 views</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Ativar follow‑up automático WhatsApp <span class="k">WhatsApp Business</span></label></div>
+      </div>
+    </details>
+
+    <details class="phase-d">
+      <summary><span class="left"><span class="dot"></span><h3>Fase 3 — Engajamento e conversão</h3></span><span style="display:flex; align-items:center; gap:10px;"><span class="range">dias 11–15</span><svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></span></summary>
+      <div class="tasks">
+        <div class="task"><input type="checkbox" class="chk"><label>Stories "últimas vagas para agosto" <span class="k">meta: 2.000 views</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Duplicar anúncios de melhor CTR <span class="k">meta: CTR ≥ 2%</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Ativar parcerias / grupos UFSC <span class="k">meta: +10 leads</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Solicitar novos reviews no Google <span class="k">meta: ≥10 avaliações</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Lançar campanha de retargeting <span class="k">meta: +5 conversões</span></label></div>
+      </div>
+    </details>
+
+    <details class="phase-d">
+      <summary><span class="left"><span class="dot"></span><h3>Fase 4 — Remarketing e fechamento</h3></span><span style="display:flex; align-items:center; gap:10px;"><span class="range">dias 16–20</span><svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></span></summary>
+      <div class="tasks">
+        <div class="task"><input type="checkbox" class="chk"><label>Oferecer caução parcelada <span class="k">meta: 3 contratos</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Postar vídeo‑depoimento de morador <span class="k">Instagram</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Impulsionar anúncio vencedor <span class="k">últimas unidades</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Atualizar leads e consolidar base <span class="k">Sheets / Meta</span></label></div>
+        <div class="task"><input type="checkbox" class="chk"><label>Calcular custo por locação final <span class="k">relatório final</span></label></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ================= COMPARATIVO ================= -->
+  <section id="comparativo" class="zone">
+  <section class="panel glass" style="margin-bottom:16px;">
+    <div class="head">
+      <div>
+        <h2><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Recomendação de stack</h2>
+        <p class="desc">32 unidades e um operador não justificam software sob medida do zero.</p>
+      </div>
+    </div>
+    <div class="stack-grid">
+      <div class="stack-card glass tappable recommended">
+        <h4>MVP no‑code — Sheets + Apps Script + Looker</h4>
+        <div class="price">R$ 0/mês · pronto em 2–3 dias</div>
+        <ul>
+          <li>Planilha Central vira o banco de dados</li>
+          <li>Apps Script alerta se lead ficar &gt;10 min sem resposta</li>
+          <li>Looker Studio gratuito conecta e vira painel visual</li>
+        </ul>
+        <div class="verdict">✓ Recomendado para os 20 dias</div>
+      </div>
+      <div class="stack-card glass tappable caution">
+        <h4>Ecossistema N8N/Make + WhatsApp API + IA <span class="tag gold" style="margin-left:6px;">proposta Gemini</span></h4>
+        <div class="price">≈ R$ 400–750/mês · 5+ dias de infra</div>
+        <ul>
+          <li>Sincronização reversa é uma ideia genuinamente boa — já incorporada</li>
+          <li>Airbnb/OLX não têm webhook para anfitrião pequeno</li>
+          <li>Z‑API/Evolution: risco de banimento do número</li>
+        </ul>
+        <div class="verdict">△ Superdimensionado para 8 vagas — Fase 2</div>
+      </div>
+      <div class="stack-card glass tappable">
+        <h4>App dedicado — Airtable Pro / Lovable</h4>
+        <div class="price">R$ 240–600+/mês · 2–4 semanas</div>
+        <ul>
+          <li>CRM completo, app mobile, permissões por usuário</li>
+          <li>Só compensa com múltiplas propriedades/operadores</li>
+        </ul>
+        <div class="verdict" style="color:var(--warning);">△ Gatilho: &gt;80–100 unidades</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel glass">
+    <div class="head">
+      <div>
+        <h2><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>Análise crítica — proposta Gemini</h2>
+        <p class="desc">Verificado contra os três documentos originais.</p>
+      </div>
+    </div>
+
+    <div class="callout danger">
+      <span class="callout-label">⚠ conteúdo fabricado encontrado</span>
+      <p>O <em>system prompt</em> proposto instrui a IA a afirmar que água, IPTU e condomínio estão inclusos e a citar uma usina de energia solar própria. Checamos: água/IPTU/condomínio realmente estão inclusos (confirmado no seu anúncio real) — mas a usina de energia solar não existe em nenhum documento. É uma alegação factual inventada pelo Gemini, pronta para ser dita a um cliente real.</p>
+    </div>
+
+    <details class="expand">
+      <summary><svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>Ver tabela completa de riscos verificados</summary>
+      <div class="scrollx" style="margin-top:12px;">
+        <table>
+          <thead><tr><th>Item da proposta</th><th>Risco</th><th>Por quê</th></tr></thead>
+          <tbody>
+            <tr><td>Custo do ecossistema nunca é somado</td><td><span class="risk-badge high">Alto</span></td><td>Reconstruído aqui: ≈ R$ 400–750/mês — próximo do próprio orçamento "Profissional" de mídia.</td></tr>
+            <tr><td>Z‑API / Evolution listadas como equivalentes à API oficial</td><td><span class="risk-badge high">Alto</span></td><td>Não são oficiais; risco real de banimento do número no meio do sprint.</td></tr>
+            <tr><td>Captura "em tempo real" de Airbnb e OLX via webhook</td><td><span class="risk-badge med">Médio</span></td><td>Nenhuma das duas oferece API de leads para anfitrião individual.</td></tr>
+            <tr><td>Script Python "direto no Apps Script"</td><td><span class="risk-badge med">Médio</span></td><td>Apps Script roda JavaScript, não Python.</td></tr>
+            <tr><td>LGPD — dados de terceiros em infra externa</td><td><span class="risk-badge med">Médio</span></td><td>Não mencionado na proposta original.</td></tr>
+            <tr><td>Sincronização reversa de status</td><td><span class="risk-badge low">Baixo</span></td><td>Boa ideia — incorporada na recomendação final.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <div class="verdict-box">
+      <strong>Veredito de custo‑benefício:</strong> comece pela MVP no‑code (R$0, 2–3 dias) para os 20 dias de sprint. Adote agora, sem custo extra, a sincronização reversa de status. Trate o ecossistema N8N/Make + WhatsApp API + IA como <strong>gatilho de Fase 2</strong> — e nunca sem checagem humana obrigatória de cada afirmação factual antes de qualquer IA conversar com um cliente real.
+    </div>
+  </section>
+  </section>
+
+  <footer class="note">Protótipo de painel — Guia de Custo, Manual de Reposicionamento, Planilha Central 2026 e análise crítica da proposta complementar.</footer>
+</div>
+
+<nav class="dock glass" id="dock">
+  <a href="#visao" data-section="visao" class="active">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Visão
+  </a>
+  <a href="#canais" data-section="canais">
+    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+    Canais
+  </a>
+  <a href="#funil" data-section="funil">
+    <svg viewBox="0 0 24 24"><path d="M4 4h16l-6 8v6l-4 2v-8L4 4z"/></svg>
+    Funil
+  </a>
+  <a href="#checklist" data-section="checklist">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    Sprint
+  </a>
+  <a href="#comparativo" data-section="comparativo">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    Análise
+  </a>
+</nav>
+
+<script>
+(function(){
+  var tiers = [
+    { budget: 0,    leads: 20,  contracts: 3 },
+    { budget: 550,  leads: 70,  contracts: 7 },
+    { budget: 1200, leads: 115, contracts: 10 }
+  ];
+  var avgVacantRent = 18700 / 8;
+
+  function interp(budget){
+    var lo, hi;
+    if (budget <= tiers[1].budget) { lo = tiers[0]; hi = tiers[1]; }
+    else { lo = tiers[1]; hi = tiers[2]; }
+    var span = hi.budget - lo.budget;
+    var t = span === 0 ? 0 : (budget - lo.budget) / span;
+    return {
+      leads: lo.leads + (hi.leads - lo.leads) * t,
+      contracts: lo.contracts + (hi.contracts - lo.contracts) * t
+    };
+  }
+
+  var fmt0 = new Intl.NumberFormat('pt-BR', {maximumFractionDigits: 0});
+  var fmtBRL = function(n){ return 'R$ ' + fmt0.format(Math.round(n)); };
+
+  var budgetEl = document.getElementById('budget');
+  var budgetLabel = document.getElementById('budgetLabel');
+  var outLeads = document.getElementById('outLeads');
+  var outContracts = document.getElementById('outContracts');
+  var outCPA = document.getElementById('outCPA');
+  var outDays = document.getElementById('outDays');
+  var outROI = document.getElementById('outROI');
+  var simExplain = document.getElementById('simExplain');
+
+  function render(){
+    var budget = Number(budgetEl.value);
+    budgetLabel.textContent = fmtBRL(budget);
+    var r = interp(budget);
+    var contracts = Math.max(r.contracts, 0.1);
+    var cpa = budget / contracts;
+    var revenueUnlocked = Math.min(r.contracts, 8) * avgVacantRent;
+    var daysToFill = r.contracts > 0 ? Math.round((8 / r.contracts) * 20) : Infinity;
+
+    outLeads.textContent = fmt0.format(Math.round(r.leads));
+    outContracts.textContent = fmt0.format(Math.round(r.contracts * 10) / 10);
+    outCPA.textContent = budget === 0 ? '—' : fmtBRL(cpa);
+    outDays.textContent = isFinite(daysToFill) ? daysToFill + ' dias' : '—';
+    outROI.textContent = fmtBRL(revenueUnlocked) + ' / mês';
+
+    var multiple = budget > 0 ? (revenueUnlocked / budget) : 0;
+    simExplain.innerHTML = budget === 0
+      ? 'Sem mídia paga: só orgânico. Estimativa conservadora do próprio Guia.'
+      : 'A cada <strong>R$ 1</strong> em mídia, o plano projeta cerca de <strong>R$ ' + fmt0.format(Math.round(multiple)) + '</strong> em aluguel mensal destravado.';
+  }
+  budgetEl.addEventListener('input', render);
+  render();
+
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.chk'));
+  var fill = document.getElementById('progressFill');
+  var label = document.getElementById('progressLabel');
+  function renderProgress(){
+    var done = boxes.filter(function(b){ return b.checked; }).length;
+    fill.style.width = (done / boxes.length * 100) + '%';
+    label.textContent = done + ' / ' + boxes.length + ' tarefas';
+  }
+  boxes.forEach(function(b){ b.addEventListener('change', renderProgress); });
+  renderProgress();
+
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('nav.dock a'));
+  var sections = navLinks.map(function(a){ return document.getElementById(a.dataset.section); });
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting) {
+          var id = entry.target.id;
+          navLinks.forEach(function(a){ a.classList.toggle('active', a.dataset.section === id); });
+        }
+      });
+    }, { rootMargin: '-40% 0px -50% 0px', threshold: 0 });
+    sections.forEach(function(s){ if (s) io.observe(s); });
+  }
+})();
+</script>
