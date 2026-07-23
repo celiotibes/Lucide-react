@@ -1,9 +1,10 @@
-# Reconstituição contábil — locação de imóveis (pessoa física)
+# CRMT Histórico Contábil & Financeiro
 
-Aplicativo web (React + TypeScript + Vite) para organizar, reconciliar e reconstituir
-a contabilidade de uma atividade de fato de locação de imóveis misturada em contas de
-pessoa física — pensado para gerar relatórios (DRE, inadimplência, depósitos caução)
-com lastro documental para uso em perícia judicial.
+Reconstituição contábil — locação de imóveis (pessoa física). Aplicativo web
+(React + TypeScript + Vite) para organizar, reconciliar e reconstituir a
+contabilidade de uma atividade de fato de locação de imóveis misturada em
+contas de pessoa física — pensado para gerar relatórios (DRE, inadimplência,
+depósitos caução) com lastro documental para uso em perícia judicial.
 
 **O núcleo roda inteiramente no navegador.** Os dados ficam num banco SQLite
 (via [sql.js](https://sql.js.org/), compilado para WebAssembly) persistido no

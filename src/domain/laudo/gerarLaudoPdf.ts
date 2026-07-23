@@ -125,11 +125,12 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
   const doc = new JsPdf({ unit: "mm", format: "a4" });
   const w = new Escritor(doc);
 
-  w.titulo("Laudo de reconstituição contábil");
+  w.titulo("CRMT Histórico Contábil & Financeiro");
+  w.secao("Laudo de reconstituição contábil");
   w.paragrafo(
-    `Período analisado: ${dados.periodoInicio} a ${dados.periodoFim}. Documento gerado localmente pelo sistema de ` +
-      `reconstituição contábil, a partir de extratos bancários, contratos de locação e comprovantes importados pelo ` +
-      `próprio interessado. Não substitui a análise de um contador ou perito habilitado.`,
+    `Período analisado: ${dados.periodoInicio} a ${dados.periodoFim}. Documento gerado localmente pelo CRMT ` +
+      `Histórico Contábil & Financeiro, a partir de extratos bancários, contratos de locação e comprovantes ` +
+      `importados pelo próprio interessado. Não substitui a análise de um contador ou perito habilitado.`,
   );
   w.espaco(2);
 

@@ -1,4 +1,4 @@
-# Reconstituição contábil — locação de imóveis em pessoa física
+# CRMT Histórico Contábil & Financeiro — reconstituição contábil (locação de imóveis, pessoa física)
 
 Scaffold do pipeline descrito no dossiê técnico anexo à conversa: transforma
 extratos bancários dispersos, boletos e comprovantes PIX em livro-razão,

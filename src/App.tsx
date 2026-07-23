@@ -163,8 +163,8 @@ function Conteudo() {
           <div className="brand">
             <BookOpen size={22} color="var(--accent)" />
             <div>
-              <h1>Reconstituição contábil</h1>
-              <small>Locação de imóveis · pessoa física — todos os dados ficam neste navegador</small>
+              <h1>CRMT Histórico Contábil & Financeiro</h1>
+              <small>Reconstituição contábil · locação de imóveis · pessoa física — todos os dados ficam neste navegador</small>
             </div>
           </div>
           <div className="toolbar-actions">

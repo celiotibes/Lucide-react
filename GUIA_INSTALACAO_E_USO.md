@@ -1,4 +1,4 @@
-# Guia de instalação e uso — passo a passo para quem nunca fez isso
+# CRMT Histórico Contábil & Financeiro — guia de instalação e uso
 
 Este guia parte do zero: como colocar o sistema para rodar no seu computador
 e como usá-lo no dia a dia. Não presume nenhuma experiência com programação.
