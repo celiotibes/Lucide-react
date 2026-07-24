@@ -1,7 +1,7 @@
 // Integração PIX com Asaas - QR code dinâmico, cópia e cola, cobrança em tempo real
 
 import type { Pool } from 'pg';
-import { AsaasClient } from './asaasClient';
+import { AsaasClient } from '@/server/asaas/client';
 
 export interface ConfigPIX {
   chavePixType: 'cpf' | 'cnpj' | 'email' | 'aleatoria';

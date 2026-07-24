@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/ssr';
 
 interface NfseData {
   numeroNFSe?: string;
@@ -37,7 +37,7 @@ export default function NFSeDashboard() {
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [emitindo, setEmitindo] = useState(false);
 
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   useEffect(() => {
     carregarDados();

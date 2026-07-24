@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/ssr';
 
 interface DadosPIX {
   qrCode: string;
@@ -33,7 +33,7 @@ export default function PagamentoPIX() {
   const [statusPagamento, setStatusPagamento] = useState<'pendente' | 'pago'>('pendente');
   const [tempoRestante, setTempoRestante] = useState<number>(0);
 
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   useEffect(() => {
     carregarFaturaPIX();

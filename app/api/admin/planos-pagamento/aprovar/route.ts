@@ -1,7 +1,7 @@
 // API endpoint para proprietário aprovar plano de pagamento
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { obterPool } from '@/server/integracao/db';
 import { aprovarPlanoPagamento } from '@/server/integracao/criarPlanoPagamento';
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Autenticar admin
     const cookieStore = cookies();
-    const supabase = createServerComponentClient({
+    const supabase = createClient({
       cookies: () => cookieStore,
     });
 

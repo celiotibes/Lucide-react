@@ -1,7 +1,7 @@
 // API endpoint para tenant criar plano de pagamento para fatura atrasada
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { obterPool } from '@/server/integracao/db';
 import { criarPlanoPagamento } from '@/server/integracao/criarPlanoPagamento';
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Autenticar tenant
     const cookieStore = cookies();
-    const supabase = createServerComponentClient({
+    const supabase = createClient({
       cookies: () => cookieStore,
     });
 

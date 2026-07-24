@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/ssr';
 
 interface Garantia {
   id: string;
@@ -32,7 +32,7 @@ export default function ContratoGarantias() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   useEffect(() => {
     async function carregarGarantias() {

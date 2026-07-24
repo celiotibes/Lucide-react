@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/ssr';
 import Link from 'next/link';
 
 interface PlanoPagamentoDetalhes {
@@ -27,7 +27,7 @@ export default function PlanosPagementoDashboard() {
   const [motivoRejeicao, setMotivoRejeicao] = useState<{ [key: string]: string }>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   useEffect(() => {
     async function carregarPlanos() {
