@@ -1,7 +1,14 @@
 // Testes para sistema de alertas de vencimento de garantias
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { alertarVencimentoGarantias } from './alertarVencimentoGarantias';
+
+// Configurar RESEND_API_KEY para testes (dummy key OK para mock)
+beforeEach(() => {
+  if (!process.env.RESEND_API_KEY) {
+    process.env.RESEND_API_KEY = 'test-key-12345';
+  }
+});
 
 // Mock do pool — em testes reais com DATABASE_URL, usar Postgres real
 const mockPool = {
