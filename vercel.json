@@ -83,6 +83,10 @@
     {
       "path": "/api/cron/gerar-multa-juros",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/alertas-vencimento-garantias",
+      "schedule": "0 9 * * *"
     }
   ]
 }
