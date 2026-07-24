@@ -1,8 +1,9 @@
-import { obterPool } from '@/server/integracao/db';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { formatarData, formatarMoeda } from '@/lib/formatacao';
 import { aprovarTransacao, ignorarTransacao } from './actions';
-
-export const dynamic = 'force-dynamic';
+import { FormularioUploadOFX } from './FormularioUploadOFX';
 
 interface LinhaTransacao {
   id: string;
@@ -19,36 +20,57 @@ interface OpcaoCategoria {
   nome: string;
 }
 
-async function buscarTransacoesPendentes(): Promise<LinhaTransacao[]> {
-  const pool = obterPool();
-  const { rows } = await pool.query<LinhaTransacao>(`
-    select t.id, cb.instituicao as conta, t.data, t.valor, t.descricao, t.origem,
-           cf.nome as categoria_sugerida
-    from transacoes_bancarias t
-    join contas_bancarias cb on cb.id = t.conta_id
-    left join categorias_financeiras cf on cf.id = t.categoria_sugerida
-    where t.status = 'sugerido'
-    order by t.data desc
-    limit 200
-  `);
-  return rows;
+interface ContaBancaria {
+  id: string;
+  instituicao: string;
 }
 
-async function buscarCategorias(): Promise<OpcaoCategoria[]> {
-  const pool = obterPool();
-  const { rows } = await pool.query<OpcaoCategoria>(`select id, nome from categorias_financeiras order by nome`);
-  return rows;
-}
+export default function PaginaConciliacaoBancaria() {
+  const [transacoes, setTransacoes] = useState<LinhaTransacao[]>([]);
+  const [categorias, setCategorias] = useState<OpcaoCategoria[]>([]);
+  const [contas, setContas] = useState<ContaBancaria[]>([]);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(true);
 
-export default async function PaginaConciliacaoBancaria() {
-  let transacoes: LinhaTransacao[] = [];
-  let categorias: OpcaoCategoria[] = [];
-  let erro: string | null = null;
+  useEffect(() => {
+    async function carregar() {
+      try {
+        const [resTransacoes, resCategorias, resContas] = await Promise.all([
+          fetch('/api/conciliacao-bancaria/transacoes').then((r) => r.json()),
+          fetch('/api/conciliacao-bancaria/categorias').then((r) => r.json()),
+          fetch('/api/contas-bancarias').then((r) => r.json()),
+        ]);
 
-  try {
-    [transacoes, categorias] = await Promise.all([buscarTransacoesPendentes(), buscarCategorias()]);
-  } catch {
-    erro = 'Não foi possível conectar ao banco (DATABASE_URL não configurada ou banco fora do ar).';
+        setTransacoes(resTransacoes);
+        setCategorias(resCategorias);
+        setContas(resContas);
+      } catch {
+        setErro('Não foi possível conectar ao banco (DATABASE_URL não configurada ou banco fora do ar).');
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregar();
+  }, []);
+
+  async function handleUploadSucesso() {
+    try {
+      const res = await fetch('/api/conciliacao-bancaria/transacoes');
+      const novasTransacoes = await res.json();
+      setTransacoes(novasTransacoes);
+    } catch {
+      setErro('Erro ao recarregar transações após upload.');
+    }
+  }
+
+  if (carregando) {
+    return (
+      <>
+        <h2>Conciliação Bancária</h2>
+        <p>Carregando...</p>
+      </>
+    );
   }
 
   if (erro) {
@@ -64,6 +86,11 @@ export default async function PaginaConciliacaoBancaria() {
     <>
       <h2>Conciliação Bancária ({transacoes.length} pendentes)</h2>
       <p>Transações importadas (OFX ou lançadas manualmente) que ainda não foram revisadas. Nenhuma vira DRE oficial sem aprovação humana.</p>
+
+      <div className="secao-upload">
+        <FormularioUploadOFX contas={contas} onUploadSucesso={handleUploadSucesso} />
+      </div>
+
       {transacoes.length === 0 ? (
         <p className="vazio">Nenhuma transação pendente de conciliação.</p>
       ) : (

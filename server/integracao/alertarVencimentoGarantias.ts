@@ -2,7 +2,7 @@
 // Executado daily cron: detecta garantias vencendo em 60 dias, envia notificações
 
 import type { Pool } from 'pg';
-import { enviarEmail } from '@/server/integracao/notificadores/Email';
+import { ProvedorEmail } from '@/server/notificacao/Notificador';
 import { enviarNotificacaoEmLote } from '@/server/integracao/whatsappTwilio';
 
 export interface GarantiaParaAlertar {
@@ -159,15 +159,22 @@ ${listaGarantias}
     }
   }
 
-  // Enviar emails
+  // Enviar emails via Resend
   let emailsSucesso = 0;
   let emailsFalha = 0;
+  const provedorEmail = new ProvedorEmail();
   for (const email of emailsEnviar) {
     try {
-      await enviarEmail({
-        para: email.para,
-        assunto: email.assunto,
-        html: email.html,
+      await provedorEmail.enviar({
+        canais: ['email'],
+        destinatario: {
+          email: email.para,
+          nome: email.nome_destinatario,
+        },
+        template: {
+          titulo: email.assunto,
+          corpo: email.html,
+        },
       });
       emailsSucesso++;
     } catch (err) {
