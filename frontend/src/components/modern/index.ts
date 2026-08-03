@@ -23,6 +23,7 @@ export { MetricsPanel } from './MetricsPanel';
 export { ThresholdControl } from './ThresholdControl';
 export { MetricSelector, type MetricOption } from './MetricSelector';
 export { MultiMetricAnalytics } from './MultiMetricAnalytics';
+export { ForecastPeriodSelector, type ForecastPeriod } from './ForecastPeriodSelector';
 
 export default {
   GlassCard,

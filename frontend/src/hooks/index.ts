@@ -6,3 +6,4 @@ export { useAnomalyDetection } from './useAnomalyDetection';
 export { useForecastingEngine, getReliabilityMessage } from './useForecastingEngine';
 export { useAnomalySettings } from './useAnomalySettings';
 export { useMultiMetricAnalytics, type MetricAnalysis, type MultiMetricResult } from './useMultiMetricAnalytics';
+export { useForecastSettings } from './useForecastSettings';
