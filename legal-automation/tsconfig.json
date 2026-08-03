@@ -6,6 +6,7 @@
     "types": ["node", "jest"],
     "outDir": "./dist",
     "rootDir": "./src",
+    "noEmitOnError": false,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

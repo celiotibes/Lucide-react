@@ -59,6 +59,9 @@ export const config = {
 
   // Database
   database_url: process.env.DATABASE_URL,
+  db_pool_size: parseInt(process.env.DATABASE_POOL_SIZE || '20', 10),
+  db_idle_timeout: parseInt(process.env.DATABASE_IDLE_TIMEOUT || '10000', 10),
+  db_connection_timeout: parseInt(process.env.DATABASE_CONNECTION_TIMEOUT || '5000', 10),
 
   // Redis
   redis_url: process.env.REDIS_URL,

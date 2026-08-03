@@ -4,6 +4,7 @@ import { logger } from '@utils/logger';
 import { AuthenticationError } from '@utils/errors';
 
 interface JWTPayload {
+  id?: string;
   userId: string;
   sessionId: string;
   email: string;
