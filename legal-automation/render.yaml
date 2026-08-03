@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: legal-automation
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        scope: runtime
+      - key: NPM_DEFAULT_PRODUCTION
+        value: 'true'
+    autoDeploy: false
