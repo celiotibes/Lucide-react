@@ -4,3 +4,4 @@ export { useExportKPIs } from './useExportKPIs';
 export { useChartExport } from './useChartExport';
 export { useAnomalyDetection } from './useAnomalyDetection';
 export { useForecastingEngine, getReliabilityMessage } from './useForecastingEngine';
+export { useAnomalySettings } from './useAnomalySettings';

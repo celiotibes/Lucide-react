@@ -20,6 +20,7 @@ export { AnomalyIndicator } from './AnomalyIndicator';
 export { AlertBanner, type AlertBannerAlert } from './AlertBanner';
 export { ForecastChart } from './ForecastChart';
 export { MetricsPanel } from './MetricsPanel';
+export { ThresholdControl } from './ThresholdControl';
 
 export default {
   GlassCard,

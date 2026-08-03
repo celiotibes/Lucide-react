@@ -18,8 +18,9 @@ import {
   AlertBanner,
   ForecastChart,
   MetricsPanel,
+  ThresholdControl,
 } from '../../../components/modern';
-import { useFilteredKPIs, useFilterPersistence, useAnomalyDetection, useForecastingEngine } from '../../../hooks';
+import { useFilteredKPIs, useFilterPersistence, useAnomalyDetection, useForecastingEngine, useAnomalySettings } from '../../../hooks';
 import { TimeSeriesData, AlertBannerAlert } from '../../../types';
 import './KPIDashboard.css';
 
@@ -40,6 +41,9 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>();
   const [dismissedAnomalies, setDismissedAnomalies] = useState<Set<string>>(new Set());
+
+  // Anomaly settings
+  const { settings: anomalySettings, updateThreshold, updateMethod } = useAnomalySettings();
 
   // Chart refs for export
   const trendChartRef = useRef<HTMLDivElement>(null);
@@ -93,9 +97,10 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
     return data;
   }, [kpis]);
 
-  // Anomaly detection
+  // Anomaly detection with user settings
   const anomalyResult = useAnomalyDetection(timeSeriesData, {
-    method: 'both',
+    method: anomalySettings.method,
+    zScoreThreshold: anomalySettings.zscoreThreshold,
     enabled: timeSeriesData.length > 3,
   });
 
@@ -569,6 +574,15 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({
           </h2>
 
           <BentoGrid gap="md">
+            {/* Threshold Control */}
+            <BentoItem size="md">
+              <ThresholdControl
+                currentThreshold={anomalySettings.zscoreThreshold}
+                onThresholdChange={updateThreshold}
+                method={anomalySettings.method}
+              />
+            </BentoItem>
+
             {/* Anomaly Indicator */}
             {filteredAnomalies.length > 0 && (
               <BentoItem size="md">
