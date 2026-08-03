@@ -21,6 +21,8 @@ export { AlertBanner, type AlertBannerAlert } from './AlertBanner';
 export { ForecastChart } from './ForecastChart';
 export { MetricsPanel } from './MetricsPanel';
 export { ThresholdControl } from './ThresholdControl';
+export { MetricSelector, type MetricOption } from './MetricSelector';
+export { MultiMetricAnalytics } from './MultiMetricAnalytics';
 
 export default {
   GlassCard,
