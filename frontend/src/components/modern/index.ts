@@ -24,6 +24,7 @@ export { ThresholdControl } from './ThresholdControl';
 export { MetricSelector, type MetricOption } from './MetricSelector';
 export { MultiMetricAnalytics } from './MultiMetricAnalytics';
 export { ForecastPeriodSelector, type ForecastPeriod } from './ForecastPeriodSelector';
+export { WidgetConfigurator, type WidgetConfig } from './WidgetConfigurator';
 
 export default {
   GlassCard,
