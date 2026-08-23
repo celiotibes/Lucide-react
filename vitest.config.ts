@@ -24,5 +24,6 @@ export default defineConfig({
   },
   test: {
     fileParallelism: false,
+    globals: true,
   },
 });
