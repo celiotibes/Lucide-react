@@ -118,6 +118,16 @@ export interface RubricaCusteio {
   valor_base?: number;
 }
 
+/** Item do inventário de bens (mobiliário/equipamentos) de um imóvel — referência documental
+ * para o Relatório de Apuração de Débitos (RAD) na saída do locatário. */
+export interface ItemInventarioBem {
+  id: number;
+  imovel_id: number;
+  descricao: string;
+  valor_reposicao?: number;
+  data_vistoria?: string;
+}
+
 export interface Transacao {
   id: number;
   conta_id: number;

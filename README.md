@@ -41,7 +41,11 @@ servi-lo em `http://localhost:4173`.
 - **Imóveis**: cadastro dos seus imóveis reais (apelido, tipo, cidade/grupo — ex: Floripa,
   Curitiba —, endereço, fração ideal, área, financiado, uso pessoal). Cidade agrupa
   relatórios e rateio por região; marcar "uso pessoal" tira o imóvel do DRE da atividade de
-  locação por padrão, mantendo suas despesas rastreáveis separadamente.
+  locação por padrão, mantendo suas despesas rastreáveis separadamente. Ao editar um imóvel já
+  salvo, um "Inventário de bens" opcional guarda o mobiliário/equipamentos entregues (o mesmo
+  conteúdo do "Relação e Inventário de Bens" que contratos reais anexam na vistoria de
+  entrada), usado depois como referência no Relatório de Apuração de Débitos (RAD) — ver
+  Depósitos caução.
 - **Cadastros**: contratos de locação completos (dados básicos, regras de reajuste,
   inadimplência), com locatários/responsáveis solidários e depósito caução gerenciados
   inline por contrato, além de contas bancárias, prestadores de serviço, financiamentos e
@@ -103,7 +107,12 @@ servi-lo em `http://localhost:4173`.
   da série cadastrada em `indices_economicos`, mais um painel de passivo de caução
   que compara o total ainda retido (corrigido) contra o caixa disponível hoje —
   mostra se o dinheiro do caução está de fato reservado ou já foi consumido no
-  fluxo de caixa geral (passivo descoberto).
+  fluxo de caixa geral (passivo descoberto). Cada linha gera o **Relatório de
+  Apuração de Débitos (RAD)** em PDF — inventário de bens do imóvel (cadastrado
+  em Imóveis → "Inventário de bens", opcional) + a dedução já registrada na
+  caução + saldo a devolver; nunca presume dano nem inventa vistoria que não
+  aconteceu — diz explicitamente "nenhum item cadastrado"/"nenhuma dedução
+  registrada" quando é o caso.
 - **Índices econômicos**: busca IGP-M, IPCA e poupança direto da API pública do
   Banco Central (SGS), rodando no navegador — sem passar por nenhum backend deste
   projeto — com lançamento manual como fallback se a busca falhar.

@@ -1,10 +1,11 @@
-import { useMemo } from "react";
-import { AlertTriangle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, FileDown } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
 import { calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";
-import type { Caucao, ContratoLocacao, Imovel } from "../domain/types";
+import { baixarRadPdf } from "../domain/laudo/gerarRadPdf";
+import type { Caucao, ContratoLocacao, Imovel, ItemInventarioBem } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
 
@@ -14,6 +15,7 @@ function hojeIso(): string {
 export function CaucaoView() {
   const { db, versao } = useDb();
   const hoje = hojeIso();
+  const [gerandoRadId, setGerandoRadId] = useState<number | null>(null);
 
   const caucoes = useMemo<Caucao[]>(() => (db ? consultar<Caucao>(db, "SELECT * FROM caucoes ORDER BY data_deposito DESC") : []), [db, versao]);
   const contratos = useMemo(
@@ -32,13 +34,33 @@ export function CaucaoView() {
   const saldoCaixaAtual = useMemo(() => (db ? calcularSaldoCaixaAtual(db) : 0), [db, versao]);
   const caucaoCobertaPeloCaixa = saldoCaixaAtual >= passivoCaucaoRetido;
 
+  async function gerarRad(caucao: Caucao, resultado: (typeof calculos)[number]) {
+    if (!db) return;
+    const contrato = contratos.get(caucao.contrato_id);
+    if (!contrato) return;
+    const imovel = imoveis.get(contrato.imovel_id);
+    if (!imovel) return;
+    setGerandoRadId(caucao.id);
+    try {
+      const itensInventario = consultar<ItemInventarioBem>(db, "SELECT * FROM imovel_inventario_bens WHERE imovel_id = ? ORDER BY id", [imovel.id]);
+      await baixarRadPdf(
+        { imovel, contrato, resultadoCaucao: resultado, itensInventario, dataEmissao: hoje },
+        `RAD-${imovel.apelido.replace(/[^\w-]+/g, "_")}-${hoje}.pdf`,
+      );
+    } finally {
+      setGerandoRadId(null);
+    }
+  }
+
   return (
     <div>
       <h2 className="section-title">Depósitos caução ({caucoes.length})</h2>
       <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 18 }}>
         Correção calculada mês a mês pela série cadastrada em <code>indices_economicos</code> (poupança/IGPM/IPCA). A série
         pré-carregada nos dados de demonstração é <strong>ilustrativa</strong> — substitua pelos valores reais do
-        BACEN/IBGE antes de usar o cálculo para fins periciais.
+        BACEN/IBGE antes de usar o cálculo para fins periciais. O botão <FileDown size={12} style={{ verticalAlign: -1 }} />
+        {" "}em cada linha gera o Relatório de Apuração de Débitos (RAD) em PDF — inventário de bens do imóvel
+        (cadastrado em Imóveis) + a dedução já registrada nesta tela, sem inventar nenhuma vistoria que não aconteceu.
       </p>
 
       {caucoesRetidas.length > 0 && (
@@ -87,6 +109,7 @@ export function CaucaoView() {
               <th className="num">Saldo corrigido hoje</th>
               <th className="num">Deduções</th>
               <th className="num">A devolver</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -106,12 +129,23 @@ export function CaucaoView() {
                   <td className="num">{formatarMoeda(resultado.saldoCorrigido)}</td>
                   <td className="num">{formatarMoeda(c.deducoes_valor)}</td>
                   <td className="num">{formatarMoeda(resultado.valorADevolver)}</td>
+                  <td>
+                    <button
+                      className="btn"
+                      style={{ padding: "4px 7px" }}
+                      disabled={gerandoRadId === c.id}
+                      title="Gerar Relatório de Apuração de Débitos (RAD) em PDF"
+                      onClick={() => gerarRad(c, resultado)}
+                    >
+                      <FileDown size={13} />
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {caucoes.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                <td colSpan={10} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                   Nenhum depósito caução cadastrado.
                 </td>
               </tr>

@@ -50,6 +50,19 @@ CREATE TABLE IF NOT EXISTS imoveis (
     co_titular_nome          TEXT
 );
 
+-- Inventário de bens (mobiliário/equipamentos) de um imóvel próprio para locação — o mesmo
+-- conteúdo do "Relação e Inventário de Bens" que contratos reais anexam na vistoria de entrada
+-- (ex: Anexo II), com valor de reposição/seminovo por item. Serve de referência para o Relatório
+-- de Apuração de Débitos (RAD) na saída do locatário — nunca gera dedução de caução sozinho, só
+-- documenta o que estava lá.
+CREATE TABLE IF NOT EXISTS imovel_inventario_bens (
+    id                  INTEGER PRIMARY KEY,
+    imovel_id           INTEGER NOT NULL REFERENCES imoveis(id),
+    descricao           TEXT NOT NULL,      -- ex: "Ar-condicionado split (revisado)"
+    valor_reposicao     REAL,               -- custo de aquisição/reposição/seminovo de referência
+    data_vistoria       DATE                -- data da vistoria de entrada que registrou o item, se conhecida
+);
+
 CREATE TABLE IF NOT EXISTS financiamentos (
     id              INTEGER PRIMARY KEY,
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),

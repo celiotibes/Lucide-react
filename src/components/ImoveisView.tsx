@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Home, Users } from "lucide-react";
+import { Plus, Pencil, Home, Users, Trash2 } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar, executar } from "../db/connection";
-import type { Imovel, RegimePatrimonial, TipoImovel } from "../domain/types";
+import type { Imovel, ItemInventarioBem, RegimePatrimonial, TipoImovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 
 const ROTULO_TIPO: Record<TipoImovel, string> = {
@@ -56,10 +56,17 @@ const FORM_VAZIO: FormularioImovel = {
 export function ImoveisView() {
   const { db, versao, persistir } = useDb();
   const [form, setForm] = useState<FormularioImovel | null>(null);
+  const [novoItemInventario, setNovoItemInventario] = useState({ descricao: "", valor_reposicao: "", data_vistoria: "" });
 
   const imoveis = useMemo<Imovel[]>(
     () => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade, 'zzz'), apelido") : []),
     [db, versao],
+  );
+
+  const formId = form?.id ?? null;
+  const itensInventario = useMemo<ItemInventarioBem[]>(
+    () => (db && formId ? consultar<ItemInventarioBem>(db, "SELECT * FROM imovel_inventario_bens WHERE imovel_id = ? ORDER BY id", [formId]) : []),
+    [db, versao, formId],
   );
 
   const cidadesConhecidas = useMemo(
@@ -138,6 +145,27 @@ export function ImoveisView() {
     }
     await persistir();
     setForm(null);
+  }
+
+  async function adicionarItemInventario() {
+    if (!db || !form?.id || novoItemInventario.descricao.trim() === "") return;
+    executar(
+      db,
+      "INSERT INTO imovel_inventario_bens (imovel_id, descricao, valor_reposicao, data_vistoria) VALUES (?, ?, ?, ?)",
+      [
+        form.id,
+        novoItemInventario.descricao.trim(),
+        novoItemInventario.valor_reposicao.trim() === "" ? null : Number.parseFloat(novoItemInventario.valor_reposicao.replace(",", ".")),
+        novoItemInventario.data_vistoria || null,
+      ],
+    );
+    await persistir();
+    setNovoItemInventario({ descricao: "", valor_reposicao: "", data_vistoria: "" });
+  }
+  async function removerItemInventario(itemId: number) {
+    if (!db) return;
+    executar(db, "DELETE FROM imovel_inventario_bens WHERE id = ?", [itemId]);
+    await persistir();
   }
 
   return (
@@ -262,6 +290,64 @@ export function ImoveisView() {
               </label>
             )}
           </div>
+
+          {form.id !== null && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 6, fontWeight: 600 }}>
+                Inventário de bens (opcional)
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "0 0 8px", maxWidth: "68ch" }}>
+                Mobiliário e equipamentos entregues com o imóvel (o mesmo conteúdo do "Relação e
+                Inventário de Bens" que contratos reais anexam na vistoria de entrada), com valor
+                de reposição de referência — vira a base do Relatório de Apuração de Débitos (RAD)
+                gerado em Depósitos caução na saída do locatário. Só documenta o que estava lá;
+                nunca deduz nada da caução sozinho.
+              </p>
+              {itensInventario.length > 0 && (
+                <div className="table-wrap" style={{ marginBottom: 8 }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>Item</th><th className="num">Valor de reposição</th><th>Vistoria</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {itensInventario.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.descricao}</td>
+                          <td className="num">{item.valor_reposicao !== undefined && item.valor_reposicao !== null ? formatarMoeda(item.valor_reposicao) : "—"}</td>
+                          <td>{item.data_vistoria ?? "—"}</td>
+                          <td>
+                            <button className="btn" style={{ padding: "3px 6px" }} onClick={() => removerItemInventario(item.id)}><Trash2 size={12} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input
+                  className="btn" style={{ cursor: "text", flex: 1, minWidth: 220 }}
+                  placeholder="Item (ex: Ar-condicionado split)"
+                  value={novoItemInventario.descricao}
+                  onChange={(e) => setNovoItemInventario({ ...novoItemInventario, descricao: e.target.value })}
+                />
+                <input
+                  className="btn" style={{ cursor: "text", width: 130 }}
+                  placeholder="Valor (R$)"
+                  value={novoItemInventario.valor_reposicao}
+                  onChange={(e) => setNovoItemInventario({ ...novoItemInventario, valor_reposicao: e.target.value })}
+                />
+                <input
+                  type="date" className="btn"
+                  value={novoItemInventario.data_vistoria}
+                  onChange={(e) => setNovoItemInventario({ ...novoItemInventario, data_vistoria: e.target.value })}
+                />
+                <button className="btn" disabled={novoItemInventario.descricao.trim() === ""} onClick={adicionarItemInventario}>
+                  <Plus size={13} />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn primary" disabled={form.apelido.trim() === ""} onClick={salvar}>
