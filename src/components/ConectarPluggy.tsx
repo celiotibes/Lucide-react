@@ -8,6 +8,7 @@ import type { ResultadoImportacao } from "../domain/parsers/detectarTipo";
 import type { ContaBancaria } from "../domain/types";
 
 const CHAVE_BACKEND_URL = "pluggy-backend-url";
+const CHAVE_API_KEY = "pluggy-backend-api-key";
 
 interface Props {
   onImportado: (resultado: ResultadoImportacao, nomeFonte: string, contaSugeridaId: number | null) => void;
@@ -16,6 +17,7 @@ interface Props {
 export function ConectarPluggy({ onImportado }: Props) {
   const { db } = useDb();
   const [backendUrl, setBackendUrl] = useState(() => localStorage.getItem(CHAVE_BACKEND_URL) ?? "http://localhost:8787");
+  const [chaveApi, setChaveApi] = useState(() => localStorage.getItem(CHAVE_API_KEY) ?? "");
   const [etapa, setEtapa] = useState<"inicial" | "conectando" | "contas" | "buscando">("inicial");
   const [erro, setErro] = useState<string | null>(null);
   const [itemId, setItemId] = useState<string | null>(null);
@@ -32,18 +34,23 @@ export function ConectarPluggy({ onImportado }: Props) {
     localStorage.setItem(CHAVE_BACKEND_URL, valor);
   }
 
+  function salvarChaveApi(valor: string) {
+    setChaveApi(valor);
+    localStorage.setItem(CHAVE_API_KEY, valor);
+  }
+
   async function conectar() {
     setErro(null);
     setEtapa("conectando");
     try {
-      const connectToken = await criarConnectToken(backendUrl);
+      const connectToken = await criarConnectToken(backendUrl, chaveApi);
       const widget = new PluggyConnect({
         connectToken,
         includeSandbox: false,
         onSuccess: async ({ item }: { item: { id: string } }) => {
           setItemId(item.id);
           try {
-            const contas = await listarContasPluggy(backendUrl, item.id);
+            const contas = await listarContasPluggy(backendUrl, chaveApi, item.id);
             setContasPluggy(contas);
             setContaPluggySelecionada(contas[0]?.id ?? "");
             setContaLocalId(contasLocais[0]?.id ?? null);
@@ -73,7 +80,7 @@ export function ConectarPluggy({ onImportado }: Props) {
     setEtapa("buscando");
     setErro(null);
     try {
-      const transacoes = await buscarTransacoesPluggy(backendUrl, contaPluggySelecionada, dataInicio, dataFim);
+      const transacoes = await buscarTransacoesPluggy(backendUrl, chaveApi, contaPluggySelecionada, dataInicio, dataFim);
       const contaPluggy = contasPluggy.find((c) => c.id === contaPluggySelecionada);
       const resultado: ResultadoImportacao = {
         tipoDetectado: "open_finance",
@@ -98,18 +105,30 @@ export function ConectarPluggy({ onImportado }: Props) {
       <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 14, maxWidth: "62ch" }}>
         Exige um backend rodando com suas credenciais Pluggy (ver <code>server/README.md</code>) — o Client Secret
         nunca pode ficar no navegador. As transações buscadas passam pelo seu próprio backend, não por terceiros
-        além da Pluggy.
+        além da Pluggy. A chave de API abaixo é a mesma <code>API_KEY</code> definida no <code>.env</code> do
+        backend — sem ela, o backend recusa a conexão (protege contra qualquer pessoa que descubra a URL pública
+        do seu backend, se você o hospedar fora do seu computador).
       </p>
 
-      <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 14 }}>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 10 }}>
         URL do backend:
         <input value={backendUrl} onChange={(e) => salvarBackendUrl(e.target.value)} style={{ flex: 1, maxWidth: 320, padding: "5px 8px" }} />
+      </label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 14 }}>
+        Chave de API do backend (X-API-Key):
+        <input
+          type="password"
+          value={chaveApi}
+          onChange={(e) => salvarChaveApi(e.target.value)}
+          placeholder="a mesma API_KEY do .env do backend"
+          style={{ flex: 1, maxWidth: 320, padding: "5px 8px" }}
+        />
       </label>
 
       {erro && <div className="aviso-caixa">{erro}</div>}
 
       {etapa === "inicial" && (
-        <button className="btn primary" onClick={conectar}>
+        <button className="btn primary" disabled={chaveApi.trim() === ""} onClick={conectar}>
           Conectar banco
         </button>
       )}
