@@ -14,13 +14,14 @@
 
 | Unidade | Tipo | Área | Preço | Status | Locatário | Desde |
 |---------|------|------|-------|--------|-----------|-------|
-| APTO 18 (2 JP) | 2 quartos | 50 m² | R$ 2.699–3.299 | 🔴 Alugada | *Alugado hoje* | 23/08/2026 |
+| APTO 18 (2 JP) | 2 quartos | 50 m² | R$ 2.699–3.299 | 🔴 Alugada | — | — |
+| APTO 2 (2 JP) | 2 quartos | 50 m² | R$ 2.699–3.299 | 🔴 Alugada | *Alugado hoje* | 23/08/2026 |
 | APTO 17 (2 JP) | 2 quartos | 50 m² | R$ 2.699–3.299 | 🟢 Vacante | — | — |
 | KITNET 01 | 1 quarto | 22 m² | R$ 1.950–2.100 | 🟢 Vacante | — | — |
-| KITNET 02 | 1 quarto | 22 m² | R$ 1.950–2.100 | 🟢 Vacante | — | — |
 
 ### Observações
-- ✅ **APTO 18 (2 JP) alugado hoje** — Apto com suíte AC, sala ampla, 50 m², vidraçaria grande
+- ✅ **APTO 2 (2 JP) alugado hoje** — Apto com suíte AC, sala ampla, 50 m², vidraçaria grande
+- ✅ **APTO 18 (2 JP) alugado anteriormente** — Mesmas características
 - 📸 Fotos reais: https://photos.app.goo.gl/bMcmfYDSsdaNwKoQ8
 - 🎯 Descrição: "Apartamento padrão com 2 quartos, sendo uma suíte com ar-condicionado, sala ampla, cozinha e banheiro social. Portas de vidro grandes em todos os cômodos e vista para área verde perto da UFSC."
 - 💰 Promoção: **6% de desconto nos primeiros 6 meses**
@@ -37,12 +38,12 @@
 
 | Unidade | Tipo | Área | Preço | Status | Locatário | Desde |
 |---------|------|------|-------|--------|-----------|-------|
-| KITNET 01 (MS) | 1–2 quartos | 30–35 m² | R$ 1.950 | 🔴 Alugada | *Alugado hoje* | 23/08/2026 |
+| KITNET 01 (MS) | 1–2 quartos | 30–35 m² | R$ 1.950 | 🟢 Vacante | — | — |
 | KITNET 02 (MS) | 1–2 quartos | 30–35 m² | R$ 1.950 | 🟢 Vacante | — | — |
 | KITNET 03 (MS) | 1–2 quartos | 30–35 m² | R$ 1.950 | 🟢 Vacante | — | — |
 
 ### Observações
-- ✅ **KITNET 01 (MS) alugada hoje** — Kitnet compacta com quarto/sala, cozinha privativa, banheiro
+- 🎯 **KITNET 01 (MS) disponível agora** — Kitnet compacta com quarto/sala, cozinha privativa, banheiro
 - 🎯 Descrição: "Kitnet com quarto, sala, cozinha e banheiro. Pode ser usada por um casal ou com a sala adaptada como segundo quarto para divisão de aluguel."
 - 💰 Preço: R$ 1.950/mês (6 primeiros meses: R$ 1.833)
 - ⭐ Diferenciais: Cozinha privativa, 2 ar-condicionados, banheiro completo, piso de cerâmica
@@ -58,9 +59,9 @@
 
 | Unidade | Tipo | Área | Preço | Status | Locatário | Desde |
 |---------|------|------|-------|--------|-----------|-------|
-| APT 01 | 1 quarto | 35 m² | R$ 1.850 | 🟢 Vacante | — | — |
-| APT 02 | 2 quartos | 55 m² | R$ 2.200 | 🟢 Vacante | — | — |
-| APT 03 | 3 quartos | 80 m² | R$ 2.800 | 🟢 Vacante | — | — |
+| APT 01 | 1 quarto | 35 m² | R$ 1.850 | 🔴 Alugada | — | — |
+| APT 02 | 2 quartos | 55 m² | R$ 2.200 | 🔴 Alugada | — | — |
+| APT 03 | 3 quartos | 80 m² | R$ 2.800 | 🔴 Alugada | — | — |
 
 ### Observações
 - 🎯 Bairro: Arborizado, tranquilo, ideal para profissionais em home office
@@ -73,10 +74,10 @@
 
 | Residencial | Total | Alugadas | Taxa | Preço Médio |
 |-------------|-------|----------|------|------------|
-| João Pottker | 4 | 1 | 25% | R$ 2.500 |
-| Milton Sullivan | 3 | 1 | 33% | R$ 1.950 |
-| Ana Maria | 3 | 0 | 0% | R$ 2.283 |
-| **TOTAL** | **10** | **2** | **20%** | **R$ 2.244** |
+| João Pottker | 4 | 2 | 50% | R$ 2.500 |
+| Milton Sullivan | 3 | 0 | 0% | R$ 1.950 |
+| Ana Maria | 3 | 3 | 100% | R$ 2.283 |
+| **TOTAL** | **10** | **5** | **50%** | **R$ 2.244** |
 
 ---
 
