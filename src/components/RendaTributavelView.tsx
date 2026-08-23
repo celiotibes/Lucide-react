@@ -442,6 +442,37 @@ export function RendaTributavelView() {
                   </tbody>
                 </table>
               </div>
+
+              {dss.rubricasContratadas.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 13.5, margin: "18px 0 6px" }}>
+                    Composição contratada da Cota de Custeio (referência documental)
+                  </h3>
+                  <p style={{ fontSize: 11.5, color: "var(--ink-soft)", maxWidth: "68ch", marginBottom: 8 }}>
+                    Sub-rubricas itemizadas no próprio contrato assinado — mostra que o rateio é
+                    documentado e legítimo. Não é o gasto real do período acima; são categorias
+                    diferentes de granularidade (a conciliação bancária só existe no grão do
+                    plano de contas).
+                  </p>
+                  <div className="table-wrap">
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Ref.</th><th>Descrição</th><th className="num">%</th><th className="num">Valor contratado</th></tr>
+                      </thead>
+                      <tbody>
+                        {dss.rubricasContratadas.map((r) => (
+                          <tr key={r.id}>
+                            <td>{r.referencia ?? "—"}</td>
+                            <td>{r.descricao}</td>
+                            <td className="num">{r.percentual !== undefined && r.percentual !== null ? `${r.percentual}%` : "—"}</td>
+                            <td className="num">{r.valor_base !== undefined && r.valor_base !== null ? formatarMoeda(r.valor_base) : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

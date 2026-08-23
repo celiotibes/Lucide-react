@@ -1,6 +1,6 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
-import type { ContratoLocacao } from "../types";
+import type { ContratoLocacao, RubricaCusteio } from "../types";
 
 export interface ResultadoDss {
   contrato: ContratoLocacao;
@@ -11,6 +11,9 @@ export interface ResultadoDss {
   saldo: "superavit" | "deficit" | "equilibrado";
   saldoValor: number;
   linhasDespesa: { codigo: string; descricao: string; total: number }[];
+  /** Composição CONTRATADA da Cota de Custeio (o instrumento assinado), quando cadastrada —
+   * referência documental, não uma reclassificação do gasto real de linhasDespesa acima. */
+  rubricasContratadas: RubricaCusteio[];
 }
 
 // Categorias que o rateio de custeio coletivo de fato financia (condomínio, manutenção
@@ -49,6 +52,12 @@ export function gerarDss(db: Database, contratoId: number, dataInicio: string, d
   const totalDespendido = linhasDespesa.reduce((acc, l) => acc + l.total, 0);
   const saldoValor = arrecadado - totalDespendido;
 
+  const rubricasContratadas = consultar<RubricaCusteio>(
+    db,
+    "SELECT * FROM contrato_custeio_rubricas WHERE contrato_id = ? ORDER BY referencia",
+    [contratoId],
+  );
+
   return {
     contrato,
     periodoInicio: dataInicio,
@@ -58,5 +67,6 @@ export function gerarDss(db: Database, contratoId: number, dataInicio: string, d
     saldo: Math.abs(saldoValor) < 0.01 ? "equilibrado" : saldoValor > 0 ? "superavit" : "deficit",
     saldoValor,
     linhasDespesa,
+    rubricasContratadas,
   };
 }

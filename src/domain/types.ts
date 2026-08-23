@@ -107,6 +107,17 @@ export interface Caucao {
   observacoes?: string;
 }
 
+/** Composição CONTRATADA da Cota de Custeio (o que o instrumento assinado itemiza), não o gasto
+ * real por sub-rubrica — ver comentário em schema.sql. Exibida como referência no DSS. */
+export interface RubricaCusteio {
+  id: number;
+  contrato_id: number;
+  referencia?: string;
+  descricao: string;
+  percentual?: number;
+  valor_base?: number;
+}
+
 export interface Transacao {
   id: number;
   conta_id: number;

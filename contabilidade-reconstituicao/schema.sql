@@ -192,6 +192,23 @@ CREATE TABLE IF NOT EXISTS caucoes (
     observacoes         TEXT
 );
 
+-- Composição CONTRATADA da Cota de Custeio Coletivo (a tabela de rubricas que contratos reais de
+-- "valor único mensal" costumam anexar, ex: "conservação de mobiliário de áreas comuns",
+-- "lavanderia coletiva" etc., cada uma com seu percentual/valor na data de assinatura).
+-- Deliberadamente NÃO tenta reclassificar as transações bancárias já lançadas nessas mesmas
+-- sub-rubricas — a conciliação bancária real só existe no grão grosso do plano de contas
+-- (condomínio, manutenção, prestadores). Esta tabela guarda o que foi CONTRATADO, como
+-- referência/prova documental de que o rateio é itemizado e legítimo (não uma forma de
+-- disfarçar renda) — exibida ao lado do gasto real no DSS, nunca somada a ele.
+CREATE TABLE IF NOT EXISTS contrato_custeio_rubricas (
+    id              INTEGER PRIMARY KEY,
+    contrato_id     INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    referencia      TEXT,               -- numeração do próprio contrato/anexo, ex: "02" — opcional
+    descricao       TEXT NOT NULL,      -- ex: "Custeio de uso e conservação de mobiliário de áreas comuns"
+    percentual      REAL,               -- % do valor único mensal, conforme contratado
+    valor_base      REAL                -- valor em R$ na data de assinatura, conforme contratado
+);
+
 -- Série mensal de índices para correção monetária (caução, reajuste de aluguel).
 -- Popule com valores reais do BACEN/IBGE antes de calcular em produção.
 CREATE TABLE IF NOT EXISTS indices_economicos (

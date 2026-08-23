@@ -182,7 +182,15 @@ servi-lo em `http://localhost:4173`.
   contrato costuma obrigar o locador a enviar ao locatário periodicamente. Junto
   dele, uma sugestão de novo percentual de rateio para o próximo ciclo, que
   amortiza o saldo (superávit/déficit) do período ao longo de 12 meses — nunca
-  aplica sozinho, só sugere.
+  aplica sozinho, só sugere. Um contrato pode ter, opcionalmente, a composição
+  **contratada** da Cota de Custeio cadastrada por sub-rubrica (Cadastros →
+  Contratos → linha expandida) — ex: "conservação de mobiliário de áreas
+  comuns", "lavanderia coletiva", cada uma com seu percentual/valor na data da
+  assinatura, conforme contratos reais costumam itemizar. Isso aparece no DSS
+  como referência documental ao lado do gasto real, nunca somado a ele: a
+  conciliação bancária das transações só existe no grão do plano de contas
+  (condomínio, manutenção, prestadores), não seria correto fingir que cada
+  transação foi reclassificada nessas sub-rubricas quando isso não aconteceu.
 - **Livro razão e balancete**: cada transação é derivada em duas pernas
   (débito/crédito) na hora, sem tabela nova — dá o balancete de verificação por
   conta que um contador usa como ponto de partida para fechar um balanço formal.

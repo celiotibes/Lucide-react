@@ -3,7 +3,7 @@ import { Plus, Pencil, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useDb } from "../../db/DbContext";
 import { consultar, executar } from "../../db/connection";
 import { listarPartes, adicionarParte, removerParte } from "../../domain/contratos/locatarios";
-import type { Caucao, ContratoLocacao, Imovel, IndiceReajuste, PapelLocatario, TipoContrato } from "../../domain/types";
+import type { Caucao, ContratoLocacao, Imovel, IndiceReajuste, PapelLocatario, RubricaCusteio, TipoContrato } from "../../domain/types";
 
 interface Formulario {
   id: number | null;
@@ -272,9 +272,14 @@ function ContratoLinha({
   const { db, versao, persistir } = useDb();
   const [novaParte, setNovaParte] = useState({ nome: "", papel: "responsavel_solidario" as PapelLocatario });
   const [novaCaucao, setNovaCaucao] = useState({ valor_inicial: "", data_deposito: "", indice_correcao: "nenhum" as Caucao["indice_correcao"] });
+  const [novaRubrica, setNovaRubrica] = useState({ referencia: "", descricao: "", percentual: "", valor_base: "" });
 
   const partes = useMemo(() => (db && expandido ? listarPartes(db, contrato.id) : []), [db, versao, expandido, contrato.id]);
   const caucoes = useMemo(() => (db && expandido ? consultar<Caucao>(db, "SELECT * FROM caucoes WHERE contrato_id = ?", [contrato.id]) : []), [db, versao, expandido, contrato.id]);
+  const rubricas = useMemo(
+    () => (db && expandido ? consultar<RubricaCusteio>(db, "SELECT * FROM contrato_custeio_rubricas WHERE contrato_id = ? ORDER BY referencia", [contrato.id]) : []),
+    [db, versao, expandido, contrato.id],
+  );
 
   async function adicionar() {
     if (!db || novaParte.nome.trim() === "") return;
@@ -296,6 +301,27 @@ function ContratoLinha({
     );
     await persistir();
     setNovaCaucao({ valor_inicial: "", data_deposito: "", indice_correcao: "nenhum" });
+  }
+  async function adicionarRubrica() {
+    if (!db || novaRubrica.descricao.trim() === "") return;
+    executar(
+      db,
+      "INSERT INTO contrato_custeio_rubricas (contrato_id, referencia, descricao, percentual, valor_base) VALUES (?, ?, ?, ?, ?)",
+      [
+        contrato.id,
+        novaRubrica.referencia.trim() || null,
+        novaRubrica.descricao.trim(),
+        novaRubrica.percentual.trim() === "" ? null : Number.parseFloat(novaRubrica.percentual.replace(",", ".")),
+        novaRubrica.valor_base.trim() === "" ? null : Number.parseFloat(novaRubrica.valor_base.replace(",", ".")),
+      ],
+    );
+    await persistir();
+    setNovaRubrica({ referencia: "", descricao: "", percentual: "", valor_base: "" });
+  }
+  async function removerRubrica(rubricaId: number) {
+    if (!db) return;
+    executar(db, "DELETE FROM contrato_custeio_rubricas WHERE id = ?", [rubricaId]);
+    await persistir();
   }
 
   return (
@@ -357,6 +383,46 @@ function ContratoLinha({
                   </select>
                   <button className="btn" onClick={adicionarCaucao}><Plus size={13} /></button>
                 </div>
+              </div>
+            </div>
+            <div style={{ padding: "0 4px 12px" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>
+                Composição contratada da Cota de Custeio (opcional)
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "0 0 8px" }}>
+                Sub-rubricas itemizadas no próprio contrato (ex: "conservação de mobiliário de
+                áreas comuns", "lavanderia coletiva"), com o percentual/valor na data da
+                assinatura — referência documental exibida no DSS ao lado do gasto real, nunca
+                somada a ele (a conciliação bancária só existe no grão do plano de contas).
+              </p>
+              {rubricas.length > 0 && (
+                <div className="table-wrap" style={{ marginBottom: 8 }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>Ref.</th><th>Descrição</th><th className="num">%</th><th className="num">Valor (R$)</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {rubricas.map((r) => (
+                        <tr key={r.id}>
+                          <td>{r.referencia ?? "—"}</td>
+                          <td>{r.descricao}</td>
+                          <td className="num">{r.percentual !== undefined && r.percentual !== null ? `${r.percentual}%` : "—"}</td>
+                          <td className="num">{r.valor_base !== undefined && r.valor_base !== null ? r.valor_base.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</td>
+                          <td>
+                            <button className="btn" style={{ padding: "3px 6px" }} onClick={() => removerRubrica(r.id)}><Trash2 size={12} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input className="btn" style={{ cursor: "text", width: 60 }} placeholder="Ref." value={novaRubrica.referencia} onChange={(e) => setNovaRubrica({ ...novaRubrica, referencia: e.target.value })} />
+                <input className="btn" style={{ cursor: "text", flex: 1, minWidth: 200 }} placeholder="Descrição (ex: Lavanderia coletiva)" value={novaRubrica.descricao} onChange={(e) => setNovaRubrica({ ...novaRubrica, descricao: e.target.value })} />
+                <input className="btn" style={{ cursor: "text", width: 70 }} placeholder="%" value={novaRubrica.percentual} onChange={(e) => setNovaRubrica({ ...novaRubrica, percentual: e.target.value })} />
+                <input className="btn" style={{ cursor: "text", width: 100 }} placeholder="Valor (R$)" value={novaRubrica.valor_base} onChange={(e) => setNovaRubrica({ ...novaRubrica, valor_base: e.target.value })} />
+                <button className="btn" disabled={novaRubrica.descricao.trim() === ""} onClick={adicionarRubrica}><Plus size={13} /></button>
               </div>
             </div>
           </td>
