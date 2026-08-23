@@ -222,6 +222,18 @@ CREATE TABLE IF NOT EXISTS contrato_custeio_rubricas (
     valor_base      REAL                -- valor em R$ na data de assinatura, conforme contratado
 );
 
+-- Franquia hídrica CONTRATADA por faixa de ocupação (a matriz que contratos reais anexam
+-- quando não há hidrômetro individualizado por unidade, ex: Anexo V) — mesmo espírito de
+-- contrato_custeio_rubricas: documenta o que foi contratado, não mede consumo real (não há
+-- leitura de hidrômetro neste sistema) nem calcula rateio extraordinário por excedente.
+CREATE TABLE IF NOT EXISTS contrato_franquia_hidrica (
+    id                      INTEGER PRIMARY KEY,
+    contrato_id             INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    ocupacao_pessoas        INTEGER NOT NULL,   -- nº de moradores desta faixa da matriz
+    franquia_total_m3       REAL,               -- consumo interno + cota de lavanderia, m³/mês
+    custo_estimado_reais    REAL                -- custo médio estimado (água+esgoto) na data do contrato
+);
+
 -- Série mensal de índices para correção monetária (caução, reajuste de aluguel).
 -- Popule com valores reais do BACEN/IBGE antes de calcular em produção.
 CREATE TABLE IF NOT EXISTS indices_economicos (

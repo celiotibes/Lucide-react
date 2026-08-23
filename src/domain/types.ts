@@ -128,6 +128,16 @@ export interface ItemInventarioBem {
   data_vistoria?: string;
 }
 
+/** Franquia hídrica CONTRATADA por faixa de ocupação — referência documental (ver comentário
+ * em schema.sql), não medição real de consumo. */
+export interface FranquiaHidrica {
+  id: number;
+  contrato_id: number;
+  ocupacao_pessoas: number;
+  franquia_total_m3?: number;
+  custo_estimado_reais?: number;
+}
+
 export interface Transacao {
   id: number;
   conta_id: number;

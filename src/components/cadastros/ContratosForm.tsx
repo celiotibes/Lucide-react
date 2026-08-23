@@ -3,7 +3,7 @@ import { Plus, Pencil, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useDb } from "../../db/DbContext";
 import { consultar, executar } from "../../db/connection";
 import { listarPartes, adicionarParte, removerParte } from "../../domain/contratos/locatarios";
-import type { Caucao, ContratoLocacao, Imovel, IndiceReajuste, PapelLocatario, RubricaCusteio, TipoContrato } from "../../domain/types";
+import type { Caucao, ContratoLocacao, FranquiaHidrica, Imovel, IndiceReajuste, PapelLocatario, RubricaCusteio, TipoContrato } from "../../domain/types";
 
 interface Formulario {
   id: number | null;
@@ -273,11 +273,16 @@ function ContratoLinha({
   const [novaParte, setNovaParte] = useState({ nome: "", papel: "responsavel_solidario" as PapelLocatario });
   const [novaCaucao, setNovaCaucao] = useState({ valor_inicial: "", data_deposito: "", indice_correcao: "nenhum" as Caucao["indice_correcao"] });
   const [novaRubrica, setNovaRubrica] = useState({ referencia: "", descricao: "", percentual: "", valor_base: "" });
+  const [novaFranquia, setNovaFranquia] = useState({ ocupacao_pessoas: "", franquia_total_m3: "", custo_estimado_reais: "" });
 
   const partes = useMemo(() => (db && expandido ? listarPartes(db, contrato.id) : []), [db, versao, expandido, contrato.id]);
   const caucoes = useMemo(() => (db && expandido ? consultar<Caucao>(db, "SELECT * FROM caucoes WHERE contrato_id = ?", [contrato.id]) : []), [db, versao, expandido, contrato.id]);
   const rubricas = useMemo(
     () => (db && expandido ? consultar<RubricaCusteio>(db, "SELECT * FROM contrato_custeio_rubricas WHERE contrato_id = ? ORDER BY referencia", [contrato.id]) : []),
+    [db, versao, expandido, contrato.id],
+  );
+  const franquias = useMemo(
+    () => (db && expandido ? consultar<FranquiaHidrica>(db, "SELECT * FROM contrato_franquia_hidrica WHERE contrato_id = ? ORDER BY ocupacao_pessoas", [contrato.id]) : []),
     [db, versao, expandido, contrato.id],
   );
 
@@ -321,6 +326,28 @@ function ContratoLinha({
   async function removerRubrica(rubricaId: number) {
     if (!db) return;
     executar(db, "DELETE FROM contrato_custeio_rubricas WHERE id = ?", [rubricaId]);
+    await persistir();
+  }
+  async function adicionarFranquia() {
+    if (!db || novaFranquia.ocupacao_pessoas.trim() === "") return;
+    const ocupacao = Number.parseInt(novaFranquia.ocupacao_pessoas, 10);
+    if (Number.isNaN(ocupacao) || ocupacao < 1) return;
+    executar(
+      db,
+      "INSERT INTO contrato_franquia_hidrica (contrato_id, ocupacao_pessoas, franquia_total_m3, custo_estimado_reais) VALUES (?, ?, ?, ?)",
+      [
+        contrato.id,
+        ocupacao,
+        novaFranquia.franquia_total_m3.trim() === "" ? null : Number.parseFloat(novaFranquia.franquia_total_m3.replace(",", ".")),
+        novaFranquia.custo_estimado_reais.trim() === "" ? null : Number.parseFloat(novaFranquia.custo_estimado_reais.replace(",", ".")),
+      ],
+    );
+    await persistir();
+    setNovaFranquia({ ocupacao_pessoas: "", franquia_total_m3: "", custo_estimado_reais: "" });
+  }
+  async function removerFranquia(franquiaId: number) {
+    if (!db) return;
+    executar(db, "DELETE FROM contrato_franquia_hidrica WHERE id = ?", [franquiaId]);
     await persistir();
   }
 
@@ -423,6 +450,44 @@ function ContratoLinha({
                 <input className="btn" style={{ cursor: "text", width: 70 }} placeholder="%" value={novaRubrica.percentual} onChange={(e) => setNovaRubrica({ ...novaRubrica, percentual: e.target.value })} />
                 <input className="btn" style={{ cursor: "text", width: 100 }} placeholder="Valor (R$)" value={novaRubrica.valor_base} onChange={(e) => setNovaRubrica({ ...novaRubrica, valor_base: e.target.value })} />
                 <button className="btn" disabled={novaRubrica.descricao.trim() === ""} onClick={adicionarRubrica}><Plus size={13} /></button>
+              </div>
+            </div>
+            <div style={{ padding: "0 4px 12px" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>
+                Franquia hídrica contratada por ocupação (opcional)
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "0 0 8px" }}>
+                Matriz de referência quando não há hidrômetro individualizado por unidade (ex:
+                Anexo V) — documenta o que foi contratado por faixa de moradores, não mede
+                consumo real nem calcula rateio extraordinário por excedente (o sistema não tem
+                leitura de hidrômetro).
+              </p>
+              {franquias.length > 0 && (
+                <div className="table-wrap" style={{ marginBottom: 8 }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>Ocupação</th><th className="num">Franquia total (m³/mês)</th><th className="num">Custo estimado</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {franquias.map((f) => (
+                        <tr key={f.id}>
+                          <td>{f.ocupacao_pessoas} pessoa(s)</td>
+                          <td className="num">{f.franquia_total_m3 !== undefined && f.franquia_total_m3 !== null ? `${f.franquia_total_m3} m³` : "—"}</td>
+                          <td className="num">{f.custo_estimado_reais !== undefined && f.custo_estimado_reais !== null ? f.custo_estimado_reais.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</td>
+                          <td>
+                            <button className="btn" style={{ padding: "3px 6px" }} onClick={() => removerFranquia(f.id)}><Trash2 size={12} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input className="btn" style={{ cursor: "text", width: 110 }} placeholder="Ocupação (nº pessoas)" value={novaFranquia.ocupacao_pessoas} onChange={(e) => setNovaFranquia({ ...novaFranquia, ocupacao_pessoas: e.target.value })} />
+                <input className="btn" style={{ cursor: "text", width: 130 }} placeholder="Franquia (m³)" value={novaFranquia.franquia_total_m3} onChange={(e) => setNovaFranquia({ ...novaFranquia, franquia_total_m3: e.target.value })} />
+                <input className="btn" style={{ cursor: "text", width: 130 }} placeholder="Custo estimado (R$)" value={novaFranquia.custo_estimado_reais} onChange={(e) => setNovaFranquia({ ...novaFranquia, custo_estimado_reais: e.target.value })} />
+                <button className="btn" disabled={novaFranquia.ocupacao_pessoas.trim() === ""} onClick={adicionarFranquia}><Plus size={13} /></button>
               </div>
             </div>
           </td>

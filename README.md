@@ -200,6 +200,12 @@ servi-lo em `http://localhost:4173`.
   conciliação bancária das transações só existe no grão do plano de contas
   (condomínio, manutenção, prestadores), não seria correto fingir que cada
   transação foi reclassificada nessas sub-rubricas quando isso não aconteceu.
+  Mesmo espírito para a **franquia hídrica contratada por ocupação** (mesma
+  linha expandida do contrato) — matriz de referência para quando não há
+  hidrômetro individualizado por unidade (ex: "1 pessoa → 5,8 m³/mês →
+  R$35,73"); documenta o que foi contratado, não mede consumo real nem
+  calcula rateio extraordinário por excedente, porque o sistema não tem
+  leitura de hidrômetro nenhuma para basear esse cálculo.
 - **Livro razão e balancete**: cada transação é derivada em duas pernas
   (débito/crédito) na hora, sem tabela nova — dá o balancete de verificação por
   conta que um contador usa como ponto de partida para fechar um balanço formal.
