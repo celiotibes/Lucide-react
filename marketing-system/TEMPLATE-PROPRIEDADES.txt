@@ -1,0 +1,338 @@
+═══════════════════════════════════════════════════════════════════════════════
+  TEMPLATE DE PROPRIEDADES — CRMT Marketing e Anúncios
+  Copie, preencha e compartilhe comigo para integração automática
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 INFORMAÇÕES GERAIS DO SITE
+───────────────────────────────────────────────────────────────────────────────
+
+Nome do site/marca:
+Slogan/tagline principal:
+Email de contato:
+Telefone/WhatsApp:
+Público-alvo principal: [ ] Estudante  [ ] Profissional  [ ] Ambos
+Região/bairros:
+
+Descrição breve do negócio (1-2 linhas):
+
+
+───────────────────────────────────────────────────────────────────────────────
+🏢 PROPRIEDADE 1
+───────────────────────────────────────────────────────────────────────────────
+
+Nome da propriedade:
+Endereço completo:
+Bairro/Região:
+
+Número total de unidades:
+Distribuição de unidades (ex: 15 kitnet, 4 apt 1q, 2 apt 2q):
+
+Preço mínimo: R$ _______________/mês
+Preço máximo: R$ _______________/mês
+Preço médio: R$ _______________/mês
+
+Amenidades incluídas (marque com ✓):
+  [ ] Wi-Fi/Internet
+  [ ] Condomínio incluso
+  [ ] Água incluída
+  [ ] Luz incluída
+  [ ] Área de lazer
+  [ ] Piscina
+  [ ] Churrasqueira
+  [ ] Estacionamento
+  [ ] Segurança 24h
+  [ ] Faxina semanal
+  [ ] Ar condicionado
+  [ ] Outros: ___________________________
+
+Público ideal para essa propriedade:
+  [ ] Estudante UFSC
+  [ ] Profissional (home office)
+  [ ] Executivos
+  [ ] Famílias
+  [ ] Outros: ___________________________
+
+Ponto forte (máximo 1 frase):
+Ex: "Silencioso e perfeito para trabalhar de casa"
+
+
+Descrição breve (3-4 linhas):
+(Descreva o diferencial, localização, por que é especial)
+
+
+
+
+Imagem/foto principal:
+[ ] Tenho link de imagem
+[ ] Tenho arquivo para anexar
+[ ] URL: ________________________________
+
+Distância para UFSC: _______ min de ônibus / _______ min a pé
+
+Índice de ocupação atual: _______ unidades alugadas de _______
+
+Receita mensal aproximada: R$ _____________________
+
+
+───────────────────────────────────────────────────────────────────────────────
+🏢 PROPRIEDADE 2
+───────────────────────────────────────────────────────────────────────────────
+
+Nome da propriedade:
+Endereço completo:
+Bairro/Região:
+
+Número total de unidades:
+Distribuição de unidades (ex: 15 kitnet, 4 apt 1q, 2 apt 2q):
+
+Preço mínimo: R$ _______________/mês
+Preço máximo: R$ _______________/mês
+Preço médio: R$ _______________/mês
+
+Amenidades incluídas (marque com ✓):
+  [ ] Wi-Fi/Internet
+  [ ] Condomínio incluso
+  [ ] Água incluída
+  [ ] Luz incluída
+  [ ] Área de lazer
+  [ ] Piscina
+  [ ] Churrasqueira
+  [ ] Estacionamento
+  [ ] Segurança 24h
+  [ ] Faxina semanal
+  [ ] Ar condicionado
+  [ ] Outros: ___________________________
+
+Público ideal para essa propriedade:
+  [ ] Estudante UFSC
+  [ ] Profissional (home office)
+  [ ] Executivos
+  [ ] Famílias
+  [ ] Outros: ___________________________
+
+Ponto forte (máximo 1 frase):
+
+
+Descrição breve (3-4 linhas):
+
+
+
+
+Imagem/foto principal:
+[ ] Tenho link de imagem
+[ ] Tenho arquivo para anexar
+[ ] URL: ________________________________
+
+Distância para UFSC: _______ min de ônibus / _______ min a pé
+
+Índice de ocupação atual: _______ unidades alugadas de _______
+
+Receita mensal aproximada: R$ _____________________
+
+
+───────────────────────────────────────────────────────────────────────────────
+🏢 PROPRIEDADE 3
+───────────────────────────────────────────────────────────────────────────────
+
+Nome da propriedade:
+Endereço completo:
+Bairro/Região:
+
+Número total de unidades:
+Distribuição de unidades (ex: 15 kitnet, 4 apt 1q, 2 apt 2q):
+
+Preço mínimo: R$ _______________/mês
+Preço máximo: R$ _______________/mês
+Preço médio: R$ _______________/mês
+
+Amenidades incluídas (marque com ✓):
+  [ ] Wi-Fi/Internet
+  [ ] Condomínio incluso
+  [ ] Água incluída
+  [ ] Luz incluída
+  [ ] Área de lazer
+  [ ] Piscina
+  [ ] Churrasqueira
+  [ ] Estacionamento
+  [ ] Segurança 24h
+  [ ] Faxina semanal
+  [ ] Ar condicionado
+  [ ] Outros: ___________________________
+
+Público ideal para essa propriedade:
+  [ ] Estudante UFSC
+  [ ] Profissional (home office)
+  [ ] Executivos
+  [ ] Famílias
+  [ ] Outros: ___________________________
+
+Ponto forte (máximo 1 frase):
+
+
+Descrição breve (3-4 linhas):
+
+
+
+
+Imagem/foto principal:
+[ ] Tenho link de imagem
+[ ] Tenho arquivo para anexar
+[ ] URL: ________________________________
+
+Distância para UFSC: _______ min de ônibus / _______ min a pé
+
+Índice de ocupação atual: _______ unidades alugadas de _______
+
+Receita mensal aproximada: R$ _____________________
+
+
+───────────────────────────────────────────────────────────────────────────────
+🎨 DESIGN & BRANDING
+───────────────────────────────────────────────────────────────────────────────
+
+Cores principais do site:
+  Cor 1 (destaque): #__________ (ex: #1F6F63)
+  Cor 2 (secundária): #__________
+  Cor 3 (acento): #__________
+
+Logo: [ ] Tenho arquivo  [ ] Tenho link  [ ] Sem logo formal
+
+Estilo geral:
+  [ ] Moderno/Minimalista
+  [ ] Clássico/Elegante
+  [ ] Descontraído/Jovem
+  [ ] Corporativo/Formal
+
+Fonte tipográfica (se conhecer):
+  Principal: ____________________________
+  Secundária: ____________________________
+
+
+───────────────────────────────────────────────────────────────────────────────
+📊 DADOS DE PERFORMANCE (Opcional mas Útil!)
+───────────────────────────────────────────────────────────────────────────────
+
+Visitas/mês no site: _______________
+Taxa de conversão (leads/visitas): ______%
+Número de leads/mês: _______________
+
+Origem de leads atuais (aproximado %):
+  Google/Busca: ______%
+  Instagram: ______%
+  Facebook: ______%
+  WhatsApp direto: ______%
+  Indicação/Boca a boca: ______%
+  Outros: ______%
+
+Objeções mais comuns dos clientes:
+  1. _______________________________________________
+  2. _______________________________________________
+  3. _______________________________________________
+
+Taxa de fechamento (leads para aluguel): ______%
+Tempo médio do lead ao fechamento: _______ dias
+
+
+───────────────────────────────────────────────────────────────────────────────
+✍️  TEXTOS DE MARKETING
+───────────────────────────────────────────────────────────────────────────────
+
+Headline principal (título grande):
+(Ex: "Apartamentos Perto da UFSC para Todos os Orçamentos")
+
+__________________________________________________________________
+
+
+Subheadline (subtítulo):
+(Ex: "Encontre sua moradia ideal em Florianópolis com tudo incluso")
+
+__________________________________________________________________
+
+
+Unique Selling Proposition (o que você faz diferente):
+__________________________________________________________________
+
+
+Mensagem para ESTUDANTES:
+__________________________________________________________________
+
+
+Mensagem para PROFISSIONAIS:
+__________________________________________________________________
+
+Call-to-Action principal (botão):
+[ ] "Enviar Mensagem WhatsApp"
+[ ] "Agendar Visita"
+[ ] "Consultar Disponibilidade"
+[ ] "Ver Disponíveis Agora"
+[ ] Outro: ____________________________
+
+
+───────────────────────────────────────────────────────────────────────────────
+🎯 SEÇÕES DO SEU SITE
+───────────────────────────────────────────────────────────────────────────────
+
+Quais seções/abas você tem no site atualmente?
+(Exemplo: Home, Propriedades, Sobre, Contato, FAQ)
+
+  Seção 1: ____________________________
+  Seção 2: ____________________________
+  Seção 3: ____________________________
+  Seção 4: ____________________________
+  Seção 5: ____________________________
+
+
+───────────────────────────────────────────────────────────────────────────────
+❓ PERGUNTAS FREQUENTES (FAQ)
+───────────────────────────────────────────────────────────────────────────────
+
+Pergunta 1: __________________________________________________________________
+Resposta: ____________________________________________________________________
+
+Pergunta 2: __________________________________________________________________
+Resposta: ____________________________________________________________________
+
+Pergunta 3: __________________________________________________________________
+Resposta: ____________________________________________________________________
+
+Pergunta 4: __________________________________________________________________
+Resposta: ____________________________________________________________________
+
+Pergunta 5: __________________________________________________________________
+Resposta: ____________________________________________________________________
+
+
+───────────────────────────────────────────────────────────────────────────────
+💬 DEPOIMENTOS/TESTIMONIAIS (Se tiver)
+───────────────────────────────────────────────────────────────────────────────
+
+Depoimento 1:
+"________________________________________________________________"
+— Nome do cliente, ________ (professão/tipo)
+
+Depoimento 2:
+"________________________________________________________________"
+— Nome do cliente, ________ (professão/tipo)
+
+Depoimento 3:
+"________________________________________________________________"
+— Nome do cliente, ________ (professão/tipo)
+
+
+───────────────────────────────────────────────────────────────────────────────
+✅ PRÓXIMAS INSTRUÇÕES
+───────────────────────────────────────────────────────────────────────────────
+
+1. Copie este template
+2. Preencha com informações do seu site/propriedades
+3. Compartilhe comigo (via mensagem de texto)
+
+Após receber suas informações, vou:
+  ✅ Integrar ao sistema CRMT automaticamente
+  ✅ Atualizar landing page com dados reais
+  ✅ Customizar dashboard por propriedade
+  ✅ Gerar relatórios personalizados
+  ✅ Criar campanha de email automática
+  ✅ Entregar tudo pronto em 1-2 horas
+
+═══════════════════════════════════════════════════════════════════════════════
