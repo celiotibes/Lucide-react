@@ -46,12 +46,12 @@ function paraFormulario(c: ContratoLocacao): Formulario {
     id: c.id, imovel_id: c.imovel_id, locatario: c.locatario, tipo: c.tipo,
     valor_referencia: c.valor_referencia.toString(), dia_vencimento: c.dia_vencimento?.toString() ?? "",
     data_inicio: c.data_inicio, data_fim: c.data_fim ?? "",
-    indice_reajuste: c.indice_reajuste, percentual_reajuste_primeira_renovacao: c.percentual_reajuste_primeira_renovacao?.toString() ?? "",
+    indice_reajuste: c.indice_reajuste ?? "igpm", percentual_reajuste_primeira_renovacao: c.percentual_reajuste_primeira_renovacao?.toString() ?? "",
     duracao_minima_meses: c.duracao_minima_meses.toString(), multa_rescisoria_teto_meses: c.multa_rescisoria_teto_meses.toString(),
     percentual_aluguel_efetivo: c.percentual_aluguel_efetivo.toString(),
     multa_percentual: c.multa_percentual.toString(), multa_ate_dias: c.multa_ate_dias.toString(),
     multa_percentual_substitutiva: c.multa_percentual_substitutiva.toString(), juros_mensal_percentual: c.juros_mensal_percentual.toString(),
-    indice_correcao_mora: c.indice_correcao_mora, honorarios_percentual: c.honorarios_percentual.toString(),
+    indice_correcao_mora: c.indice_correcao_mora ?? "ipca", honorarios_percentual: c.honorarios_percentual.toString(),
     dias_gatilho_judicial: c.dias_gatilho_judicial.toString(), observacoes: c.observacoes ?? "",
   };
 }

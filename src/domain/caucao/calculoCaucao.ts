@@ -30,7 +30,7 @@ export function calcularCaucao(db: Database, caucaoId: number, dataReferencia: s
     return {
       caucao,
       saldoCorrigido,
-      valorADevolver: saldoCorrigido - caucao.deducoes_valor,
+      valorADevolver: saldoCorrigido - (caucao.deducoes_valor ?? 0),
       mesesSemIndiceDisponivel: [],
     };
   }
@@ -61,7 +61,7 @@ export function calcularCaucao(db: Database, caucaoId: number, dataReferencia: s
   return {
     caucao,
     saldoCorrigido: saldo,
-    valorADevolver: saldo - caucao.deducoes_valor,
+    valorADevolver: saldo - (caucao.deducoes_valor ?? 0),
     mesesSemIndiceDisponivel: mesesSemIndice,
   };
 }

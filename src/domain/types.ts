@@ -53,13 +53,13 @@ export interface ContratoLocacao {
   dia_vencimento?: number;
   data_inicio: string;
   data_fim?: string;
-  indice_reajuste: IndiceReajuste;
+  indice_reajuste?: IndiceReajuste;
   percentual_aluguel_efetivo: number;
   multa_percentual: number;
   multa_ate_dias: number;
   multa_percentual_substitutiva: number;
   juros_mensal_percentual: number;
-  indice_correcao_mora: IndiceReajuste;
+  indice_correcao_mora?: IndiceReajuste;
   honorarios_percentual: number;
   dias_gatilho_judicial: number;
   percentual_reajuste_primeira_renovacao?: number;
@@ -103,7 +103,7 @@ export interface Caucao {
   data_devolucao?: string;
   valor_devolvido?: number;
   deducoes_descricao?: string;
-  deducoes_valor: number;
+  deducoes_valor?: number;
   observacoes?: string;
 }
 

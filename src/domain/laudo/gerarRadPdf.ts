@@ -62,8 +62,8 @@ export async function gerarRadPdf(dados: DadosRad): Promise<jsPDF> {
   w.espaco(4);
 
   w.secao("3. Deduções apuradas");
-  if (caucao.deducoes_valor > 0) {
-    w.paragrafo(`${caucao.deducoes_descricao ?? "Dedução registrada sem descrição detalhada."} — ${formatarMoeda(caucao.deducoes_valor)}.`);
+  if ((caucao.deducoes_valor ?? 0) > 0) {
+    w.paragrafo(`${caucao.deducoes_descricao ?? "Dedução registrada sem descrição detalhada."} — ${formatarMoeda(caucao.deducoes_valor ?? 0)}.`);
   } else {
     w.paragrafo(
       "Nenhuma dedução registrada até o momento. Se a vistoria de saída já ocorreu e apurou dano ou " +
@@ -73,7 +73,7 @@ export async function gerarRadPdf(dados: DadosRad): Promise<jsPDF> {
   w.espaco(4);
 
   w.secao("4. Valor a devolver");
-  w.paragrafo(`Saldo corrigido (${formatarMoeda(saldoCorrigido)}) menos deduções (${formatarMoeda(caucao.deducoes_valor)}) = ${formatarMoeda(valorADevolver)}.`);
+  w.paragrafo(`Saldo corrigido (${formatarMoeda(saldoCorrigido)}) menos deduções (${formatarMoeda(caucao.deducoes_valor ?? 0)}) = ${formatarMoeda(valorADevolver)}.`);
 
   return doc;
 }

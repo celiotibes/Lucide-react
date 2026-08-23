@@ -93,6 +93,7 @@ export interface Financiamento {
   saldo_devedor_manual: number | null;
   parcela_mensal_manual: number | null;
   data_referencia_saldo_manual: string | null;
+  observacoes?: string;
 }
 
 /** SAC/Price pressupõem amortização por juros bancários compostos sobre saldo devedor —

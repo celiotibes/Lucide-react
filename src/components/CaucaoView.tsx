@@ -127,7 +127,7 @@ export function CaucaoView() {
                     {c.data_devolucao ? <span className="pill good">devolvida em {c.data_devolucao}</span> : <span className="pill warning">retida</span>}
                   </td>
                   <td className="num">{formatarMoeda(resultado.saldoCorrigido)}</td>
-                  <td className="num">{formatarMoeda(c.deducoes_valor)}</td>
+                  <td className="num">{formatarMoeda(c.deducoes_valor ?? 0)}</td>
                   <td className="num">{formatarMoeda(resultado.valorADevolver)}</td>
                   <td>
                     <button
