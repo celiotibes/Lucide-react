@@ -115,7 +115,11 @@ servi-lo em `http://localhost:4173`.
   devedor de financiamentos e dívidas de consumo), alavancagem por imóvel, liquidez
   corrente (caixa disponível ÷ compromissos de curto prazo) e comprometimento de
   renda. Imóveis em gestão de terceiros (matrícula de outra pessoa) ficam de fora do
-  patrimônio líquido, mas continuam com o fluxo de caixa rastreado normalmente.
+  patrimônio líquido, mas continuam com o fluxo de caixa rastreado normalmente. Um
+  imóvel próprio com **copropriedade real cujo percentual ainda não foi confirmado**
+  (Cadastros → Imóveis → "Copropriedade") continua contando 100% no patrimônio —
+  o sistema nunca estima a divisão entre titulares — mas fica sinalizado como
+  pendência em Pendências até você confirmar o percentual real (matrícula/escritura).
   Cadastros → Dívidas de consumo cobre consignado/empréstimo/cartão parcelado — sem
   matrícula, porque o Registrato/SCR do Bacen não tem API pública; o saldo é
   relançado manualmente a partir do relatório que você mesmo baixa em

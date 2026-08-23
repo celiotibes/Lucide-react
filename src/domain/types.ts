@@ -38,6 +38,10 @@ export interface Imovel {
   data_avaliacao_venal?: string;
   regime_patrimonial: RegimePatrimonial;
   proprietario_nome?: string;
+  /** Copropriedade real de um imóvel 'proprio' (distinto de 'gestao_terceiros', que é 100% de
+   * terceiro) cujo percentual de participação de cada titular ainda não foi confirmado. Não é
+   * numérico de propósito — ver comentário em schema.sql. */
+  co_titular_nome?: string;
 }
 
 export interface ContratoLocacao {

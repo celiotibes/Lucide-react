@@ -39,7 +39,15 @@ CREATE TABLE IF NOT EXISTS imoveis (
     -- ele (fluxo de caixa rastreado normalmente) mas não soma no patrimônio líquido pessoal —
     -- caso do imóvel de terceiro (ex: "Avani") sob gestão/usufruto.
     regime_patrimonial      TEXT NOT NULL DEFAULT 'proprio' CHECK (regime_patrimonial IN ('proprio', 'gestao_terceiros')),
-    proprietario_nome       TEXT                -- preenchido quando regime_patrimonial = 'gestao_terceiros'
+    proprietario_nome       TEXT,               -- preenchido quando regime_patrimonial = 'gestao_terceiros'
+
+    -- Copropriedade de um imóvel que é 'proprio' (não confundir com regime_patrimonial =
+    -- 'gestao_terceiros', que é 100% de terceiro): existe um co-titular real, mas o percentual
+    -- de participação de cada um ainda não foi confirmado (matrícula/escritura). Deliberadamente
+    -- NÃO é um percentual numérico — sem o dado real, o sistema não estima uma divisão; só
+    -- sinaliza a pendência (ver garantirPlanoDeContasPadrao / gerarPainelPendencias) e mantém o
+    -- imóvel contando 100% no patrimônio até o usuário confirmar e, então, decidir como tratar.
+    co_titular_nome          TEXT
 );
 
 CREATE TABLE IF NOT EXISTS financiamentos (

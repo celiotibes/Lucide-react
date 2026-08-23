@@ -30,6 +30,7 @@ interface FormularioImovel {
   data_avaliacao_venal: string;
   regime_patrimonial: RegimePatrimonial;
   proprietario_nome: string;
+  co_titular_nome: string;
 }
 
 const FORM_VAZIO: FormularioImovel = {
@@ -49,6 +50,7 @@ const FORM_VAZIO: FormularioImovel = {
   data_avaliacao_venal: "",
   regime_patrimonial: "proprio",
   proprietario_nome: "",
+  co_titular_nome: "",
 };
 
 export function ImoveisView() {
@@ -87,6 +89,7 @@ export function ImoveisView() {
       data_avaliacao_venal: imovel.data_avaliacao_venal ?? "",
       regime_patrimonial: imovel.regime_patrimonial,
       proprietario_nome: imovel.proprietario_nome ?? "",
+      co_titular_nome: imovel.co_titular_nome ?? "",
     });
   }
 
@@ -113,21 +116,22 @@ export function ImoveisView() {
       form.data_avaliacao_venal || null,
       form.regime_patrimonial,
       form.regime_patrimonial === "gestao_terceiros" ? form.proprietario_nome.trim() || null : null,
+      form.regime_patrimonial === "proprio" ? form.co_titular_nome.trim() || null : null,
     ];
 
     if (form.id === null) {
       executar(
         db,
         `INSERT INTO imoveis (apelido, tipo, cidade, endereco, fracao_ideal, area_m2, financiado, uso_pessoal,
-           matricula, matricula_mae, valor_aquisicao, valor_venal_atual, data_avaliacao_venal, regime_patrimonial, proprietario_nome)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           matricula, matricula_mae, valor_aquisicao, valor_venal_atual, data_avaliacao_venal, regime_patrimonial, proprietario_nome, co_titular_nome)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         camposComuns,
       );
     } else {
       executar(
         db,
         `UPDATE imoveis SET apelido = ?, tipo = ?, cidade = ?, endereco = ?, fracao_ideal = ?, area_m2 = ?, financiado = ?, uso_pessoal = ?,
-           matricula = ?, matricula_mae = ?, valor_aquisicao = ?, valor_venal_atual = ?, data_avaliacao_venal = ?, regime_patrimonial = ?, proprietario_nome = ?
+           matricula = ?, matricula_mae = ?, valor_aquisicao = ?, valor_venal_atual = ?, data_avaliacao_venal = ?, regime_patrimonial = ?, proprietario_nome = ?, co_titular_nome = ?
          WHERE id = ?`,
         [...camposComuns, form.id],
       );
@@ -239,6 +243,24 @@ export function ImoveisView() {
                 <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.proprietario_nome} onChange={(e) => setForm({ ...form, proprietario_nome: e.target.value })} placeholder="ex: Avani" />
               </label>
             )}
+            {form.regime_patrimonial === "proprio" && (
+              <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                Copropriedade (opcional — só se houver co-titular real)
+                <input
+                  className="btn"
+                  style={{ cursor: "text", width: "100%", marginTop: 4 }}
+                  value={form.co_titular_nome}
+                  onChange={(e) => setForm({ ...form, co_titular_nome: e.target.value })}
+                  placeholder="ex: Avani — percentual a confirmar"
+                />
+                <span style={{ display: "block", fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>
+                  Preencha só o nome — o sistema nunca estima o percentual de cada titular. O
+                  imóvel continua contando 100% no patrimônio líquido até você confirmar a
+                  divisão real (matrícula/escritura) e decidir como tratar; enquanto isso, fica
+                  sinalizado como pendência em Pendências.
+                </span>
+              </label>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
@@ -283,6 +305,11 @@ export function ImoveisView() {
                   {i.regime_patrimonial === "gestao_terceiros" && (
                     <span className="pill" title={`Fora do patrimônio líquido — propriedade de ${i.proprietario_nome ?? "terceiro"}`}>
                       <Users size={11} style={{ marginRight: 3, verticalAlign: -1 }} /> terceiros{i.proprietario_nome ? `: ${i.proprietario_nome}` : ""}
+                    </span>
+                  )}
+                  {i.regime_patrimonial === "proprio" && i.co_titular_nome && (
+                    <span className="pill warning" title="Percentual de participação de cada titular ainda não confirmado — imóvel contando 100% no patrimônio líquido até você confirmar">
+                      <Users size={11} style={{ marginRight: 3, verticalAlign: -1 }} /> copropriedade: {i.co_titular_nome}
                     </span>
                   )}
                   {i.uso_pessoal === 0 && i.regime_patrimonial === "proprio" && (

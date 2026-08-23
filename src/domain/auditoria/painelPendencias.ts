@@ -124,6 +124,20 @@ export function gerarPainelPendencias(db: Database, hoje: string): ItemPendencia
     });
   }
 
+  const imoveisComCopropriedadePendente = consultar<{ apelido: string; co_titular_nome: string }>(
+    db,
+    "SELECT apelido, co_titular_nome FROM imoveis WHERE regime_patrimonial = 'proprio' AND co_titular_nome IS NOT NULL",
+  );
+  if (imoveisComCopropriedadePendente.length > 0) {
+    itens.push({
+      id: "copropriedade-percentual-pendente",
+      titulo: `${imoveisComCopropriedadePendente.length} imóvel(is) com copropriedade sem percentual confirmado`,
+      descricao: `${imoveisComCopropriedadePendente.map((i) => `${i.apelido} (${i.co_titular_nome})`).join(", ")} — contando 100% no patrimônio líquido até a divisão real ser confirmada (matrícula/escritura). Não é estimado automaticamente.`,
+      severidade: "atencao",
+      aba: "imoveis",
+    });
+  }
+
   const patrimonioLiquido = calcularPatrimonioLiquido(db, hoje);
   if (patrimonioLiquido.financiamentosSemSaldoDevedor.length > 0) {
     itens.push({
