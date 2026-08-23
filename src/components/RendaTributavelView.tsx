@@ -85,7 +85,7 @@ export function RendaTributavelView() {
   const contratoAtivo = contratosComRateio.find((c) => c.id === contratoDssAtivo) ?? null;
   const dss = useMemo(
     () => (db && contratoDssAtivo ? gerarDss(db, contratoDssAtivo, inicio12m, hoje) : null),
-    [db, contratoDssAtivo, inicio12m, hoje],
+    [db, versao, contratoDssAtivo, inicio12m, hoje],
   );
   const sugestaoRateio = useMemo(
     () => (db && contratoAtivo ? sugerirAjusteRateio(db, contratoAtivo, inicio12m, hoje) : null),
