@@ -15,8 +15,8 @@
 
 | Status | Quantidade | Percentual |
 |--------|-----------|-----------|
-| 🔴 Alugadas | 19 | 90% |
-| 🟢 Disponíveis | 4 | 10% |
+| 🔴 Alugadas | 17 | 81% |
+| 🟢 Disponíveis | 4 | 19% |
 | **TOTAL** | **21** | **100%** |
 
 ### Unidades Disponíveis Agora
@@ -93,10 +93,10 @@
 
 | Residencial | Total | Alugadas | Disponíveis | Taxa |
 |-------------|-------|----------|-------------|------|
-| **João Pottker** | 21 | 19 | 4 | 90% |
+| **João Pottker** | 21 | 17 | 4 | 81% |
 | **Milton Sullivan** | 6 | 5 | 1 | 83% |
 | **Ana Maria** | 5 | 5 | 0 | 100% |
-| **TOTAL GERAL** | **32** | **29** | **5** | **91%** |
+| **TOTAL GERAL** | **32** | **27** | **5** | **84%** |
 
 ---
 

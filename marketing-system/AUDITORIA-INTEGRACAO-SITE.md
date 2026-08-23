@@ -20,7 +20,7 @@
 
 **Endereço**: Servidão Prof. João Carlos Pottker, 25, Carvoeira, Florianópolis  
 **Telefone**: (41) 4042-5242  
-**Taxa de Ocupação**: 90% (19 de 21 alugadas)  
+**Taxa de Ocupação**: 81% (17 de 21 alugadas)  
 **Descrição**: Apartamentos padrão com 2 quartos, suíte com AC, sala ampla, 50 m², vidraçaria grande, vista para área verde.  
 **Preço**: R$ 2.699–3.299/mês (com 6% desconto primeiros 6 meses)
 
@@ -66,9 +66,9 @@
 | Métrica | Valor |
 |---------|-------|
 | **Total de Unidades** | 32 |
-| **Alugadas** | 29 |
+| **Alugadas** | 27 |
 | **Vacantes** | 5 (4 Pottker + 1 Milton) |
-| **Taxa de Ocupação** | 91% |
+| **Taxa de Ocupação** | 84% |
 | **Bairros Cobertos** | 2 (Carvoeira, Córrego Grande) |
 | **Distância Média UFSC** | 600m / 7 min |
 
@@ -122,8 +122,8 @@
 
 ## 📝 Notas da Auditoria
 
-- **Alta Ocupação**: 91% de ocupação geral indica mercado muito aquecido
-- **Pottker**: 90% ocupada com 4 vacantas para campanhas direcionadas
+- **Ocupação Saudável**: 84% de ocupação geral indica mercado aquecido
+- **Pottker**: 81% ocupada com 4 vacantas para campanhas direcionadas
 - **Milton Sullivan**: 83% ocupada com 1 única vaga (oportunidade premium)
 - **Ana Maria**: 100% ocupada — excelente para lista de espera + renovações
 - **Aluguel Hoje**: APTO 18 + APTO 2 na Pottker = primeira sincronização automática do sistema
