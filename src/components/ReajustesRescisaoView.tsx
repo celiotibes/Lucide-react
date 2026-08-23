@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useDb } from "../db/DbContext";
 import { consultar } from "../db/connection";
-import { listarReajustes, sugerirProximoReajuste, registrarReajuste, registrarRecomposicaoValor, calcularMultaRescisoria } from "../domain/contratos/reajustes";
+import { listarReajustes, sugerirProximoReajuste, registrarReajuste, registrarRecomposicaoValor, calcularMultaRescisoria, aplicarDescontoNegociado } from "../domain/contratos/reajustes";
 import type { ContratoLocacao, Imovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
@@ -15,6 +15,7 @@ export function ReajustesRescisaoView() {
   const hoje = hojeIso();
   const [contratoSelecionadoId, setContratoSelecionadoId] = useState<number | null>(null);
   const [dataRescisao, setDataRescisao] = useState(hoje);
+  const [descontoNegociado, setDescontoNegociado] = useState("");
   const [recomposicao, setRecomposicao] = useState({ data: hoje, valorNovo: "", motivo: "" });
 
   const contratos = useMemo<ContratoLocacao[]>(
@@ -191,6 +192,20 @@ export function ReajustesRescisaoView() {
               className="btn"
               style={{ cursor: "text" }}
             />
+            <label htmlFor="desconto-negociado" style={{ fontSize: 13, color: "var(--ink-soft)", marginLeft: 8 }}>
+              Desconto comercial negociado (%)
+            </label>
+            <input
+              id="desconto-negociado"
+              type="number"
+              min={0}
+              max={100}
+              placeholder="ex: 85"
+              value={descontoNegociado}
+              onChange={(e) => setDescontoNegociado(e.target.value)}
+              className="btn"
+              style={{ cursor: "text", width: 90 }}
+            />
           </div>
 
           {multa && (
@@ -203,12 +218,25 @@ export function ReajustesRescisaoView() {
                 value={formatarMoeda(multa.multaProporcional)}
                 variant={multa.multaProporcional > 0 ? "critical" : "good"}
               />
+              {descontoNegociado.trim() !== "" && !Number.isNaN(Number(descontoNegociado)) && (
+                <KpiTile
+                  label={`Multa com desconto de ${descontoNegociado}%`}
+                  value={formatarMoeda(aplicarDescontoNegociado(multa.multaProporcional, Number(descontoNegociado)))}
+                  variant="good"
+                />
+              )}
             </div>
           )}
           <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginTop: 10 }}>
             Fórmula: teto ({contratoAtivo.multa_rescisoria_teto_meses} meses do valor vigente) dividido pela duração
             total do ciclo em meses, multiplicado pelos meses restantes até o fim do prazo determinado — mesma lógica
             de proporcionalidade de contratos reais de locação estudantil/residencial.
+          </p>
+          <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginTop: 4 }}>
+            O desconto comercial é opcional e não fica salvo no contrato — cobre negociações
+            pontuais de saída antecipada avisada com antecedência (ex: bonificação decrescente de
+            fim de ano em contratos de locação estudantil), que contratos reais tratam
+            explicitamente como liberalidade discricionária e revogável, não como regra fixa.
           </p>
         </>
       )}

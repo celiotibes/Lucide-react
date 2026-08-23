@@ -147,3 +147,16 @@ export function calcularMultaRescisoria(db: Database, contrato: ContratoLocacao,
 
   return { duracaoCicloMeses, mesesRestantes, tetoMulta, multaProporcional, valorVigenteNaData };
 }
+
+/** Aplica um desconto comercial negociado sobre a multa proporcional já calculada — cobre o
+ * caso de contratos reais que preveem bonificação decrescente para saída antecipada avisada
+ * com antecedência (ex: "dinâmica do mercado universitário de dezembro": 85% de desconto se
+ * avisar até 22/nov e desocupar até 22/dez, 80% se até 27/nov e 28/dez). Não é modelado como
+ * regra fixa do contrato porque o próprio instrumento real a descreve como "mera liberalidade
+ * comercial discricionária... revogável... vedada a invocação por analogia" para outras datas
+ * — cada negociação define sua própria janela e percentual, por isso o desconto é um parâmetro
+ * livre aplicado por cima do cálculo, não um dado cadastrado no contrato. */
+export function aplicarDescontoNegociado(multaProporcional: number, percentualDesconto: number): number {
+  const percentual = Math.min(100, Math.max(0, percentualDesconto));
+  return multaProporcional * (1 - percentual / 100);
+}
