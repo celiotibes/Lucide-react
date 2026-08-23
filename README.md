@@ -23,7 +23,7 @@ npm run dev
 ```
 
 Abra o app e clique em **"Carregar dados de demonstração"** para popular o banco com
-um dataset simulado (3 anos, 6 contas, 10 imóveis, ~40 contratos, inadimplência e
+um dataset simulado (3 anos, 6 contas, 12 imóveis, ~40 contratos, inadimplência e
 cauções fictícias) e explorar todas as telas sem precisar de documentos reais.
 
 **Nunca instalou Node.js ou rodou um projeto assim antes?** Veja
@@ -368,7 +368,7 @@ src/
                           Documentos e classificação, Transações, Contratos, Reajustes
                           e rescisão, Caução, Financiamentos, Patrimônio e
                           alavancagem, Índices econômicos, Renda Tributável, Livro
-                          Razão, Auditoria, Laudo)
+                          Razão, Pendências, Auditoria, Laudo)
     cadastros/             sub-telas de Cadastros (contratos, contas bancárias,
                            prestadores, financiamentos, obras)
 

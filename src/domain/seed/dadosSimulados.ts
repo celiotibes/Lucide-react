@@ -104,6 +104,7 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
     "INSERT INTO imoveis (id, apelido, tipo, cidade, endereco, fracao_ideal, area_m2, financiado, uso_pessoal) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)",
     [apto3, "Apto Residencial (uso próprio)", "apartamento", "Curitiba", "Rua das Araucárias, 120", 1, 95],
   );
+  imoveis.push({ id: apto3, tipo: "apartamento", financiado: 0 });
 
   // 4. Financiamentos (taxas ilustrativas — o financiamento 1 é deliberadamente
   // sobrecobrado nas transações abaixo, para popular o detector de anatocismo)
@@ -240,6 +241,7 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
     "INSERT INTO imoveis (id, apelido, tipo, endereco, fracao_ideal, area_m2, financiado) VALUES (?, ?, ?, ?, ?, ?, 0)",
     [imovelEstudantilId, "Kitnet 16 - Residencial Estudantil", "kitnet", "Servidão Exemplo, 25", 0.1, 26],
   );
+  imoveis.push({ id: imovelEstudantilId, tipo: "kitnet", financiado: 0 });
   const contratoEstudantilId = proximoContratoId++;
   executar(
     db,
