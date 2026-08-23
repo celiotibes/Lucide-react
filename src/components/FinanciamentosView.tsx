@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Search } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { compararComTransacoes, type Financiamento } from "../domain/financiamento/amortizacao";
 import type { Imovel } from "../domain/types";

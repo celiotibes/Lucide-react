@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { gerarRendaTributavel, totalizarRendaTributavel } from "../domain/reports/rendaTributavel";
 import { calcularCapacidadeContributiva, calcularCapacidadeContributivaMensal } from "../domain/reports/capacidadeContributiva";

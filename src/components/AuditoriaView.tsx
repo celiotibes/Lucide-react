@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { CopyCheck, TrendingUp, CalendarX2, Link2Off, Search } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import {
   detectarDuplicatas, detectarOutliers, detectarLacunasMensais, testeBenford,

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Pencil, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { useDb } from "../../db/DbContext";
+import { useDb } from "../../db/useDb";
 import { consultar, executar } from "../../db/connection";
 import { listarPartes, adicionarParte, removerParte } from "../../domain/contratos/locatarios";
 import type { Caucao, ContratoLocacao, FranquiaHidrica, Imovel, IndiceReajuste, PapelLocatario, RubricaCusteio, TipoContrato } from "../../domain/types";

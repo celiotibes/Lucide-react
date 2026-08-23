@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, Sankey, Rectangle } from "recharts";
 import type { SankeyNodeProps, SankeyLinkProps } from "recharts";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { gerarSerieMensal, gerarDre, resultadoLiquido } from "../domain/reports/dre";
 import { gerarCascataDre } from "../domain/reports/dreCascata";

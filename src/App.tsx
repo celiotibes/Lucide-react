@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo } from "lucide-react";
 import "./App.css";
-import { DbProvider, useDb } from "./db/DbContext";
+import { DbProvider } from "./db/DbContext";
+import { useDb } from "./db/useDb";
 import { exportarArquivo, importarArquivo } from "./db/connection";
 import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
 import { registrarBackup, calcularStatusBackup, type RegistroBackup } from "./domain/backupIntegridade";

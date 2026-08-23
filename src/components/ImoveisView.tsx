@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Pencil, Home, Users, Trash2 } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
 import type { Imovel, ItemInventarioBem, RegimePatrimonial, TipoImovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";

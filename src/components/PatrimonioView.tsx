@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import {
   calcularPatrimonioLiquido,
   calcularAlavancagemPorImovel,

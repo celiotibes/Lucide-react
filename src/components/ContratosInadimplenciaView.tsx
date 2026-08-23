@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia } from "../domain/reconcile/inadimplencia";

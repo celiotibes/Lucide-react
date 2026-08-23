@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { AlertOctagon, AlertTriangle, Info, CircleCheck } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { gerarPainelPendencias, type SeveridadePendencia } from "../domain/auditoria/painelPendencias";
 import { KpiTile } from "./KpiTile";
 

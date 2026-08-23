@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, FileDown } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
 import { calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FileDown } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { gerarDre } from "../domain/reports/dre";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Pencil } from "lucide-react";
-import { useDb } from "../../db/DbContext";
+import { useDb } from "../../db/useDb";
 import { consultar, executar } from "../../db/connection";
 import { ROTULO_TIPO_DIVIDA } from "../../domain/patrimonio/balancoPatrimonial";
 import type { DividaConsumo, TipoDividaConsumo } from "../../domain/types";

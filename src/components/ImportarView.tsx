@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FileWarning, FileCheck2, Loader2 } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { Dropzone } from "./Dropzone";
 import { ConectarPluggy } from "./ConectarPluggy";

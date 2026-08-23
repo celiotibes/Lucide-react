@@ -122,7 +122,7 @@ export function detectarLacunasMensais(db: Database, planosRecorrentes: string[]
 
       const mesesPresentes = new Set(meses.map((m) => m.mes));
       const mesesFaltantes: string[] = [];
-      let cursor = new Date(dataInicio + "T00:00:00");
+      const cursor = new Date(dataInicio + "T00:00:00");
       const fim = new Date(dataFim + "T00:00:00");
       while (cursor <= fim) {
         const chave = cursor.toISOString().slice(0, 7);

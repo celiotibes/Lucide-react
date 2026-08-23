@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Landmark, Loader2 } from "lucide-react";
 import { PluggyConnect } from "pluggy-connect-sdk";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { criarConnectToken, listarContasPluggy, buscarTransacoesPluggy, type ContaPluggy } from "../domain/parsers/pluggyClient";
 import type { ResultadoImportacao } from "../domain/parsers/detectarTipo";

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, Download, AlertTriangle, Loader2, Plus } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { executar } from "../db/connection";
 import {
   buscarIndiceBacen,

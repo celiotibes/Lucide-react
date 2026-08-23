@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FileText, Loader2, Link2, X, Check, Plus, Trash2, Pencil } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { Dropzone } from "./Dropzone";
 import { extrairTextoDocumento, extrairCamposDeTexto } from "../domain/documentos/extrairCampos";

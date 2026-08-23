@@ -1,17 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Database } from "sql.js";
 import { abrirBanco, salvarBanco, reiniciarBanco } from "./connection";
 import { registrarUltimaAlteracao } from "../domain/backupIntegridade";
-
-interface DbContextValor {
-  db: Database | null;
-  carregando: boolean;
-  versao: number;
-  persistir: () => Promise<void>;
-  reiniciar: () => Promise<void>;
-}
-
-const DbContext = createContext<DbContextValor | null>(null);
+import { DbContext } from "./useDb";
 
 export function DbProvider({ children }: { children: ReactNode }) {
   const [db, setDb] = useState<Database | null>(null);
@@ -40,10 +31,4 @@ export function DbProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return <DbContext.Provider value={{ db, carregando, versao, persistir, reiniciar }}>{children}</DbContext.Provider>;
-}
-
-export function useDb(): DbContextValor {
-  const contexto = useContext(DbContext);
-  if (!contexto) throw new Error("useDb precisa ser usado dentro de <DbProvider>");
-  return contexto;
 }

@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { Wand2, Split, Trash2, Download, X } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
 import type { Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";

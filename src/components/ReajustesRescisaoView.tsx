@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { useDb } from "../db/DbContext";
+import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { listarReajustes, sugerirProximoReajuste, registrarReajuste, registrarRecomposicaoValor, calcularMultaRescisoria, aplicarDescontoNegociado } from "../domain/contratos/reajustes";
 import type { ContratoLocacao, Imovel } from "../domain/types";
