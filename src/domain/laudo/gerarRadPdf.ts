@@ -40,13 +40,33 @@ export async function gerarRadPdf(dados: DadosRad): Promise<jsPDF> {
     w.paragrafo(
       "Mobiliário e equipamentos entregues com o imóvel, com valor de reposição de referência. " +
         "A confirmação de que cada item permanece íntegro depende da vistoria de saída — este " +
-        "relatório não presume avaria nem integridade sem uma vistoria registrada.",
+        "relatório não presume avaria nem integridade sem uma vistoria registrada. " +
+        "AVISO: esta lista é o inventário ATUAL cadastrado para o imóvel (aba Imóveis), não um " +
+        "registro fechado por contrato — se o imóvel já teve outro locatário ou passou por " +
+        "reforma/atualização de mobiliário depois do início deste contrato, a lista pode não " +
+        "corresponder exatamente ao que foi entregue a ESTE locatário. Confira a coluna " +
+        "\"Vistoria\" de cada item contra o período do contrato abaixo.",
     );
-    w.linhaTabela(["Item", "Valor de reposição"], [140, 40], true);
+    const itensForaDoPeriodo = itensInventario.filter(
+      (item) => item.data_vistoria && contrato.data_fim && item.data_vistoria > contrato.data_fim,
+    );
+    if (itensForaDoPeriodo.length > 0) {
+      w.paragrafo(
+        `ATENÇÃO: ${itensForaDoPeriodo.length} item(ns) abaixo têm data de vistoria POSTERIOR ao fim deste ` +
+          "contrato — foram claramente cadastrados depois que este locatário já havia saído, e não devem ser " +
+          "atribuídos à entrega feita a ele.",
+      );
+    }
+    w.linhaTabela(["Item", "Valor de reposição", "Vistoria"], [110, 35, 35], true);
     for (const item of itensInventario) {
+      const foraDoPeriodo = item.data_vistoria && contrato.data_fim && item.data_vistoria > contrato.data_fim;
       w.linhaTabela(
-        [item.descricao, item.valor_reposicao !== undefined && item.valor_reposicao !== null ? formatarMoeda(item.valor_reposicao) : "não informado"],
-        [140, 40],
+        [
+          item.descricao + (foraDoPeriodo ? " (posterior ao contrato!)" : ""),
+          item.valor_reposicao !== undefined && item.valor_reposicao !== null ? formatarMoeda(item.valor_reposicao) : "não informado",
+          item.data_vistoria ?? "não informada",
+        ],
+        [110, 35, 35],
       );
     }
   } else {
