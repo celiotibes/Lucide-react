@@ -14,6 +14,12 @@ function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 const CATEGORIAS_VARIAVEIS = ["2.1.02", "2.1.03", "2.1.04"]; // manutenção, obra, prestadores — não aluguel/financiamento fixos
+// Piso indicativo de amostra para o teste de Benford ser minimamente informativo — a
+// literatura de auditoria forense (Nigrini) recomenda centenas de observações para rigor
+// estatístico formal; 50 é só o piso abaixo do qual nem vale mostrar o desvio como se fosse
+// um sinal (achado de auditoria adversarial: o sistema rodava e exibia o teste mesmo com
+// poucas transações, sem nenhum aviso de tamanho de amostra).
+const AMOSTRA_MINIMA_BENFORD_INDICATIVA = 50;
 
 function BotaoVerTransacoes({ onClick }: { onClick: () => void }) {
   return (
@@ -110,10 +116,15 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
       <div className="card" style={{ marginBottom: 24 }}>
         <div className="section-title"><TrendingUp size={14} /> Outliers estatísticos por categoria ({outliers.length})</div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 10 }}>
-          Lançamentos com valor a mais de 3 desvios-padrão da média da própria categoria (janela de 36 meses).
+          Lançamentos com valor a mais de 3 desvios-padrão da média da própria categoria (janela de 36 meses,
+          categorias com pelo menos 11 lançamentos — abaixo disso o teste é matematicamente incapaz de sinalizar
+          qualquer outlier, não importa o quão extremo seja o valor, então a categoria simplesmente não é testada).
         </p>
         {outliers.length === 0 ? (
-          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhum outlier encontrado nas categorias com volume suficiente para o teste.</p>
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>
+            Nenhum outlier encontrado nas categorias com volume suficiente para o teste — categorias com menos
+            lançamentos não foram testadas (não é o mesmo que "testadas e aprovadas").
+          </p>
         ) : (
           <div className="table-wrap">
             <table className="data-table">
@@ -209,13 +220,27 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 10 }}>
           Aplicado só a manutenção, obras, prestadores e lançamentos ainda sem categoria — <strong>nunca</strong> a
           aluguel ou financiamento, cujo valor é fixado em contrato e não tem por que seguir a distribuição natural.
-          Desvio máximo observado: {(desvioBenfordMaximo * 100).toFixed(1)} pontos percentuais.
+          {valoresVariaveis.length > 0 && (
+            <>
+              {" "}Amostra: {valoresVariaveis.length} lançamento(s). Desvio máximo observado:{" "}
+              {(desvioBenfordMaximo * 100).toFixed(1)} pontos percentuais.
+            </>
+          )}
         </p>
+        {valoresVariaveis.length > 0 && valoresVariaveis.length < AMOSTRA_MINIMA_BENFORD_INDICATIVA && (
+          <div className="aviso-caixa" style={{ marginBottom: 10 }}>
+            Amostra pequena demais ({valoresVariaveis.length} lançamento(s)) para o teste de Benford ter qualquer
+            poder estatístico — o desvio percentual mostrado abaixo <strong>não é um indício confiável</strong> de
+            nada com uma base tão pequena. Literatura de auditoria forense recomenda centenas de observações;
+            {" "}{AMOSTRA_MINIMA_BENFORD_INDICATIVA} é só o piso abaixo do qual nem vale considerar o resultado.
+          </div>
+        )}
         <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 10 }}>
           <strong>Leitura correta do teste:</strong> Benford só é um sinal confiável quando os valores cobrem várias
-          ordens de grandeza (dezenas a dezenas de milhares). Nos dados de demonstração as despesas variáveis ficam
-          todas numa faixa estreita — o desvio acima é esperado nesse caso e não indica nada de errado; com seus
-          documentos reais (recibos de R$ 15 a obras de R$ 20.000, por exemplo), o mesmo teste passa a ser útil.
+          ordens de grandeza (dezenas a dezenas de milhares) <strong>e</strong> a amostra tem volume suficiente (ver
+          aviso acima). Nos dados de demonstração as despesas variáveis ficam todas numa faixa estreita — o desvio
+          acima é esperado nesse caso e não indica nada de errado; com seus documentos reais (recibos de R$ 15 a
+          obras de R$ 20.000, por exemplo, em volume suficiente), o mesmo teste passa a ser útil.
         </p>
         {benford.length > 0 && (
           <div style={{ width: "100%", height: 260, background: "var(--viz-surface)", borderRadius: 6 }}>

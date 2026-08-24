@@ -44,13 +44,22 @@ export interface OutlierEstatistico {
   zScore: number;
 }
 
-const AMOSTRA_MINIMA_OUTLIER = 5;
 const Z_SCORE_LIMITE = 3;
+// Limite matemático do desvio-padrão POPULACIONAL (usado abaixo): o maior |z-score|
+// possível numa amostra de tamanho n é sqrt(n-1) — para n=5 (piso antigo), o máximo
+// alcançável era sqrt(4)=2, sempre abaixo de Z_SCORE_LIMITE=3: o teste era estruturalmente
+// incapaz de sinalizar QUALQUER outlier em categorias de 5 a 10 lançamentos, não importa o
+// quão extremo fosse o valor — e a UI relatava "nenhum outlier" como se a categoria tivesse
+// sido testada de verdade (achado de auditoria adversarial). O piso precisa ser o menor n
+// para o qual sqrt(n-1) > Z_SCORE_LIMITE já é matematicamente alcançável.
+const AMOSTRA_MINIMA_OUTLIER = Math.ceil(Z_SCORE_LIMITE ** 2) + 2; // = 11 para limite 3
 
 /** Para cada categoria do plano de contas com volume suficiente, sinaliza lançamentos
  * cujo valor absoluto foge mais de 3 desvios-padrão da média da própria categoria —
  * o mesmo princípio que motores de conciliação tipo IDEA/ACL usam para achar
- * lançamento fora do padrão dentro de centenas de linhas. */
+ * lançamento fora do padrão dentro de centenas de linhas. Mesmo acima do piso mínimo,
+ * o poder estatístico deste teste cresce com o tamanho da amostra — ver o aviso
+ * correspondente na UI (AuditoriaView) sobre categorias pequenas. */
 export function detectarOutliers(db: Database, dataInicio: string, dataFim: string): OutlierEstatistico[] {
   const linhas = consultar<{ id: number; data: string; descricao_original: string; valor: number; plano_conta_codigo: string }>(
     db,
