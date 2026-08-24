@@ -1,7 +1,7 @@
 import { UUID, randomUUID } from 'crypto';
-import { createHash } from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { LaundryFranchise, LaundryPackage, LaundryCycle, LaundryViolation, LaundryMonthlyReport } from '../types/laundry';
+import { AuditService } from './AuditService';
 
 export class LaundryService {
   private readonly CYCLES_PER_WEEK = 2;
@@ -13,7 +13,11 @@ export class LaundryService {
     p10: { cycles: 10, price: 75.0 },
   };
 
-  constructor(private supabase: SupabaseClient) {}
+  private auditService: AuditService;
+
+  constructor(private supabase: SupabaseClient) {
+    this.auditService = new AuditService(supabase);
+  }
 
   /**
    * Criar nova franquia de lavanderia para um contrato

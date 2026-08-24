@@ -1,10 +1,14 @@
 import { UUID, randomUUID } from 'crypto';
-import { createHash } from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Inspection, InspectionNotification, InspectionStatus } from '../types/inspection';
+import { AuditService } from './AuditService';
 
 export class InspectionService {
-  constructor(private supabase: SupabaseClient) {}
+  private auditService: AuditService;
+
+  constructor(private supabase: SupabaseClient) {
+    this.auditService = new AuditService(supabase);
+  }
   /**
    * Criar nova vistoria com upload de vídeo
    * Requisito: Anexo II - Vídeo HD obrigatório
@@ -59,7 +63,7 @@ export class InspectionService {
     }
 
     // Registrar no audit log
-    await this.logAudit(inspection.id, 'inspection_created', {
+    await this.auditService.logAuditWithRetry(inspection.id, 'inspection', 'inspection_created', {
       lease_id: leaseId,
       property_id: propertyId,
       video_size_mb: videoSizeMb,
@@ -169,7 +173,7 @@ export class InspectionService {
     }
 
     // Registrar no audit log
-    await this.logAudit(inspection.id, 'inspection_challenged', {
+    await this.auditService.logAuditWithRetry(inspection.id, 'inspection', 'inspection_challenged', {
       challenge_reason: challengeReason,
       challenged_by: inspection.uploaded_by_email,
     });
@@ -215,7 +219,7 @@ export class InspectionService {
     }
 
     // Registrar no audit log
-    await this.logAudit(inspection.id, 'inspection_rad_submitted', {
+    await this.auditService.logAuditWithRetry(inspection.id, 'inspection', 'inspection_rad_submitted', {
       damages_found: damagesFound,
       damage_estimated_value: estimatedValue || 0,
       damage_description: description,
@@ -273,49 +277,4 @@ export class InspectionService {
     return result;
   }
 
-  /**
-   * Registrar ação no audit log com hash chain (Lei 12.682/2012)
-   * Append-only, imutável, com integridade criptográfica
-   */
-  private async logAudit(
-    inspectionId: string,
-    action: string,
-    metadata: Record<string, any>
-  ): Promise<void> {
-    try {
-      // Gerar hash do evento para chain de integridade
-      const eventData = JSON.stringify({ inspectionId, action, metadata, timestamp: new Date() });
-      const hash = createHash('sha256').update(eventData).digest('hex');
-
-      // Buscar o último hash (para chain)
-      const { data: lastLog } = await this.supabase
-        .from('audit_logs')
-        .select('hash')
-        .eq('entity_id', inspectionId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      const previousHash = lastLog && lastLog.length > 0 ? lastLog[0].hash : null;
-
-      // Inserir novo log (append-only)
-      const { error } = await this.supabase
-        .from('audit_logs')
-        .insert([{
-          id: randomUUID(),
-          entity_id: inspectionId,
-          entity_type: 'inspection',
-          action,
-          metadata,
-          hash,
-          previous_hash: previousHash,
-          created_at: new Date(),
-        }]);
-
-      if (error) {
-        console.error('Failed to log audit event:', error);
-      }
-    } catch (error) {
-      console.error('Error in logAudit:', error);
-    }
-  }
 }
