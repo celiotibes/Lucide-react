@@ -61,6 +61,15 @@ function num(valor: string, fallback: number): number {
   return Number.isNaN(n) ? fallback : n;
 }
 
+/** Como num(), mas trava o resultado em [min, max] — usado para percentuais que não fazem
+ * sentido físico fora da faixa (ex: mais de 100% do valor recebido sendo "aluguel efetivo"
+ * produziria renda tributável maior que o próprio recebimento). O campo era texto livre sem
+ * nenhum limite, nem no HTML nem no banco — um erro de digitação distorcia silenciosamente a
+ * renda tributável reportada (achado de auditoria adversarial). */
+function numFaixa(valor: string, fallback: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, num(valor, fallback)));
+}
+
 export function ContratosForm() {
   const { db, versao, persistir } = useDb();
   const [form, setForm] = useState<Formulario | null>(null);
@@ -72,6 +81,10 @@ export function ContratosForm() {
 
   async function salvar() {
     if (!db || !form || form.imovel_id === null || form.locatario.trim() === "" || form.valor_referencia.trim() === "" || form.data_inicio === "") return;
+    if (form.data_fim !== "" && form.data_fim < form.data_inicio) {
+      alert("A data de fim não pode ser anterior à data de início — corrija antes de salvar.");
+      return;
+    }
     const valores = {
       imovel_id: form.imovel_id,
       locatario: form.locatario.trim(),
@@ -84,7 +97,7 @@ export function ContratosForm() {
       percentual_reajuste_primeira_renovacao: form.percentual_reajuste_primeira_renovacao.trim() === "" ? null : num(form.percentual_reajuste_primeira_renovacao, 0),
       duracao_minima_meses: Number.parseInt(form.duracao_minima_meses, 10) || 12,
       multa_rescisoria_teto_meses: num(form.multa_rescisoria_teto_meses, 3),
-      percentual_aluguel_efetivo: num(form.percentual_aluguel_efetivo, 100),
+      percentual_aluguel_efetivo: numFaixa(form.percentual_aluguel_efetivo, 100, 0, 100),
       multa_percentual: num(form.multa_percentual, 2),
       multa_ate_dias: Number.parseInt(form.multa_ate_dias, 10) || 5,
       multa_percentual_substitutiva: num(form.multa_percentual_substitutiva, 10),
@@ -126,7 +139,7 @@ export function ContratosForm() {
             <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
               Imóvel
               <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.imovel_id ?? ""} onChange={(e) => setForm({ ...form, imovel_id: Number(e.target.value) })}>
-                {imoveis.map((i) => <option key={i.id} value={i.id}>{i.apelido}</option>)}
+                {imoveis.map((i) => <option key={i.id} value={i.id}>{i.apelido}{i.uso_pessoal ? " — uso pessoal" : ""}</option>)}
               </select>
             </label>
             <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>

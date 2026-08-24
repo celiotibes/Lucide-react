@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS contratos_locacao (
     -- Decomposição do "valor único mensal": percentual que é de fato Aluguel Efetivo
     -- (base tributável do Carnê-Leão) vs. reembolso de rateio de custeio coletivo
     -- (trânsito contábil, não tributável). 100 = contrato simples, sem rateio embutido.
-    percentual_aluguel_efetivo REAL NOT NULL DEFAULT 100,
+    percentual_aluguel_efetivo REAL NOT NULL DEFAULT 100 CHECK (percentual_aluguel_efetivo BETWEEN 0 AND 100),
 
     -- Encargos por inadimplemento em duas faixas (padrão real de contrato de locação
     -- estudantil/residencial): multa_percentual até `multa_ate_dias`, substituída
