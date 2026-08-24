@@ -11,7 +11,13 @@ CREATE TABLE IF NOT EXISTS contas_bancarias (
     titular         TEXT NOT NULL,
     tipo            TEXT NOT NULL CHECK (tipo IN ('corrente', 'poupanca', 'investimento')),
     ativa_desde     DATE,
-    observacoes     TEXT
+    observacoes     TEXT,
+    -- Cadastrar a mesma conta duas vezes (dois ids diferentes) e importar o mesmo extrato
+    -- contra cada uma dobra a renda/despesa em silêncio: a dedup de transações (UNIQUE
+    -- conta_id+fitid) é escopada por conta_id, então não pega esse caso (achado de
+    -- auditoria adversarial). Protege bancos novos; ContasBancariasForm.tsx faz a mesma
+    -- checagem em bancos já existentes, que não herdam UNIQUE retroativamente.
+    UNIQUE (banco, agencia, numero)
 );
 
 CREATE TABLE IF NOT EXISTS imoveis (

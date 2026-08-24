@@ -31,6 +31,17 @@ export function ContasBancariasForm() {
 
   async function salvar() {
     if (!db || !form || form.banco.trim() === "" || form.numero.trim() === "" || form.titular.trim() === "") return;
+    const jaExiste = contas.some(
+      (c) =>
+        c.id !== form.id &&
+        c.banco.trim().toLowerCase() === form.banco.trim().toLowerCase() &&
+        (c.agencia ?? "").trim() === form.agencia.trim() &&
+        c.numero.trim() === form.numero.trim(),
+    );
+    if (jaExiste) {
+      alert("Já existe uma conta cadastrada com esse banco, agência e número — importar o mesmo extrato contra as duas dobraria a renda/despesa. Reutilize a conta existente em vez de cadastrar de novo.");
+      return;
+    }
     const params = [form.banco.trim(), form.agencia.trim() || null, form.numero.trim(), form.titular.trim(), form.tipo, form.ativa_desde || null, form.observacoes.trim() || null] as const;
     if (form.id === null) {
       executar(db, "INSERT INTO contas_bancarias (banco, agencia, numero, titular, tipo, ativa_desde, observacoes) VALUES (?, ?, ?, ?, ?, ?, ?)", [...params]);
