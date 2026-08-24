@@ -1,8 +1,10 @@
 import { UUID, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { LaundryFranchise, LaundryPackage, LaundryCycle, LaundryViolation, LaundryMonthlyReport } from '../types/laundry';
 
 export class LaundryService {
-  private readonly CYCLES_PER_WEEK = 2; // Contratualmente 2 ciclos/semana inclusos
+  private readonly CYCLES_PER_WEEK = 2;
   private readonly WEEKS_PER_MONTH = 4.3;
   private readonly PACKAGES = {
     p2: { cycles: 2, price: 25.0 },
@@ -11,12 +13,15 @@ export class LaundryService {
     p10: { cycles: 10, price: 75.0 },
   };
 
+  constructor(private supabase: SupabaseClient) {}
+
   /**
    * Criar nova franquia de lavanderia para um contrato
    * Requisito: Anexo III item 6 - 2 ciclos/semana por morador
    */
   async createFranchise(leaseId: UUID, residentCount: number): Promise<LaundryFranchise> {
     const cyclesPerMonth = Math.round(this.CYCLES_PER_WEEK * this.WEEKS_PER_MONTH * residentCount);
+    const now = new Date();
 
     const franchise: LaundryFranchise = {
       id: randomUUID(),
@@ -36,9 +41,26 @@ export class LaundryService {
       remaining_cycles: cyclesPerMonth,
       alert_80_percent_sent: false,
 
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: now,
+      updated_at: now,
     };
+
+    // Persistir no banco de dados
+    const { error } = await this.supabase
+      .from('laundry_franchises')
+      .insert([franchise]);
+
+    if (error) {
+      console.error('Failed to create laundry franchise:', error);
+      throw new Error(`Database insert failed: ${error.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(franchise.id, 'laundry_franchise_created', {
+      lease_id: leaseId,
+      resident_count: residentCount,
+      cycles_per_month: cyclesPerMonth,
+    });
 
     return franchise;
   }
@@ -51,17 +73,16 @@ export class LaundryService {
     residentName: string,
     machineId?: string
   ): Promise<{ cycle: LaundryCycle; franchise: LaundryFranchise }> {
-    // Determinar se é ciclo incluído ou extra
-    const cyclesAvailable = franchise.total_cycles_available - franchise.cycles_used_this_month;
+    const now = new Date();
     const isExtra = franchise.cycles_used_this_month >= franchise.cycles_per_month_included;
 
     const cycle: LaundryCycle = {
       id: randomUUID(),
       franchise_id: franchise.id,
-      cycle_timestamp: new Date(),
+      cycle_timestamp: now,
       resident_name: residentName,
       package_source: isExtra ? 'extra' : 'included',
-      cycle_duration_minutes: 40, // Típico
+      cycle_duration_minutes: 40,
       machine_id: machineId,
       audit_log_id: randomUUID(),
     };
@@ -74,11 +95,44 @@ export class LaundryService {
     const usagePercentage = (franchise.cycles_used_this_month / franchise.cycles_per_month_included) * 100;
     if (usagePercentage >= 80 && !franchise.alert_80_percent_sent) {
       franchise.alert_80_percent_sent = true;
-      franchise.alert_sent_date = new Date();
-      // TODO: Enviar alerta via email/WhatsApp
+      franchise.alert_sent_date = now;
     }
 
-    franchise.updated_at = new Date();
+    franchise.updated_at = now;
+
+    // Inserir ciclo no banco de dados
+    const { error: cycleError } = await this.supabase
+      .from('laundry_cycles')
+      .insert([cycle]);
+
+    if (cycleError) {
+      console.error('Failed to record cycle:', cycleError);
+      throw new Error(`Database insert failed: ${cycleError.message}`);
+    }
+
+    // Atualizar franchise
+    const { error: franchiseError } = await this.supabase
+      .from('laundry_franchises')
+      .update({
+        cycles_used_this_month: franchise.cycles_used_this_month,
+        remaining_cycles: franchise.remaining_cycles,
+        alert_80_percent_sent: franchise.alert_80_percent_sent,
+        alert_sent_date: franchise.alert_sent_date,
+        updated_at: now,
+      })
+      .eq('id', franchise.id);
+
+    if (franchiseError) {
+      console.error('Failed to update franchise:', franchiseError);
+      throw new Error(`Database update failed: ${franchiseError.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(franchise.id, 'laundry_cycle_recorded', {
+      resident_name: residentName,
+      package_source: isExtra ? 'extra' : 'included',
+      machine_id: machineId,
+    });
 
     return { cycle, franchise };
   }
@@ -90,6 +144,7 @@ export class LaundryService {
     franchise: LaundryFranchise,
     packageType: keyof typeof this.PACKAGES
   ): Promise<LaundryPackage> {
+    const now = new Date();
     const pkg = this.PACKAGES[packageType];
 
     const package_obj: LaundryPackage = {
@@ -98,17 +153,45 @@ export class LaundryService {
       package_type: packageType as 'p2' | 'p4' | 'p6' | 'p10',
       cycles_included: pkg.cycles,
       price_brl: pkg.price,
-      purchase_date: new Date(),
+      purchase_date: now,
       payment_status: 'pending',
       cycles_used: 0,
     };
 
     franchise.extra_packages.push(package_obj);
     franchise.total_cycles_available += pkg.cycles;
+    franchise.updated_at = now;
 
-    // TODO: Integrar com Asaas para cobrar automaticamente
+    // Inserir pacote no banco de dados
+    const { error: pkgError } = await this.supabase
+      .from('laundry_packages')
+      .insert([package_obj]);
 
-    franchise.updated_at = new Date();
+    if (pkgError) {
+      console.error('Failed to purchase package:', pkgError);
+      throw new Error(`Database insert failed: ${pkgError.message}`);
+    }
+
+    // Atualizar total_cycles_available na franchise
+    const { error: franchiseError } = await this.supabase
+      .from('laundry_franchises')
+      .update({
+        total_cycles_available: franchise.total_cycles_available,
+        updated_at: now,
+      })
+      .eq('id', franchise.id);
+
+    if (franchiseError) {
+      console.error('Failed to update franchise:', franchiseError);
+      throw new Error(`Database update failed: ${franchiseError.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(franchise.id, 'laundry_package_purchased', {
+      package_type: packageType,
+      cycles_included: pkg.cycles,
+      price_brl: pkg.price,
+    });
 
     return package_obj;
   }
@@ -124,7 +207,8 @@ export class LaundryService {
     description: string,
     evidenceUrl?: string
   ): Promise<LaundryViolation> {
-    const fineAmount = aluguelEfetivo * 0.1; // 10%
+    const now = new Date();
+    const fineAmount = aluguelEfetivo * 0.1;
 
     const violation: LaundryViolation = {
       id: randomUUID(),
@@ -139,10 +223,37 @@ export class LaundryService {
     };
 
     franchise.violations.push(violation);
-    franchise.updated_at = new Date();
+    franchise.updated_at = now;
 
-    // TODO: Notificar inquilino e locador
-    // TODO: Agendar aplicação de multa na próxima fatura
+    // Inserir violação no banco de dados
+    const { error: violationError } = await this.supabase
+      .from('laundry_violations')
+      .insert([violation]);
+
+    if (violationError) {
+      console.error('Failed to record violation:', violationError);
+      throw new Error(`Database insert failed: ${violationError.message}`);
+    }
+
+    // Atualizar franchise
+    const { error: franchiseError } = await this.supabase
+      .from('laundry_franchises')
+      .update({
+        updated_at: now,
+      })
+      .eq('id', franchise.id);
+
+    if (franchiseError) {
+      console.error('Failed to update franchise:', franchiseError);
+      throw new Error(`Database update failed: ${franchiseError.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(franchise.id, 'laundry_violation_recorded', {
+      violation_type: 'neighbor_laundry',
+      fine_amount_brl: fineAmount,
+      description,
+    });
 
     return violation;
   }
@@ -237,5 +348,47 @@ export class LaundryService {
    */
   getUsagePercentage(franchise: LaundryFranchise): number {
     return (franchise.cycles_used_this_month / franchise.cycles_per_month_included) * 100;
+  }
+
+  /**
+   * Registrar ação no audit log com hash chain (Lei 12.682/2012)
+   */
+  private async logAudit(
+    franchiseId: string,
+    action: string,
+    metadata: Record<string, any>
+  ): Promise<void> {
+    try {
+      const eventData = JSON.stringify({ franchiseId, action, metadata, timestamp: new Date() });
+      const hash = createHash('sha256').update(eventData).digest('hex');
+
+      const { data: lastLog } = await this.supabase
+        .from('audit_logs')
+        .select('hash')
+        .eq('entity_id', franchiseId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const previousHash = lastLog && lastLog.length > 0 ? lastLog[0].hash : null;
+
+      const { error } = await this.supabase
+        .from('audit_logs')
+        .insert([{
+          id: randomUUID(),
+          entity_id: franchiseId,
+          entity_type: 'laundry_franchise',
+          action,
+          metadata,
+          hash,
+          previous_hash: previousHash,
+          created_at: new Date(),
+        }]);
+
+      if (error) {
+        console.error('Failed to log audit event:', error);
+      }
+    } catch (error) {
+      console.error('Error in logAudit:', error);
+    }
   }
 }

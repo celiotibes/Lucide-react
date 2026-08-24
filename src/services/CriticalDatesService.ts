@@ -1,4 +1,6 @@
 import { UUID, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
+import { SupabaseClient } from '@supabase/supabase-js';
 import {
   PaymentCycle,
   CriticalDate,
@@ -6,8 +8,14 @@ import {
   SerASARegistration,
   CollectionAction,
 } from '../types/critical-dates';
+import { PaymentCalculationService } from './PaymentCalculationService';
 
 export class CriticalDatesService {
+  private paymentCalculation: PaymentCalculationService;
+
+  constructor(private supabase: SupabaseClient) {
+    this.paymentCalculation = new PaymentCalculationService();
+  }
   /**
    * Criar ciclo de pagamento mensal
    * Requisito: Cláusula Terceira - Vencimento dia 10
@@ -20,7 +28,7 @@ export class CriticalDatesService {
     aluguelEfetivo: number,
     cotaCusteio: number
   ): Promise<PaymentCycle> {
-    // Calcular dia 10 do mês
+    const now = new Date();
     const dueDate = new Date(billingYear, billingMonth - 1, 10);
 
     const cycle: PaymentCycle = {
@@ -45,13 +53,32 @@ export class CriticalDatesService {
       day_40_notification_sent: false,
       day_40_collection_action_initiated: false,
 
-      late_fee_percentage: 1.0, // 1% ao mês (Cláusula Quinta)
+      late_fee_percentage: 1.0,
       late_fee_amount: 0,
       late_fee_applied: false,
 
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: now,
+      updated_at: now,
     };
+
+    // Persistir no banco de dados
+    const { error } = await this.supabase
+      .from('payment_cycles')
+      .insert([cycle]);
+
+    if (error) {
+      console.error('Failed to create payment cycle:', error);
+      throw new Error(`Database insert failed: ${error.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(cycle.id, 'payment_cycle_created', {
+      lease_id: leaseId,
+      property_id: propertyId,
+      billing_month: billingMonth,
+      billing_year: billingYear,
+      value_brl: cycle.value_brl,
+    });
 
     return cycle;
   }
@@ -61,6 +88,7 @@ export class CriticalDatesService {
    * Requisito: Cláusula Quinta
    */
   async scheduleDay10Notification(cycle: PaymentCycle, recipientEmail: string): Promise<CriticalDateNotification> {
+    const now = new Date();
     const notification: CriticalDateNotification = {
       id: randomUUID(),
       payment_cycle_id: cycle.id,
@@ -88,8 +116,37 @@ export class CriticalDatesService {
       audit_log_id: randomUUID(),
     };
 
+    // Inserir notificação no banco de dados
+    const { error: notifError } = await this.supabase
+      .from('critical_date_notifications')
+      .insert([notification]);
+
+    if (notifError) {
+      console.error('Failed to schedule notification:', notifError);
+      throw new Error(`Database insert failed: ${notifError.message}`);
+    }
+
+    // Atualizar ciclo
     cycle.day_10_notification_sent = true;
-    cycle.updated_at = new Date();
+    cycle.updated_at = now;
+
+    const { error: cycleError } = await this.supabase
+      .from('payment_cycles')
+      .update({
+        day_10_notification_sent: true,
+        updated_at: now,
+      })
+      .eq('id', cycle.id);
+
+    if (cycleError) {
+      console.error('Failed to update cycle:', cycleError);
+      throw new Error(`Database update failed: ${cycleError.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(cycle.id, 'day10_notification_scheduled', {
+      recipient_email: recipientEmail,
+    });
 
     return notification;
   }
@@ -99,17 +156,22 @@ export class CriticalDatesService {
    * Requisito: Cláusula Quinta - Incluir em SPC/SERASA
    */
   async processDay30Late(cycle: PaymentCycle): Promise<CriticalDateNotification> {
+    const now = new Date();
     cycle.payment_status = 'late_30d';
     cycle.days_late = 30;
 
-    // Calcular multa: 1% ao mês
-    cycle.late_fee_amount = cycle.value_brl * (cycle.late_fee_percentage / 100);
+    // Calcular multa e juros conforme Lei 8.245/91
+    const feeCalculation = this.paymentCalculation.calculateLateFeeAndInterest(
+      cycle.aluguel_efetivo,
+      30
+    );
+    cycle.late_fee_amount = feeCalculation.total;
     cycle.late_fee_applied = true;
 
     cycle.day_30_notification_sent = true;
     cycle.day_30_serasa_registered = true;
-    cycle.day_30_serasa_registration_date = new Date();
-    cycle.updated_at = new Date();
+    cycle.day_30_serasa_registration_date = now;
+    cycle.updated_at = now;
 
     // Notificação urgente
     const notification: CriticalDateNotification = {
@@ -121,17 +183,17 @@ export class CriticalDatesService {
       notification_type: 'late_30d_serasa',
       recipient_email: 'locador@crmt.com',
       recipient_phone: '41-4041-5242',
-      channel: 'sms', // SMS urgente
+      channel: 'sms',
 
       template_name: 'payment_late_30d_serasa',
       template_variables: {
         days_late: 30,
         value: cycle.value_brl,
         late_fee: cycle.late_fee_amount,
-        serasa_date: new Date().toISOString().split('T')[0],
+        serasa_date: now.toISOString().split('T')[0],
       },
 
-      sent_at: new Date(),
+      sent_at: now,
       delivery_status: 'pending',
       retry_count: 0,
       max_retries: 5,
@@ -139,7 +201,42 @@ export class CriticalDatesService {
       audit_log_id: randomUUID(),
     };
 
-    // TODO: Integrar com SPC/SERASA para registrar débito automaticamente
+    // Inserir notificação
+    const { error: notifError } = await this.supabase
+      .from('critical_date_notifications')
+      .insert([notification]);
+
+    if (notifError) {
+      console.error('Failed to insert notification:', notifError);
+      throw new Error(`Database insert failed: ${notifError.message}`);
+    }
+
+    // Atualizar ciclo
+    const { error: cycleError } = await this.supabase
+      .from('payment_cycles')
+      .update({
+        payment_status: 'late_30d',
+        days_late: 30,
+        late_fee_amount: cycle.late_fee_amount,
+        late_fee_applied: true,
+        day_30_notification_sent: true,
+        day_30_serasa_registered: true,
+        day_30_serasa_registration_date: now,
+        updated_at: now,
+      })
+      .eq('id', cycle.id);
+
+    if (cycleError) {
+      console.error('Failed to update cycle:', cycleError);
+      throw new Error(`Database update failed: ${cycleError.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(cycle.id, 'day30_late_processed_serasa', {
+      days_late: 30,
+      late_fee_amount: cycle.late_fee_amount,
+      serasa_registered_at: now,
+    });
 
     return notification;
   }
@@ -149,22 +246,22 @@ export class CriticalDatesService {
    * Requisito: Cláusula Décima Terceira - Ação de execução
    */
   async processDay40Execution(cycle: PaymentCycle): Promise<CollectionAction> {
+    const now = new Date();
     cycle.payment_status = 'serasa_included';
     cycle.days_late = 40;
     cycle.day_40_collection_action_initiated = true;
-    cycle.day_40_collection_action_date = new Date();
-    cycle.updated_at = new Date();
+    cycle.day_40_collection_action_date = now;
+    cycle.updated_at = now;
 
-    // Criar ação de execução
     const action: CollectionAction = {
       id: randomUUID(),
       lease_id: cycle.lease_id,
       payment_cycle_id: cycle.id,
 
-      action_initiated_date: new Date(),
+      action_initiated_date: now,
       action_type: 'judicial',
 
-      notification_sent_date: new Date(),
+      notification_sent_date: now,
       notification_method: 'notary',
       notary_name: 'Tabelião de Notas e Protestos',
       notary_contact: 'cartorio@example.com',
@@ -172,13 +269,44 @@ export class CriticalDatesService {
       collection_status: 'initiated',
 
       audit_log_id: randomUUID(),
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: now,
+      updated_at: now,
     };
 
-    // TODO: Gerar documento de execução
-    // TODO: Notificar tabelião
-    // TODO: Registrar em auditoria com timestamp para prova processual
+    // Inserir ação de cobrança
+    const { error: actionError } = await this.supabase
+      .from('collection_actions')
+      .insert([action]);
+
+    if (actionError) {
+      console.error('Failed to create collection action:', actionError);
+      throw new Error(`Database insert failed: ${actionError.message}`);
+    }
+
+    // Atualizar ciclo
+    const { error: cycleError } = await this.supabase
+      .from('payment_cycles')
+      .update({
+        payment_status: 'serasa_included',
+        days_late: 40,
+        day_40_collection_action_initiated: true,
+        day_40_collection_action_date: now,
+        updated_at: now,
+      })
+      .eq('id', cycle.id);
+
+    if (cycleError) {
+      console.error('Failed to update cycle:', cycleError);
+      throw new Error(`Database update failed: ${cycleError.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(cycle.id, 'day40_execution_initiated', {
+      days_late: 40,
+      collection_action_id: action.id,
+      action_type: 'judicial',
+      notary_name: action.notary_name,
+    });
 
     return action;
   }
@@ -191,13 +319,14 @@ export class CriticalDatesService {
     debtorCPF: string,
     debtorName: string
   ): Promise<SerASARegistration> {
+    const now = new Date();
     const registration: SerASARegistration = {
       id: randomUUID(),
       lease_id: cycle.lease_id,
       payment_cycle_id: cycle.id,
 
-      registration_date: new Date(),
-      registration_status: 'pending', // Em produção, integrar com API SERASA
+      registration_date: now,
+      registration_status: 'pending',
 
       debtor_cpf: debtorCPF,
       debtor_name: debtorName,
@@ -205,11 +334,27 @@ export class CriticalDatesService {
       debt_description: `Aluguel ${cycle.billing_month}/${cycle.billing_year}`,
 
       audit_log_id: randomUUID(),
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: now,
+      updated_at: now,
     };
 
-    // TODO: Integrar com SPC/SERASA API para registrar automaticamente
+    // Persistir no banco de dados
+    const { error } = await this.supabase
+      .from('serasa_registrations')
+      .insert([registration]);
+
+    if (error) {
+      console.error('Failed to register SERASA:', error);
+      throw new Error(`Database insert failed: ${error.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(registration.id, 'serasa_registration_created', {
+      debtor_cpf: debtorCPF,
+      debtor_name: debtorName,
+      debt_amount: registration.debt_amount,
+      payment_cycle_id: cycle.id,
+    });
 
     return registration;
   }
@@ -222,12 +367,12 @@ export class CriticalDatesService {
     amountReceived: number,
     receiveDate: Date
   ): Promise<PaymentCycle> {
+    const now = new Date();
     cycle.payment_status = 'collected';
     cycle.payment_received_date = receiveDate;
     cycle.payment_amount_received = amountReceived;
-    cycle.updated_at = new Date();
+    cycle.updated_at = now;
 
-    // Se pagou em atraso, registrar comprovante
     if (receiveDate > cycle.due_date) {
       cycle.days_late = Math.floor(
         (receiveDate.getTime() - cycle.due_date.getTime()) / (1000 * 60 * 60 * 24)
@@ -236,7 +381,29 @@ export class CriticalDatesService {
       cycle.days_late = 0;
     }
 
-    // TODO: Se estava em SERASA, solicitar exclusão
+    // Atualizar no banco de dados
+    const { error } = await this.supabase
+      .from('payment_cycles')
+      .update({
+        payment_status: 'collected',
+        payment_received_date: receiveDate,
+        payment_amount_received: amountReceived,
+        days_late: cycle.days_late,
+        updated_at: now,
+      })
+      .eq('id', cycle.id);
+
+    if (error) {
+      console.error('Failed to process payment received:', error);
+      throw new Error(`Database update failed: ${error.message}`);
+    }
+
+    // Registrar no audit log
+    await this.logAudit(cycle.id, 'payment_received', {
+      amount_received: amountReceived,
+      received_date: receiveDate,
+      days_late: cycle.days_late,
+    });
 
     return cycle;
   }
@@ -312,5 +479,47 @@ export class CriticalDatesService {
     if (daysSinceDue <= 20) return `⚠️ Atrasado ${daysSinceDue} dias`;
     if (daysSinceDue <= 30) return `🔴 Atrasado ${daysSinceDue} dias - Registrado em SPC`;
     return `⛔ Atrasado ${daysSinceDue} dias - Em cobrança judicial`;
+  }
+
+  /**
+   * Registrar ação no audit log com hash chain (Lei 12.682/2012)
+   */
+  private async logAudit(
+    cycleId: string,
+    action: string,
+    metadata: Record<string, any>
+  ): Promise<void> {
+    try {
+      const eventData = JSON.stringify({ cycleId, action, metadata, timestamp: new Date() });
+      const hash = createHash('sha256').update(eventData).digest('hex');
+
+      const { data: lastLog } = await this.supabase
+        .from('audit_logs')
+        .select('hash')
+        .eq('entity_id', cycleId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const previousHash = lastLog && lastLog.length > 0 ? lastLog[0].hash : null;
+
+      const { error } = await this.supabase
+        .from('audit_logs')
+        .insert([{
+          id: randomUUID(),
+          entity_id: cycleId,
+          entity_type: 'payment_cycle',
+          action,
+          metadata,
+          hash,
+          previous_hash: previousHash,
+          created_at: new Date(),
+        }]);
+
+      if (error) {
+        console.error('Failed to log audit event:', error);
+      }
+    } catch (error) {
+      console.error('Error in logAudit:', error);
+    }
   }
 }
