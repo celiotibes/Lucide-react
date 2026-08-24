@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import { LaundryService } from '@/services/LaundryService';
 import { CreateLaundryFranchiseRequest, ApiResponse, CreateLaundryFranchiseResponse } from '@/types/api-requests';
-
-const laundryService = new LaundryService();
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<CreateLaundryFranchiseResponse>>> {
   try {
     const body: CreateLaundryFranchiseRequest = await request.json();
+    const laundryService = new LaundryService(supabase);
 
     if (!body.lease_id || !body.resident_count || body.resident_count < 1) {
       return NextResponse.json(

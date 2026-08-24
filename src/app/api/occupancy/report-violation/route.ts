@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import { OccupancyService } from '@/services/OccupancyService';
 import { ReportOccupancyViolationRequest, ApiResponse } from '@/types/api-requests';
-
-const occupancyService = new OccupancyService();
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<any>>> {
   try {
     const body: ReportOccupancyViolationRequest = await request.json();
+    const occupancyService = new OccupancyService(supabase);
 
     if (!body.lease_id || !body.property_id || !body.violation_type) {
       return NextResponse.json(

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import { CriticalDatesService } from '@/services/CriticalDatesService';
 import { ProcessPaymentReceivedRequest, ApiResponse } from '@/types/api-requests';
-
-const criticalDatesService = new CriticalDatesService();
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<any>>> {
   try {
     const body: ProcessPaymentReceivedRequest = await request.json();
+    const criticalDatesService = new CriticalDatesService(supabase);
 
     if (!body.cycle_id || !body.amount_received || !body.receive_date) {
       return NextResponse.json(
@@ -22,18 +22,44 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       );
     }
 
-    // In production, fetch the cycle from database first
-    // For now, this is a placeholder that shows the structure
+    // Fetch the cycle from database
+    const { data: cycle, error: fetchError } = await supabase
+      .from('payment_cycles')
+      .select('*')
+      .eq('id', body.cycle_id)
+      .single();
+
+    if (fetchError || !cycle) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'CYCLE_NOT_FOUND',
+            message: `Payment cycle ${body.cycle_id} not found`,
+          },
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
+    }
+
+    // Process payment
+    const receiveDate = new Date(body.receive_date);
+    const updatedCycle = await criticalDatesService.processPaymentReceived(
+      cycle,
+      body.amount_received,
+      receiveDate
+    );
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          cycle_id: body.cycle_id,
-          payment_status: 'collected',
-          payment_received_date: body.receive_date,
-          amount_received: body.amount_received,
-          days_late: 0,
+          cycle_id: updatedCycle.id,
+          payment_status: updatedCycle.payment_status,
+          payment_received_date: updatedCycle.payment_received_date?.toISOString(),
+          amount_received: updatedCycle.payment_amount_received,
+          days_late: updatedCycle.days_late,
         },
         timestamp: new Date().toISOString(),
       },
