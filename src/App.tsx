@@ -132,9 +132,14 @@ function Conteudo() {
 
   const importarBanco = useCallback(
     async (arquivo: File) => {
-      const bytes = new Uint8Array(await arquivo.arrayBuffer());
-      await importarArquivo(bytes);
-      window.location.reload();
+      if (!confirm("Isso substitui todos os dados salvos neste navegador pelo conteúdo do arquivo importado — irreversível. Continuar?")) return;
+      try {
+        const bytes = new Uint8Array(await arquivo.arrayBuffer());
+        await importarArquivo(bytes);
+        window.location.reload();
+      } catch (erro) {
+        alert(erro instanceof Error ? erro.message : "Falha ao importar o arquivo — verifique se é um backup .sqlite válido deste sistema.");
+      }
     },
     [],
   );

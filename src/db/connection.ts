@@ -69,12 +69,47 @@ export function exportarArquivo(db: Database): Blob {
   return new Blob([db.export().slice().buffer as ArrayBuffer], { type: "application/x-sqlite3" });
 }
 
+// Tabelas usadas como assinatura mínima de "isto é um backup deste sistema" — não precisa
+// ser a lista completa do schema, só o suficiente para distinguir de um .sqlite qualquer
+// escolhido por engano no seletor de arquivo do sistema operacional.
+const TABELAS_ASSINATURA = ["imoveis", "transacoes", "contratos_locacao"];
+
 /** Importa um arquivo .sqlite previamente exportado — mesma migração aditiva de
  * abrirBanco(), porque um backup antigo tem exatamente o mesmo risco de faltar
- * tabela/coluna de um banco recuperado do IndexedDB. */
+ * tabela/coluna de um banco recuperado do IndexedDB.
+ *
+ * Substituir o banco atual por um arquivo importado é irreversível (apaga tudo que estava
+ * salvo) e, ao contrário de "Limpar tudo", não tinha nenhuma checagem antes de trocar — um
+ * arquivo corrompido (não é sqlite de verdade) ou um .sqlite de outro programa qualquer
+ * (escolhido por engano no seletor do sistema operacional) era aceito em silêncio, criando
+ * as tabelas deste sistema vazias por cima e perdendo o caso real sem aviso (achado de
+ * auditoria adversarial). Por isso valida a ASSINATURA do arquivo ANTES de substituir
+ * dbInstance — se não bater, o banco atual em uso nem chega a ser tocado. */
 export async function importarArquivo(bytes: Uint8Array): Promise<Database> {
   const SQL = await initSqlJs({ locateFile: () => "/sql-wasm.wasm" });
-  dbInstance = new SQL.Database(bytes);
+
+  let candidato: Database;
+  try {
+    candidato = new SQL.Database(bytes);
+    // new SQL.Database() não valida o conteúdo — só falha na primeira operação real.
+    candidato.exec("SELECT name FROM sqlite_master LIMIT 1");
+  } catch {
+    throw new Error("Este arquivo não é um banco .sqlite válido (pode estar corrompido ou não ser um arquivo de banco de dados). O banco atual não foi alterado.");
+  }
+
+  const tabelas = new Set(
+    candidato.exec("SELECT name FROM sqlite_master WHERE type = 'table'")[0]?.values.map((linha) => String(linha[0])) ?? [],
+  );
+  const ehBancoVazio = tabelas.size === 0;
+  const ehBancoDoSistema = TABELAS_ASSINATURA.every((t) => tabelas.has(t));
+  if (!ehBancoVazio && !ehBancoDoSistema) {
+    candidato.close();
+    throw new Error(
+      "Este arquivo parece ser um banco .sqlite de outro programa, não um backup deste sistema (faltam as tabelas esperadas). O banco atual não foi alterado.",
+    );
+  }
+
+  dbInstance = candidato;
   migrarBancoExistente(dbInstance);
   await salvarBanco(dbInstance);
   return dbInstance;
