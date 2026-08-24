@@ -72,13 +72,25 @@ export function ImportarView() {
   async function confirmarImportacao() {
     if (!db) return;
     let totalInserido = 0;
+    let totalDuplicado = 0;
+    let totalMalformado = 0;
     for (const item of arquivos) {
       if (!item.aceito || !item.contaId) continue;
-      totalInserido += persistirTransacoes(db, item.contaId, item.resultado.transacoes, item.nomeArquivo);
+      const resultado = persistirTransacoes(db, item.contaId, item.resultado.transacoes, item.nomeArquivo);
+      totalInserido += resultado.inseridas;
+      totalDuplicado += resultado.duplicadas;
+      totalMalformado += resultado.malformadas;
     }
     await persistir();
     setArquivos([]);
-    setMensagem(`${totalInserido} lançamento(s) importado(s). Duplicidades foram ignoradas automaticamente.`);
+    const partes = [`${totalInserido} lançamento(s) importado(s).`];
+    if (totalDuplicado > 0) partes.push(`${totalDuplicado} duplicidade(s) ignorada(s) automaticamente.`);
+    if (totalMalformado > 0) {
+      partes.push(
+        `${totalMalformado} linha(s) com data ou valor ilegível foram DESCARTADAS (não é duplicidade — confira o arquivo original, esse dado foi perdido).`,
+      );
+    }
+    setMensagem(partes.join(" "));
   }
 
   return (
