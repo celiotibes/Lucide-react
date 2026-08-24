@@ -59,9 +59,19 @@ export interface Excecao {
 }
 
 /** Casa cada competência esperada com uma transação existente dentro da tolerância
- * de valor e data. O que não casa vira exceção — nunca é descartado silenciosamente. */
+ * de valor e data. O que não casa vira exceção — nunca é descartado silenciosamente.
+ *
+ * As janelas de tolerância de meses vizinhos se sobrepõem (~10 dias de cada lado, mais a
+ * largura do próprio mês) — sem controle, uma mesma transação podia "quitar" duas
+ * competências ao mesmo tempo (ex.: um único pagamento de janeiro caindo também dentro da
+ * janela de fevereiro, mascarando um calote real de fevereiro). Por isso cada transação só
+ * pode casar com UMA competência: `usadas` acumula os ids já consumidos nesta chamada, e o
+ * casamento prefere a transação mais próxima do início do mês de referência (não a primeira
+ * que aparecer), para que a competência mais provável fique com o pagamento em caso de
+ * disputa entre duas competências vizinhas. */
 export function conciliar(db: Database, competencias: CompetenciaEsperada[]): Excecao[] {
   const excecoes: Excecao[] = [];
+  const usadas = new Set<number>();
 
   for (const competencia of competencias) {
     const janelaInicio = somarDias(competencia.mes_referencia, -TOLERANCIA_DIAS);
@@ -69,19 +79,22 @@ export function conciliar(db: Database, competencias: CompetenciaEsperada[]): Ex
     const valorMin = competencia.valor_esperado * (1 - TOLERANCIA_VALOR);
     const valorMax = competencia.valor_esperado * (1 + TOLERANCIA_VALOR);
 
-    const casadas = consultar(
+    const candidatas = consultar<{ id: number }>(
       db,
       `SELECT id FROM transacoes
        WHERE contrato_id = ? AND data BETWEEN ? AND ? AND valor BETWEEN ? AND ?
-       LIMIT 1`,
-      [competencia.contrato_id, janelaInicio, janelaFim, valorMin, valorMax],
+       ORDER BY ABS(julianday(data) - julianday(?)) ASC`,
+      [competencia.contrato_id, janelaInicio, janelaFim, valorMin, valorMax, competencia.mes_referencia],
     );
+    const casada = candidatas.find((c) => !usadas.has(c.id));
 
-    if (casadas.length === 0) {
+    if (!casada) {
       excecoes.push({
         competencia,
         motivo: "sem recebimento correspondente dentro da tolerância (possível atraso, calote ou pagamento por conta diferente)",
       });
+    } else {
+      usadas.add(casada.id);
     }
   }
   return excecoes;
