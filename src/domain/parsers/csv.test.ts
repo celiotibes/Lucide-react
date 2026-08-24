@@ -25,3 +25,22 @@ describe("analisarCsv — normalização de valor", () => {
     expect(linhas[0].valor).toBe(500);
   });
 });
+
+describe("analisarCsv — fitid sintético não colide entre transações reais idênticas", () => {
+  it("duas linhas com mesma data/valor/descrição geram fitid distinto (não são a mesma transação)", () => {
+    // Achado de auditoria adversarial: sem contador de ocorrência, dois PIX idênticos de
+    // R$50,00 "ALUGUEL" no mesmo dia colidiam no mesmo fitid — o segundo era descartado pelo
+    // INSERT OR IGNORE como se fosse duplicata do primeiro, mesmo numa única importação real.
+    const csv = "Data;Valor;Descricao\n01/07/2026;50,00;ALUGUEL\n01/07/2026;50,00;ALUGUEL";
+    const linhas = analisarCsv(csv);
+    expect(linhas).toHaveLength(2);
+    expect(linhas[0].fitid).not.toBe(linhas[1].fitid);
+  });
+
+  it("reimportar o mesmo CSV produz os mesmos fitids na mesma ordem (dedup continua funcionando)", () => {
+    const csv = "Data;Valor;Descricao\n01/07/2026;50,00;ALUGUEL\n01/07/2026;50,00;ALUGUEL";
+    const primeiraLeitura = analisarCsv(csv);
+    const segundaLeitura = analisarCsv(csv);
+    expect(segundaLeitura.map((t) => t.fitid)).toEqual(primeiraLeitura.map((t) => t.fitid));
+  });
+});

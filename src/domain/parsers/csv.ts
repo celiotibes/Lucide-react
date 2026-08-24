@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import type { TransacaoBruta } from "./ofx";
 import { normalizarValor } from "./normalizarValor";
+import { criarGeradorFitidSintetico } from "./fitidSintetico";
 
 export interface MapeamentoColunasCsv {
   data: string;
@@ -46,12 +47,13 @@ export function analisarCsv(conteudo: string, mapeamento?: MapeamentoColunasCsv)
     );
   }
 
+  const gerarFitid = criarGeradorFitidSintetico();
   return resultado.data
     .filter((linha) => linha[mapa.data] && linha[mapa.valor])
     .map((linha): TransacaoBruta => {
       const data = normalizarData(linha[mapa.data]);
       const valor = normalizarValor(linha[mapa.valor]);
       const descricaoOriginal = linha[mapa.descricao] ?? "";
-      return { data, valor, descricaoOriginal, fitid: `${data}|${valor}|${descricaoOriginal}` };
+      return { data, valor, descricaoOriginal, fitid: gerarFitid(data, valor, descricaoOriginal) };
     });
 }

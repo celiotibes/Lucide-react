@@ -1,4 +1,5 @@
 import type { TransacaoBruta } from "./ofx";
+import { criarGeradorFitidSintetico } from "./fitidSintetico";
 
 // Casa linhas como "05/01/2024 PIX RECEBIDO JOAO SILVA 1.500,00" ou
 // "05/01 UBER *TRIP 45,90 D" (fatura de cartão, sem ano, com marcador D/C opcional).
@@ -21,6 +22,7 @@ function normalizarAno(diaMes: string, anoReferencia: number): string {
 /** Extrai lançamentos de um extrato bancário em PDF (linhas com data completa). */
 export function extrairLinhasExtrato(linhas: string[], anoReferencia: number): TransacaoBruta[] {
   const transacoes: TransacaoBruta[] = [];
+  const gerarFitid = criarGeradorFitidSintetico();
   for (const linha of linhas) {
     const casado = linha.match(REGEX_LINHA);
     if (!casado) continue;
@@ -29,7 +31,8 @@ export function extrairLinhasExtrato(linhas: string[], anoReferencia: number): T
     if (marcador?.toUpperCase() === "D" && valor > 0) valor = -valor;
 
     const data = normalizarAno(dataBruta, anoReferencia);
-    transacoes.push({ data, valor, descricaoOriginal: descricao.trim(), fitid: `${data}|${valor}|${descricao.trim()}` });
+    const descricaoLimpa = descricao.trim();
+    transacoes.push({ data, valor, descricaoOriginal: descricaoLimpa, fitid: gerarFitid(data, valor, descricaoLimpa) });
   }
   return transacoes;
 }
@@ -38,6 +41,7 @@ export function extrairLinhasExtrato(linhas: string[], anoReferencia: number): T
  * valores são despesas por padrão, exceto quando marcados como pagamento/estorno). */
 export function extrairLinhasFatura(linhas: string[], mesReferencia: number, anoReferencia: number): TransacaoBruta[] {
   const transacoes: TransacaoBruta[] = [];
+  const gerarFitid = criarGeradorFitidSintetico();
   for (const linha of linhas) {
     const casado = linha.match(REGEX_LINHA);
     if (!casado) continue;
@@ -52,7 +56,8 @@ export function extrairLinhasFatura(linhas: string[], mesReferencia: number, ano
     const ano = mesTx > mesReferencia ? anoReferencia - 1 : anoReferencia;
     const data = `${ano}-${String(mesTx).padStart(2, "0")}-${String(diaTx).padStart(2, "0")}`;
 
-    transacoes.push({ data, valor, descricaoOriginal: descricao.trim(), fitid: `${data}|${valor}|${descricao.trim()}` });
+    const descricaoLimpa = descricao.trim();
+    transacoes.push({ data, valor, descricaoOriginal: descricaoLimpa, fitid: gerarFitid(data, valor, descricaoLimpa) });
   }
   return transacoes;
 }
