@@ -83,8 +83,10 @@ export function FinanciamentosView({ aoDrillDown }: { aoDrillDown?: (filtro: Fil
               <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
               <span>
                 {alertas.length} mês(es) com juros cobrados acima do cronograma {financiamentoAtivo.sistema} teórico
-                em mais de 5% — possível indício de anatocismo ou encargo não previsto. Confira contra o contrato de
-                financiamento original antes de usar como prova.
+                em mais de 5% (e mais de R$10 em valor absoluto — filtro contra divergência trivial de arredondamento
+                perto do fim do financiamento, quando o juro teórico do SAC já é pequeno) — possível indício de
+                anatocismo ou encargo não previsto, com limiar arbitrário. Confira contra o contrato de financiamento
+                original antes de usar como prova.
               </span>
             </div>
           )}

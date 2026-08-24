@@ -119,6 +119,14 @@ export interface DivergenciaParcela {
 }
 
 const TOLERANCIA_DIVERGENCIA = 0.05; // 5% acima do teórico já é sinalizado
+// Em SAC, o juro teórico decresce mês a mês (incide sobre saldo devedor decrescente) — nas
+// últimas parcelas do financiamento esse valor fica pequeno, e qualquer divergência absoluta
+// trivial (arredondamento, tarifa bancária de poucos reais, seguro lançado na mesma rubrica)
+// já ultrapassa 5% de um denominador pequeno, sinalizando "possível anatocismo" para uma
+// diferença financeiramente irrelevante — viés estrutural que cresce sistematicamente perto
+// do fim de qualquer SAC, não é acaso dos dados (achado de auditoria adversarial). Por isso a
+// sinalização exige TAMBÉM uma divergência absoluta mínima, não só percentual.
+const TOLERANCIA_DIVERGENCIA_ABSOLUTA = 10; // R$10 — abaixo disso, ignora divergência mesmo que percentualmente grande
 
 /** Compara o cronograma teórico (SAC/Price, sem juros sobre juros) com o que
  * foi de fato lançado nas transações do imóvel financiado. Divergência de juros
@@ -146,7 +154,8 @@ export function compararComTransacoes(db: Database, financiamento: Financiamento
       const lancamento = porMes.get(mes);
       if (!lancamento) return null; // sem lançamento no mês — nada a comparar (pode ser fora da janela importada)
 
-      const divergenciaJurosPercentual = parcela.juros > 0 ? (lancamento.juros - parcela.juros) / parcela.juros : null;
+      const divergenciaJurosAbsoluta = lancamento.juros - parcela.juros;
+      const divergenciaJurosPercentual = parcela.juros > 0 ? divergenciaJurosAbsoluta / parcela.juros : null;
       return {
         numero: parcela.numero,
         mes,
@@ -155,7 +164,10 @@ export function compararComTransacoes(db: Database, financiamento: Financiamento
         amortizacaoTeorica: parcela.amortizacao,
         amortizacaoCobrada: lancamento.amortizacao,
         divergenciaJurosPercentual,
-        possivelAnatocismo: divergenciaJurosPercentual !== null && divergenciaJurosPercentual > TOLERANCIA_DIVERGENCIA,
+        possivelAnatocismo:
+          divergenciaJurosPercentual !== null &&
+          divergenciaJurosPercentual > TOLERANCIA_DIVERGENCIA &&
+          divergenciaJurosAbsoluta > TOLERANCIA_DIVERGENCIA_ABSOLUTA,
       };
     })
     .filter((d): d is DivergenciaParcela => d !== null);
