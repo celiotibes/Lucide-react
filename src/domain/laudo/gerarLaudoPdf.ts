@@ -189,6 +189,12 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
     `Duplicidades: ${dados.duplicatas.length}. Outliers estatísticos (>3 desvios-padrão da categoria): ${dados.outliers.length}. ` +
       `Lacunas em despesas recorrentes: ${dados.lacunas.length}.`,
   );
+  w.paragrafo(
+    "O teste de outliers só é aplicado a categorias do plano de contas com pelo menos 11 lançamentos no " +
+      "período — abaixo desse volume, o próprio cálculo (desvio-padrão populacional) é matematicamente incapaz " +
+      "de sinalizar qualquer valor como fora da curva, então a categoria não é testada. O número acima cobre só " +
+      "as categorias que atingiram esse piso.",
+  );
   if (dados.duplicatas.length > 0) {
     w.linhaTabela(["Data", "Descrição", "Valor", "Ocorrências"], [30, 90, 35, 30], true);
     for (const d of dados.duplicatas.slice(0, 10)) {
