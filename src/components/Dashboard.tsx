@@ -196,7 +196,7 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
           <select value={imovelFiltroId} onChange={(e) => setImovelFiltroId(e.target.value ? Number(e.target.value) : "")}>
             <option value="">Portfólio inteiro</option>
             {imoveis.map((i) => (
-              <option key={i.id} value={i.id}>{i.apelido}</option>
+              <option key={i.id} value={i.id}>{i.apelido}{i.uso_pessoal ? " — uso pessoal" : ""}</option>
             ))}
           </select>
         </label>
@@ -205,6 +205,13 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
         <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "-8px 0 16px" }}>
           Inclui a fatia de despesas rateadas com este imóvel (condomínio coletivo, obras compartilhadas etc.).
         </p>
+      )}
+      {imovelFiltroId !== "" && imoveis.find((i) => i.id === imovelFiltroId)?.uso_pessoal === 1 && (
+        <div className="aviso-caixa" style={{ margin: "-8px 0 16px" }}>
+          Este imóvel é residência própria (uso pessoal) — o "Portfólio inteiro" já o exclui por não fazer parte da
+          atividade de locação. Os números abaixo são só desta unidade, isolados por transparência, mas{" "}
+          <strong>não representam capacidade contributiva da atividade de locação</strong>.
+        </div>
       )}
       <div className="kpi-grid">
         <KpiTile label="Receita" value={formatarMoeda(receitaTotal)} />
