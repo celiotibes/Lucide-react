@@ -1,3 +1,5 @@
+import { normalizarValor } from "./normalizarValor";
+
 export interface TransacaoBruta {
   data: string; // YYYY-MM-DD
   valor: number;
@@ -18,7 +20,12 @@ function extrairCampo(bloco: string, tag: string): string | undefined {
   return casado?.[1]?.trim();
 }
 
-/** Parser tolerante de OFX (SGML, tags sem fechamento são comuns em extratos reais de bancos brasileiros). */
+/** Parser tolerante de OFX (SGML, tags sem fechamento são comuns em extratos reais de bancos brasileiros).
+ * TRNAMT deveria vir sempre com ponto decimal pela especificação OFX, mas extratos reais de
+ * bancos brasileiros nem sempre seguem a especificação à risca (mesmo motivo do comentário
+ * acima sobre tags sem fechamento) — por isso passa pelo mesmo normalizarValor tolerante a
+ * vírgula decimal usado no parser de CSV, em vez de um parseFloat cru que corromperia por
+ * ordem de grandeza qualquer TRNAMT exportado com vírgula (achado de auditoria adversarial). */
 export function analisarOfx(conteudo: string): TransacaoBruta[] {
   const blocos = conteudo.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) ?? [];
 
@@ -33,7 +40,7 @@ export function analisarOfx(conteudo: string): TransacaoBruta[] {
 
       return {
         data: formatarDataOfx(dataBruta),
-        valor: parseFloat(valorBruto),
+        valor: normalizarValor(valorBruto),
         descricaoOriginal: memo,
         fitid,
       };

@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import type { TransacaoBruta } from "./ofx";
+import { normalizarValor } from "./normalizarValor";
 
 export interface MapeamentoColunasCsv {
   data: string;
@@ -34,19 +35,6 @@ function normalizarData(bruta: string): string {
   return bruta;
 }
 
-/** Bancos brasileiros exportam CSV em dois formatos de número bem diferentes: "1.234,56"
- * (ponto = milhar, vírgula = decimal — Itaú/BB/Bradesco/Caixa) e "-50.00" (ponto = decimal,
- * sem separador de milhar — o CSV do Nubank, citado no comentário de adivinharMapeamento
- * acima). Tratar todo "." como separador de milhar incondicionalmente (como o código fazia
- * antes) transforma "-50.00" em -5000: multiplica todo valor do Nubank por 100 em silêncio.
- * A presença de vírgula é o que desambigua: só há vírgula decimal no formato brasileiro. */
-function normalizarValor(bruto: string): number {
-  const semSimbolos = bruto.replace(/[^\d.,-]/g, "");
-  if (semSimbolos.includes(",")) {
-    return parseFloat(semSimbolos.replace(/\./g, "").replace(",", "."));
-  }
-  return parseFloat(semSimbolos);
-}
 
 export function analisarCsv(conteudo: string, mapeamento?: MapeamentoColunasCsv): TransacaoBruta[] {
   const resultado = Papa.parse<Record<string, string>>(conteudo, { header: true, skipEmptyLines: true });
