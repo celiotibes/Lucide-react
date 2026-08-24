@@ -27,12 +27,12 @@ const RESUMO_TIPO: Record<ResultadoImportacao["tipoDetectado"], string> = {
 };
 
 export function ImportarView() {
-  const { db, persistir } = useDb();
+  const { db, versao, persistir } = useDb();
   const [processando, setProcessando] = useState(false);
   const [arquivos, setArquivos] = useState<ArquivoProcessado[]>([]);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
-  const contas = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db]);
+  const contas = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db, versao]);
 
   async function tratarArquivos(novos: File[]) {
     setProcessando(true);

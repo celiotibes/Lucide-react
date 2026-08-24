@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function ConectarPluggy({ onImportado }: Props) {
-  const { db } = useDb();
+  const { db, versao } = useDb();
   const [backendUrl, setBackendUrl] = useState(() => localStorage.getItem(CHAVE_BACKEND_URL) ?? "http://localhost:8787");
   const [chaveApi, setChaveApi] = useState(() => localStorage.getItem(CHAVE_API_KEY) ?? "");
   const [etapa, setEtapa] = useState<"inicial" | "conectando" | "contas" | "buscando">("inicial");
@@ -27,7 +27,7 @@ export function ConectarPluggy({ onImportado }: Props) {
   const [dataInicio, setDataInicio] = useState(new Date(new Date().setFullYear(new Date().getFullYear() - 3)).toISOString().slice(0, 10));
   const [dataFim, setDataFim] = useState(new Date().toISOString().slice(0, 10));
 
-  const contasLocais = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db]);
+  const contasLocais = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db, versao]);
 
   function salvarBackendUrl(valor: string) {
     setBackendUrl(valor);
