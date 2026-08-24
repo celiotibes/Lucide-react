@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS imoveis (
     tipo            TEXT NOT NULL CHECK (tipo IN ('apartamento', 'kitnet', 'sala_comercial', 'vaga_garagem', 'outro')),
     cidade          TEXT,                       -- ex: "Florianópolis", "Curitiba" — agrupamento regional p/ relatórios e rateio
     endereco        TEXT,
-    fracao_ideal    REAL,                       -- para rateio de despesas coletivas por m²/fração
+    fracao_ideal    REAL CHECK (fracao_ideal IS NULL OR fracao_ideal > 0), -- para rateio de despesas coletivas por m²/fração
     area_m2         REAL,
     financiado      INTEGER NOT NULL DEFAULT 0 CHECK (financiado IN (0, 1)),
     -- 1 = residência própria (uso pessoal), não faz parte da atividade de fato de locação —

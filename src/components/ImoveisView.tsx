@@ -103,6 +103,30 @@ export function ImoveisView() {
   async function salvar() {
     if (!db || !form || form.apelido.trim() === "") return;
     const fracaoIdeal = form.fracao_ideal.trim() === "" ? null : Number.parseFloat(form.fracao_ideal.replace(",", "."));
+    if (fracaoIdeal !== null && fracaoIdeal <= 0) {
+      alert("Fração ideal precisa ser um número maior que zero (ex: 0,08) — deixe em branco se não souber.");
+      return;
+    }
+    // Aviso não-bloqueante: se a soma das frações já cadastradas para o mesmo prédio
+    // (matricula_mae) passar de 1 (100%), o rateio por fracao_ideal fica matematicamente
+    // consistente (sempre soma 100% entre os imóveis SELECIONADOS na tela de rateio) mas
+    // substantivamente errado se alguém esquecer uma unidade — sem essa soma nunca aparecer
+    // como inconsistência, o erro fica invisível (achado de auditoria adversarial). Não
+    // bloqueia porque o prédio pode legitimamente ainda estar sendo cadastrado aos poucos.
+    if (fracaoIdeal !== null && form.matricula_mae.trim() !== "") {
+      const somaOutrosImoveis = imoveis
+        .filter((i) => i.id !== form.id && i.matricula_mae === form.matricula_mae.trim())
+        .reduce((acc, i) => acc + (i.fracao_ideal ?? 0), 0);
+      const somaTotal = somaOutrosImoveis + fracaoIdeal;
+      if (somaTotal > 1.01) {
+        const continuar = confirm(
+          `A soma das frações ideais já cadastradas para a matrícula-mãe "${form.matricula_mae.trim()}" ficaria em ` +
+            `${(somaTotal * 100).toFixed(1)}% — mais que 100%. Confira se não há erro de digitação ou unidade ` +
+            "esquecida antes de continuar. Salvar mesmo assim?",
+        );
+        if (!continuar) return;
+      }
+    }
     const areaM2 = form.area_m2.trim() === "" ? null : Number.parseFloat(form.area_m2.replace(",", "."));
     const valorAquisicao = form.valor_aquisicao.trim() === "" ? null : Number.parseFloat(form.valor_aquisicao.replace(",", "."));
     const valorVenal = form.valor_venal_atual.trim() === "" ? null : Number.parseFloat(form.valor_venal_atual.replace(",", "."));
