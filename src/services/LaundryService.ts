@@ -60,7 +60,7 @@ export class LaundryService {
     }
 
     // Registrar no audit log
-    await this.logAudit(franchise.id, 'laundry_franchise_created', {
+    await this.auditService.logAuditWithRetry(franchise.id, 'laundry_franchise', 'laundry_franchise_created', {
       lease_id: leaseId,
       resident_count: residentCount,
       cycles_per_month: cyclesPerMonth,
@@ -132,7 +132,7 @@ export class LaundryService {
     }
 
     // Registrar no audit log
-    await this.logAudit(franchise.id, 'laundry_cycle_recorded', {
+    await this.auditService.logAuditWithRetry(franchise.id, 'laundry_franchise', 'laundry_cycle_recorded', {
       resident_name: residentName,
       package_source: isExtra ? 'extra' : 'included',
       machine_id: machineId,
@@ -191,7 +191,7 @@ export class LaundryService {
     }
 
     // Registrar no audit log
-    await this.logAudit(franchise.id, 'laundry_package_purchased', {
+    await this.auditService.logAuditWithRetry(franchise.id, 'laundry_franchise', 'laundry_package_purchased', {
       package_type: packageType,
       cycles_included: pkg.cycles,
       price_brl: pkg.price,
@@ -253,7 +253,7 @@ export class LaundryService {
     }
 
     // Registrar no audit log
-    await this.logAudit(franchise.id, 'laundry_violation_recorded', {
+    await this.auditService.logAuditWithRetry(franchise.id, 'laundry_franchise', 'laundry_violation_recorded', {
       violation_type: 'neighbor_laundry',
       fine_amount_brl: fineAmount,
       description,
@@ -352,47 +352,5 @@ export class LaundryService {
    */
   getUsagePercentage(franchise: LaundryFranchise): number {
     return (franchise.cycles_used_this_month / franchise.cycles_per_month_included) * 100;
-  }
-
-  /**
-   * Registrar ação no audit log com hash chain (Lei 12.682/2012)
-   */
-  private async logAudit(
-    franchiseId: string,
-    action: string,
-    metadata: Record<string, any>
-  ): Promise<void> {
-    try {
-      const eventData = JSON.stringify({ franchiseId, action, metadata, timestamp: new Date() });
-      const hash = createHash('sha256').update(eventData).digest('hex');
-
-      const { data: lastLog } = await this.supabase
-        .from('audit_logs')
-        .select('hash')
-        .eq('entity_id', franchiseId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      const previousHash = lastLog && lastLog.length > 0 ? lastLog[0].hash : null;
-
-      const { error } = await this.supabase
-        .from('audit_logs')
-        .insert([{
-          id: randomUUID(),
-          entity_id: franchiseId,
-          entity_type: 'laundry_franchise',
-          action,
-          metadata,
-          hash,
-          previous_hash: previousHash,
-          created_at: new Date(),
-        }]);
-
-      if (error) {
-        console.error('Failed to log audit event:', error);
-      }
-    } catch (error) {
-      console.error('Error in logAudit:', error);
-    }
   }
 }

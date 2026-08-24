@@ -8,16 +8,19 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { CriticalDatesService } from './CriticalDatesService';
 import { StrDetectionService } from '../integrations/StrDetectionService';
 import { SerAsaService } from '../integrations/SerAsaService';
+import { AuditService } from './AuditService';
 
 export class JobScheduler {
   private criticalDatesService: CriticalDatesService;
   private strDetectionService: StrDetectionService;
   private serAsaService: SerAsaService;
+  private auditService: AuditService;
 
   constructor(private supabase: SupabaseClient) {
     this.criticalDatesService = new CriticalDatesService(supabase);
     this.strDetectionService = new StrDetectionService();
     this.serAsaService = new SerAsaService();
+    this.auditService = new AuditService(supabase);
   }
 
   /**
@@ -128,6 +131,12 @@ export class JobScheduler {
           lease.tenant_email
         );
         console.log(`[DAY 10] ✅ Notificação enviada para ciclo ${cycle.id}`);
+
+        // Registrar no audit log
+        await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'job_scheduler_day10_processed', {
+          tenant_email: lease.tenant_email,
+          notification_sent: true,
+        });
       }
     } catch (error) {
       console.error(`[DAY 10] Erro ao processar ciclo ${cycle.id}:`, error);
@@ -160,6 +169,13 @@ export class JobScheduler {
         await this.criticalDatesService.processDay30Late(cycle);
 
         console.log(`[DAY 30] 🔴 Registrado em SPC/SERASA: ciclo ${cycle.id}`);
+
+        // Registrar no audit log
+        await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'job_scheduler_day30_serasa_registered', {
+          tenant_cpf: lease.tenant_cpf,
+          tenant_name: lease.tenant_name,
+          serasa_registered: true,
+        });
       }
     } catch (error) {
       console.error(`[DAY 30] Erro ao processar ciclo ${cycle.id}:`, error);
@@ -176,6 +192,12 @@ export class JobScheduler {
       await this.criticalDatesService.processDay40Execution(cycle);
 
       console.log(`[DAY 40] ⛔ Execução judicial iniciada: ciclo ${cycle.id}`);
+
+      // Registrar no audit log
+      await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'job_scheduler_day40_judicial_execution', {
+        action_type: 'judicial',
+        execution_initiated: true,
+      });
     } catch (error) {
       console.error(`[DAY 40] Erro ao processar ciclo ${cycle.id}:`, error);
     }
@@ -204,6 +226,12 @@ export class JobScheduler {
         if (error) {
           console.error(`[DAY 60] Erro ao atualizar status:`, error);
         }
+
+        // Registrar no audit log
+        await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'job_scheduler_day60_escalation_needed', {
+          days_past_due: 60,
+          escalation_status: 'escalation_needed',
+        });
       }
     } catch (error) {
       console.error(`[DAY 60] Erro ao processar ciclo ${cycle.id}:`, error);

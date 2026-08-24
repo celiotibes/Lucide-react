@@ -1,5 +1,4 @@
 import { UUID, randomUUID } from 'crypto';
-import { createHash } from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
   PaymentCycle,
@@ -9,12 +8,15 @@ import {
   CollectionAction,
 } from '../types/critical-dates';
 import { PaymentCalculationService } from './PaymentCalculationService';
+import { AuditService } from './AuditService';
 
 export class CriticalDatesService {
   private paymentCalculation: PaymentCalculationService;
+  private auditService: AuditService;
 
   constructor(private supabase: SupabaseClient) {
     this.paymentCalculation = new PaymentCalculationService();
+    this.auditService = new AuditService(supabase);
   }
   /**
    * Criar ciclo de pagamento mensal
@@ -72,7 +74,7 @@ export class CriticalDatesService {
     }
 
     // Registrar no audit log
-    await this.logAudit(cycle.id, 'payment_cycle_created', {
+    await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'payment_cycle_created', {
       lease_id: leaseId,
       property_id: propertyId,
       billing_month: billingMonth,
@@ -144,7 +146,7 @@ export class CriticalDatesService {
     }
 
     // Registrar no audit log
-    await this.logAudit(cycle.id, 'day10_notification_scheduled', {
+    await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'day10_notification_scheduled', {
       recipient_email: recipientEmail,
     });
 
@@ -232,7 +234,7 @@ export class CriticalDatesService {
     }
 
     // Registrar no audit log
-    await this.logAudit(cycle.id, 'day30_late_processed_serasa', {
+    await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'day30_late_processed_serasa', {
       days_late: 30,
       late_fee_amount: cycle.late_fee_amount,
       serasa_registered_at: now,
@@ -301,7 +303,7 @@ export class CriticalDatesService {
     }
 
     // Registrar no audit log
-    await this.logAudit(cycle.id, 'day40_execution_initiated', {
+    await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'day40_execution_initiated', {
       days_late: 40,
       collection_action_id: action.id,
       action_type: 'judicial',
@@ -349,7 +351,7 @@ export class CriticalDatesService {
     }
 
     // Registrar no audit log
-    await this.logAudit(registration.id, 'serasa_registration_created', {
+    await this.auditService.logAuditWithRetry(registration.id, 'payment_cycle', 'serasa_registration_created', {
       debtor_cpf: debtorCPF,
       debtor_name: debtorName,
       debt_amount: registration.debt_amount,
@@ -399,7 +401,7 @@ export class CriticalDatesService {
     }
 
     // Registrar no audit log
-    await this.logAudit(cycle.id, 'payment_received', {
+    await this.auditService.logAuditWithRetry(cycle.id, 'payment_cycle', 'payment_received', {
       amount_received: amountReceived,
       received_date: receiveDate,
       days_late: cycle.days_late,
@@ -479,47 +481,5 @@ export class CriticalDatesService {
     if (daysSinceDue <= 20) return `⚠️ Atrasado ${daysSinceDue} dias`;
     if (daysSinceDue <= 30) return `🔴 Atrasado ${daysSinceDue} dias - Registrado em SPC`;
     return `⛔ Atrasado ${daysSinceDue} dias - Em cobrança judicial`;
-  }
-
-  /**
-   * Registrar ação no audit log com hash chain (Lei 12.682/2012)
-   */
-  private async logAudit(
-    cycleId: string,
-    action: string,
-    metadata: Record<string, any>
-  ): Promise<void> {
-    try {
-      const eventData = JSON.stringify({ cycleId, action, metadata, timestamp: new Date() });
-      const hash = createHash('sha256').update(eventData).digest('hex');
-
-      const { data: lastLog } = await this.supabase
-        .from('audit_logs')
-        .select('hash')
-        .eq('entity_id', cycleId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      const previousHash = lastLog && lastLog.length > 0 ? lastLog[0].hash : null;
-
-      const { error } = await this.supabase
-        .from('audit_logs')
-        .insert([{
-          id: randomUUID(),
-          entity_id: cycleId,
-          entity_type: 'payment_cycle',
-          action,
-          metadata,
-          hash,
-          previous_hash: previousHash,
-          created_at: new Date(),
-        }]);
-
-      if (error) {
-        console.error('Failed to log audit event:', error);
-      }
-    } catch (error) {
-      console.error('Error in logAudit:', error);
-    }
   }
 }

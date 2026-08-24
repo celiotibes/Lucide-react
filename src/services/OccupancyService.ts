@@ -1,5 +1,4 @@
 import { UUID, randomUUID } from 'crypto';
-import { createHash } from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
   OccupancyRules,
@@ -8,12 +7,15 @@ import {
   OccupancyMonitoring,
 } from '../types/occupancy';
 import { CPFValidationService } from './CPFValidationService';
+import { AuditService } from './AuditService';
 
 export class OccupancyService {
   private cpfValidation: CPFValidationService;
+  private auditService: AuditService;
 
   constructor(private supabase: SupabaseClient) {
     this.cpfValidation = new CPFValidationService();
+    this.auditService = new AuditService(supabase);
   }
   /**
    * Criar regras de ocupação para um imóvel
@@ -52,7 +54,7 @@ export class OccupancyService {
     }
 
     // Registrar no audit log
-    await this.logAudit(rules.id, 'occupancy_rules_created', {
+    await this.auditService.logAuditWithRetry(rules.id, 'occupancy_entity', 'occupancy_rules_created', {
       property_id: propertyId,
       max_occupants: maxOccupants,
     });
@@ -105,7 +107,7 @@ export class OccupancyService {
     }
 
     // Registrar no audit log
-    await this.logAudit(occupant.id, 'occupant_registered', {
+    await this.auditService.logAuditWithRetry(occupant.id, 'occupancy_entity', 'occupant_registered', {
       lease_id: leaseId,
       role,
       name,
@@ -169,7 +171,7 @@ export class OccupancyService {
     }
 
     // Registrar no audit log
-    await this.logAudit(violation.id, 'occupancy_violation_reported', {
+    await this.auditService.logAuditWithRetry(violation.id, 'occupancy_entity', 'occupancy_violation_reported', {
       lease_id: leaseId,
       property_id: propertyId,
       violation_type: violationType,
@@ -225,7 +227,7 @@ export class OccupancyService {
     }
 
     // Registrar no audit log
-    await this.logAudit(violation.id, 'violation_fine_applied', {
+    await this.auditService.logAuditWithRetry(violation.id, 'occupancy_entity', 'violation_fine_applied', {
       fine_amount_brl: violation.fine_amount_brl,
     });
   }
@@ -261,7 +263,7 @@ export class OccupancyService {
     }
 
     // Registrar no audit log
-    await this.logAudit(violation.id, 'lease_termination_initiated', {
+    await this.auditService.logAuditWithRetry(violation.id, 'occupancy_entity', 'lease_termination_initiated', {
       reason,
       termination_effective_date: terminationEffectiveDate,
     });
@@ -307,7 +309,7 @@ export class OccupancyService {
     }
 
     // Registrar no audit log
-    await this.logAudit(monitoring.id, 'occupancy_monitoring_created', {
+    await this.auditService.logAuditWithRetry(monitoring.id, 'occupancy_entity', 'occupancy_monitoring_created', {
       property_id: propertyId,
       lease_id: leaseId,
     });
@@ -366,55 +368,11 @@ export class OccupancyService {
     }
 
     // Registrar no audit log
-    await this.logAudit(monitoring.id, 'occupancy_monitoring_updated', {
+    await this.auditService.logAuditWithRetry(monitoring.id, 'occupancy_entity', 'occupancy_monitoring_updated', {
       airbnb_found: airbnbFound,
       booking_found: bookingFound,
       occupant_count: occupantCount,
       alert_level: alertLevel,
     });
-  }
-
-  // Note: isValidCPF removed - now use this.cpfValidation.isValidCPF() directly
-
-  /**
-   * Registrar ação no audit log com hash chain (Lei 12.682/2012)
-   */
-  private async logAudit(
-    entityId: string,
-    action: string,
-    metadata: Record<string, any>
-  ): Promise<void> {
-    try {
-      const eventData = JSON.stringify({ entityId, action, metadata, timestamp: new Date() });
-      const hash = createHash('sha256').update(eventData).digest('hex');
-
-      const { data: lastLog } = await this.supabase
-        .from('audit_logs')
-        .select('hash')
-        .eq('entity_id', entityId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      const previousHash = lastLog && lastLog.length > 0 ? lastLog[0].hash : null;
-
-      const { error } = await this.supabase
-        .from('audit_logs')
-        .insert([{
-          id: randomUUID(),
-          entity_id: entityId,
-          entity_type: 'occupancy_entity',
-          action,
-          metadata,
-          hash,
-          previous_hash: previousHash,
-          created_at: new Date(),
-        }]);
-
-      if (error) {
-        console.error('Failed to log audit event:', error);
-      }
-    } catch (error) {
-      console.error('Error in logAudit:', error);
-    }
   }
 }
