@@ -8,8 +8,14 @@ import {
   detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento,
   CATEGORIAS_BENFORD_VARIAVEIS, AMOSTRA_MINIMA_BENFORD_INDICATIVA,
 } from "../domain/auditoria/auditoriaForense";
+import { listarLogCompleto } from "../domain/auditoria/logAlteracoes";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import type { FiltroTransacoesInicial } from "./TransacoesView";
+
+const ROTULO_TABELA: Record<string, string> = {
+  imoveis: "Imóvel", contratos_locacao: "Contrato de locação", financiamentos: "Financiamento", caucoes: "Depósito caução",
+};
+const ROTULO_OPERACAO: Record<string, string> = { criacao: "criado", edicao: "editado", exclusao: "excluído" };
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -50,6 +56,7 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
   const caucoesSemTransacao = useMemo(() => (db ? detectarCaucoesSemTransacao(db) : []), [db, versao]);
   const transacoesCaucaoSemRegistro = useMemo(() => (db ? detectarTransacoesCaucaoSemRegistro(db) : []), [db, versao]);
   const financiamentosSemLancamento = useMemo(() => (db ? detectarFinanciamentosSemLancamento(db, hoje) : []), [db, versao, hoje]);
+  const logAlteracoes = useMemo(() => (db ? listarLogCompleto(db, 100) : []), [db, versao]);
 
   return (
     <div>
@@ -252,6 +259,34 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
           </div>
         )}
         {benford.length === 0 && <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Dados insuficientes para o teste.</p>}
+      </div>
+
+      <div className="card" style={{ marginTop: 24 }}>
+        <div className="section-title">Histórico de edições ({logAlteracoes.length})</div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12, maxWidth: "68ch" }}>
+          Trilha de auditoria dos próprios dados cadastrais (imóveis, contratos, financiamentos, cauções) — distinta
+          da auditoria forense acima, que audita os dados financeiros em si. Cada linha é um snapshot completo do
+          registro antes/depois, para provar que um campo não foi alterado depois do fato, se questionado.
+        </p>
+        {logAlteracoes.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhuma edição registrada ainda nesta instalação.</p>
+        ) : (
+          <div className="table-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>
+            <table className="data-table">
+              <thead><tr><th>Quando</th><th>Registro</th><th>Operação</th><th>O que mudou</th></tr></thead>
+              <tbody>
+                {logAlteracoes.map((l) => (
+                  <tr key={l.id}>
+                    <td>{new Date(l.quando).toLocaleString("pt-BR")}</td>
+                    <td>{ROTULO_TABELA[l.tabela] ?? l.tabela} #{l.registro_id}</td>
+                    <td>{ROTULO_OPERACAO[l.operacao] ?? l.operacao}</td>
+                    <td style={{ fontSize: 12 }}>{l.resumo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

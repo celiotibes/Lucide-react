@@ -39,5 +39,6 @@ export async function registrarDocumentoGerado(
 }
 
 export function listarDocumentosGerados(db: Database): DocumentoGerado[] {
-  return consultar<DocumentoGerado>(db, "SELECT * FROM documentos_gerados ORDER BY gerado_em DESC");
+  // id DESC desempata registros gravados no mesmo milissegundo (ORDER BY timestamp sozinho não garante ordem estável nesse caso).
+  return consultar<DocumentoGerado>(db, "SELECT * FROM documentos_gerados ORDER BY gerado_em DESC, id DESC");
 }

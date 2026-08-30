@@ -4,6 +4,7 @@ import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
 import type { Imovel, ItemInventarioBem, RegimePatrimonial, TipoImovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
+import { registrarLog, resumirDiferenca } from "../domain/auditoria/logAlteracoes";
 
 const ROTULO_TIPO: Record<TipoImovel, string> = {
   apartamento: "Apartamento",
@@ -150,6 +151,12 @@ export function ImoveisView() {
       form.regime_patrimonial === "proprio" ? form.co_titular_nome.trim() || null : null,
     ];
 
+    // Snapshot ANTES da escrita — precisa vir antes do INSERT/UPDATE para capturar o estado
+    // anterior de verdade (trilha de auditoria de edição, achado de auditoria de completude:
+    // sem isso não havia como provar que valor_venal_atual/co_titular_nome/etc. não foram
+    // alterados depois do fato).
+    const dadosAnteriores = form.id !== null ? (consultar<Imovel>(db, "SELECT * FROM imoveis WHERE id = ?", [form.id])[0] as unknown as Record<string, unknown>) ?? null : null;
+
     if (form.id === null) {
       executar(
         db,
@@ -167,6 +174,11 @@ export function ImoveisView() {
         [...camposComuns, form.id],
       );
     }
+
+    const idRegistro = form.id ?? consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id")[0].id;
+    const dadosNovos = consultar<Imovel>(db, "SELECT * FROM imoveis WHERE id = ?", [idRegistro])[0] as unknown as Record<string, unknown>;
+    registrarLog(db, "imoveis", idRegistro, form.id === null ? "criacao" : "edicao", resumirDiferenca(dadosAnteriores, dadosNovos), dadosAnteriores, dadosNovos);
+
     await persistir();
     setForm(null);
   }

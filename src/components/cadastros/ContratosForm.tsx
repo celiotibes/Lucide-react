@@ -3,6 +3,7 @@ import { Plus, Pencil, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useDb } from "../../db/useDb";
 import { consultar, executar } from "../../db/connection";
 import { listarPartes, adicionarParte, removerParte } from "../../domain/contratos/locatarios";
+import { registrarLog, resumirDiferenca } from "../../domain/auditoria/logAlteracoes";
 import type { Caucao, ContratoLocacao, FranquiaHidrica, Imovel, IndiceReajuste, PapelLocatario, RubricaCusteio, TipoContrato } from "../../domain/types";
 
 interface Formulario {
@@ -111,11 +112,18 @@ export function ContratosForm() {
     const placeholders = campos.map(() => "?").join(", ");
     const valoresArray = campos.map((c) => (valores as Record<string, string | number | null>)[c]);
 
+    const dadosAnteriores = form.id !== null ? (consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE id = ?", [form.id])[0] as unknown as Record<string, unknown>) ?? null : null;
+
     if (form.id === null) {
       executar(db, `INSERT INTO contratos_locacao (${campos.join(", ")}) VALUES (${placeholders})`, valoresArray);
     } else {
       executar(db, `UPDATE contratos_locacao SET ${campos.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`, [...valoresArray, form.id]);
     }
+
+    const idRegistro = form.id ?? consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id")[0].id;
+    const dadosNovos = consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE id = ?", [idRegistro])[0] as unknown as Record<string, unknown>;
+    registrarLog(db, "contratos_locacao", idRegistro, form.id === null ? "criacao" : "edicao", resumirDiferenca(dadosAnteriores, dadosNovos), dadosAnteriores, dadosNovos);
+
     await persistir();
     setForm(null);
   }

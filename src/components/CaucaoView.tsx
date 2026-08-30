@@ -7,6 +7,7 @@ import { calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial
 import { baixarRadPdf } from "../domain/laudo/gerarRadPdf";
 import type { Caucao, ContratoLocacao, Imovel, ItemInventarioBem } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
+import { registrarLog, resumirDiferenca } from "../domain/auditoria/logAlteracoes";
 import { KpiTile } from "./KpiTile";
 
 interface FormEdicaoCaucao {
@@ -75,6 +76,7 @@ export function CaucaoView() {
 
   async function salvarEdicao() {
     if (!db || !formEdicao) return;
+    const dadosAnteriores = (consultar<Caucao>(db, "SELECT * FROM caucoes WHERE id = ?", [formEdicao.id])[0] as unknown as Record<string, unknown>) ?? null;
     executar(
       db,
       `UPDATE caucoes SET data_devolucao = ?, valor_devolvido = ?, deducoes_descricao = ?, deducoes_valor = ? WHERE id = ?`,
@@ -86,6 +88,8 @@ export function CaucaoView() {
         formEdicao.id,
       ],
     );
+    const dadosNovos = consultar<Caucao>(db, "SELECT * FROM caucoes WHERE id = ?", [formEdicao.id])[0] as unknown as Record<string, unknown>;
+    registrarLog(db, "caucoes", formEdicao.id, "edicao", resumirDiferenca(dadosAnteriores, dadosNovos), dadosAnteriores, dadosNovos);
     await persistir();
     setFormEdicao(null);
   }

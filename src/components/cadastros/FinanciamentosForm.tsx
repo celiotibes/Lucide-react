@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus, Pencil } from "lucide-react";
 import { useDb } from "../../db/useDb";
 import { consultar, executar } from "../../db/connection";
+import { registrarLog, resumirDiferenca } from "../../domain/auditoria/logAlteracoes";
 import type { Imovel } from "../../domain/types";
 
 type Sistema = "SAC" | "PRICE" | "OUTRO";
@@ -71,6 +72,8 @@ export function FinanciamentosForm() {
     const parcelaMensalManual = form.parcela_mensal_manual.trim() === "" ? null : Number.parseFloat(form.parcela_mensal_manual.replace(",", "."));
     const dataReferenciaSaldoManual = form.data_referencia_saldo_manual || null;
 
+    const dadosAnteriores = form.id !== null ? (consultar<Financiamento>(db, "SELECT * FROM financiamentos WHERE id = ?", [form.id])[0] as unknown as Record<string, unknown>) ?? null : null;
+
     if (form.id === null) {
       executar(
         db,
@@ -91,6 +94,11 @@ export function FinanciamentosForm() {
           saldoDevedorManual, parcelaMensalManual, dataReferenciaSaldoManual, form.observacoes.trim() || null, form.id],
       );
     }
+
+    const idRegistro = form.id ?? consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id")[0].id;
+    const dadosNovos = consultar<Financiamento>(db, "SELECT * FROM financiamentos WHERE id = ?", [idRegistro])[0] as unknown as Record<string, unknown>;
+    registrarLog(db, "financiamentos", idRegistro, form.id === null ? "criacao" : "edicao", resumirDiferenca(dadosAnteriores, dadosNovos), dadosAnteriores, dadosNovos);
+
     await persistir();
     setForm(null);
   }

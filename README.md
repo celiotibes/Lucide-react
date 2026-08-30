@@ -148,7 +148,11 @@ servi-lo em `http://localhost:4173`.
   por categoria, lacunas em despesas recorrentes, teste da Lei de Benford e
   consistência entre módulos (caução cadastrada sem depósito correspondente no
   extrato, transação de caução sem registro formal, financiamento sem nenhuma
-  parcela lançada) — tudo local, sem IA paga.
+  parcela lançada) — tudo local, sem IA paga. A mesma aba traz também o
+  **histórico de edições**: toda criação/edição de imóvel, contrato, financiamento
+  ou depósito caução grava um snapshot completo do registro antes/depois (tabela
+  `log_alteracoes`) — distinto da auditoria forense (que audita os dados
+  financeiros), esta é a trilha de quem mudou o quê nos próprios cadastros.
 - **Rateio de despesas coletivas**: qualquer transação pode ser dividida entre
   vários imóveis por fração ideal, área ou partes iguais; o DRE por imóvel já
   soma a fatia correspondente.
