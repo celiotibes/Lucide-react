@@ -259,13 +259,11 @@ servi-lo em `http://localhost:4173`.
 - **CSV**: prefira exportações com `;` como separador (padrão de exportação
   brasileira) quando os valores usam vírgula decimal — um CSV separado por vírgula
   *e* com vírgula decimal é ambíguo e não é detectado corretamente.
-- **Nenhuma chamada real de IA**: `contabilidade-reconstituicao/src/categorize/router.py`
-  documenta o roteamento de custo (Gemini Flash para OCR, Ollama local para lote,
-  Claude para exceções/laudo), mas nenhuma chave de API está configurada — a
-  categorização hoje é 100% por regra determinística + revisão manual. O mesmo vale
-  para a extração de campos de documentos (`src/domain/documentos/extrairCampos.ts`):
-  valor/data/CNPJ saem de regex sobre o texto extraído, e "produto/serviço a que se
-  refere" é preenchido por você — nenhum modelo de linguagem lê o documento.
+- **Nenhuma chamada real de IA**: a categorização é 100% por regra determinística
+  (`src/domain/categorize/regrasAprendidas.ts`) + revisão manual. O mesmo vale para a
+  extração de campos de documentos (`src/domain/documentos/extrairCampos.ts`): valor/data/
+  CNPJ saem de regex sobre o texto extraído, e "produto/serviço a que se refere" é preenchido
+  por você — nenhum modelo de linguagem lê o documento.
 - **Casamento documento×transação** (`src/domain/documentos/matching.ts`) é por
   proximidade de valor (±3%) e data (±15 dias), mais bônus se o CNPJ/CPF ou o nome do
   fornecedor aparecer na descrição bancária crua — sempre revise a sugestão antes de
@@ -372,14 +370,13 @@ src/
     cadastros/             sub-telas de Cadastros (contratos, contas bancárias,
                            prestadores, financiamentos, obras)
 
-contabilidade-reconstituicao/   scaffold Python-espelho (schema.sql canônico, notas
-                                de arquitetura, roteamento de IA por custo) — ver seu
-                                próprio README para o dossiê técnico completo.
+contabilidade-reconstituicao/   só o schema.sql — fonte única do modelo de dados (o
+                                protótipo Python que existiu aqui foi removido por estar
+                                obsoleto: o app web já cobre e supera tudo que ele fazia).
 
 server/                        backend opcional para conectar banco via Pluggy
                                 (Open Finance) — só existe pelo Client Secret.
 ```
 
 O `schema.sql` em `contabilidade-reconstituicao/` é a fonte única do modelo de dados;
-o app web importa esse mesmo arquivo (`?raw`) para inicializar o sql.js, então os dois
-lados nunca divergem.
+o app web importa esse mesmo arquivo (`?raw`) para inicializar o sql.js.
