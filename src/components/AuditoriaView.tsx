@@ -6,6 +6,7 @@ import { consultar } from "../db/connection";
 import {
   detectarDuplicatas, detectarOutliers, detectarLacunasMensais, testeBenford,
   detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento,
+  CATEGORIAS_BENFORD_VARIAVEIS, AMOSTRA_MINIMA_BENFORD_INDICATIVA,
 } from "../domain/auditoria/auditoriaForense";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import type { FiltroTransacoesInicial } from "./TransacoesView";
@@ -13,13 +14,6 @@ import type { FiltroTransacoesInicial } from "./TransacoesView";
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-const CATEGORIAS_VARIAVEIS = ["2.1.02", "2.1.03", "2.1.04"]; // manutenção, obra, prestadores — não aluguel/financiamento fixos
-// Piso indicativo de amostra para o teste de Benford ser minimamente informativo — a
-// literatura de auditoria forense (Nigrini) recomenda centenas de observações para rigor
-// estatístico formal; 50 é só o piso abaixo do qual nem vale mostrar o desvio como se fosse
-// um sinal (achado de auditoria adversarial: o sistema rodava e exibia o teste mesmo com
-// poucas transações, sem nenhum aviso de tamanho de amostra).
-const AMOSTRA_MINIMA_BENFORD_INDICATIVA = 50;
 
 function BotaoVerTransacoes({ onClick }: { onClick: () => void }) {
   return (
@@ -45,8 +39,8 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
     if (!db) return [];
     return consultar<{ valor: number }>(
       db,
-      `SELECT valor FROM transacoes WHERE plano_conta_codigo IN (${CATEGORIAS_VARIAVEIS.map(() => "?").join(",")}) OR plano_conta_codigo IS NULL`,
-      CATEGORIAS_VARIAVEIS,
+      `SELECT valor FROM transacoes WHERE plano_conta_codigo IN (${CATEGORIAS_BENFORD_VARIAVEIS.map(() => "?").join(",")}) OR plano_conta_codigo IS NULL`,
+      CATEGORIAS_BENFORD_VARIAVEIS,
     ).map((r) => r.valor);
   }, [db, versao]);
 

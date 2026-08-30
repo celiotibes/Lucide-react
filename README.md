@@ -152,7 +152,15 @@ servi-lo em `http://localhost:4173`.
 - **Laudo pericial**: exporta um PDF com 9 seções — metodologia, capacidade
   contributiva real, DRE com análise vertical/horizontal, patrimônio líquido e
   alavancagem, inadimplência, passivo de caução, desempenho por imóvel, achados de
-  auditoria forense e ressalvas — apoio à instrução, não uma peça jurídica pronta.
+  auditoria forense (duplicidades, outliers, lacunas, Lei de Benford, possível
+  anatocismo em financiamento e consistência entre cadastro e transação — os mesmos
+  achados que a aba Auditoria forense já mostra na tela) e ressalvas — apoio à
+  instrução, não uma peça jurídica pronta.
+- **Histórico de documentos gerados**: todo Laudo pericial ou RAD gerado fica
+  registrado no próprio banco (aba Laudo pericial → "Histórico de documentos
+  gerados") com hash SHA-256 do PDF exato — diferente do hash de backup (que é do
+  banco inteiro), este é por documento individual: prova de qual foi o conteúdo
+  entregue numa data específica, se for questionado depois.
 - **Múltiplos locatários e responsáveis solidários**: um contrato pode ter vários
   nomes vinculados (comum em locação estudantil/compartilhada), todos exibidos
   junto ao contrato.

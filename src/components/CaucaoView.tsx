@@ -13,7 +13,7 @@ function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 export function CaucaoView() {
-  const { db, versao } = useDb();
+  const { db, versao, persistir } = useDb();
   const hoje = hojeIso();
   const [gerandoRadId, setGerandoRadId] = useState<number | null>(null);
 
@@ -44,9 +44,11 @@ export function CaucaoView() {
     try {
       const itensInventario = consultar<ItemInventarioBem>(db, "SELECT * FROM imovel_inventario_bens WHERE imovel_id = ? ORDER BY id", [imovel.id]);
       await baixarRadPdf(
+        db,
         { imovel, contrato, resultadoCaucao: resultado, itensInventario, dataEmissao: hoje },
         `RAD-${imovel.apelido.replace(/[^\w-]+/g, "_")}-${hoje}.pdf`,
       );
+      await persistir();
     } finally {
       setGerandoRadId(null);
     }

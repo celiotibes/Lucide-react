@@ -245,3 +245,30 @@ export interface DeclaracaoFiscal {
   fonte_documento?: string;
   observacoes?: string;
 }
+
+export type TipoDocumentoGerado = "laudo_pericial" | "rad";
+
+export interface DocumentoGerado {
+  id: number;
+  tipo: TipoDocumentoGerado;
+  nome_arquivo: string;
+  data_emissao: string;
+  gerado_em: string; // timestamp ISO 8601 completo
+  hash_sha256: string;
+  tamanho_bytes: number;
+  contrato_id?: number;
+  imovel_id?: number;
+}
+
+export type OperacaoLog = "criacao" | "edicao" | "exclusao";
+
+export interface LogAlteracao {
+  id: number;
+  tabela: string;
+  registro_id: number;
+  operacao: OperacaoLog;
+  quando: string; // timestamp ISO 8601 completo
+  resumo: string;
+  dados_anteriores?: string; // JSON
+  dados_novos?: string; // JSON
+}

@@ -1,8 +1,10 @@
+import type { Database } from "sql.js";
 import type { default as jsPDF } from "jspdf";
 import { Escritor } from "./escritorPdf";
 import { formatarMoeda } from "../formatarMoeda";
 import type { ResultadoCalculoCaucao } from "../caucao/calculoCaucao";
 import type { ContratoLocacao, Imovel, ItemInventarioBem } from "../types";
+import { registrarDocumentoGerado } from "./historicoDocumentos";
 
 export interface DadosRad {
   imovel: Imovel;
@@ -98,7 +100,19 @@ export async function gerarRadPdf(dados: DadosRad): Promise<jsPDF> {
   return doc;
 }
 
-export async function baixarRadPdf(dados: DadosRad, nomeArquivo: string): Promise<void> {
+/** Gera e baixa o PDF, e registra o fato no histórico do próprio banco (documentos_gerados —
+ * ver historicoDocumentos.ts) com hash SHA-256 do arquivo exato gerado. O chamador ainda
+ * precisa persistir() depois, como em qualquer outra escrita no banco. */
+export async function baixarRadPdf(db: Database, dados: DadosRad, nomeArquivo: string): Promise<void> {
   const doc = await gerarRadPdf(dados);
+  const bytes = new Uint8Array(doc.output("arraybuffer"));
+  await registrarDocumentoGerado(db, {
+    tipo: "rad",
+    nomeArquivo,
+    dataEmissao: dados.dataEmissao,
+    bytes,
+    contratoId: dados.contrato.id,
+    imovelId: dados.imovel.id,
+  });
   doc.save(nomeArquivo);
 }

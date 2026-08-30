@@ -353,6 +353,44 @@ CREATE TABLE IF NOT EXISTS documento_transacoes (
     UNIQUE (documento_id, transacao_id)
 );
 
+-- Registro de cada PDF (Laudo pericial / RAD) efetivamente gerado — sem isso, o sistema não
+-- tinha como provar depois qual foi o conteúdo exato entregue numa data específica (só o
+-- hash do backup do banco INTEIRO, granularidade bem mais grossa). O hash aqui é do PDF em
+-- si, calculado no momento da geração (mesmo princípio de cadeia de custódia digital de
+-- backupIntegridade.ts) — auditoria de completude identificou essa ausência.
+CREATE TABLE IF NOT EXISTS documentos_gerados (
+    id              INTEGER PRIMARY KEY,
+    tipo            TEXT NOT NULL CHECK (tipo IN ('laudo_pericial', 'rad')),
+    nome_arquivo    TEXT NOT NULL,
+    data_emissao    DATE NOT NULL,          -- data de referência usada no corpo do PDF
+    gerado_em       TEXT NOT NULL,          -- timestamp ISO 8601 completo (hora exata da geração)
+    hash_sha256     TEXT NOT NULL,
+    tamanho_bytes   INTEGER NOT NULL,
+    contrato_id     INTEGER REFERENCES contratos_locacao(id),  -- NULL para laudo (é do portfólio inteiro)
+    imovel_id       INTEGER REFERENCES imoveis(id)              -- NULL para laudo
+);
+
+-- Trilha de auditoria de EDIÇÃO dos próprios dados cadastrais — distinta da auditoria
+-- forense (que audita os dados financeiros). Sem isso, não havia como provar que um campo
+-- não foi alterado depois do fato (ex: valor_venal_atual de um imóvel, cláusulas de um
+-- contrato) — relevante em contexto pericial se a exatidão de um número for questionada.
+-- dados_anteriores/dados_novos guardam um snapshot JSON da linha inteira (não só o campo
+-- que mudou) — mais simples e mais robusto que rastrear diff campo a campo, ao custo de
+-- redundância de armazenamento (aceitável: são poucas tabelas, poucas edições).
+CREATE TABLE IF NOT EXISTS log_alteracoes (
+    id                  INTEGER PRIMARY KEY,
+    tabela              TEXT NOT NULL,
+    registro_id         INTEGER NOT NULL,
+    operacao            TEXT NOT NULL CHECK (operacao IN ('criacao', 'edicao', 'exclusao')),
+    quando              TEXT NOT NULL,      -- timestamp ISO 8601 completo
+    resumo              TEXT NOT NULL,      -- descrição legível (ex: "valor_venal_atual: 450000 -> 480000")
+    dados_anteriores    TEXT,               -- JSON da linha antes (NULL em criação)
+    dados_novos         TEXT                -- JSON da linha depois (NULL em exclusão)
+);
+
+CREATE INDEX IF NOT EXISTS idx_documentos_gerados_tipo ON documentos_gerados(tipo);
+CREATE INDEX IF NOT EXISTS idx_log_alteracoes_tabela_registro ON log_alteracoes(tabela, registro_id);
+
 CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);
 CREATE INDEX IF NOT EXISTS idx_transacoes_imovel ON transacoes(imovel_id);
 CREATE INDEX IF NOT EXISTS idx_transacoes_contrato ON transacoes(contrato_id);

@@ -1,13 +1,25 @@
+import type { Database } from "sql.js";
 import type { default as jsPDF } from "jspdf";
 import { Escritor } from "./escritorPdf";
 import type { LinhaDre } from "../types";
-import type { TransacaoDuplicada, OutlierEstatistico, LacunaMensal } from "../auditoria/auditoriaForense";
+import type {
+  TransacaoDuplicada, OutlierEstatistico, LacunaMensal, ResultadoBenford,
+  CaucaoSemTransacao, TransacaoCaucaoSemRegistro, FinanciamentoSemLancamento,
+} from "../auditoria/auditoriaForense";
+import { AMOSTRA_MINIMA_BENFORD_INDICATIVA } from "../auditoria/auditoriaForense";
+import type { DivergenciaParcela } from "../financiamento/amortizacao";
 import type { StatusInadimplencia } from "../types";
 import type { CapacidadeContributiva } from "../reports/capacidadeContributiva";
 import type { LinhaAnaliseVertical, LinhaAnaliseHorizontal } from "../reports/analiseVerticalHorizontal";
 import type { PatrimonioLiquido, LiquidezCorrente } from "../patrimonio/balancoPatrimonial";
 import type { DesempenhoImovel } from "../reports/desempenhoPorImovel";
 import { formatarMoeda } from "../formatarMoeda";
+import { registrarDocumentoGerado } from "./historicoDocumentos";
+
+export interface DivergenciaAnatocismoComFinanciamento extends DivergenciaParcela {
+  financiamentoId: number;
+  instituicao: string;
+}
 
 export interface DadosLaudo {
   periodoInicio: string;
@@ -25,6 +37,15 @@ export interface DadosLaudo {
   passivoCaucaoRetido: number;
   saldoCaixaAtual: number;
   desempenhoImoveis: DesempenhoImovel[];
+  // Achados que a aba Auditoria já mostra na tela mas que, até agora, nunca chegavam ao PDF
+  // protocolável (achado de auditoria de completude) — todos opcionais para não quebrar
+  // nenhum outro chamador que ainda monte DadosLaudo sem eles.
+  benford?: ResultadoBenford[];
+  amostraBenford?: number;
+  divergenciasAnatocismo?: DivergenciaAnatocismoComFinanciamento[];
+  caucoesSemTransacao?: CaucaoSemTransacao[];
+  transacoesCaucaoSemRegistro?: TransacaoCaucaoSemRegistro[];
+  financiamentosSemLancamento?: FinanciamentoSemLancamento[];
 }
 
 /** Monta o laudo em PDF: metodologia, DRE do período, inadimplência e achados de
@@ -208,6 +229,58 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
       w.linhaTabela([o.data, o.descricao, formatarMoeda(o.valor), o.zScore.toFixed(1)], [30, 90, 35, 30]);
     }
   }
+
+  if (dados.benford && dados.benford.length > 0) {
+    w.espaco(4);
+    const desvioMaximo = Math.max(0, ...dados.benford.map((b) => Math.abs(b.frequenciaObservada - b.frequenciaEsperada)));
+    w.paragrafo(
+      `Lei de Benford (despesas de manutenção/obra/prestadores, nunca aluguel/financiamento): amostra de ` +
+        `${dados.amostraBenford ?? "?"} lançamento(s), desvio máximo observado ${(desvioMaximo * 100).toFixed(1)} ` +
+        `pontos percentuais.` +
+        ((dados.amostraBenford ?? 0) < AMOSTRA_MINIMA_BENFORD_INDICATIVA
+          ? ` Amostra abaixo do piso indicativo de ${AMOSTRA_MINIMA_BENFORD_INDICATIVA} observações — o desvio acima ` +
+            `NÃO deve ser lido como indício de nada com uma base tão pequena.`
+          : ""),
+    );
+  }
+
+  if (dados.divergenciasAnatocismo && dados.divergenciasAnatocismo.length > 0) {
+    w.espaco(4);
+    w.paragrafo(
+      `Financiamentos — possível anatocismo: ${dados.divergenciasAnatocismo.length} parcela(s), em ` +
+        `${new Set(dados.divergenciasAnatocismo.map((d) => d.financiamentoId)).size} financiamento(s), com juros ` +
+        `cobrados acima do cronograma teórico em mais de 5% E mais de R$10 em valor absoluto (limiar duplo — evita ` +
+        `falso positivo trivial de arredondamento perto do fim do financiamento). Indício, não conclusão: confira ` +
+        `contra o contrato original antes de usar como prova.`,
+    );
+    w.linhaTabela(["Financiamento", "Mês", "Juros teórico", "Juros cobrado"], [55, 25, 40, 40], true);
+    for (const d of dados.divergenciasAnatocismo.slice(0, 10)) {
+      w.linhaTabela([d.instituicao, d.mes, formatarMoeda(d.jurosTeorico), formatarMoeda(d.jurosCobrado)], [55, 25, 40, 40]);
+    }
+  }
+
+  const totalConsistencia =
+    (dados.caucoesSemTransacao?.length ?? 0) + (dados.transacoesCaucaoSemRegistro?.length ?? 0) + (dados.financiamentosSemLancamento?.length ?? 0);
+  if (totalConsistencia > 0) {
+    w.espaco(4);
+    w.paragrafo(
+      "Consistência entre módulos — o mesmo fato financeiro deveria aparecer em dois lugares (cadastro formal e " +
+        "transação bancária); um sem o outro é sinal de documento perdido, extrato ainda não importado, ou cadastro " +
+        "nunca de fato cumprido:",
+    );
+    if (dados.caucoesSemTransacao && dados.caucoesSemTransacao.length > 0) {
+      w.paragrafo(`- ${dados.caucoesSemTransacao.length} caução(ões) cadastrada(s) sem depósito correspondente no extrato (±30 dias).`);
+    }
+    if (dados.transacoesCaucaoSemRegistro && dados.transacoesCaucaoSemRegistro.length > 0) {
+      w.paragrafo(`- ${dados.transacoesCaucaoSemRegistro.length} transação(ões) de caução sem registro formal em Cadastros.`);
+    }
+    if (dados.financiamentosSemLancamento && dados.financiamentosSemLancamento.length > 0) {
+      w.paragrafo(
+        `- ${dados.financiamentosSemLancamento.length} financiamento(s) sem nenhuma parcela lançada nas transações — ` +
+          `o resultado líquido do(s) imóvel(is) correspondente(s) pode estar superestimado no DRE.`,
+      );
+    }
+  }
   w.espaco(6);
 
   w.secao("9. Ressalvas");
@@ -230,7 +303,12 @@ export async function gerarLaudoPdf(dados: DadosLaudo): Promise<jsPDF> {
   return doc;
 }
 
-export async function baixarLaudoPdf(dados: DadosLaudo, nomeArquivo: string): Promise<void> {
+/** Gera e baixa o PDF, e registra o fato no histórico do próprio banco (documentos_gerados —
+ * ver historicoDocumentos.ts) com hash SHA-256 do arquivo exato gerado. O chamador ainda
+ * precisa persistir() depois, como em qualquer outra escrita no banco. */
+export async function baixarLaudoPdf(db: Database, dados: DadosLaudo, nomeArquivo: string): Promise<void> {
   const doc = await gerarLaudoPdf(dados);
+  const bytes = new Uint8Array(doc.output("arraybuffer"));
+  await registrarDocumentoGerado(db, { tipo: "laudo_pericial", nomeArquivo, dataEmissao: dados.periodoFim, bytes });
   doc.save(nomeArquivo);
 }

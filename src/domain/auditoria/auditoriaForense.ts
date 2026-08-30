@@ -150,6 +150,19 @@ export interface ResultadoBenford {
   frequenciaEsperada: number;
 }
 
+// Categorias de valor variável (manutenção, obra, prestadores) — nunca aluguel/financiamento,
+// valor fixado em contrato sem motivo para seguir a distribuição de Benford. Exportado (em vez
+// de constante local em cada tela) para que a UI (AuditoriaView) e o Laudo em PDF (Seção 8)
+// nunca divirjam em qual escopo de transação o teste cobre.
+export const CATEGORIAS_BENFORD_VARIAVEIS = ["2.1.02", "2.1.03", "2.1.04"];
+
+// Piso indicativo de amostra para o teste ser minimamente informativo — a literatura de
+// auditoria forense (Nigrini) recomenda centenas de observações para rigor estatístico
+// formal; abaixo disso o desvio percentual não deve ser lido como sinal (mesmo motivo de
+// AMOSTRA_MINIMA_OUTLIER acima, mas Benford em si não tem um piso matematicamente derivável
+// como o z-score tem — este é qualitativo, documentado como tal).
+export const AMOSTRA_MINIMA_BENFORD_INDICATIVA = 50;
+
 /** Lei de Benford: em conjuntos naturais de valores que variam livremente, o primeiro
  * dígito segue log10(1+1/d), não é uniforme. Só faz sentido aplicar a categorias com
  * valor variável (manutenção, prestadores, obras) — NÃO a aluguel/financiamento, cujo

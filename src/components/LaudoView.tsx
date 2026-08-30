@@ -5,22 +5,30 @@ import { consultar } from "../db/connection";
 import { gerarDre } from "../domain/reports/dre";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia } from "../domain/reconcile/inadimplencia";
-import { detectarDuplicatas, detectarOutliers, detectarLacunasMensais } from "../domain/auditoria/auditoriaForense";
-import { baixarLaudoPdf } from "../domain/laudo/gerarLaudoPdf";
+import {
+  detectarDuplicatas, detectarOutliers, detectarLacunasMensais, testeBenford,
+  detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento,
+  CATEGORIAS_BENFORD_VARIAVEIS,
+} from "../domain/auditoria/auditoriaForense";
+import { baixarLaudoPdf, type DivergenciaAnatocismoComFinanciamento } from "../domain/laudo/gerarLaudoPdf";
 import { calcularCapacidadeContributiva } from "../domain/reports/capacidadeContributiva";
 import { calcularAnaliseVertical, calcularAnaliseHorizontal } from "../domain/reports/analiseVerticalHorizontal";
 import { calcularPatrimonioLiquido, calcularLiquidezCorrente, calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";
 import { calcularDesempenhoPorImovel } from "../domain/reports/desempenhoPorImovel";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
+import { compararComTransacoes, type Financiamento } from "../domain/financiamento/amortizacao";
+import { listarDocumentosGerados } from "../domain/laudo/historicoDocumentos";
 import { KpiTile } from "./KpiTile";
 import type { Caucao } from "../domain/types";
+
+const ROTULO_TIPO_DOCUMENTO: Record<string, string> = { laudo_pericial: "Laudo pericial", rad: "RAD" };
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 export function LaudoView() {
-  const { db, versao } = useDb();
+  const { db, versao, persistir } = useDb();
   const hoje = hojeIso();
   const [periodoInicio, setPeriodoInicio] = useState(new Date(new Date(hoje).setFullYear(new Date(hoje).getFullYear() - 3)).toISOString().slice(0, 10));
   const [periodoFim, setPeriodoFim] = useState(hoje);
@@ -54,9 +62,36 @@ export function LaudoView() {
     return caucoesRetidas.reduce((acc, c) => acc + calcularCaucao(db, c.id, periodoFim).valorADevolver, 0);
   }, [db, versao, periodoFim]);
 
+  // Os 3 achados abaixo já existem e são mostrados na aba Auditoria forense, mas até agora
+  // nunca chegavam ao PDF protocolável — achado de auditoria de completude, corrigido aqui.
+  const valoresBenford = useMemo(() => {
+    if (!db) return [];
+    return consultar<{ valor: number }>(
+      db,
+      `SELECT valor FROM transacoes WHERE plano_conta_codigo IN (${CATEGORIAS_BENFORD_VARIAVEIS.map(() => "?").join(",")}) OR plano_conta_codigo IS NULL`,
+      CATEGORIAS_BENFORD_VARIAVEIS,
+    ).map((r) => r.valor);
+  }, [db, versao]);
+  const amostraBenford = valoresBenford.length;
+  const benford = useMemo(() => testeBenford(valoresBenford), [valoresBenford]);
+  const divergenciasAnatocismo = useMemo<DivergenciaAnatocismoComFinanciamento[]>(() => {
+    if (!db) return [];
+    const financiamentos = consultar<Financiamento>(db, "SELECT * FROM financiamentos ORDER BY id");
+    return financiamentos.flatMap((f) =>
+      compararComTransacoes(db, f)
+        .filter((d) => d.possivelAnatocismo)
+        .map((d) => ({ ...d, financiamentoId: f.id, instituicao: f.instituicao })),
+    );
+  }, [db, versao]);
+  const caucoesSemTransacao = useMemo(() => (db ? detectarCaucoesSemTransacao(db) : []), [db, versao]);
+  const transacoesCaucaoSemRegistro = useMemo(() => (db ? detectarTransacoesCaucaoSemRegistro(db) : []), [db, versao]);
+  const financiamentosSemLancamento = useMemo(() => (db ? detectarFinanciamentosSemLancamento(db, periodoFim) : []), [db, versao, periodoFim]);
+  const documentosGerados = useMemo(() => (db ? listarDocumentosGerados(db) : []), [db, versao]);
+
   async function gerar() {
-    if (!capacidadeContributiva || !patrimonioLiquido || !liquidezCorrente) return;
+    if (!db || !capacidadeContributiva || !patrimonioLiquido || !liquidezCorrente) return;
     await baixarLaudoPdf(
+      db,
       {
         periodoInicio,
         periodoFim,
@@ -73,9 +108,16 @@ export function LaudoView() {
         passivoCaucaoRetido,
         saldoCaixaAtual,
         desempenhoImoveis,
+        benford,
+        amostraBenford,
+        divergenciasAnatocismo,
+        caucoesSemTransacao,
+        transacoesCaucaoSemRegistro,
+        financiamentosSemLancamento,
       },
       `laudo-reconstituicao-${periodoInicio}-a-${periodoFim}.pdf`,
     );
+    await persistir();
   }
 
   return (
@@ -109,6 +151,31 @@ export function LaudoView() {
       <button className="btn primary" onClick={gerar}>
         <FileDown size={15} /> Gerar PDF do laudo
       </button>
+
+      <h3 style={{ fontSize: 15, marginTop: 28, marginBottom: 8 }}>Histórico de documentos gerados ({documentosGerados.length})</h3>
+      <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 12.5, marginBottom: 12 }}>
+        Todo Laudo pericial ou RAD gerado (nesta aba ou em Depósitos caução) fica registrado aqui com hash SHA-256
+        do PDF exato — prova de qual foi o conteúdo entregue numa data específica, caso seja questionado depois.
+      </p>
+      {documentosGerados.length === 0 ? (
+        <p style={{ color: "var(--ink-soft)", fontSize: 13 }}>Nenhum documento gerado ainda nesta instalação.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead><tr><th>Tipo</th><th>Arquivo</th><th>Gerado em</th><th>Hash SHA-256</th></tr></thead>
+            <tbody>
+              {documentosGerados.map((d) => (
+                <tr key={d.id}>
+                  <td>{ROTULO_TIPO_DOCUMENTO[d.tipo] ?? d.tipo}</td>
+                  <td>{d.nome_arquivo}</td>
+                  <td>{new Date(d.gerado_em).toLocaleString("pt-BR")}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 11 }}>{d.hash_sha256}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
