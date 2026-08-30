@@ -112,12 +112,15 @@ servi-lo em `http://localhost:4173`.
   da série cadastrada em `indices_economicos`, mais um painel de passivo de caução
   que compara o total ainda retido (corrigido) contra o caixa disponível hoje —
   mostra se o dinheiro do caução está de fato reservado ou já foi consumido no
-  fluxo de caixa geral (passivo descoberto). Cada linha gera o **Relatório de
-  Apuração de Débitos (RAD)** em PDF — inventário de bens do imóvel (cadastrado
-  em Imóveis → "Inventário de bens", opcional) + a dedução já registrada na
-  caução + saldo a devolver; nunca presume dano nem inventa vistoria que não
-  aconteceu — diz explicitamente "nenhum item cadastrado"/"nenhuma dedução
-  registrada" quando é o caso.
+  fluxo de caixa geral (passivo descoberto). O botão de lápis em cada linha
+  registra a devolução (data, valor) e/ou a dedução apurada na vistoria de saída
+  (descrição + valor) — nunca calculada automaticamente, sempre digitada por você
+  a partir da vistoria real. Cada linha gera o **Relatório de Apuração de Débitos
+  (RAD)** em PDF — inventário de bens do imóvel (cadastrado em Imóveis →
+  "Inventário de bens", opcional) + a dedução já registrada na caução + saldo a
+  devolver; nunca presume dano nem inventa vistoria que não aconteceu — diz
+  explicitamente "nenhum item cadastrado"/"nenhuma dedução registrada" quando é
+  o caso.
 - **Índices econômicos**: busca IGP-M, IPCA e poupança direto da API pública do
   Banco Central (SGS), rodando no navegador — sem passar por nenhum backend deste
   projeto — com lançamento manual como fallback se a busca falhar.

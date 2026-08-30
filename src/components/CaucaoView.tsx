@@ -1,13 +1,31 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, FileDown } from "lucide-react";
+import { AlertTriangle, FileDown, Pencil } from "lucide-react";
 import { useDb } from "../db/useDb";
-import { consultar } from "../db/connection";
+import { consultar, executar } from "../db/connection";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
 import { calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";
 import { baixarRadPdf } from "../domain/laudo/gerarRadPdf";
 import type { Caucao, ContratoLocacao, Imovel, ItemInventarioBem } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
+
+interface FormEdicaoCaucao {
+  id: number;
+  data_devolucao: string;
+  valor_devolvido: string;
+  deducoes_descricao: string;
+  deducoes_valor: string;
+}
+
+function paraFormEdicao(c: Caucao): FormEdicaoCaucao {
+  return {
+    id: c.id,
+    data_devolucao: c.data_devolucao ?? "",
+    valor_devolvido: c.valor_devolvido?.toString() ?? "",
+    deducoes_descricao: c.deducoes_descricao ?? "",
+    deducoes_valor: c.deducoes_valor?.toString() ?? "",
+  };
+}
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -16,6 +34,7 @@ export function CaucaoView() {
   const { db, versao, persistir } = useDb();
   const hoje = hojeIso();
   const [gerandoRadId, setGerandoRadId] = useState<number | null>(null);
+  const [formEdicao, setFormEdicao] = useState<FormEdicaoCaucao | null>(null);
 
   const caucoes = useMemo<Caucao[]>(() => (db ? consultar<Caucao>(db, "SELECT * FROM caucoes ORDER BY data_deposito DESC") : []), [db, versao]);
   const contratos = useMemo(
@@ -52,6 +71,23 @@ export function CaucaoView() {
     } finally {
       setGerandoRadId(null);
     }
+  }
+
+  async function salvarEdicao() {
+    if (!db || !formEdicao) return;
+    executar(
+      db,
+      `UPDATE caucoes SET data_devolucao = ?, valor_devolvido = ?, deducoes_descricao = ?, deducoes_valor = ? WHERE id = ?`,
+      [
+        formEdicao.data_devolucao || null,
+        formEdicao.valor_devolvido.trim() === "" ? null : Number.parseFloat(formEdicao.valor_devolvido.replace(",", ".")),
+        formEdicao.deducoes_descricao.trim() || null,
+        formEdicao.deducoes_valor.trim() === "" ? 0 : Number.parseFloat(formEdicao.deducoes_valor.replace(",", ".")),
+        formEdicao.id,
+      ],
+    );
+    await persistir();
+    setFormEdicao(null);
   }
 
   return (
@@ -98,6 +134,62 @@ export function CaucaoView() {
         </>
       )}
 
+      {formEdicao && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 6, fontWeight: 600 }}>
+            Registrar devolução / dedução
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Data da devolução (vazio = ainda retida)
+              <input
+                type="date"
+                className="btn"
+                style={{ width: "100%", marginTop: 4 }}
+                value={formEdicao.data_devolucao}
+                onChange={(e) => setFormEdicao({ ...formEdicao, data_devolucao: e.target.value })}
+              />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Valor devolvido (R$)
+              <input
+                className="btn"
+                style={{ cursor: "text", width: "100%", marginTop: 4 }}
+                value={formEdicao.valor_devolvido}
+                onChange={(e) => setFormEdicao({ ...formEdicao, valor_devolvido: e.target.value })}
+              />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Descrição da dedução
+              <input
+                className="btn"
+                style={{ cursor: "text", width: "100%", marginTop: 4 }}
+                placeholder="ex: reparo de pintura, aluguel em aberto"
+                value={formEdicao.deducoes_descricao}
+                onChange={(e) => setFormEdicao({ ...formEdicao, deducoes_descricao: e.target.value })}
+              />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Valor da dedução (R$)
+              <input
+                className="btn"
+                style={{ cursor: "text", width: "100%", marginTop: 4 }}
+                value={formEdicao.deducoes_valor}
+                onChange={(e) => setFormEdicao({ ...formEdicao, deducoes_valor: e.target.value })}
+              />
+            </label>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12, maxWidth: "68ch" }}>
+            A dedução registrada aqui é a mesma usada no cálculo de "A devolver" acima e no RAD gerado por esta
+            tela — nunca é calculada automaticamente a partir de uma vistoria (o sistema não presume dano).
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn primary" onClick={salvarEdicao}>Salvar</button>
+            <button className="btn" onClick={() => setFormEdicao(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
       <div className="table-wrap">
         <table className="data-table">
           <thead>
@@ -131,7 +223,10 @@ export function CaucaoView() {
                   <td className="num">{formatarMoeda(resultado.saldoCorrigido)}</td>
                   <td className="num">{formatarMoeda(c.deducoes_valor ?? 0)}</td>
                   <td className="num">{formatarMoeda(resultado.valorADevolver)}</td>
-                  <td>
+                  <td style={{ display: "flex", gap: 4 }}>
+                    <button className="btn" style={{ padding: "4px 7px" }} title="Registrar devolução/dedução" onClick={() => setFormEdicao(paraFormEdicao(c))}>
+                      <Pencil size={13} />
+                    </button>
                     <button
                       className="btn"
                       style={{ padding: "4px 7px" }}
