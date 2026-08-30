@@ -98,7 +98,12 @@ servi-lo em `http://localhost:4173`.
   agregado.
 - **Contratos e inadimplência**: lista de contratos de locação e competências em
   aberto com dias de atraso, multa e juros de mora calculados pelas cláusulas de
-  cada contrato.
+  cada contrato (só contratos `residencial_fixo`, que têm dia de vencimento e valor
+  fixo). Contratos Airbnb/temporada têm sua própria checagem, separada: meses em
+  que o contrato estava vigente e nenhuma receita (conta 1.2.01) foi lançada para o
+  imóvel — sinal de repasse da plataforma ainda não importado, não uma afirmação de
+  quanto deveria ter sido recebido (reserva por reserva não tem valor de referência
+  mensal fixo para comparar).
 - **Reajustes e rescisão**: histórico de reajuste por contrato (1ª renovação por
   percentual fixo pré-acordado, renovações seguintes pela variação acumulada do
   índice contratado desde o último reajuste) e calculadora de multa rescisória

@@ -3,6 +3,7 @@ import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { gerarCompetencias, conciliar } from "../domain/reconcile/contratos";
 import { calcularInadimplencia } from "../domain/reconcile/inadimplencia";
+import { detectarMesesSemReceitaAirbnb } from "../domain/reconcile/airbnb";
 import { listarPartes } from "../domain/contratos/locatarios";
 import type { ContratoLocacao, Imovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
@@ -13,6 +14,7 @@ function hojeIso(): string {
 export function ContratosInadimplenciaView() {
   const { db, versao } = useDb();
   const hoje = hojeIso();
+  const inicioJanela36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
 
   const contratos = useMemo<ContratoLocacao[]>(() => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao ORDER BY id") : []), [db, versao]);
   const imoveis = useMemo<Map<number, Imovel>>(
@@ -36,6 +38,14 @@ export function ContratosInadimplenciaView() {
   }, [db, versao, hoje]);
 
   const contratosPorId = useMemo(() => new Map(contratos.map((c) => [c.id, c])), [contratos]);
+
+  // Airbnb/temporada não entra em gerarCompetencias/conciliar (não tem dia_vencimento nem
+  // valor mensal fixo) — sem essa checagem dedicada, um contrato Airbnb ficava sem nenhum
+  // controle além do que caía solto no DRE (achado de auditoria de completude).
+  const mesesSemReceitaAirbnb = useMemo(
+    () => (db ? detectarMesesSemReceitaAirbnb(db, inicioJanela36m, hoje) : []),
+    [db, versao, inicioJanela36m, hoje],
+  );
 
   return (
     <div>
@@ -127,6 +137,36 @@ export function ContratosInadimplenciaView() {
               <tr>
                 <td colSpan={11} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                   Nenhuma competência em aberto encontrada.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="section-title" style={{ marginTop: 28 }}>Airbnb / temporada — meses sem receita registrada</h2>
+      <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12, maxWidth: "68ch" }}>
+        Contrato de temporada não tem dia de vencimento nem valor mensal fixo (reserva por reserva) — não dá para
+        calcular "competência esperada" como no residencial fixo acima. O que dá para verificar: um mês em que o
+        contrato estava vigente e nenhuma transação de receita Airbnb (conta 1.2.01) foi lançada para o imóvel —
+        sinal de repasse da plataforma ainda não importado ou lançado sem categoria, não uma afirmação de quanto
+        deveria ter sido recebido.
+      </p>
+      <div className="table-wrap" style={{ marginBottom: 28 }}>
+        <table className="data-table">
+          <thead><tr><th>Imóvel</th><th>Contrato</th><th>Mês sem receita</th></tr></thead>
+          <tbody>
+            {mesesSemReceitaAirbnb.map((m, indice) => (
+              <tr key={indice}>
+                <td>{m.imovelApelido}</td>
+                <td>{m.locatario}</td>
+                <td>{m.mesReferencia}</td>
+              </tr>
+            ))}
+            {mesesSemReceitaAirbnb.length === 0 && (
+              <tr>
+                <td colSpan={3} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                  Nenhum mês sem receita Airbnb registrada nos últimos 36 meses (ou nenhum contrato desse tipo cadastrado).
                 </td>
               </tr>
             )}
