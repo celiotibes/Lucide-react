@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { useDb } from "./db/useDb";
@@ -31,10 +31,11 @@ const ImoveisView = lazy(() => import("./components/ImoveisView").then((m) => ({
 const DocumentosView = lazy(() => import("./components/DocumentosView").then((m) => ({ default: m.DocumentosView })));
 const CadastrosView = lazy(() => import("./components/CadastrosView").then((m) => ({ default: m.CadastrosView })));
 const PatrimonioView = lazy(() => import("./components/PatrimonioView").then((m) => ({ default: m.PatrimonioView })));
+const SincronizacaoView = lazy(() => import("./components/SincronizacaoView").then((m) => ({ default: m.SincronizacaoView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
-  | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices";
+  | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -54,6 +55,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
   { id: "auditoria", rotulo: "Auditoria forense", icone: ShieldAlert },
   { id: "laudo", rotulo: "Laudo pericial", icone: FileText },
+  { id: "sincronizacao", rotulo: "Sincronização", icone: RefreshCw },
 ];
 
 function Conteudo() {
@@ -271,6 +273,7 @@ function Conteudo() {
             {aba === "razao" && <LivroRazaoView />}
             {aba === "auditoria" && <AuditoriaView aoDrillDown={aoDrillDownTransacoes} />}
             {aba === "laudo" && <LaudoView />}
+            {aba === "sincronizacao" && <SincronizacaoView />}
           </Suspense>
         </div>
       </main>

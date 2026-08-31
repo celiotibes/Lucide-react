@@ -237,6 +237,12 @@ servi-lo em `http://localhost:4173`.
   integridade de que o arquivo apresentado depois (num laudo, numa petição) é
   exatamente aquele, sem alteração posterior. Um indicador no cabeçalho avisa
   quando existe alteração feita depois do último backup exportado.
+- **Sincronização entre dispositivos** (opcional, aba "Sincronização"): envia/
+  baixa o banco inteiro de um servidor que roda na SUA própria máquina ou rede
+  (`sync-server/`, ver seção própria abaixo) — nunca um serviço de nuvem de
+  terceiro. Não é edição simultânea nem faz merge automático: um contador de
+  versão recusa (nunca sobrescreve silenciosamente) um envio feito sem antes
+  ter baixado a versão mais recente de outro dispositivo.
 
 ## Limitações conhecidas (leia antes de usar com dados reais)
 
@@ -319,7 +325,17 @@ servi-lo em `http://localhost:4173`.
   (guarda o Client Secret, nunca o navegador) e aceitar que os extratos passem por
   ele e pela Pluggy — não é mais "100% local" para quem usar esse caminho. Ver
   "Conectar banco via Open Finance" abaixo. Não testado ponta a ponta com credenciais
-  reais neste ambiente de desenvolvimento (sandbox sem acesso às suas credenciais).
+  reais neste ambiente de desenvolvimento (sandbox sem acesso a uma conta Pluggy) — o
+  código está pronto e passou por auditoria de segurança dedicada, mas o teste com
+  credenciais de verdade só você pode fazer (ou me passar credenciais de sandbox, se
+  preferir).
+- **Sincronização entre dispositivos** (`sync-server/`): testada ponta a ponta neste
+  ambiente (dois navegadores independentes, um enviando e outro baixando, incluindo o
+  caso de conflito) e funciona como descrito. A limitação é de desenho, não de bug:
+  não há merge de edições concorrentes — é sempre "banco inteiro" para lá e para cá,
+  com um contador de versão que impede sobrescrita silenciosa. Para duas pessoas
+  editando ao vivo ao mesmo tempo, não é a ferramenta certa; para uso pessoal entre
+  poucos dispositivos, revezando quem edita, é suficiente.
 - **Livro razão é derivado, não oficial**: `src/domain/contabilidade/livroRazao.ts`
   deriva débito/crédito de cada transação na hora (sem tabela nova, sempre
   consistente com as transações), suficiente como balancete de verificação para
@@ -355,6 +371,55 @@ OFX/CSV/PDF continua sendo o caminho 100% local, sem esse trade-off.
 **Segurança**: nunca exponha `CLIENT_SECRET` em código, print de tela ou
 mensagem. Se um Client Secret vazar por engano, regenere-o imediatamente em
 dashboard.pluggy.ai antes de usar o backend em produção.
+
+## Sincronização entre dispositivos (opcional)
+
+Todo o app roda num navegador só, por padrão — para usar em mais de um
+dispositivo (dois computadores seus, ou você e seu contador/advogado cada
+um no próprio navegador), existe um servidor de sincronização mínimo que
+roda **na sua própria máquina**, sem nenhum serviço de nuvem de terceiro:
+
+```bash
+cd sync-server
+npm install
+cp .env.example .env   # gere a API_KEY: openssl rand -hex 32
+npm run dev            # sobe em http://localhost:8788
+```
+
+No app web, abra a aba **Sincronização**, informe a URL do servidor, a
+mesma `API_KEY` e um nome para este dispositivo. "Enviar" manda o banco
+inteiro para o servidor; "Baixar" traz a versão mais recente para este
+dispositivo. Não é edição simultânea com merge automático — é "enviar o
+arquivo inteiro"/"baixar o arquivo inteiro", com um contador de versão que
+recusa um envio feito sem antes baixar a versão mais nova de outro
+dispositivo (nunca sobrescreve silenciosamente). Ver `sync-server/README.md`
+para como acessar de outro dispositivo na sua rede, de fora dela (sem
+depender de nuvem, via VPN mesh autohospedável tipo Tailscale) e como
+deixar isso rodando permanentemente (Raspberry Pi/NAS).
+
+Independente do `server/` da seção acima (aquele existe só pela integração
+Pluggy) — dá para usar sincronização sem nunca configurar Pluggy, e vice-versa.
+
+## Rodando 100% na sua máquina, com o mínimo possível de nuvem
+
+Resumo de que partes do sistema realmente precisam de algo fora do seu
+computador, para quem quer manter tudo o mais local possível:
+
+| Parte | Precisa de nuvem/serviço externo? |
+|---|---|
+| App principal (todas as telas, cálculos, PDFs) | **Não** — `npm run build && npm run preview`, ou os scripts `instalar-producao-*` |
+| Persistência dos dados | **Não** — IndexedDB do próprio navegador |
+| Backup/restauração | **Não** — arquivo `.sqlite` local, você escolhe onde guardar |
+| Sincronização entre seus dispositivos | **Não**, se rodar `sync-server/` na sua própria máquina/rede |
+| Acesso à sincronização de fora da sua rede | Opcional — só se você quiser isso sem VPN própria (ver seção acima) |
+| Índices econômicos (IGP-M/IPCA/poupança) | Sim, mas é uma API **pública e gratuita** do Banco Central, chamada direto do seu navegador — nenhum servidor seu no meio |
+| OCR (foto de boleto/comprovante) | Quase não — motor roda no navegador; só o pacote de idioma português baixa de uma CDN pública no primeiro uso |
+| Conexão bancária automática (Pluggy) | **Sim** — é a única peça que exige uma API paga de terceiro; sem ela, importar extrato é sempre manual (OFX/CSV/PDF/foto), sem nenhuma dependência externa |
+
+Ou seja: para uso 100% no seu computador, sem gastar com nenhum serviço de
+nuvem, o caminho é `npm run build` (ou o instalador de produção) + backup/
+sincronização manuais ou via `sync-server/` na sua própria rede, e nunca
+configurar o `server/` do Pluggy.
 
 ## Estrutura
 
@@ -399,6 +464,10 @@ contabilidade-reconstituicao/   só o schema.sql — fonte única do modelo de d
 
 server/                        backend opcional para conectar banco via Pluggy
                                 (Open Finance) — só existe pelo Client Secret.
+
+sync-server/                   servidor opcional de sincronização entre seus
+                                dispositivos — autohospedado, sem nuvem de
+                                terceiro, independente do server/ acima.
 ```
 
 O `schema.sql` em `contabilidade-reconstituicao/` é a fonte única do modelo de dados;
