@@ -1,3 +1,5 @@
+
+
 import Link from 'next/link';
 import { obterPool } from '@/server/integracao/db';
 import { formatarDataHora } from '@/lib/formatacao';
