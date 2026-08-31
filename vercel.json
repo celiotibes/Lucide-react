@@ -1,0 +1,92 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/gerar-fatura-mensal",
+      "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/notificar-vencimentos",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/emitir-cobrancas",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/distribuir-recebimentos",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/gerar-extratos-proprietario",
+      "schedule": "0 9 2 * *"
+    },
+    {
+      "path": "/api/cron/faturar-energia",
+      "schedule": "0 6 2 * *"
+    },
+    {
+      "path": "/api/cron/regua-cobranca",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/gerar-os-preventivas",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/calcular-auditoria-energia-solar",
+      "schedule": "0 9 5 * *"
+    },
+    {
+      "path": "/api/cron/alertas-diarios",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/etl-bi",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/prestador/notificacoes-auto",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/processar-documentos-anexados",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/processar-extracoes-documento",
+      "schedule": "15 * * * *"
+    },
+    {
+      "path": "/api/cron/reequilibrio-trienal",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/renovacao-contratual",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/reajuste-anual",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/alertar-vencimento-seguro",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/notificar-preferencia",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/expirar-preferencias",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/gerar-multa-juros",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/alertas-vencimento-garantias",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

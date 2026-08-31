@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 16 - Database principal
+  postgres:
+    image: postgres:16-alpine
+    container_name: crmt-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: crmt_user
+      POSTGRES_PASSWORD: crmt_senha_123
+      POSTGRES_DB: crmt_db
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=pt_BR.UTF-8"
+      TZ: "America/Sao_Paulo"
+    volumes:
+      # Persistência de dados
+      - postgres_data:/var/lib/postgresql/data
+      # Carregar schema automaticamente na criação
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/audit-compliance.sql:/docker-entrypoint-initdb.d/02-audit-compliance.sql
+      - ./database/views-analytics.sql:/docker-entrypoint-initdb.d/03-views-analytics.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crmt_user -d crmt_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - crmt-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # pgAdmin 4 - Interface gráfica para PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: crmt-pgadmin
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@crmt.local
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: 'False'
+      PGADMIN_CONFIG_COOKIE_DEFAULT_PATH: '/'
+      PGADMIN_CONFIG_COOKIE_SAMESITE: 'Lax'
+      PGADMIN_CONFIG_COOKIE_DEFAULT_SECURE: 'False'
+      PGADMIN_CONFIG_PROXY_X_PROTO_COUNT: 0
+      PGADMIN_CONFIG_PROXY_X_FORWARDED_HOST_COUNT: 0
+      PGADMIN_CONFIG_PROXY_X_PORT_COUNT: 0
+      PGADMIN_CONFIG_PROXY_X_ADDR_COUNT: 0
+      PGADMIN_CONFIG_PROXY_X_FOR_COUNT: 0
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - crmt-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PgBouncer - Connection pooling (opcional, para produção)
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: crmt-pgbouncer
+    restart: always
+    ports:
+      - "6432:6432"
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: 5432
+      DATABASES_USER: crmt_user
+      DATABASES_PASSWORD: crmt_senha_123
+      DATABASES_DBNAME: crmt_db
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 1000
+      PGBOUNCER_DEFAULT_POOL_SIZE: 25
+      PGBOUNCER_MIN_POOL_SIZE: 10
+      PGBOUNCER_RESERVE_POOL_SIZE: 5
+      PGBOUNCER_RESERVE_POOL_TIMEOUT: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - crmt-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  crmt-network:
+    driver: bridge
