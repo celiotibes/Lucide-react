@@ -66,3 +66,38 @@ export function gerarCsvConciliacao(linhas: LinhaConciliacao[]): string {
   );
   return [cabecalho.map(escaparCampoCsv).join(";"), ...corpo].join("\n");
 }
+
+function escaparHtml(valor: string): string {
+  return valor.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Exportação em Excel sem nenhuma dependência de terceiro: uma tabela HTML servida com MIME
+ * type application/vnd.ms-excel e extensão .xls — Excel, LibreOffice Calc e Google Sheets
+ * (importação) abrem esse formato nativamente, é o mesmo truque usado por incontáveis sistemas
+ * corporativos para "exportar em Excel" sem precisar de uma biblioteca de geração de XLSX
+ * binário real. Deliberadamente evitado o pacote `xlsx` (SheetJS) do npm — na auditoria de
+ * completude, instalá-lo trouxe vulnerabilidades HIGH conhecidas (o pacote do npm não recebe
+ * os mesmos patches de segurança da distribuição oficial da SheetJS); não valia o risco para
+ * uma necessidade que este truque resolve sem dependência nenhuma. Cada valor numérico ganha
+ * um atributo x:num para o Excel reconhecer como número (não texto), preservando ordenação e
+ * soma de coluna ao abrir. */
+export function gerarXlsxConciliacao(linhas: LinhaConciliacao[]): string {
+  const cabecalho = ["Data", "Descrição", "Valor", "Categoria", "Imóvel", "PF/Negócio", "Origem"];
+  const linhasHtml = linhas.map(
+    (l) =>
+      `<tr>` +
+      `<td>${escaparHtml(l.data)}</td>` +
+      `<td>${escaparHtml(l.descricao)}</td>` +
+      `<td x:num="${l.valor}">${l.valor.toFixed(2).replace(".", ",")}</td>` +
+      `<td>${escaparHtml(l.categoria)}</td>` +
+      `<td>${escaparHtml(l.imovel)}</td>` +
+      `<td>${escaparHtml(l.classificacao)}</td>` +
+      `<td>${escaparHtml(l.origem)}</td>` +
+      `</tr>`,
+  );
+  return (
+    `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>` +
+    `<table><thead><tr>${cabecalho.map((c) => `<th>${escaparHtml(c)}</th>`).join("")}</tr></thead>` +
+    `<tbody>${linhasHtml.join("")}</tbody></table></body></html>`
+  );
+}

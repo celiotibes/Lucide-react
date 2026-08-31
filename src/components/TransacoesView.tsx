@@ -5,7 +5,7 @@ import { consultar, executar } from "../db/connection";
 import type { Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
-import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
+import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, gerarXlsxConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
 
 /** Filtro inicial vindo de outra tela (drill-down do Painel: clicar numa barra da cascata do
  * DRE ou numa célula do mapa de calor navega pra cá já filtrado pela categoria/mês/imóvel que
@@ -176,6 +176,18 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     URL.revokeObjectURL(url);
   }
 
+  function exportarMapaConciliacaoXlsx() {
+    if (!db) return;
+    const xls = gerarXlsxConciliacao(gerarMapaConciliacao(db));
+    const blob = new Blob([xls], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mapa-conciliacao-bancaria-${new Date().toISOString().slice(0, 10)}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
@@ -201,6 +213,9 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
           </label>
           <button className="btn" onClick={exportarMapaConciliacao} title="Exporta todas as transações com Data, Descrição, Valor, Categoria, Imóvel e PF/Negócio">
             <Download size={13} /> Exportar mapa de conciliação (CSV)
+          </button>
+          <button className="btn" onClick={exportarMapaConciliacaoXlsx} title="Mesmo conteúdo do CSV, em formato que o Excel abre diretamente (colunas já separadas, valores como número)">
+            <Download size={13} /> Exportar (Excel)
           </button>
         </div>
       </div>

@@ -89,8 +89,11 @@ servi-lo em `http://localhost:4173`.
 - **Transações**: fila de revisão e categorização manual pelo plano de contas, com
   coluna PF × Negócio (derivada do grupo da conta: `pessoal` é PF, `receita`/`despesa`
   é a atividade de locação, `transferencia` — entre contas próprias, caução — fica à
-  parte por não ser nem um nem outro) e exportação em CSV do mapa de conciliação
-  completo (Data, Descrição, Valor, Categoria, Imóvel, PF/Negócio, Origem). Filtros
+  parte por não ser nem um nem outro) e exportação do mapa de conciliação completo
+  (Data, Descrição, Valor, Categoria, Imóvel, PF/Negócio, Origem) em CSV ou em
+  formato que o Excel abre diretamente (sem dependência de biblioteca externa —
+  tabela HTML servida com MIME/extensão de Excel, técnica sem risco de segurança
+  que qualquer pacote de geração de XLSX binário real traria). Filtros
   manuais por categoria, imóvel e intervalo de data — e é o destino do drill-down do
   resto do app: uma barra da cascata do DRE, uma célula do mapa de calor, um bloco do
   Sankey, um achado da Auditoria forense ou um mês divergente em Financiamentos abrem
