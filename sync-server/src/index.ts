@@ -114,8 +114,8 @@ app.post("/api/sync/banco", exigirChaveApi, express.raw({ type: "application/oct
     return;
   }
 
+  const caminhoTemporario = `${CAMINHO_BANCO}.tmp-${Date.now()}`;
   try {
-    const caminhoTemporario = `${CAMINHO_BANCO}.tmp-${Date.now()}`;
     writeFileSync(caminhoTemporario, req.body);
     renameSync(caminhoTemporario, CAMINHO_BANCO); // rename é atômico no mesmo filesystem — nunca deixa banco.sqlite pela metade
     const hashSha256 = createHash("sha256").update(req.body).digest("hex");
@@ -130,6 +130,18 @@ app.post("/api/sync/banco", exigirChaveApi, express.raw({ type: "application/oct
     res.json(novoEstado);
   } catch (erro) {
     console.error("Erro ao gravar banco sincronizado:", mensagemErro(erro));
+    // writeFileSync pode ter criado o temporário antes de falhar (ex: renameSync deu erro,
+    // ou salvarEstado falhou depois do rename já ter ido) — sem essa limpeza, cada upload
+    // que falhasse nessa janela deixava um arquivo .tmp-<timestamp> órfão em DADOS_DIR para
+    // sempre (achado de auditoria: nenhum request malicioso precisa disso, uploads legítimos
+    // que falham por disco cheio/permissão já acumulariam lixo).
+    if (existsSync(caminhoTemporario)) {
+      try {
+        unlinkSync(caminhoTemporario);
+      } catch {
+        // limpeza é best-effort — se nem isso funcionar, o erro original já foi logado acima
+      }
+    }
     res.status(500).json({ erro: "Falha ao gravar o banco no servidor." });
   }
 });
@@ -144,6 +156,18 @@ app.delete("/api/sync/banco", exigirChaveApi, (_req, res) => {
 });
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+/** Middleware de erro — precisa ser o ÚLTIMO app.use() (Express identifica middleware de erro
+ * pela assinatura de 4 parâmetros). Aqui o corpo bruto (express.raw) já roda depois de
+ * exigirChaveApi em toda rota, então este servidor não tem o mesmo caminho não-autenticado
+ * que o server/ (Pluggy) tinha — mas mantém a mesma defesa em profundidade: qualquer erro
+ * não previsto (ex: falha inesperada do Express/body-parser) nunca deve devolver stack trace
+ * com caminho absoluto do servidor, não importa se NODE_ENV foi configurado certo ou não. */
+app.use((erro: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Erro não tratado:", mensagemErro(erro));
+  const status = (erro as { status?: number; statusCode?: number })?.status ?? (erro as { statusCode?: number })?.statusCode ?? 500;
+  res.status(status).json({ erro: "Requisição inválida ou falha interna." });
+});
 
 const porta = Number(process.env.PORT) || 8788;
 app.listen(porta, () => {

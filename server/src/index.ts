@@ -126,6 +126,21 @@ app.post("/api/webhooks/pluggy", (req, res) => {
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
+/** Middleware de erro — precisa ser o ÚLTIMO app.use() (Express identifica middleware de erro
+ * pela assinatura de 4 parâmetros). Sem isso, um erro não tratado (ex: JSON malformado
+ * chegando em express.json(), que roda ANTES de exigirChaveApi em toda rota — alcançável sem
+ * autenticação nenhuma) cai no handler padrão do Express, que em desenvolvimento (NODE_ENV
+ * != "production", o padrão se a variável nunca for definida — confirmado empiricamente
+ * nesta auditoria) devolve o stack trace COMPLETO no corpo da resposta, incluindo caminhos
+ * absolutos do servidor — reconhecimento útil para quem for atacar, sem precisar da API_KEY
+ * pra ver isso. Não depende de configurar NODE_ENV corretamente em cada lugar onde isto for
+ * hospedado: sempre responde genérico, não importa o ambiente. */
+app.use((erro: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Erro não tratado:", mensagemErro(erro));
+  const status = (erro as { status?: number; statusCode?: number })?.status ?? (erro as { statusCode?: number })?.statusCode ?? 500;
+  res.status(status).json({ erro: "Requisição inválida ou falha interna." });
+});
+
 const porta = Number(process.env.PORT) || 8787;
 app.listen(porta, () => {
   console.log(`Servidor de integração Pluggy rodando em http://localhost:${porta}`);
