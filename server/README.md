@@ -74,3 +74,12 @@ você ainda; isto é só o código, pronto para subir onde você decidir.
   erros do Axios usados internamente pelo SDK da Pluggy podem carregar o
   Client Secret na configuração da requisição, e logar o objeto completo
   arriscaria vazá-lo em qualquer plataforma de hospedagem que agregue logs.
+- Um middleware de erro dedicado (último `app.use()`) garante que nenhuma
+  resposta HTTP devolva stack trace com caminho absoluto do servidor —
+  achado de auditoria: `express.json()` roda antes de `exigirChaveApi` em
+  toda rota, então um corpo JSON malformado, mesmo sem nenhuma API_KEY,
+  batia no handler de erro padrão do Express, que em ambiente de
+  desenvolvimento (o padrão quando `NODE_ENV` não é definido) devolve o
+  stack trace completo no corpo da resposta. Corrigido de forma que não
+  depende de configurar `NODE_ENV=production` corretamente em cada lugar
+  onde isto for hospedado.

@@ -98,3 +98,7 @@ com seu próprio botão de "Exportar backup" independente disso.
 - O envio (`POST /api/sync/banco`) usa concorrência otimista (parâmetro
   `versaoBase`): tentar enviar sem antes ter baixado a versão mais recente
   é recusado com 409, nunca sobrescreve silenciosamente.
+- Um middleware de erro dedicado (último `app.use()`) garante que nenhuma
+  resposta HTTP devolva stack trace com caminho absoluto do servidor,
+  não importa o que causar o erro — mesma proteção aplicada ao `server/`
+  (Pluggy) depois que uma auditoria achou esse vazamento lá.
