@@ -10,10 +10,19 @@ import {
 const CHAVE_SERVER_URL = "sync-server-url";
 const CHAVE_API_KEY = "sync-server-api-key";
 const CHAVE_DISPOSITIVO = "sync-nome-dispositivo";
-const CHAVE_VERSAO_CONHECIDA = "sync-versao-conhecida";
+const PREFIXO_CHAVE_VERSAO_CONHECIDA = "sync-versao-conhecida";
 
-function lerVersaoConhecida(): number {
-  const bruto = localStorage.getItem(CHAVE_VERSAO_CONHECIDA);
+// A versão conhecida precisa ser por SERVIDOR (não uma chave global única): sem isso, trocar
+// a URL do servidor (testando outro, corrigindo um erro de digitação, etc.) carregava a
+// versão conhecida do servidor ANTERIOR — na pior hipótese, se o número de versão dos dois
+// servidores coincidisse por acaso, "Enviar" passaria a checagem de conflito e sobrescreveria
+// o banco de um servidor completamente diferente sem nenhum aviso (achado desta auditoria).
+function chaveVersaoConhecida(serverUrl: string): string {
+  return `${PREFIXO_CHAVE_VERSAO_CONHECIDA}::${serverUrl.trim().toLowerCase().replace(/\/+$/, "")}`;
+}
+
+function lerVersaoConhecida(serverUrl: string): number {
+  const bruto = localStorage.getItem(chaveVersaoConhecida(serverUrl));
   const numero = bruto ? Number(bruto) : 0;
   return Number.isFinite(numero) ? numero : 0;
 }
@@ -23,7 +32,7 @@ export function SincronizacaoView() {
   const [serverUrl, setServerUrl] = useState(() => localStorage.getItem(CHAVE_SERVER_URL) ?? "http://localhost:8788");
   const [chaveApi, setChaveApi] = useState(() => localStorage.getItem(CHAVE_API_KEY) ?? "");
   const [nomeDispositivo, setNomeDispositivo] = useState(() => localStorage.getItem(CHAVE_DISPOSITIVO) ?? "");
-  const [versaoConhecida, setVersaoConhecida] = useState(lerVersaoConhecida);
+  const [versaoConhecida, setVersaoConhecida] = useState(() => lerVersaoConhecida(serverUrl));
   const [estadoServidor, setEstadoServidor] = useState<EstadoSincronizacao | null>(null);
   const [carregando, setCarregando] = useState<"verificando" | "baixando" | "enviando" | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -33,6 +42,11 @@ export function SincronizacaoView() {
   function salvarServerUrl(v: string) {
     setServerUrl(v);
     localStorage.setItem(CHAVE_SERVER_URL, v);
+    // Muda de servidor: a versão conhecida e o estado exibido são do servidor ANTERIOR —
+    // recarrega a versão conhecida deste (novo) servidor e limpa o estado até verificar de novo.
+    setVersaoConhecida(lerVersaoConhecida(v));
+    setEstadoServidor(null);
+    setErro(null);
   }
   function salvarChaveApi(v: string) {
     setChaveApi(v);
@@ -44,7 +58,7 @@ export function SincronizacaoView() {
   }
   function atualizarVersaoConhecida(v: number) {
     setVersaoConhecida(v);
-    localStorage.setItem(CHAVE_VERSAO_CONHECIDA, String(v));
+    localStorage.setItem(chaveVersaoConhecida(serverUrl), String(v));
   }
 
   async function verificar() {
