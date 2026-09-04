@@ -163,6 +163,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
  * que o server/ (Pluggy) tinha — mas mantém a mesma defesa em profundidade: qualquer erro
  * não previsto (ex: falha inesperada do Express/body-parser) nunca deve devolver stack trace
  * com caminho absoluto do servidor, não importa se NODE_ENV foi configurado certo ou não. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 4º parâmetro obrigatório: é só pela aridade que o Express reconhece isto como middleware de erro
 app.use((erro: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("Erro não tratado:", mensagemErro(erro));
   const status = (erro as { status?: number; statusCode?: number })?.status ?? (erro as { statusCode?: number })?.statusCode ?? 500;

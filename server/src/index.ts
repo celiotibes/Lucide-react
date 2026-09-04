@@ -135,6 +135,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
  * absolutos do servidor — reconhecimento útil para quem for atacar, sem precisar da API_KEY
  * pra ver isso. Não depende de configurar NODE_ENV corretamente em cada lugar onde isto for
  * hospedado: sempre responde genérico, não importa o ambiente. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 4º parâmetro obrigatório: é só pela aridade que o Express reconhece isto como middleware de erro
 app.use((erro: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("Erro não tratado:", mensagemErro(erro));
   const status = (erro as { status?: number; statusCode?: number })?.status ?? (erro as { statusCode?: number })?.statusCode ?? 500;
