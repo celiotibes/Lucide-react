@@ -45,6 +45,20 @@ export function gerarMapaConciliacao(db: Database): LinhaConciliacao[] {
   });
 }
 
+// Injeção de fórmula em CSV/Excel (categoria de vulnerabilidade documentada pela OWASP): uma
+// célula cujo texto começa com =, +, - ou @ é interpretada como fórmula por Excel/LibreOffice/
+// Google Sheets ao abrir o arquivo — escapar aspas (CSV) ou &/</> (HTML) só garante a estrutura
+// do arquivo, não impede isso. Aqui o risco é real: `descricao` vem do texto bruto do extrato
+// bancário (descricao_original) e `categoria`/`imovel` vêm de texto livre cadastrado, e o
+// propósito do export é justamente circular para terceiros (contador, advogado, parte contrária)
+// num processo judicial. Mitigação padrão OWASP: prefixar com apóstrofo qualquer valor que
+// comece com um desses caracteres — o Excel exibe o texto literal, sem tentar interpretá-lo.
+const GATILHO_FORMULA = /^[=+\-@]/;
+
+function neutralizarFormula(valor: string): string {
+  return GATILHO_FORMULA.test(valor) ? `'${valor}` : valor;
+}
+
 function escaparCampoCsv(valor: string): string {
   return `"${valor.replace(/"/g, '""')}"`;
 }
@@ -54,10 +68,10 @@ export function gerarCsvConciliacao(linhas: LinhaConciliacao[]): string {
   const corpo = linhas.map((l) =>
     [
       l.data,
-      l.descricao,
+      neutralizarFormula(l.descricao),
       l.valor.toFixed(2).replace(".", ","),
-      l.categoria,
-      l.imovel,
+      neutralizarFormula(l.categoria),
+      neutralizarFormula(l.imovel),
       l.classificacao,
       l.origem,
     ]
@@ -87,10 +101,10 @@ export function gerarXlsxConciliacao(linhas: LinhaConciliacao[]): string {
     (l) =>
       `<tr>` +
       `<td>${escaparHtml(l.data)}</td>` +
-      `<td>${escaparHtml(l.descricao)}</td>` +
+      `<td>${escaparHtml(neutralizarFormula(l.descricao))}</td>` +
       `<td x:num="${l.valor}">${l.valor.toFixed(2).replace(".", ",")}</td>` +
-      `<td>${escaparHtml(l.categoria)}</td>` +
-      `<td>${escaparHtml(l.imovel)}</td>` +
+      `<td>${escaparHtml(neutralizarFormula(l.categoria))}</td>` +
+      `<td>${escaparHtml(neutralizarFormula(l.imovel))}</td>` +
       `<td>${escaparHtml(l.classificacao)}</td>` +
       `<td>${escaparHtml(l.origem)}</td>` +
       `</tr>`,
