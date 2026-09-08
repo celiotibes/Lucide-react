@@ -421,6 +421,23 @@ nuvem, o caminho é `npm run build` (ou o instalador de produção) + backup/
 sincronização manuais ou via `sync-server/` na sua própria rede, e nunca
 configurar o `server/` do Pluggy.
 
+## Segurança
+
+- **Exportação CSV/Excel** (`src/domain/reports/conciliacaoBancaria.ts`): campos de texto
+  livre (descrição do extrato, categoria, imóvel) são neutralizados contra injeção de
+  fórmula — um valor começando com `=`, `+`, `-` ou `@` ganha um apóstrofo antes de sair,
+  para que Excel/LibreOffice/Google Sheets nunca o interpretem como fórmula ao abrir o
+  arquivo (mitigação padrão OWASP; achado de auditoria interna, já que o extrato bancário
+  bruto é texto de origem externa e o próprio propósito do export é circular com terceiros).
+- **Dependências**: `.github/dependabot.yml` verifica os três `package.json` (raiz, `server/`,
+  `sync-server/`) toda semana e abre PR sozinho quando alguma dependência tem atualização de
+  segurança — não depende de ninguém lembrar de rodar `npm audit` manualmente. Rode
+  `npm audit` (e, dentro de `server/`/`sync-server/`, o mesmo comando) a qualquer momento para
+  conferir o estado atual.
+- Backends (`server/`, `sync-server/`): ver a seção "Segurança" de cada `README.md` respectivo
+  — chave de API obrigatória em toda rota de dados, rate limiting por IP, middleware de erro
+  dedicado (nunca vaza stack trace com caminho absoluto do servidor).
+
 ## Estrutura
 
 ```
