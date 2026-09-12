@@ -16,11 +16,12 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 
 /**
  * Get authenticated Supabase client for server-side operations
+ * @deprecated Use lib/supabase/serviceClient.ts instead
  */
 export const getServerSupabase = () => {
-  const serverKey = process.env.SUPABASE_SERVICE_KEY;
+  const serverKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serverKey) {
-    throw new Error('SUPABASE_SERVICE_KEY not configured');
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured. Check your .env.local file.');
   }
   return createClient(supabaseUrl, serverKey);
 };
