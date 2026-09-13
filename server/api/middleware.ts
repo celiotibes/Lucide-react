@@ -11,9 +11,13 @@
  * - validateAuthToken(request) -> string | null
  * - errorHandler(error) -> { message: string; status: number; details?: any }
  * - withErrorHandler(handler) -> middleware wrapper
+ * - withCronAuth(handler) -> middleware wrapper com validação CRON
+ * - withBearerAuth(handler) -> middleware wrapper com Bearer token
+ * - withSupabaseAuth(handler) -> middleware wrapper com Supabase session
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { validateSupabaseSession, type AuthContext } from './auth';
 
 /**
  * Valida o token CRON_SECRET enviado pela Vercel via Authorization header
@@ -172,6 +176,106 @@ export function withErrorHandler(
   return async (req: NextRequest): Promise<NextResponse> => {
     try {
       return await handler(req);
+    } catch (error) {
+      const formatted = errorHandler(error);
+      return NextResponse.json(
+        {
+          erro: formatted.message,
+          ...(formatted.details && { detalhes: formatted.details }),
+        },
+        { status: formatted.status }
+      );
+    }
+  };
+}
+
+/**
+ * Middleware wrapper que:
+ * 1. Valida Supabase session
+ * 2. Executa handler
+ * 3. Captura e formata erros
+ */
+export function withSupabaseAuth(
+  handler: (req: NextRequest, auth: AuthContext) => Promise<NextResponse>
+) {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    const auth = await validateSupabaseSession(req);
+    if (!auth) {
+      return NextResponse.json(
+        { erro: 'Não autenticado' },
+        { status: 401 }
+      );
+    }
+
+    try {
+      return await handler(req, auth);
+    } catch (error) {
+      const formatted = errorHandler(error);
+      return NextResponse.json(
+        {
+          erro: formatted.message,
+          ...(formatted.details && { detalhes: formatted.details }),
+        },
+        { status: formatted.status }
+      );
+    }
+  };
+}
+
+/**
+ * Middleware wrapper com Supabase auth opcional
+ */
+export function withSupabaseAuthOptional(
+  handler: (req: NextRequest, auth: AuthContext | null) => Promise<NextResponse>
+) {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    const auth = await validateSupabaseSession(req);
+
+    try {
+      return await handler(req, auth);
+    } catch (error) {
+      const formatted = errorHandler(error);
+      return NextResponse.json(
+        {
+          erro: formatted.message,
+          ...(formatted.details && { detalhes: formatted.details }),
+        },
+        { status: formatted.status }
+      );
+    }
+  };
+}
+
+/**
+ * Middleware wrapper que requer um dos roles especificados
+ */
+export function withSupabaseRole(
+  allowedRoles: string[],
+  handler: (req: NextRequest, auth: AuthContext) => Promise<NextResponse>
+) {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    const auth = await validateSupabaseSession(req);
+
+    if (!auth) {
+      return NextResponse.json(
+        { erro: 'Não autenticado' },
+        { status: 401 }
+      );
+    }
+
+    if (!auth.role || !allowedRoles.includes(auth.role)) {
+      return NextResponse.json(
+        {
+          erro: 'Acesso negado',
+          roles_requeridos: allowedRoles,
+          seu_role: auth.role,
+        },
+        { status: 403 }
+      );
+    }
+
+    try {
+      return await handler(req, auth);
     } catch (error) {
       const formatted = errorHandler(error);
       return NextResponse.json(
