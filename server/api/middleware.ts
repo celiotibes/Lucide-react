@@ -13,11 +13,10 @@
  * - withErrorHandler(handler) -> middleware wrapper
  * - withCronAuth(handler) -> middleware wrapper com validação CRON
  * - withBearerAuth(handler) -> middleware wrapper com Bearer token
- * - withSupabaseAuth(handler) -> middleware wrapper com Supabase session
+ * - logError(context, error) -> logging estruturado
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSupabaseSession, type AuthContext } from './auth';
 
 /**
  * Valida o token CRON_SECRET enviado pela Vercel via Authorization header
