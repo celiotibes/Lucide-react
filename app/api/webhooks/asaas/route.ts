@@ -39,6 +39,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ erro: 'Corpo da requisição não é JSON válido.' }, { status: 400 });
   }
 
+  // Validar timestamp para evitar replay attacks (máximo 5 minutos)
+  if (typeof payload === 'object' && payload !== null) {
+    const payloadObj = payload as Record<string, unknown>;
+    const timestamp = payloadObj.timestamp;
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+      const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+      const agora = Math.floor(Date.now() / 1000);
+      const diferenca = Math.abs(agora - ts);
+
+      if (diferenca > 300) {
+        // Mais de 5 minutos de diferença
+        return NextResponse.json(
+          { erro: 'Webhook fora da janela de tempo permitida' },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   let evento: EventoAsaasNormalizado;
   try {
     evento = interpretarWebhook(payload);

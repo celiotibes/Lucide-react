@@ -98,25 +98,39 @@ export async function DELETE(
     const { id } = await params;
     const pool = obterPool();
 
-    const { rows: checkRows } = await pool.query(
-      `select count(*) as cnt from contrato_partes where pessoa_id = $1`,
-      [id]
-    );
+    // Use transaction to prevent race condition between check and delete
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (checkRows[0].cnt > 0) {
-      return NextResponse.json(
-        { erro: 'Não é possível deletar pessoa com contratos associados' },
-        { status: 409 }
+      const { rows: checkRows } = await client.query(
+        `select count(*) as cnt from contrato_partes where pessoa_id = $1`,
+        [id]
       );
+
+      if (checkRows[0].cnt > 0) {
+        await client.query('ROLLBACK');
+        return NextResponse.json(
+          { erro: 'Não é possível deletar pessoa com contratos associados' },
+          { status: 409 }
+        );
+      }
+
+      const { rowCount } = await client.query(`delete from pessoas where id = $1`, [id]);
+
+      if (rowCount === 0) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({ erro: 'Pessoa não encontrada' }, { status: 404 });
+      }
+
+      await client.query('COMMIT');
+      return NextResponse.json({ sucesso: true });
+    } catch (erro) {
+      await client.query('ROLLBACK');
+      throw erro;
+    } finally {
+      client.release();
     }
-
-    const { rowCount } = await pool.query(`delete from pessoas where id = $1`, [id]);
-
-    if (rowCount === 0) {
-      return NextResponse.json({ erro: 'Pessoa não encontrada' }, { status: 404 });
-    }
-
-    return NextResponse.json({ sucesso: true });
   } catch (erro) {
     console.error('Erro ao deletar pessoa:', erro);
     return NextResponse.json({ erro: 'Erro ao deletar pessoa' }, { status: 500 });

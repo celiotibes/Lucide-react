@@ -25,8 +25,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Query: contratos expirando nos próximos 30 dias
-    const hoje = new Date();
-    const proximo30dias = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    // Always use UTC for date operations to avoid timezone bugs
+    const hojeUTC = new Date(Date.now()).toISOString().split('T')[0];
+    const proximo30diasUTC = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const { data: contratos, error } = await supabase
       .from('contratos')
@@ -44,8 +45,8 @@ export async function GET(request: NextRequest) {
       `,
       )
       .eq('status', 'ativo')
-      .lte('data_fim', proximo30dias.toISOString().split('T')[0])
-      .gte('data_fim', hoje.toISOString().split('T')[0])
+      .lte('data_fim', proximo30diasUTC)
+      .gte('data_fim', hojeUTC)
       .order('data_fim', { ascending: true });
 
     if (error) {
@@ -55,9 +56,11 @@ export async function GET(request: NextRequest) {
 
     // Transformar dados
     const contratosFormatados = (contratos || []).map((c: any) => {
-      const dataFim = new Date(c.data_fim);
+      // Use UTC dates for consistent calculations
+      const dataFim = new Date(c.data_fim + 'T00:00:00Z');
+      const hojeData = new Date(hojeUTC + 'T00:00:00Z');
       const diasAteVencimento = Math.ceil(
-        (dataFim.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24),
+        (dataFim.getTime() - hojeData.getTime()) / (1000 * 60 * 60 * 24),
       );
 
       const locatario = c.contrato_partes?.find(
