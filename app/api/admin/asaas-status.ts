@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Inicializar Asaas client
-    const asaasApiKey = process.env.NEXT_PUBLIC_ASAAS_API_KEY;
+    const asaasApiKey = process.env.ASAAS_API_KEY;
     if (!asaasApiKey) {
       return NextResponse.json({
         conectado: false,

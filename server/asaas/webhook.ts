@@ -4,6 +4,8 @@
 // webhook malformado ou de uma versão futura da API do Asaas não pode
 // derrubar o processamento com uma exceção não tratada.
 
+import { timingSafeEqual } from 'crypto';
+
 export type EventoAsaasNormalizado =
   | { tipo: 'pagamento_confirmado'; cobrancaId: string; referenciaExterna: string | null; valor: number }
   | { tipo: 'pagamento_atrasado'; cobrancaId: string; referenciaExterna: string | null }
@@ -26,7 +28,16 @@ export function verificarTokenWebhook(tokenRecebido: string | null, tokenConfigu
   if (!tokenConfigurado) {
     throw new Error('tokenConfigurado não pode ser vazio — configuração ausente é erro de operação, não de payload');
   }
-  return tokenRecebido === tokenConfigurado;
+  if (!tokenRecebido) {
+    return false;
+  }
+  // Usar crypto.timingSafeEqual para evitar timing attacks
+  try {
+    return timingSafeEqual(Buffer.from(tokenRecebido), Buffer.from(tokenConfigurado));
+  } catch {
+    // Se os buffers têm tamanhos diferentes, timingSafeEqual lança erro
+    return false;
+  }
 }
 
 export function interpretarWebhook(payloadBruto: unknown): EventoAsaasNormalizado {

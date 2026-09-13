@@ -43,6 +43,21 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
+    // Validar paginação contra DoS
+    if (!Number.isFinite(limit) || limit < 1 || limit > 100) {
+      return NextResponse.json(
+        { erro: 'limit deve estar entre 1 e 100' },
+        { status: 400 }
+      );
+    }
+
+    if (!Number.isFinite(offset) || offset < 0) {
+      return NextResponse.json(
+        { erro: 'offset deve ser >= 0' },
+        { status: 400 }
+      );
+    }
+
     let query = supabase
       .from('audit_log')
       .select(

@@ -24,6 +24,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ erro: 'Não autenticado' }, { status: 401 });
     }
 
+    // Verificar role admin
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('papel')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!usuario || usuario.papel !== 'admin') {
+      return NextResponse.json({ erro: 'Acesso negado - apenas admins' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { numeroCelular, tipoNotificacao, dadosRelevantes, nomeDestinatario } = body;
 

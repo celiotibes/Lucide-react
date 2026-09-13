@@ -45,18 +45,22 @@ export async function PUT(
       status,
     } = await request.json();
 
-    if (!valor_aluguel || valor_aluguel <= 0) {
+    const valorAluguelNum = Number(valor_aluguel);
+    if (!Number.isFinite(valorAluguelNum) || valorAluguelNum <= 0) {
       return NextResponse.json(
-        { erro: 'Valor do aluguel deve ser maior que zero' },
+        { erro: 'Valor do aluguel deve ser um número maior que zero' },
         { status: 400 }
       );
     }
 
-    if (dia_vencimento && (dia_vencimento < 1 || dia_vencimento > 31)) {
-      return NextResponse.json(
-        { erro: 'Dia de vencimento deve estar entre 1 e 31' },
-        { status: 400 }
-      );
+    if (dia_vencimento) {
+      const diaNum = Number(dia_vencimento);
+      if (!Number.isFinite(diaNum) || diaNum < 1 || diaNum > 31) {
+        return NextResponse.json(
+          { erro: 'Dia de vencimento deve ser um número entre 1 e 31' },
+          { status: 400 }
+        );
+      }
     }
 
     const pool = obterPool();
@@ -86,6 +90,10 @@ export async function PUT(
        where c.id = $1`,
       [id]
     );
+
+    if (rows.length === 0) {
+      return NextResponse.json({ erro: 'Contrato não encontrado' }, { status: 404 });
+    }
 
     return NextResponse.json(rows[0]);
   } catch (erro) {

@@ -5,11 +5,9 @@
  */
 
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    // Validar variáveis de ambiente no servidor
-    const { logEnvironmentValidation } = await import('./server/integracao/validateEnv');
-    logEnvironmentValidation();
+  // Validar variáveis de ambiente em todos os runtimes (Node.js e Edge)
+  const { logEnvironmentValidation } = await import('./server/integracao/validateEnv');
+  logEnvironmentValidation();
 
-    console.log('🚀 CRMT Gestão Imobiliária - Servidor iniciando...');
-  }
+  console.log('🚀 CRMT Gestão Imobiliária - Servidor iniciando...');
 }

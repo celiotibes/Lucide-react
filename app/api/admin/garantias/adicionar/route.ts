@@ -22,6 +22,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Validar datas
+    const dataInícioTime = dataInicio ? new Date(dataInicio).getTime() : null;
+    const dataVencimentoTime = new Date(dataVencimento).getTime();
+
+    if (dataInícioTime && isNaN(dataInícioTime)) {
+      return NextResponse.json(
+        { erro: 'dataInicio inválida' },
+        { status: 400 }
+      );
+    }
+
+    if (isNaN(dataVencimentoTime)) {
+      return NextResponse.json(
+        { erro: 'dataVencimento inválida' },
+        { status: 400 }
+      );
+    }
+
     const pool = obterPool();
 
     // Validar que o contrato existe
