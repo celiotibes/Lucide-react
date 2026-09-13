@@ -350,9 +350,13 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                     </td>
                     <td>
                       {rateios.length > 0 ? (
-                        <span
+                        // <button>, não <span>, para o pill ficar acionável por teclado (Tab + Enter/Espaço)
+                        // e anunciável por leitor de tela — achado de auditoria de acessibilidade (ui-analyzer,
+                        // SkillOS): um <span onClick> sozinho não recebe foco nem responde a teclado.
+                        <button
+                          type="button"
                           className={`pill ${rateios.some((r) => r.baseIncompleta) ? "warning" : "good"}`}
-                          style={{ cursor: "pointer" }}
+                          style={{ cursor: "pointer", border: "none", font: "inherit" }}
                           title={
                             rateios.some((r) => r.baseIncompleta)
                               ? "Rateio com pelo menos um imóvel sem fração ideal/área cadastrada — clique para revisar"
@@ -361,7 +365,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                           onClick={() => abrirRateio(t)}
                         >
                           rateado · {rateios.length} imóveis{rateios.some((r) => r.baseIncompleta) ? " ⚠" : ""}
-                        </span>
+                        </button>
                       ) : (
                         <select value={t.imovel_id ?? ""} onChange={(e) => atribuirImovel(t.id, e.target.value)}>
                           <option value="">— sem imóvel —</option>

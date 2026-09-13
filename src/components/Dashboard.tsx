@@ -392,21 +392,41 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
                       const valor = celula?.valor ?? 0;
                       const intensidade = heatmapDespesas.valorMaximo > 0 ? Math.round((valor / heatmapDespesas.valorMaximo) * 100) : 0;
                       const temOutlier = celula ? celulasComOutlier.has(`${celula.codigo}|${celula.mes}`) : false;
+                      const acionavel = valor > 0 && !!aoDrillDown;
+                      const drillDown = () => {
+                        if (celula && aoDrillDown) {
+                          aoDrillDown({ planoContaCodigo: celula.codigo, dataInicio: `${celula.mes}-01`, dataFim: ultimoDiaDoMes(celula.mes) });
+                        }
+                      };
                       return (
                         <td
                           key={mes}
                           className="num"
-                          onClick={() => {
-                            if (celula && aoDrillDown) {
-                              aoDrillDown({ planoContaCodigo: celula.codigo, dataInicio: `${celula.mes}-01`, dataFim: ultimoDiaDoMes(celula.mes) });
-                            }
-                          }}
+                          onClick={drillDown}
+                          // Célula do heatmap só vira parada de Tab quando de fato aciona algo (evita
+                          // dezenas de tab-stops inertes) — mas, quando aciona, precisa responder a
+                          // teclado igual a um botão: role + tabIndex + Enter/Espaço (achado de
+                          // auditoria de acessibilidade, ui-analyzer/SkillOS — só onClick num <td>
+                          // nunca foi alcançável sem mouse).
+                          role={acionavel ? "button" : undefined}
+                          tabIndex={acionavel ? 0 : undefined}
+                          onKeyDown={
+                            acionavel
+                              ? (e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    drillDown();
+                                  }
+                                }
+                              : undefined
+                          }
+                          aria-label={acionavel ? `Ver lançamentos de ${categoria} em ${mes}` : undefined}
                           title={temOutlier ? "Contém lançamento fora da curva da própria categoria (achado da Auditoria forense)" : undefined}
                           style={{
                             background: valor > 0 ? `color-mix(in srgb, var(--viz-despesa) ${Math.max(intensidade, 12)}%, var(--viz-surface))` : undefined,
                             color: intensidade > 45 ? "#fff" : undefined,
                             fontSize: 12,
-                            cursor: valor > 0 && aoDrillDown ? "pointer" : undefined,
+                            cursor: acionavel ? "pointer" : undefined,
                             position: "relative",
                           }}
                         >
