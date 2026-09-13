@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { criarClienteServico } from '@/lib/supabase/serviceClient';
 import { CriticalDatesService } from '@/services/CriticalDatesService';
 import { ProcessPaymentReceivedRequest, ApiResponse } from '@/types/api-requests';
 

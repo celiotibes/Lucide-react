@@ -74,7 +74,7 @@
     },
     {
       "path": "/api/cron/notificar-preferencia",
-      "schedule": "30 6 * * *"
+      "schedule": "31 6 * * *"
     },
     {
       "path": "/api/cron/expirar-preferencias",

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { criarClienteServico } from '@/lib/supabase/serviceClient';
 import { OccupancyService } from '@/services/OccupancyService';
 import { ReportOccupancyViolationRequest, ApiResponse } from '@/types/api-requests';
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<any>>> {
   try {
     const body: ReportOccupancyViolationRequest = await request.json();
-    const occupancyService = new OccupancyService(supabase);
+    const supabaseClient = criarClienteServico();
+    const occupancyService = new OccupancyService(supabaseClient);
 
     if (!body.lease_id || !body.property_id || !body.violation_type) {
       return NextResponse.json(

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { criarClienteServico } from '@/lib/supabase/serviceClient';
 import { InspectionService } from '@/services/InspectionService';
 import { CreateInspectionRequest, ApiResponse, CreateInspectionResponse } from '@/types/api-requests';
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<CreateInspectionResponse>>> {
   try {
     const body: CreateInspectionRequest = await request.json();
-    const inspectionService = new InspectionService(supabase);
+    const supabaseClient = criarClienteServico();
+    const inspectionService = new InspectionService(supabaseClient);
 
     // Validate video quality before creating inspection
     if (!inspectionService.validateVideoQuality(body.video_size_mb, body.video_duration_seconds)) {
