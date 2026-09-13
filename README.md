@@ -158,7 +158,11 @@ servi-lo em `http://localhost:4173`.
   financeiros), esta é a trilha de quem mudou o quê nos próprios cadastros.
 - **Rateio de despesas coletivas**: qualquer transação pode ser dividida entre
   vários imóveis por fração ideal, área ou partes iguais; o DRE por imóvel já
-  soma a fatia correspondente.
+  soma a fatia correspondente. Se algum imóvel selecionado não tiver fração
+  ideal/área cadastrada, o sistema nunca inventa esse dado silenciosamente — avisa
+  antes de aplicar, marca o rateio resultante como "base incompleta" (pill de
+  atenção na tela e item no painel de Pendências) e deixa o imóvel sem o dado de
+  fora da divisão em vez de forçar um percentual fabricado.
 - **Categorização com aprendizado**: ao categorizar uma transação manualmente, dá
   para salvar o padrão como regra e aplicá-la de uma vez às pendências semelhantes.
   Opcionalmente a regra também pode fixar um imóvel (útil para fornecedor recorrente

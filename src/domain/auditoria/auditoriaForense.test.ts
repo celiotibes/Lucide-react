@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { criarBancoDeTeste } from "../../test/fixtureDb";
 import { executar } from "../../db/connection";
-import { detectarCaucoesSemTransacao, detectarDuplicatas, testeBenford } from "./auditoriaForense";
+import { detectarCaucoesSemTransacao, detectarDuplicatas, detectarRateiosComBaseIncompleta, testeBenford } from "./auditoriaForense";
 
 async function bancoComContaBase() {
   const db = await criarBancoDeTeste();
@@ -102,5 +102,33 @@ describe("testeBenford", () => {
     const resultado = testeBenford([123, 456, 789, 111, 222, 333]);
     const soma = resultado.reduce((acc, r) => acc + r.frequenciaObservada, 0);
     expect(soma).toBeCloseTo(1, 6);
+  });
+});
+
+describe("detectarRateiosComBaseIncompleta", () => {
+  it("agrupa por transação, listando todos os imóveis participantes do rateio marcado", async () => {
+    const db = await bancoComContaBase();
+    executar(db, "INSERT INTO imoveis (id, apelido, tipo) VALUES (1, 'Kitnet 1', 'kitnet')");
+    executar(db, "INSERT INTO imoveis (id, apelido, tipo) VALUES (2, 'Kitnet 2', 'kitnet')");
+    executar(db, "INSERT INTO transacoes (id, conta_id, data, valor, descricao_original) VALUES (1, 1, '2026-01-01', -100, 'CONDOMINIO COLETIVO')");
+    executar(db, "INSERT INTO rateios (transacao_id, imovel_id, criterio, percentual, valor_rateado, base_incompleta) VALUES (1, 1, 'fracao_ideal', 0.5, -50, 1)");
+    executar(db, "INSERT INTO rateios (transacao_id, imovel_id, criterio, percentual, valor_rateado, base_incompleta) VALUES (1, 2, 'fracao_ideal', 0.5, -50, 1)");
+
+    const resultado = detectarRateiosComBaseIncompleta(db);
+
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0]).toMatchObject({ transacaoId: 1, descricaoTransacao: "CONDOMINIO COLETIVO" });
+    expect(resultado[0].imoveisApelidos.sort()).toEqual(["Kitnet 1", "Kitnet 2"]);
+  });
+
+  it("rateio sem base_incompleta (0) nunca aparece na lista", async () => {
+    const db = await bancoComContaBase();
+    executar(db, "INSERT INTO imoveis (id, apelido, tipo, fracao_ideal) VALUES (1, 'Kitnet 1', 'kitnet', 0.5)");
+    executar(db, "INSERT INTO imoveis (id, apelido, tipo, fracao_ideal) VALUES (2, 'Kitnet 2', 'kitnet', 0.5)");
+    executar(db, "INSERT INTO transacoes (id, conta_id, data, valor, descricao_original) VALUES (1, 1, '2026-01-01', -100, 'CONDOMINIO COLETIVO')");
+    executar(db, "INSERT INTO rateios (transacao_id, imovel_id, criterio, percentual, valor_rateado) VALUES (1, 1, 'fracao_ideal', 0.5, -50)");
+    executar(db, "INSERT INTO rateios (transacao_id, imovel_id, criterio, percentual, valor_rateado) VALUES (1, 2, 'fracao_ideal', 0.5, -50)");
+
+    expect(detectarRateiosComBaseIncompleta(db)).toEqual([]);
   });
 });

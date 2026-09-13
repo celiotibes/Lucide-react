@@ -1,6 +1,6 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
-import { detectarDuplicatas, detectarLacunasMensais, detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento } from "./auditoriaForense";
+import { detectarDuplicatas, detectarLacunasMensais, detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento, detectarRateiosComBaseIncompleta } from "./auditoriaForense";
 import { gerarCompetencias, conciliar } from "../reconcile/contratos";
 import { calcularInadimplencia } from "../reconcile/inadimplencia";
 import { calcularPatrimonioLiquido } from "../patrimonio/balancoPatrimonial";
@@ -121,6 +121,17 @@ export function gerarPainelPendencias(db: Database, hoje: string): ItemPendencia
       descricao: "Financiamento cadastrado (SAC/Price) sem nenhuma transação de juros/amortização nas transações — o lucro do imóvel no DRE pode estar superestimado por falta desse lançamento.",
       severidade: "critica",
       aba: "financiamentos",
+    });
+  }
+
+  const rateiosComBaseIncompleta = detectarRateiosComBaseIncompleta(db);
+  if (rateiosComBaseIncompleta.length > 0) {
+    itens.push({
+      id: "rateios-base-incompleta",
+      titulo: `${rateiosComBaseIncompleta.length} rateio(s) por fração ideal/área com imóvel sem esse dado`,
+      descricao: "Despesa/receita coletiva rateada entre imóveis onde pelo menos um não tem fração ideal ou área cadastrada — o cálculo tratou o peso dele como zero (ou dividiu igual, se nenhum tinha) em vez de recusar. Cadastre a fração ideal/área em Imóveis e refaça o rateio.",
+      severidade: "atencao",
+      aba: "transacoes",
     });
   }
 

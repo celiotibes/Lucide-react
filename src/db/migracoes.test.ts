@@ -91,4 +91,30 @@ describe("garantirColunasAtualizadas — migração aditiva num banco 'antigo' d
     const db = new SQL.Database(); // banco totalmente vazio, nenhuma tabela
     expect(() => garantirColunasAtualizadas(db, schemaSql)).not.toThrow();
   });
+
+  it("coluna nova com CHECK inline (rateios.base_incompleta) migra sem erro e assume o DEFAULT em linha já existente", async () => {
+    const SQL = await initSqlJs({ locateFile: (arquivo) => `node_modules/sql.js/dist/${arquivo}` });
+    const db = new SQL.Database();
+    // Versão "antiga" de rateios — sem base_incompleta (achado desta sessão ao aplicar a
+    // metodologia de rateio do SkillOS accounting-reconstruction: fallback silencioso de
+    // divisão igual precisa ficar marcado, nunca indistinguível de um rateio completo).
+    db.run(`
+      CREATE TABLE rateios (
+        id INTEGER PRIMARY KEY,
+        transacao_id INTEGER NOT NULL,
+        imovel_id INTEGER NOT NULL,
+        criterio TEXT NOT NULL,
+        percentual REAL NOT NULL,
+        valor_rateado REAL NOT NULL
+      )
+    `);
+    db.run("INSERT INTO rateios (id, transacao_id, imovel_id, criterio, percentual, valor_rateado) VALUES (1, 1, 1, 'fracao_ideal', 0.5, -50)");
+
+    garantirColunasAtualizadas(db, schemaSql);
+
+    const colunas = db.exec("PRAGMA table_info(rateios)")[0].values.map((v) => String(v[1]));
+    expect(colunas).toContain("base_incompleta");
+    const [linha] = db.exec("SELECT base_incompleta FROM rateios WHERE id = 1")[0].values;
+    expect(linha[0]).toBe(0);
+  });
 });

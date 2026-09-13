@@ -321,3 +321,34 @@ export function detectarFinanciamentosSemLancamento(db: Database, dataReferencia
     })
     .map((f) => ({ financiamentoId: f.id, imovelApelido: f.imovel_apelido, instituicao: f.instituicao, dataContrato: f.data_contrato }));
 }
+
+export interface RateioComBaseIncompleta {
+  transacaoId: number;
+  descricaoTransacao: string;
+  imoveisApelidos: string[];
+}
+
+/** Rateios (motorRateio.ts) marcados com base_incompleta = 1 — pelo menos um imóvel
+ * participante do rateio não tinha fracao_ideal/area_m2 cadastrado, e o cálculo precisou
+ * tratar o peso dele como 0 (ou caiu para divisão igual, se ninguém tinha o dado). Sem
+ * este alerta, essa marca ficava enterrada só na tabela de detalhe de uma transação em
+ * Transações, sem aparecer em nenhum lugar que resuma pendências do sistema. */
+export function detectarRateiosComBaseIncompleta(db: Database): RateioComBaseIncompleta[] {
+  const linhas = consultar<{ transacao_id: number; descricao_original: string; apelido: string }>(
+    db,
+    `SELECT r.transacao_id, t.descricao_original, i.apelido
+     FROM rateios r
+     JOIN transacoes t ON t.id = r.transacao_id
+     JOIN imoveis i ON i.id = r.imovel_id
+     WHERE r.base_incompleta = 1
+     ORDER BY t.data DESC, r.transacao_id`,
+  );
+
+  const porTransacao = new Map<number, RateioComBaseIncompleta>();
+  for (const l of linhas) {
+    const existente = porTransacao.get(l.transacao_id);
+    if (existente) existente.imoveisApelidos.push(l.apelido);
+    else porTransacao.set(l.transacao_id, { transacaoId: l.transacao_id, descricaoTransacao: l.descricao_original, imoveisApelidos: [l.apelido] });
+  }
+  return [...porTransacao.values()];
+}

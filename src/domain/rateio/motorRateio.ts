@@ -4,33 +4,54 @@ import type { Imovel } from "../types";
 
 export type CriterioRateio = "fracao_ideal" | "area_m2" | "por_unidade";
 
+// 'documento' só é gravado por aplicarRateioPersonalizado (distribuição vinda de nota
+// fiscal/recibo) — nunca é um valor de entrada válido para calcularPercentuais/aplicarRateio,
+// por isso é um tipo à parte em vez de mais um membro de CriterioRateio (achado desta revisão:
+// RateioDetalhado.criterio já usava CriterioRateio, incompatível com o valor real gravado).
+export type CriterioRateioPersistido = CriterioRateio | "documento";
+
 export interface PercentualRateio {
   imovelId: number;
   percentual: number;
 }
 
+export interface ResultadoCalculoRateio {
+  percentuais: PercentualRateio[];
+  // true = pelo menos um imóvel participante não tinha fracao_ideal/area_m2 cadastrado e o
+  // cálculo precisou tratar o peso dele como 0 (ou, se ninguém tinha, caiu para divisão
+  // igual) — nunca deveria se passar por um rateio por fração ideal/área real e completo
+  // sem sinalização (mesmo princípio de "nunca fabricar dado" já aplicado a valor venal,
+  // saldo devedor manual etc. em balancoPatrimonial.ts).
+  baseIncompleta: boolean;
+}
+
 /** Normaliza o critério escolhido (fração ideal, área ou unidades iguais) em
  * percentuais que somam 1 entre os imóveis participantes — o mesmo tipo de
  * regra de rateio usado por Domínio/Alterdata para despesas coletivas. */
-export function calcularPercentuais(imoveis: Imovel[], criterio: CriterioRateio): PercentualRateio[] {
-  if (imoveis.length === 0) return [];
+export function calcularPercentuais(imoveis: Imovel[], criterio: CriterioRateio): ResultadoCalculoRateio {
+  if (imoveis.length === 0) return { percentuais: [], baseIncompleta: false };
 
   if (criterio === "por_unidade") {
     const percentual = 1 / imoveis.length;
-    return imoveis.map((i) => ({ imovelId: i.id, percentual }));
+    return { percentuais: imoveis.map((i) => ({ imovelId: i.id, percentual })), baseIncompleta: false };
   }
 
   const chave = criterio === "fracao_ideal" ? "fracao_ideal" : "area_m2";
+  const algumSemDado = imoveis.some((i) => i[chave] == null);
   const pesos = imoveis.map((i) => ({ imovelId: i.id, peso: i[chave] ?? 0 }));
   const somaPesos = pesos.reduce((acc, p) => acc + p.peso, 0);
 
   if (somaPesos <= 0) {
-    // sem dado de fração/área cadastrado — cai para divisão igual em vez de dividir por zero
+    // ninguém tinha o dado cadastrado — cai para divisão igual em vez de dividir por zero,
+    // mas isso é um fallback, nunca um rateio por fração ideal/área de verdade.
     const percentual = 1 / imoveis.length;
-    return imoveis.map((i) => ({ imovelId: i.id, percentual }));
+    return { percentuais: imoveis.map((i) => ({ imovelId: i.id, percentual })), baseIncompleta: true };
   }
 
-  return pesos.map((p) => ({ imovelId: p.imovelId, percentual: p.peso / somaPesos }));
+  return {
+    percentuais: pesos.map((p) => ({ imovelId: p.imovelId, percentual: p.peso / somaPesos })),
+    baseIncompleta: algumSemDado,
+  };
 }
 
 /** Rateia uma transação (despesa ou receita coletiva) entre os imóveis selecionados.
@@ -46,14 +67,23 @@ export function aplicarRateio(db: Database, transacaoId: number, imovelIds: numb
     `SELECT * FROM imoveis WHERE id IN (${imovelIds.map(() => "?").join(",")})`,
     imovelIds,
   );
-  const percentuais = calcularPercentuais(imoveis, criterio);
+  const { percentuais, baseIncompleta } = calcularPercentuais(imoveis, criterio);
 
   removerRateio(db, transacaoId);
   for (const { imovelId, percentual } of percentuais) {
+    // Um imóvel sem o dado do critério (fracao_ideal/area_m2) pondera exatamente 0 quando
+    // pelo menos outro participante tem peso > 0 — a tabela rateios exige percentual > 0
+    // (0% não é uma participação real), então ele fica de fora da inserção em vez de violar
+    // a constraint (achado ao testar ao vivo o aviso de base incompleta: sem este filtro, o
+    // INSERT quebrava com "CHECK constraint failed: percentual > 0..." e o rateio inteiro
+    // falhava, mesmo os imóveis com dado completo). baseIncompleta continua marcado nas
+    // linhas que entram, para nunca passar por um rateio completo quando na verdade um
+    // imóvel selecionado ficou de fora por falta de dado.
+    if (percentual <= 0) continue;
     executar(
       db,
-      "INSERT INTO rateios (transacao_id, imovel_id, criterio, percentual, valor_rateado) VALUES (?, ?, ?, ?, ?)",
-      [transacaoId, imovelId, criterio, percentual, transacao.valor * percentual],
+      "INSERT INTO rateios (transacao_id, imovel_id, criterio, percentual, valor_rateado, base_incompleta) VALUES (?, ?, ?, ?, ?, ?)",
+      [transacaoId, imovelId, criterio, percentual, transacao.valor * percentual, baseIncompleta ? 1 : 0],
     );
   }
   executar(db, "UPDATE transacoes SET imovel_id = NULL WHERE id = ?", [transacaoId]);
@@ -86,17 +116,25 @@ export function aplicarRateioPersonalizado(db: Database, transacaoId: number, di
 export interface RateioDetalhado {
   imovelId: number;
   imovelApelido: string;
-  criterio: CriterioRateio;
+  criterio: CriterioRateioPersistido;
   percentual: number;
   valorRateado: number;
+  baseIncompleta: boolean;
 }
 
 export function obterRateiosDaTransacao(db: Database, transacaoId: number): RateioDetalhado[] {
-  return consultar<{ imovel_id: number; apelido: string; criterio: CriterioRateio; percentual: number; valor_rateado: number }>(
+  return consultar<{ imovel_id: number; apelido: string; criterio: CriterioRateioPersistido; percentual: number; valor_rateado: number; base_incompleta: number }>(
     db,
-    `SELECT r.imovel_id, i.apelido, r.criterio, r.percentual, r.valor_rateado
+    `SELECT r.imovel_id, i.apelido, r.criterio, r.percentual, r.valor_rateado, r.base_incompleta
      FROM rateios r JOIN imoveis i ON i.id = r.imovel_id
      WHERE r.transacao_id = ?`,
     [transacaoId],
-  ).map((r) => ({ imovelId: r.imovel_id, imovelApelido: r.apelido, criterio: r.criterio, percentual: r.percentual, valorRateado: r.valor_rateado }));
+  ).map((r) => ({
+    imovelId: r.imovel_id,
+    imovelApelido: r.apelido,
+    criterio: r.criterio,
+    percentual: r.percentual,
+    valorRateado: r.valor_rateado,
+    baseIncompleta: r.base_incompleta === 1,
+  }));
 }

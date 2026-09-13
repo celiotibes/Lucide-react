@@ -296,7 +296,13 @@ CREATE TABLE IF NOT EXISTS rateios (
     imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
     criterio        TEXT NOT NULL,                -- ex: "fracao_ideal", "area_m2", "por_unidade"
     percentual      REAL NOT NULL CHECK (percentual > 0 AND percentual <= 1),
-    valor_rateado   REAL NOT NULL
+    valor_rateado   REAL NOT NULL,
+    -- 1 = pelo menos um imóvel participante não tinha fracao_ideal/area_m2 cadastrado e o
+    -- rateio caiu para divisão igual (ou tratou o peso como 0) em vez de recusar o cálculo —
+    -- nunca deveria ser um fallback silencioso (mesmo princípio de "nunca fabricar dado" já
+    -- aplicado a valor venal, saldo devedor manual etc.): fica marcado para revisão em vez de
+    -- se passar por um rateio por fração ideal/área real e completo.
+    base_incompleta INTEGER NOT NULL DEFAULT 0 CHECK (base_incompleta IN (0, 1))
 );
 
 -- Regras de categorização aprendidas a partir de categorizações manuais (ver

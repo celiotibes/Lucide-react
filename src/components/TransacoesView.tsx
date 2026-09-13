@@ -49,6 +49,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const [imovelRegra, setImovelRegra] = useState<number | "">("");
   const [imoveisSelecionados, setImoveisSelecionados] = useState<number[]>([]);
   const [criterio, setCriterio] = useState<CriterioRateio>("fracao_ideal");
+  const [rateioOriginalPorDocumento, setRateioOriginalPorDocumento] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
   // Estado lazy-inicializado a partir de filtroInicial (drill-down) — só lido na primeira
@@ -146,7 +147,15 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     setRateioAbertoId(transacao.id);
     const existentes = db ? obterRateiosDaTransacao(db, transacao.id) : [];
     setImoveisSelecionados(existentes.length ? existentes.map((r) => r.imovelId) : transacao.imovel_id ? [transacao.imovel_id] : []);
-    setCriterio(existentes[0]?.criterio ?? "fracao_ideal");
+    // 'documento' (rateio vindo de nota fiscal/recibo via casamento de documento) não é uma
+    // opção do seletor abaixo (só fracao_ideal/area_m2/por_unidade são recalculáveis aqui) —
+    // sem este filtro, o estado do seletor ficava com um valor que nenhuma <option> reconhece,
+    // e clicar "Aplicar rateio" sem trocar a seleção recalculava silenciosamente por área (o
+    // primeiro branch não-"por_unidade" de calcularPercentuais), substituindo uma distribuição
+    // confirmada por documento por uma heurística sem nenhum aviso (achado desta revisão).
+    const criterioExistente = existentes[0]?.criterio;
+    setRateioOriginalPorDocumento(criterioExistente === "documento");
+    setCriterio(criterioExistente && criterioExistente !== "documento" ? criterioExistente : "fracao_ideal");
   }
 
   async function confirmarRateio(transacaoId: number) {
@@ -342,12 +351,16 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                     <td>
                       {rateios.length > 0 ? (
                         <span
-                          className="pill good"
+                          className={`pill ${rateios.some((r) => r.baseIncompleta) ? "warning" : "good"}`}
                           style={{ cursor: "pointer" }}
-                          title="Clique para editar o rateio"
+                          title={
+                            rateios.some((r) => r.baseIncompleta)
+                              ? "Rateio com pelo menos um imóvel sem fração ideal/área cadastrada — clique para revisar"
+                              : "Clique para editar o rateio"
+                          }
                           onClick={() => abrirRateio(t)}
                         >
-                          rateado · {rateios.length} imóveis
+                          rateado · {rateios.length} imóveis{rateios.some((r) => r.baseIncompleta) ? " ⚠" : ""}
                         </span>
                       ) : (
                         <select value={t.imovel_id ?? ""} onChange={(e) => atribuirImovel(t.id, e.target.value)}>
@@ -438,6 +451,26 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                             )}
                             <button className="btn" onClick={() => setRateioAbertoId(null)}>Fechar</button>
                           </div>
+                          {rateioOriginalPorDocumento && (
+                            <p style={{ fontSize: 12, color: "var(--viz-despesa)", margin: "8px 4px 0" }}>
+                              ⚠ O rateio atual desta transação veio de um documento (nota fiscal/recibo) casado
+                              automaticamente — clicar em "Aplicar rateio" abaixo substitui essa distribuição
+                              confirmada por documento por um cálculo por {ROTULO_CRITERIO[criterio].toLowerCase()}. Só
+                              confirme se for essa a intenção; "Fechar" mantém o rateio por documento como está.
+                            </p>
+                          )}
+                          {(criterio === "fracao_ideal" || criterio === "area_m2") &&
+                            imoveisSelecionados.some((id) => {
+                              const imovel = imoveis.find((i) => i.id === id);
+                              const campo = criterio === "fracao_ideal" ? imovel?.fracao_ideal : imovel?.area_m2;
+                              return campo == null;
+                            }) && (
+                              <p style={{ fontSize: 12, color: "var(--viz-despesa)", margin: "8px 4px 0" }}>
+                                ⚠ Pelo menos um imóvel selecionado não tem {criterio === "fracao_ideal" ? "fração ideal" : "área (m²)"} cadastrada
+                                — o rateio vai tratar o peso dele como zero (ou dividir tudo igual, se nenhum tiver o dado). Cadastre em Imóveis
+                                antes de aplicar, se puder.
+                              </p>
+                            )}
                         </div>
                       </td>
                     </tr>
