@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { enviarEmailVencimento } from '@/server/notificacoes/enviarEmailVencimento';
+import { enviarEmailVencimento } from '@/server/notificacao/enviarEmailVencimento';
 
 export const maxDuration = 60;
 

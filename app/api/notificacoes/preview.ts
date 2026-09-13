@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { enviarEmailVencimento } from '@/server/notificacoes/enviarEmailVencimento';
+import { enviarEmailVencimento } from '@/server/notificacao/enviarEmailVencimento';
 
 export async function POST(request: NextRequest) {
   try {
