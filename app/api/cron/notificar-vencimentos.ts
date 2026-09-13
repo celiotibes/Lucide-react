@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { enviarEmailVencimento } from '@/server/notificacao/enviarEmailVencimento';
+import { notificarVencimentoContrato } from '@/server/notificacao/Notificador';
 
 export const maxDuration = 60;
 
@@ -88,8 +88,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Enviar emails
-    const resultados = await enviarEmailVencimento(contratosFormatados);
+    // Enviar notificações (unificadas no Notificador)
+    const resultados = await notificarVencimentoContrato(contratosFormatados);
 
     // Atualizar contratos com timestamp de notificação
     const contratoIdsComSucesso = resultados

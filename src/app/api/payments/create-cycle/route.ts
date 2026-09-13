@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { criarClienteServico } from '@/lib/supabase/serviceClient';
 import { CriticalDatesService } from '@/services/CriticalDatesService';
 import { CreatePaymentCycleRequest, ApiResponse, CreatePaymentCycleResponse } from '@/types/api-requests';
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<CreatePaymentCycleResponse>>> {
   try {
     const body: CreatePaymentCycleRequest = await request.json();
-    const criticalDatesService = new CriticalDatesService(supabase);
+    const supabaseClient = criarClienteServico();
+    const criticalDatesService = new CriticalDatesService(supabaseClient);
 
     if (!body.lease_id || !body.property_id || !body.billing_month || !body.billing_year) {
       return NextResponse.json(

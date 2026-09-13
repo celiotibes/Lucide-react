@@ -6,7 +6,8 @@ import { ProcessPaymentReceivedRequest, ApiResponse } from '@/types/api-requests
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<any>>> {
   try {
     const body: ProcessPaymentReceivedRequest = await request.json();
-    const criticalDatesService = new CriticalDatesService(supabase);
+    const supabaseClient = criarClienteServico();
+    const criticalDatesService = new CriticalDatesService(supabaseClient);
 
     if (!body.cycle_id || !body.amount_received || !body.receive_date) {
       return NextResponse.json(
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     }
 
     // Fetch the cycle from database
-    const { data: cycle, error: fetchError } = await supabase
+    const { data: cycle, error: fetchError } = await supabaseClient
       .from('payment_cycles')
       .select('*')
       .eq('id', body.cycle_id)

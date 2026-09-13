@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { enviarEmailVencimento } from '@/server/notificacao/enviarEmailVencimento';
+import { notificarVencimentoContrato } from '@/server/notificacao/Notificador';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Enviar email de preview
-    const resultados = await enviarEmailVencimento([
+    // Enviar email de preview (unificado no Notificador)
+    const resultados = await notificarVencimentoContrato([
       {
         id: 'preview-' + Date.now(),
         imovel_identificacao,
