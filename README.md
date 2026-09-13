@@ -98,7 +98,12 @@ servi-lo em `http://localhost:4173`.
   resto do app: uma barra da cascata do DRE, uma célula do mapa de calor, um bloco do
   Sankey, um achado da Auditoria forense ou um mês divergente em Financiamentos abrem
   aqui já filtrados nos lançamentos exatos envolvidos, em vez de só mostrar o total
-  agregado.
+  agregado. Também é possível **adicionar um lançamento manual** (pagamento em dinheiro,
+  correção de algo esquecido na importação), **excluir** um lançamento, e **dividir** um
+  único lançamento bancário em vários — para o caso real de um pagamento cobrir mais de
+  uma coisa (ex: um PIX que é aluguel + reembolso de água avulso, cada parte com
+  categoria diferente). As três ações ficam registradas no histórico de edições
+  (Auditoria forense).
 - **Contratos e inadimplência**: lista de contratos de locação e competências em
   aberto com dias de atraso, multa e juros de mora calculados pelas cláusulas de
   cada contrato (só contratos `residencial_fixo`, que têm dia de vencimento e valor
@@ -288,7 +293,11 @@ servi-lo em `http://localhost:4173`.
 - **Extração de PDF** (`pdfDocumento.ts`, `linhasTransacao.ts`) funciona por
   heurística de regex sobre o texto extraído — cobre bem extratos e faturas com
   layout "data + descrição + valor" por linha, mas layouts muito diferentes do
-  testado podem exigir ajuste da regex `REGEX_LINHA`.
+  testado podem exigir ajuste da regex `REGEX_LINHA`. Se o PDF tiver conteúdo de
+  sobra (linhas com formato de data) mas nenhum lançamento for reconhecido, a tela
+  de importação avisa explicitamente em vez de mostrar silenciosamente "0
+  lançamentos" — sinal de que o layout deste banco específico precisa de ajuste na
+  regex ou de lançamento manual (aba Transações → "Adicionar lançamento manual").
 - **CSV**: prefira exportações com `;` como separador (padrão de exportação
   brasileira) quando os valores usam vírgula decimal — um CSV separado por vírgula
   *e* com vírgula decimal é ambíguo e não é detectado corretamente.
