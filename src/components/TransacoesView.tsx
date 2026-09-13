@@ -1,11 +1,12 @@
 import { Fragment, useMemo, useState } from "react";
-import { Wand2, Split, Trash2, Download, X } from "lucide-react";
+import { Wand2, Split, Scissors, Trash2, Download, Plus, X } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
-import type { Imovel, PlanoConta, Transacao } from "../domain/types";
+import type { ContaBancaria, Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
 import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, gerarXlsxConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
+import { criarTransacaoManual, excluirTransacao, dividirTransacao, type ParteDivisao } from "../domain/transacoes/transacaoManual";
 
 /** Filtro inicial vindo de outra tela (drill-down do Painel: clicar numa barra da cascata do
  * DRE ou numa célula do mapa de calor navega pra cá já filtrado pela categoria/mês/imóvel que
@@ -51,6 +52,10 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const [criterio, setCriterio] = useState<CriterioRateio>("fracao_ideal");
   const [rateioOriginalPorDocumento, setRateioOriginalPorDocumento] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
+  const [divisaoAbertaId, setDivisaoAbertaId] = useState<number | null>(null);
+  const [partesDivisao, setPartesDivisao] = useState<{ valor: string; planoContaCodigo: string; imovelId: number | "" }[]>([]);
+  const [formManualAberto, setFormManualAberto] = useState(false);
+  const [formManual, setFormManual] = useState({ contaId: "" as number | "", data: "", valor: "", descricao: "", planoContaCodigo: "", imovelId: "" as number | "" });
 
   // Estado lazy-inicializado a partir de filtroInicial (drill-down) — só lido na primeira
   // renderização; depois disso o usuário controla os filtros normalmente pelos selects abaixo.
@@ -64,6 +69,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const planoContas = useMemo<PlanoConta[]>(() => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []), [db, versao]);
   const planoContasPorCodigo = useMemo(() => new Map(planoContas.map((p) => [p.codigo, p])), [planoContas]);
   const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
+  const contasBancarias = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db, versao]);
   const regrasSalvas = useMemo(() => (db ? listarRegras(db) : []), [db, versao]);
 
   // "Somente pendentes" (plano_conta_codigo IS NULL) é incompatível com um filtro de categoria
@@ -173,6 +179,59 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     setRateioAbertoId(null);
   }
 
+  async function confirmarExclusao(transacao: Transacao) {
+    if (!db) return;
+    if (!confirm(`Excluir o lançamento "${transacao.descricao_original}" (${transacao.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})? Fica registrado no histórico de edições, mas não pode ser desfeito aqui.`)) return;
+    excluirTransacao(db, transacao.id);
+    await persistir();
+    setMensagem("Lançamento excluído.");
+  }
+
+  function abrirDivisao(transacao: Transacao) {
+    setDivisaoAbertaId(transacao.id);
+    setPartesDivisao([
+      { valor: "", planoContaCodigo: transacao.plano_conta_codigo ?? "", imovelId: transacao.imovel_id ?? "" },
+      { valor: "", planoContaCodigo: "", imovelId: transacao.imovel_id ?? "" },
+    ]);
+  }
+
+  function somaPartesDivisao(): number {
+    return partesDivisao.reduce((acc, p) => acc + (Number.parseFloat(p.valor.replace(",", ".")) || 0), 0);
+  }
+
+  async function confirmarDivisao(transacao: Transacao) {
+    if (!db) return;
+    const partes: ParteDivisao[] = partesDivisao.map((p) => ({
+      valor: Number.parseFloat(p.valor.replace(",", ".")) || 0,
+      planoContaCodigo: p.planoContaCodigo || null,
+      imovelId: p.imovelId === "" ? null : p.imovelId,
+    }));
+    try {
+      dividirTransacao(db, transacao.id, partes);
+      await persistir();
+      setDivisaoAbertaId(null);
+      setMensagem(`Lançamento dividido em ${partes.length} partes.`);
+    } catch (erro) {
+      setMensagem((erro as Error).message);
+    }
+  }
+
+  async function confirmarAdicaoManual() {
+    if (!db || formManual.contaId === "" || formManual.data === "" || formManual.valor.trim() === "") return;
+    criarTransacaoManual(db, {
+      contaId: formManual.contaId,
+      data: formManual.data,
+      valor: Number.parseFloat(formManual.valor.replace(",", ".")) || 0,
+      descricaoOriginal: formManual.descricao.trim() || "Lançamento manual",
+      planoContaCodigo: formManual.planoContaCodigo || null,
+      imovelId: formManual.imovelId === "" ? null : formManual.imovelId,
+    });
+    await persistir();
+    setFormManualAberto(false);
+    setFormManual({ contaId: "", data: "", valor: "", descricao: "", planoContaCodigo: "", imovelId: "" });
+    setMensagem("Lançamento manual adicionado.");
+  }
+
   function exportarMapaConciliacao() {
     if (!db) return;
     const csv = gerarCsvConciliacao(gerarMapaConciliacao(db));
@@ -226,8 +285,62 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
           <button className="btn" onClick={exportarMapaConciliacaoXlsx} title="Mesmo conteúdo do CSV, em formato que o Excel abre diretamente (colunas já separadas, valores como número)">
             <Download size={13} /> Exportar (Excel)
           </button>
+          <button className="btn" onClick={() => setFormManualAberto((v) => !v)} title="Registra um lançamento que não veio de nenhum arquivo importado — ex: pagamento em dinheiro, ou uma das partes de um pagamento único dividido entre categorias diferentes">
+            <Plus size={13} /> Adicionar lançamento manual
+          </button>
         </div>
       </div>
+
+      {formManualAberto && (
+        <div className="card" style={{ marginBottom: 16, padding: 14 }}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 10, fontWeight: 600 }}>Novo lançamento manual</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Conta bancária
+              <select value={formManual.contaId} onChange={(e) => setFormManual({ ...formManual, contaId: e.target.value ? Number(e.target.value) : "" })} style={{ display: "block", marginTop: 4 }}>
+                <option value="">— selecione —</option>
+                {contasBancarias.map((c) => (
+                  <option key={c.id} value={c.id}>{c.banco}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Data
+              <input type="date" value={formManual.data} onChange={(e) => setFormManual({ ...formManual, data: e.target.value })} style={{ display: "block", marginTop: 4 }} />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Valor (negativo = saída)
+              <input className="btn" style={{ cursor: "text", display: "block", marginTop: 4, width: 140 }} value={formManual.valor} onChange={(e) => setFormManual({ ...formManual, valor: e.target.value })} placeholder="ex: -150,00" />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)", flex: 1, minWidth: 200 }}>
+              Descrição
+              <input className="btn" style={{ cursor: "text", display: "block", marginTop: 4, width: "100%" }} value={formManual.descricao} onChange={(e) => setFormManual({ ...formManual, descricao: e.target.value })} placeholder="ex: Pagamento em dinheiro — reparo elétrico" />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Categoria
+              <select value={formManual.planoContaCodigo} onChange={(e) => setFormManual({ ...formManual, planoContaCodigo: e.target.value })} style={{ display: "block", marginTop: 4 }}>
+                <option value="">— sem categoria —</option>
+                {planoContas.map((p) => (
+                  <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Imóvel
+              <select value={formManual.imovelId} onChange={(e) => setFormManual({ ...formManual, imovelId: e.target.value ? Number(e.target.value) : "" })} style={{ display: "block", marginTop: 4 }}>
+                <option value="">— sem imóvel —</option>
+                {imoveis.map((i) => (
+                  <option key={i.id} value={i.id}>{i.apelido}</option>
+                ))}
+              </select>
+            </label>
+            <button className="btn primary" disabled={formManual.contaId === "" || formManual.data === "" || formManual.valor.trim() === ""} onClick={confirmarAdicaoManual}>
+              Adicionar
+            </button>
+            <button className="btn" onClick={() => setFormManualAberto(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16, padding: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         {filtroTransacaoIds !== null ? (
@@ -394,6 +507,12 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                       <button className="btn" title="Ratear entre imóveis" style={{ padding: "4px 7px" }} onClick={() => abrirRateio(t)}>
                         <Split size={13} />
                       </button>
+                      <button className="btn" title="Dividir entre categorias (ex: um PIX único que é aluguel + reembolso avulso)" style={{ padding: "4px 7px" }} onClick={() => abrirDivisao(t)}>
+                        <Scissors size={13} />
+                      </button>
+                      <button className="btn danger" title="Excluir lançamento" style={{ padding: "4px 7px" }} onClick={() => confirmarExclusao(t)}>
+                        <Trash2 size={13} />
+                      </button>
                     </td>
                   </tr>
                   {regraAbertaId === t.id && (
@@ -475,6 +594,68 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                                 antes de aplicar, se puder.
                               </p>
                             )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {divisaoAbertaId === t.id && (
+                    <tr>
+                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
+                        <div style={{ padding: "10px 4px" }}>
+                          <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: "0 0 10px" }}>
+                            Divide este lançamento (valor total {t.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em partes com
+                            categorias diferentes — o lançamento original é substituído pelas partes abaixo; a soma precisa bater com o valor original.
+                          </p>
+                          {partesDivisao.map((parte, indice) => (
+                            <div key={indice} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                              <input
+                                className="btn"
+                                style={{ cursor: "text", width: 120 }}
+                                value={parte.valor}
+                                placeholder="valor"
+                                onChange={(e) => setPartesDivisao((atual) => atual.map((p, i) => (i === indice ? { ...p, valor: e.target.value } : p)))}
+                              />
+                              <select
+                                value={parte.planoContaCodigo}
+                                onChange={(e) => setPartesDivisao((atual) => atual.map((p, i) => (i === indice ? { ...p, planoContaCodigo: e.target.value } : p)))}
+                              >
+                                <option value="">— sem categoria —</option>
+                                {planoContas.map((p) => (
+                                  <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={parte.imovelId}
+                                onChange={(e) => setPartesDivisao((atual) => atual.map((p, i) => (i === indice ? { ...p, imovelId: e.target.value ? Number(e.target.value) : "" } : p)))}
+                              >
+                                <option value="">— sem imóvel —</option>
+                                {imoveis.map((i) => (
+                                  <option key={i.id} value={i.id}>{i.apelido}</option>
+                                ))}
+                              </select>
+                              {partesDivisao.length > 2 && (
+                                <button className="btn" style={{ padding: "3px 8px" }} onClick={() => setPartesDivisao((atual) => atual.filter((_, i) => i !== indice))}>
+                                  <X size={13} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <button className="btn" onClick={() => setPartesDivisao((atual) => [...atual, { valor: "", planoContaCodigo: "", imovelId: t.imovel_id ?? "" }])}>
+                              <Plus size={13} /> Adicionar parte
+                            </button>
+                            <span style={{ fontSize: 12, color: Math.abs(somaPartesDivisao() - t.valor) > 0.01 ? "var(--viz-despesa)" : "var(--viz-good)" }}>
+                              soma das partes: {somaPartesDivisao().toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                            </span>
+                            <button
+                              className="btn primary"
+                              disabled={partesDivisao.length < 2 || Math.abs(somaPartesDivisao() - t.valor) > 0.01}
+                              onClick={() => confirmarDivisao(t)}
+                            >
+                              Confirmar divisão
+                            </button>
+                            <button className="btn" onClick={() => setDivisaoAbertaId(null)}>Cancelar</button>
+                          </div>
                         </div>
                       </td>
                     </tr>
