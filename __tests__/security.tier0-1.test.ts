@@ -132,7 +132,7 @@ describe('Fix #4: Admin Endpoint Role Checks', () => {
 
     it('should deny null/undefined users', () => {
       const usuario = null;
-      const isAllowed = usuario && usuario.papel === 'admin';
+      const isAllowed = usuario ? usuario.papel === 'admin' : false;
       expect(isAllowed).toBe(false);
     });
 
