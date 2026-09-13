@@ -1,6 +1,6 @@
 
-
 import Link from 'next/link';
+import styles from './page.module.css';
 import { obterPool } from '@/server/integracao/db';
 import { formatarDataHora } from '@/lib/formatacao';
 import { criarVistoria } from './actions';
@@ -81,7 +81,7 @@ export default async function PaginaVistoriasContrato({ params }: { params: Prom
             <option value="saida">Saída</option>
           </select>
         </label>
-        <label className="checkbox-area-comum">
+        <label className={styles["checkbox-area-comum"]}>
           <input type="checkbox" name="eh_area_comum" value="true" />
           ☑️ Vistoria de área comum (sem atribuição específica de quarto)
         </label>
@@ -119,25 +119,6 @@ export default async function PaginaVistoriasContrato({ params }: { params: Prom
         </table>
       )}
 
-      <style jsx>{`
-        .checkbox-area-comum {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-top: 15px;
-          padding: 10px;
-          background: #f0f8ff;
-          border: 1px solid #b3d9ff;
-          border-radius: 4px;
-          cursor: pointer;
-        }
-
-        .checkbox-area-comum input[type='checkbox'] {
-          cursor: pointer;
-          width: 18px;
-          height: 18px;
-        }
-      `}</style>
     </>
   );
 }
