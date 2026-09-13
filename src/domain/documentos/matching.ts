@@ -21,6 +21,48 @@ function diferencaDias(a: string, b: string): number {
   return Math.abs((new Date(a + "T00:00:00").getTime() - new Date(b + "T00:00:00").getTime()) / msPorDia);
 }
 
+function normalizarTexto(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // remove acentos
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .trim();
+}
+
+// Sufixos societários/preposições genéricas demais para contar como sinal de correspondência
+// por si só (ex: "DE", "LTDA" aparecendo na descrição não indica nada sobre QUAL fornecedor).
+const PALAVRAS_IGNORADAS = new Set([
+  "LTDA", "ME", "EIRELI", "SA", "S A", "LIMITADA", "MEI", "EPP",
+  "DE", "DA", "DO", "DOS", "DAS", "E",
+]);
+
+function palavrasSignificativas(nome: string): string[] {
+  return normalizarTexto(nome)
+    .split(/\s+/)
+    .filter((p) => p.length >= 3 && !PALAVRAS_IGNORADAS.has(p));
+}
+
+/** Extratos bancários reais quase nunca trazem a razão social completa — é comum vir
+ * abreviada, truncada ou sem acento (ex.: "MELLO CONSULT LTDA" no lugar de "Mello
+ * Consultoria Limitada"). Uma comparação por substring literal (como havia antes) perdia
+ * esses casos por inteiro. Em vez disso, compara por PALAVRA significativa do nome
+ * cadastrado, aceitando um prefixo de pelo menos 70% da palavra (ou 4 caracteres, o que for
+ * maior) já como acerto daquela palavra — cobre truncamento sem se tornar fuzzy demais a
+ * ponto de casar nomes só parecidos por acaso. Retorna a fração de palavras do nome que
+ * encontraram correspondência na descrição (0 a 1), nunca uma pontuação binária. */
+export function pontuarSemelhancaNome(nomeContraparte: string, descricaoTransacao: string): number {
+  const palavras = palavrasSignificativas(nomeContraparte);
+  if (palavras.length === 0) return 0;
+
+  const descricaoNormalizada = normalizarTexto(descricaoTransacao);
+  const encontradas = palavras.filter((p) => {
+    const prefixo = p.slice(0, Math.max(4, Math.ceil(p.length * 0.7)));
+    return descricaoNormalizada.includes(prefixo);
+  });
+  return encontradas.length / palavras.length;
+}
+
 /** Sugere transações candidatas a corresponder a um documento, por proximidade de valor,
  * data e (quando disponível) CNPJ/CPF ou nome do fornecedor aparecendo na descrição crua da
  * transação bancária — heurística determinística, sem IA, sem sair do navegador. Já exclui
@@ -72,9 +114,14 @@ export function sugerirTransacoesParaDocumento(
       }
     }
     if (documento.nome_contraparte && documento.nome_contraparte.trim().length >= 3) {
-      if (t.descricao_original.toLowerCase().includes(documento.nome_contraparte.trim().toLowerCase())) {
-        score += 0.2;
-        motivos.push("nome do fornecedor encontrado na descrição");
+      const semelhanca = pontuarSemelhancaNome(documento.nome_contraparte, t.descricao_original);
+      if (semelhanca > 0) {
+        score += 0.2 * semelhanca;
+        motivos.push(
+          semelhanca >= 0.999
+            ? "nome do fornecedor encontrado na descrição"
+            : `nome do fornecedor parcialmente reconhecido na descrição (${Math.round(semelhanca * 100)}% das palavras)`,
+        );
       }
     }
 
