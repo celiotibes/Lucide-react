@@ -17,6 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { validateSupabaseSession, type AuthContext } from '../middleware/auth';
 
 /**
  * Valida o token CRON_SECRET enviado pela Vercel via Authorization header
