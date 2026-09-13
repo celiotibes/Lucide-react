@@ -21,6 +21,25 @@ export interface ResultadoImportacao {
   avisos: string[];
 }
 
+// Uma linha de extrato/fatura real quase sempre tem "algo parecido com data" — se o PDF tem
+// conteúdo de sobra mas a extração não achou NENHUM lançamento, o motivo quase certo é que o
+// layout deste banco/administradora específico não bate com o padrão que REGEX_LINHA
+// (linhasTransacao.ts) reconhece — nunca um extrato genuinamente vazio. Achado de auditoria:
+// com 3+ bancos diferentes envolvidos no caso, um layout não reconhecido silenciosamente virava
+// "0 transações encontradas" sem nenhuma explicação, fácil de confundir com "este PDF
+// realmente não tem lançamento nenhum".
+export function contarLinhasComData(linhas: string[]): number {
+  return linhas.filter((l) => /\d{2}\/\d{2}(\/\d{2,4})?/.test(l)).length;
+}
+
+export function avisoExtracaoPdfVazia(tipoDocumento: "extrato" | "fatura", transacoesExtraidas: number, linhasComData: number): string[] {
+  if (transacoesExtraidas > 0 || linhasComData < 3) return [];
+  const rotulo = tipoDocumento === "extrato" ? "extrato" : "fatura";
+  return [
+    `O PDF parece ter ${linhasComData} linha(s) com data, mas nenhum lançamento foi reconhecido — o layout deste ${rotulo} pode ser diferente do padrão esperado (comum ao trocar de banco). Confira o arquivo manualmente ou lance à mão.`,
+  ];
+}
+
 function detectarPorExtensao(nome: string): "ofx" | "csv" | "pdf" | "imagem" | null {
   const extensao = nome.toLowerCase().split(".").pop();
   if (extensao === "ofx" || extensao === "qfx") return "ofx";
@@ -57,13 +76,16 @@ export async function processarArquivo(
   if (categoria === "pdf") {
     const linhas = await extrairTextoPdf(arquivo);
     const classificacao = classificarDocumentoPdf(linhas);
+    const linhasComData = contarLinhasComData(linhas);
 
     if (classificacao === "fatura_cartao") {
       const mes = opcoes.mesReferenciaFatura ?? new Date().getMonth() + 1;
-      return { tipoDetectado: "pdf_fatura", transacoes: extrairLinhasFatura(linhas, mes, anoReferencia), avisos: [] };
+      const transacoes = extrairLinhasFatura(linhas, mes, anoReferencia);
+      return { tipoDetectado: "pdf_fatura", transacoes, avisos: avisoExtracaoPdfVazia("fatura", transacoes.length, linhasComData) };
     }
     if (classificacao === "extrato") {
-      return { tipoDetectado: "pdf_extrato", transacoes: extrairLinhasExtrato(linhas, anoReferencia), avisos: [] };
+      const transacoes = extrairLinhasExtrato(linhas, anoReferencia);
+      return { tipoDetectado: "pdf_extrato", transacoes, avisos: avisoExtracaoPdfVazia("extrato", transacoes.length, linhasComData) };
     }
     return {
       tipoDetectado: "pdf_desconhecido",
