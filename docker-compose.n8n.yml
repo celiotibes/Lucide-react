@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8n/n8n:latest
+    container_name: crmt-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      # Database
+      DB_TYPE: postgres
+      DB_POSTGRESDB_HOST: n8n-db
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD:-n8n_password}
+
+      # Security
+      N8N_AUTH_ENABLE: 'true'
+      N8N_AUTH_EXCLUDE_ENDPOINTS: '/rest/webhooks'
+      N8N_USER_MANAGEMENT_ENABLED: 'true'
+
+      # API Configuration
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      WEBHOOK_TUNNEL_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
+
+      # External API Keys (credentials)
+      OMIE_APP_KEY: ${OMIE_APP_KEY}
+      OMIE_APP_SECRET: ${OMIE_APP_SECRET}
+      BLUESOFT_API_KEY: ${BLUESOFT_API_KEY}
+      ASAAS_API_KEY: ${ASAAS_API_KEY}
+
+      # Execution
+      EXECUTIONS_DATA_MAX_AGE: 2592000 # 30 dias
+
+      # File storage (for imports/exports)
+      N8N_DEFAULT_USER_EMAIL: ${N8N_EMAIL:-admin@crmt.dev}
+      N8N_DEFAULT_USER_PASSWORD: ${N8N_PASSWORD}
+
+    depends_on:
+      n8n-db:
+        condition: service_healthy
+
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./n8n-workflows:/home/node/.n8n/workflows
+
+    networks:
+      - crmt-network
+
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:5678/rest/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    restart: unless-stopped
+
+  n8n-db:
+    image: postgres:16-alpine
+    container_name: crmt-n8n-db
+    environment:
+      POSTGRES_DB: n8n
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: ${N8N_DB_PASSWORD:-n8n_password}
+
+    volumes:
+      - n8n-db-data:/var/lib/postgresql/data
+
+    networks:
+      - crmt-network
+
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U n8n']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    restart: unless-stopped
+
+volumes:
+  n8n-data:
+  n8n-db-data:
+
+networks:
+  crmt-network:
+    external: true
+    name: crmt-network

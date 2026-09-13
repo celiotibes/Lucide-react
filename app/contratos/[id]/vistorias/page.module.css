@@ -1,0 +1,17 @@
+.checkbox-area-comum {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+  padding: 10px;
+  background: #f0f8ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkbox-area-comum input[type='checkbox'] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}

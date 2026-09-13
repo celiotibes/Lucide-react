@@ -1,0 +1,201 @@
+<!--
+  Modelo de contrato — Florianópolis. Conteúdo de gestão, não código: isto é
+  o que uma linha em `modelos_contrato.corpo_html` (cidade Florianópolis)
+  contém — arquivo neste caminho só para ficar versionado/legível no
+  repositório e servir de seed/exemplo, não é lido em runtime por nenhum
+  código (docs/27-motor-de-contratos.md).
+
+  O texto fixo (locador, estrutura do valor único mensal 55/45, degraus de
+  multa/juros, bonificação de dezembro) reproduz o que já foi confirmado
+  contra um contrato real assinado (docs/10-auditoria-contrato-real.md,
+  Anexos I-VI) — não é boilerplate genérico inventado. Ainda assim, isto é
+  um MODELO: antes de usar em produção, a gestão/jurídico deve revisar
+  cada cláusula fixa, porque nuances de outro imóvel/residencial podem
+  exigir ajuste que nenhum contrato até aqui evidenciou.
+
+  Placeholders entre {{ }} são substituídos por server/integracao/
+  gerarContratoHtml.ts via server/legaldesign/mesclarTemplate.ts.
+-->
+<style>
+  .contrato-crmt {
+    --tinta: #1c2b28;
+    --tinta-suave: #52645f;
+    --papel: #ffffff;
+    --linha: #dbe2df;
+    --marca: #1f5f4f;
+    --marca-tint: #eaf3f0;
+    --alerta: #9c4a10;
+    --alerta-tint: #fbeee0;
+    font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--tinta);
+    line-height: 1.5;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 4rem;
+    font-size: 15px;
+  }
+
+  .contrato-crmt h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.3rem;
+  }
+
+  .contrato-crmt .subtitulo {
+    color: var(--tinta-suave);
+    font-size: 0.95rem;
+    margin: 0 0 1.75rem;
+  }
+
+  .contrato-crmt h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 2.2rem 0 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--marca);
+  }
+
+  .contrato-crmt p { margin: 0 0 0.85rem; }
+
+  /* ---- Quadro-resumo: o núcleo do Visual Law — quem quer saber "quanto,
+     quando, com quem" não deveria precisar ler 6 páginas para achar ---- */
+  .quadro-resumo {
+    background: var(--marca-tint);
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .quadro-resumo h2 {
+    border: none;
+    margin: 0 0 0.9rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--marca);
+  }
+  .quadro-resumo table { width: 100%; border-collapse: collapse; }
+  .quadro-resumo td { padding: 0.35rem 0; font-size: 0.92rem; vertical-align: top; }
+  .quadro-resumo td.rotulo { color: var(--tinta-suave); width: 38%; }
+  .quadro-resumo td.valor { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .contrato-crmt table.tabela-partes,
+  .contrato-crmt table.tabela-mobilia {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0 1rem;
+    font-size: 0.9rem;
+  }
+  .tabela-partes th, .tabela-mobilia th {
+    text-align: left;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--linha);
+  }
+  .tabela-partes td, .tabela-mobilia td {
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid var(--linha);
+  }
+
+  /* ---- Caixa de alerta: penalidades e prazos que ninguém pode perder ---- */
+  .caixa-alerta {
+    background: var(--alerta-tint);
+    border-left: 4px solid var(--alerta);
+    border-radius: 0 8px 8px 0;
+    padding: 0.9rem 1.1rem;
+    margin: 1rem 0;
+    font-size: 0.92rem;
+  }
+  .caixa-alerta strong.titulo {
+    display: block;
+    color: var(--alerta);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.35rem;
+  }
+
+  .contrato-crmt .assinaturas {
+    margin-top: 3rem;
+    display: grid;
+    gap: 2.5rem;
+  }
+  .contrato-crmt .linha-assinatura {
+    border-top: 1px solid var(--tinta);
+    padding-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--tinta-suave);
+  }
+</style>
+
+<div class="contrato-crmt">
+  <h1>Contrato de Locação Residencial</h1>
+  <p class="subtitulo">{{cidade_nome}}/{{cidade_uf}} — CRMT Gestão Imobiliária LTDA</p>
+
+  <div class="quadro-resumo">
+    <h2>Quadro-resumo</h2>
+    <table>
+      <tbody>
+        <tr><td class="rotulo">Imóvel</td><td class="valor">{{imovel_identificacao}} — {{imovel_endereco}}</td></tr>
+        <tr><td class="rotulo">Objeto da locação</td><td class="valor">{{objeto_locacao}}</td></tr>
+        <tr><td class="rotulo">Modalidade</td><td class="valor">{{modalidade_label}}</td></tr>
+        <tr><td class="rotulo">Valor mensal</td><td class="valor">{{valor_aluguel}}</td></tr>
+        <tr><td class="rotulo">Vencimento</td><td class="valor">Dia {{dia_vencimento}} de cada mês</td></tr>
+        <tr><td class="rotulo">Início da locação</td><td class="valor">{{data_inicio}}</td></tr>
+        <tr><td class="rotulo">Índice de reajuste</td><td class="valor">{{indice_reajuste}}</td></tr>
+        <tr><td class="rotulo">Garantia</td><td class="valor">{{garantia_tipo}} — {{garantia_valor}} ({{garantia_forma_pagamento}})</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>1. Das Partes</h2>
+  <p><strong>LOCADOR:</strong> Célio Ribas Matzenbacher Tibes, brasileiro, advogado inscrito na OAB/SC sob o nº 057187, representando CRMT Gestão Imobiliária LTDA na administração do imóvel objeto deste contrato.</p>
+  <table class="tabela-partes">
+    <thead><tr><th>Papel</th><th>Nome</th><th>CPF</th><th>RG</th><th>Profissão</th><th>Estado civil</th></tr></thead>
+    <tbody>
+      {{#each locatarios}}<tr><td>{{papel_label}}</td><td>{{nome}}</td><td>{{cpf}}</td><td>{{rg}}</td><td>{{profissao}}</td><td>{{estado_civil}}</td></tr>{{/each}}
+      {{#each solidarios}}<tr><td>{{papel_label}}</td><td>{{nome}}</td><td>{{cpf}}</td><td>{{rg}}</td><td>{{profissao}}</td><td>{{estado_civil}}</td></tr>{{/each}}
+    </tbody>
+  </table>
+
+  <h2>2. Do Objeto e do Valor</h2>
+  <p>O presente contrato tem por objeto {{objeto_locacao}}, pelo valor mensal de {{valor_aluguel}}, composto por Aluguel Efetivo (base de cálculo do IRPF Carnê-Leão do locador) e Rateio de Custeio Coletivo e Fundos (reembolso não tributável referente a manutenção, limpeza, água/esgoto coletivo, lavanderia coletiva, internet Wi-Fi coletiva e segurança/monitoramento das áreas comuns), com vencimento todo dia {{dia_vencimento}} de cada mês.</p>
+  <p>No primeiro mês de locação, caso a data de início não coincida com o dia 1º, o valor será calculado proporcionalmente aos dias efetivos de ocupação, com base em um mês comercial de 30 (trinta) dias.</p>
+
+  <h2>3. Do Prazo</h2>
+  <p>O prazo deste contrato é de {{data_inicio}} até {{data_fim}}, reajustável anualmente pelo índice {{indice_reajuste}}.</p>
+
+  <h2>4. Da Garantia Locatícia</h2>
+  <p>A título de garantia, fica estabelecida a modalidade de {{garantia_tipo}}, no valor de {{garantia_valor}}, a ser paga via {{garantia_forma_pagamento}} (parcelas, quando houver parcelamento: {{garantia_parcelas}}).</p>
+
+  <div class="caixa-alerta">
+    <strong class="titulo">Atraso no pagamento</strong>
+    Multa de 2% (dois por cento) até o 5º dia de atraso; substituída por 10% (dez por cento) a partir do 6º dia, incidindo sobre principal + juros + correção monetária. Juros de mora de 1% (um por cento) ao mês. Correção monetária pelo IPCA <em>pro rata die</em>. Honorários advocatícios de 20% (vinte por cento) incidem somente em caso de necessidade de ação judicial.
+  </div>
+
+  <h2>5. Da Rescisão Antecipada</h2>
+  <p>Em caso de desocupação antes do término do prazo contratual, incidirá multa rescisória proporcional aos meses restantes, limitada ao teto de 3 (três) meses do valor mensal vigente.</p>
+  <div class="caixa-alerta">
+    <strong class="titulo">Bonificação para saída em dezembro</strong>
+    Para desocupações programadas exclusivamente no mês de dezembro: desconto de 85% sobre a multa rescisória para notificação até 22/11 com entrega das chaves até 22/12; desconto de 80% para notificação até 27/11 com entrega até 28/12. Fora dessas janelas, aplica-se o valor integral da multa proporcional.
+  </div>
+
+  <h2>6. Anexo — Inventário de Mobília e Vistoria</h2>
+  <p>O imóvel é entregue mobiliado conforme relação abaixo, sujeita à conferência em vistoria de entrada (registro audiovisual). Os valores servem de referência para eventual indenização por dano ou sinistro, aplicada a depreciação da Tabela CFC.</p>
+  <table class="tabela-mobilia">
+    <thead><tr><th>Item</th><th>Categoria</th><th>Valor de referência</th></tr></thead>
+    <tbody>{{#each mobilia}}<tr><td>{{descricao}}</td><td>{{categoria}}</td><td>{{valor_aquisicao}}</td></tr>{{/each}}</tbody>
+  </table>
+
+  <h2>7. Cláusulas Adicionais / Acordos Específicos</h2>
+  {{{clausulas_adicionais_html}}}
+
+  <div class="assinaturas">
+    <div class="linha-assinatura">LOCADOR — Célio Ribas Matzenbacher Tibes</div>
+    {{#each locatarios}}<div class="linha-assinatura">{{papel_label}} — {{nome}}</div>{{/each}}
+    {{#each solidarios}}<div class="linha-assinatura">{{papel_label}} — {{nome}}</div>{{/each}}
+  </div>
+</div>
