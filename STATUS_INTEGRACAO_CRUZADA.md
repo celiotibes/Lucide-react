@@ -209,3 +209,62 @@ Consolidar funcionalidades complementares de **Lucide-react**, **app-bruxel** e 
 **Próxima revisão**: 2026-09-21 (fim de Fase 1, início Fase 2)  
 **Versão deste documento**: 1.0  
 **Mantido por**: Claude Haiku 4.5 (celiotibes@gmail.com)
+
+---
+
+## 🔄 Atualização Fase 2 & 3 (2026-09-14 15:30)
+
+### Fase 2 — Integração com Adapção ✅ INICIADA
+
+**PR Criada**: [ERP-CRMT PR #23 — Fase 2](https://github.com/celiotibes/ERP-CRMT-Gestao-Imobiliaria-/pull/23)
+
+**Módulos YELLOW Copiados**:
+1. ✅ **Validação de Dados** (parsers: normalizarValor.ts, detectarTipo.ts, linhasTransacao.ts)
+   - HIGH quality, LOW risco
+   - Próxima ação: Validar com dados ERP reais
+
+2. ✅ **Alocação de Custos/Rateio** (motorRateio.ts, ajusteAnual.ts)
+   - HIGH quality, MEDIUM risco (números podem mudar)
+   - Próxima ação: Criar comparativo antes/depois com dados legados
+
+**Timeline Fase 2**: 1-2 sprints (próximas 2 semanas)
+
+---
+
+### Fase 3 — NÃO INTEGRAR (Novo Design) ❌ DOCUMENTADO
+
+**Recomendação Formal**: [INTEGRACAO_FASE3.md](./INTEGRACAO_FASE3.md)
+
+**Módulo Rejeitado**: Vistorias/Inspections de app-bruxel
+- ❌ Lógica incompleta (só tem campo em schema, sem implementação)
+- ❌ Zero testes
+- ❌ Risco alto (dados órfãos)
+
+**Alternativa Recomendada**: Novo design de vistorias no ERP
+- Timeline: +3-4 sprints (após Fase 2)
+- Checklist de requisitos documentado em INTEGRACAO_FASE3.md
+- Usar app-bruxel apenas como **referência visual** de UX
+
+---
+
+## 📊 Status Consolidado — Todas as Fases
+
+| Fase | Módulos | Status | PR | Progresso |
+|------|---------|--------|----|-----------:|
+| **Fase 1** | 3 GREEN | ✅ COMPLETO | [PR #22](https://github.com/celiotibes/ERP-CRMT-Gestao-Imobiliaria-/pull/22) | 100% |
+| **Fase 2** | 2 YELLOW | ✅ INICIADO | [PR #23](https://github.com/celiotibes/ERP-CRMT-Gestao-Imobiliaria-/pull/23) | ~30% |
+| **Fase 3** | 1 RED | 📋 DOCUMENTADO | [INTEGRACAO_FASE3.md](./INTEGRACAO_FASE3.md) | ~5% |
+| **Análise** | 6 features | ✅ COMPLETO | [PR #10 Lucide](https://github.com/celiotibes/Lucide-react/pull/10) | 100% |
+
+---
+
+## 🚀 Timeline Revisado
+
+| Semana | Atividade | Status |
+|--------|-----------|--------|
+| Semana 1 (atual) | ✅ Fase 1 modules copiados + PR criado | ✅ DONE |
+| Semana 1-2 | ⏳ Fase 2 testes comparativos + PR review | ⏳ IN PROGRESS |
+| Semana 3-4 | ⏳ Fase 2 merge + Fase 3 design | ⏳ PENDING |
+| Semana 5-8 | ⏳ Fase 3 implementação novo design vistorias | ⏳ PENDING |
+| **Total** | **4-6 semanas** | ~35% completo |
+
