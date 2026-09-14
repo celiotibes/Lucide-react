@@ -7,7 +7,6 @@ import { concluirInspecao, aprovar, rejeitar } from "./aprova";
 import { obterAudit, obterTempoDecorrido } from "./audit";
 import { gerarDadosLaudo, registrarGeracaoLaudo, obterLaudosGerados, formatarLaudoTexto } from "./laudo";
 import type { Database } from "sql.js";
-import type { Vistoria } from "../types";
 
 describe("Vistorias — Agendamento e Inspeção", () => {
   let db: Database;

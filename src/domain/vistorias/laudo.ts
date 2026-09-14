@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import type { Vistoria, VistoriaItem, VistoriaLog } from "../types";
+import { obterVistoriaOuErro, formatarData, formatarDataHora } from "./utils";
 
 export interface LaudoData {
   vistoria: Vistoria;
@@ -18,12 +19,7 @@ export interface LaudoData {
 }
 
 export function gerarDadosLaudo(db: Database, vistoria_id: number): LaudoData {
-  const [vistoria] = consultar<Vistoria>(db, "SELECT * FROM vistorias WHERE id = ?", [
-    vistoria_id,
-  ]);
-  if (!vistoria) {
-    throw new Error(`Vistoria ${vistoria_id} não encontrada`);
-  }
+  const vistoria = obterVistoriaOuErro(db, vistoria_id);
 
   const [imovel] = consultar<{ apelido: string; endereco?: string; tipo?: string }>(
     db,
@@ -75,14 +71,9 @@ export function registrarGeracaoLaudo(
   hash_sha256: string,
   tamanho_bytes: number,
 ): void {
-  const [vistoria] = consultar<Vistoria>(db, "SELECT * FROM vistorias WHERE id = ?", [
-    vistoria_id,
-  ]);
-  if (!vistoria) {
-    throw new Error(`Vistoria ${vistoria_id} não encontrada`);
-  }
+  const vistoria = obterVistoriaOuErro(db, vistoria_id);
 
-  const data_emissao = vistoria.data_realizada || new Date().toISOString().split("T")[0];
+  const data_emissao = vistoria.data_realizada || formatarData(new Date().toISOString());
   const gerado_em = new Date().toISOString();
 
   executar(
@@ -99,12 +90,7 @@ export function obterLaudosGerados(db: Database, vistoria_id: number): Array<{
   data_emissao: string;
   gerado_em: string;
 }> {
-  const [vistoria] = consultar<Vistoria>(db, "SELECT * FROM vistorias WHERE id = ?", [
-    vistoria_id,
-  ]);
-  if (!vistoria) {
-    throw new Error(`Vistoria ${vistoria_id} não encontrada`);
-  }
+  const vistoria = obterVistoriaOuErro(db, vistoria_id);
 
   return consultar<{ id: number; nome_arquivo: string; data_emissao: string; gerado_em: string }>(
     db,
@@ -130,8 +116,8 @@ export function formatarLaudoTexto(laudo: LaudoData): string {
   if (laudo.imovel.endereco) {
     linhas.push(`Endereço: ${laudo.imovel.endereco}`);
   }
-  linhas.push(`Data Agendada: ${laudo.vistoria.data_agendada?.split("T")[0] || "N/A"}`);
-  linhas.push(`Data Realizada: ${laudo.vistoria.data_realizada?.split("T")[0] || "Pendente"}`);
+  linhas.push(`Data Agendada: ${formatarData(laudo.vistoria.data_agendada) || "N/A"}`);
+  linhas.push(`Data Realizada: ${formatarData(laudo.vistoria.data_realizada) || "Pendente"}`);
   linhas.push(`Responsável: ${laudo.vistoria.responsavel || "Não definido"}`);
   linhas.push(`Status: ${laudo.vistoria.status}`);
   if (laudo.contrato) {
@@ -198,15 +184,15 @@ export function formatarLaudoTexto(laudo: LaudoData): string {
   linhas.push("HISTÓRICO DE AÇÕES");
   linhas.push("-".repeat(80));
   laudo.historico.forEach((log) => {
-    const data = log.criado_em.split("T")[0];
-    const hora = log.criado_em.split("T")[1]?.substring(0, 5) || "";
+    const { data, hora } = formatarDataHora(log.criado_em);
     const motivo = log.motivo ? ` — ${log.motivo}` : "";
     linhas.push(`${data} ${hora} - ${log.acao}${motivo}`);
   });
 
   linhas.push("");
   linhas.push("=".repeat(80));
-  linhas.push(`Laudo gerado em: ${laudo.gerado_em.split("T")[0]} às ${laudo.gerado_em.split("T")[1]?.substring(0, 5)}`);
+  const { data: dataGerada, hora: horaGerada } = formatarDataHora(laudo.gerado_em);
+  linhas.push(`Laudo gerado em: ${dataGerada} às ${horaGerada}`);
   linhas.push("=".repeat(80));
 
   return linhas.join("\n");

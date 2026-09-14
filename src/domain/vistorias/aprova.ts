@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
-import { executar, consultar } from "../../db/connection";
+import { executar } from "../../db/connection";
 import type { Vistoria } from "../types";
+import { obterVistoriaOuErro, registrarAcao } from "./utils";
 
 export interface AprovacaoDTO {
   vistoria_id: number;
@@ -13,12 +14,7 @@ export interface RejeicaoDTO {
 }
 
 export function concluirInspecao(db: Database, vistoria_id: number, motivo?: string): Vistoria {
-  const [vistoria] = consultar<Vistoria>(db, "SELECT * FROM vistorias WHERE id = ?", [
-    vistoria_id,
-  ]);
-  if (!vistoria) {
-    throw new Error(`Vistoria ${vistoria_id} não encontrada`);
-  }
+  const vistoria = obterVistoriaOuErro(db, vistoria_id);
 
   if (vistoria.status !== "em_progresso") {
     throw new Error(`Vistoria ${vistoria_id} não está em progresso — status atual: ${vistoria.status}`);
@@ -32,12 +28,7 @@ export function concluirInspecao(db: Database, vistoria_id: number, motivo?: str
     [agora, vistoria_id],
   );
 
-  executar(
-    db,
-    `INSERT INTO vistoria_log (vistoria_id, acao, usuario_id, motivo, criado_em)
-     VALUES (?, 'concluida', NULL, ?, ?)`,
-    [vistoria_id, motivo ?? null, agora],
-  );
+  registrarAcao(db, vistoria_id, "concluida", motivo);
 
   return {
     ...vistoria,
@@ -47,12 +38,7 @@ export function concluirInspecao(db: Database, vistoria_id: number, motivo?: str
 }
 
 export function aprovar(db: Database, dto: AprovacaoDTO): Vistoria {
-  const [vistoria] = consultar<Vistoria>(db, "SELECT * FROM vistorias WHERE id = ?", [
-    dto.vistoria_id,
-  ]);
-  if (!vistoria) {
-    throw new Error(`Vistoria ${dto.vistoria_id} não encontrada`);
-  }
+  const vistoria = obterVistoriaOuErro(db, dto.vistoria_id);
 
   if (vistoria.status !== "concluida") {
     throw new Error(
@@ -68,12 +54,7 @@ export function aprovar(db: Database, dto: AprovacaoDTO): Vistoria {
     [agora, dto.vistoria_id],
   );
 
-  executar(
-    db,
-    `INSERT INTO vistoria_log (vistoria_id, acao, usuario_id, motivo, criado_em)
-     VALUES (?, 'aprovada', NULL, ?, ?)`,
-    [dto.vistoria_id, dto.motivo ?? null, agora],
-  );
+  registrarAcao(db, dto.vistoria_id, "aprovada", dto.motivo);
 
   return {
     ...vistoria,
@@ -83,12 +64,7 @@ export function aprovar(db: Database, dto: AprovacaoDTO): Vistoria {
 }
 
 export function rejeitar(db: Database, dto: RejeicaoDTO): Vistoria {
-  const [vistoria] = consultar<Vistoria>(db, "SELECT * FROM vistorias WHERE id = ?", [
-    dto.vistoria_id,
-  ]);
-  if (!vistoria) {
-    throw new Error(`Vistoria ${dto.vistoria_id} não encontrada`);
-  }
+  const vistoria = obterVistoriaOuErro(db, dto.vistoria_id);
 
   if (!["em_progresso", "concluida"].includes(vistoria.status)) {
     throw new Error(
@@ -104,12 +80,7 @@ export function rejeitar(db: Database, dto: RejeicaoDTO): Vistoria {
     [agora, dto.vistoria_id],
   );
 
-  executar(
-    db,
-    `INSERT INTO vistoria_log (vistoria_id, acao, usuario_id, motivo, criado_em)
-     VALUES (?, 'rejeitada', NULL, ?, ?)`,
-    [dto.vistoria_id, dto.motivo, agora],
-  );
+  registrarAcao(db, dto.vistoria_id, "rejeitada", dto.motivo);
 
   return {
     ...vistoria,

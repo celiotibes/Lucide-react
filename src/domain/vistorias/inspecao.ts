@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
 import { executar, consultar } from "../../db/connection";
 import type { Vistoria, VistoriaItem, VistoriaLog } from "../types";
+import { obterVistoriaOuErro, registrarAcao } from "./utils";
 
 export interface ItemInspecaoDTO {
   tipo: "dano" | "necessidade_reparo" | "achado_positivo";
@@ -15,12 +16,7 @@ export function realizarInspecao(
   items: ItemInspecaoDTO[],
   responsavel: string,
 ): Vistoria {
-  const [vistoria] = consultar<Vistoria>(db, "SELECT * FROM vistorias WHERE id = ?", [
-    vistoria_id,
-  ]);
-  if (!vistoria) {
-    throw new Error(`Vistoria ${vistoria_id} não encontrada`);
-  }
+  const vistoria = obterVistoriaOuErro(db, vistoria_id);
 
   const agora = new Date().toISOString();
 
@@ -46,12 +42,7 @@ export function realizarInspecao(
     );
   }
 
-  executar(
-    db,
-    `INSERT INTO vistoria_log (vistoria_id, acao, usuario_id, criado_em)
-     VALUES (?, 'inspecao_iniciada', NULL, ?)`,
-    [vistoria_id, agora],
-  );
+  registrarAcao(db, vistoria_id, "inspecao_iniciada");
 
   const [resultado] = consultar<{ total: number }>(
     db,

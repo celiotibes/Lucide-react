@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
 import { executar, consultar } from "../../db/connection";
 import type { Vistoria } from "../types";
+import { registrarAcao } from "./utils";
 
 export interface AgendaVistoriaDTO {
   imovel_id: number;
@@ -40,12 +41,7 @@ export function agendar(db: Database, dto: AgendaVistoriaDTO): Vistoria {
     [dto.imovel_id],
   );
 
-  executar(
-    db,
-    `INSERT INTO vistoria_log (vistoria_id, acao, usuario_id, criado_em)
-     VALUES (?, 'agendada', NULL, ?)`,
-    [vistoria.id, agora_iso],
-  );
+  registrarAcao(db, vistoria.id, "agendada");
 
   return vistoria;
 }
