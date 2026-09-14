@@ -299,3 +299,345 @@ export function obterStatusSincronizacao(db: any): {
     percentual_sucesso: Math.round(percentualSucesso * 100) / 100,
   };
 }
+
+// ===== SKILL 1: ALUGUEL RECEBIDO =====
+export interface AluguelRecebido {
+  data_evento: string;
+  valor: number;
+  imovel_id: number;
+  inquilino_id: number;
+  referencia_documento: string;
+  descricao?: string;
+}
+
+export function procesarAluguelRecebido(
+  db: any,
+  entidade_id: number,
+  periodo_id: number,
+  aluguel: AluguelRecebido
+): { sucesso: boolean; ledger_entry_id?: number; errors?: string[] } {
+  const validacao = validarAluguelRecebido(aluguel);
+  if (!validacao.valida) {
+    return { sucesso: false, errors: validacao.erros };
+  }
+
+  try {
+    // Débito em 1.1.01 (Aluguéis)
+    const contaResult = db.exec(
+      `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01'`
+    );
+
+    if (!contaResult[0]?.values?.length) {
+      return { sucesso: false, errors: ['Conta 1.1.01 não encontrada'] };
+    }
+
+    const conta_id = contaResult[0].values[0][0];
+
+    db.run(
+      `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, data_lancamento, valor_debito, valor_credito, descricao, origem_modulo, origem_id, referencia_documento, criado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entidade_id,
+        periodo_id,
+        conta_id,
+        aluguel.data_evento,
+        aluguel.valor,
+        0,
+        aluguel.descricao || `Aluguel - Imóvel ${aluguel.imovel_id}`,
+        'skillos_aluguel',
+        aluguel.imovel_id,
+        aluguel.referencia_documento,
+        new Date().toISOString(),
+      ]
+    );
+
+    return { sucesso: true, ledger_entry_id: conta_id };
+  } catch (erro) {
+    return { sucesso: false, errors: [`Erro ao processar aluguel: ${String(erro)}`] };
+  }
+}
+
+function validarAluguelRecebido(aluguel: AluguelRecebido): { valida: boolean; erros: string[] } {
+  const erros: string[] = [];
+  if (!aluguel.data_evento) erros.push('data_evento obrigatória');
+  if (aluguel.valor <= 0) erros.push('valor deve ser positivo');
+  if (!aluguel.imovel_id) erros.push('imovel_id obrigatório');
+  if (!aluguel.inquilino_id) erros.push('inquilino_id obrigatório');
+  if (!aluguel.referencia_documento) erros.push('referencia_documento obrigatória');
+  return { valida: erros.length === 0, erros };
+}
+
+// ===== SKILL 2: CAUÇÃO DEPOSITADA =====
+export interface CaucaoDepositada {
+  data_evento: string;
+  valor: number;
+  imovel_id: number;
+  inquilino_id: number;
+  referencia_documento: string;
+  descricao?: string;
+}
+
+export function procesarCaucaoDepositada(
+  db: any,
+  entidade_id: number,
+  periodo_id: number,
+  caucao: CaucaoDepositada
+): { sucesso: boolean; ledger_entry_id?: number; errors?: string[] } {
+  const validacao = validarCaucaoDepositada(caucao);
+  if (!validacao.valida) {
+    return { sucesso: false, errors: validacao.erros };
+  }
+
+  try {
+    // Débito em 1.1.02 (Reembolso/Depósito)
+    const contaResult = db.exec(
+      `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.02'`
+    );
+
+    if (!contaResult[0]?.values?.length) {
+      return { sucesso: false, errors: ['Conta 1.1.02 não encontrada'] };
+    }
+
+    const conta_id = contaResult[0].values[0][0];
+
+    db.run(
+      `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, data_lancamento, valor_debito, valor_credito, descricao, origem_modulo, origem_id, referencia_documento, criado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entidade_id,
+        periodo_id,
+        conta_id,
+        caucao.data_evento,
+        caucao.valor,
+        0,
+        caucao.descricao || `Caução depositada - Imóvel ${caucao.imovel_id}`,
+        'skillos_caucao',
+        caucao.imovel_id,
+        caucao.referencia_documento,
+        new Date().toISOString(),
+      ]
+    );
+
+    return { sucesso: true, ledger_entry_id: conta_id };
+  } catch (erro) {
+    return { sucesso: false, errors: [`Erro ao processar caução: ${String(erro)}`] };
+  }
+}
+
+function validarCaucaoDepositada(caucao: CaucaoDepositada): { valida: boolean; erros: string[] } {
+  const erros: string[] = [];
+  if (!caucao.data_evento) erros.push('data_evento obrigatória');
+  if (caucao.valor <= 0) erros.push('valor deve ser positivo');
+  if (!caucao.imovel_id) erros.push('imovel_id obrigatório');
+  if (!caucao.inquilino_id) erros.push('inquilino_id obrigatório');
+  if (!caucao.referencia_documento) erros.push('referencia_documento obrigatória');
+  return { valida: erros.length === 0, erros };
+}
+
+// ===== SKILL 3: TAXA CONDOMÍNIO =====
+export interface TaxaCondominio {
+  data_evento: string;
+  valor: number;
+  imovel_id: number;
+  referencia_documento: string;
+  descricao?: string;
+}
+
+export function procesarTaxaCondominio(
+  db: any,
+  entidade_id: number,
+  periodo_id: number,
+  taxa: TaxaCondominio
+): { sucesso: boolean; ledger_entry_id?: number; errors?: string[] } {
+  const validacao = validarTaxaCondominio(taxa);
+  if (!validacao.valida) {
+    return { sucesso: false, errors: validacao.erros };
+  }
+
+  try {
+    // Débito em 2.1.01 (Condomínio e IPTU)
+    const contaResult = db.exec(
+      `SELECT id FROM contas_plano_contas WHERE codigo = '2.1.01'`
+    );
+
+    if (!contaResult[0]?.values?.length) {
+      return { sucesso: false, errors: ['Conta 2.1.01 não encontrada'] };
+    }
+
+    const conta_id = contaResult[0].values[0][0];
+
+    db.run(
+      `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, data_lancamento, valor_debito, valor_credito, descricao, origem_modulo, origem_id, referencia_documento, criado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entidade_id,
+        periodo_id,
+        conta_id,
+        taxa.data_evento,
+        taxa.valor,
+        0,
+        taxa.descricao || `Taxa de condomínio - Imóvel ${taxa.imovel_id}`,
+        'skillos_condominio',
+        taxa.imovel_id,
+        taxa.referencia_documento,
+        new Date().toISOString(),
+      ]
+    );
+
+    return { sucesso: true, ledger_entry_id: conta_id };
+  } catch (erro) {
+    return { sucesso: false, errors: [`Erro ao processar taxa de condomínio: ${String(erro)}`] };
+  }
+}
+
+function validarTaxaCondominio(taxa: TaxaCondominio): { valida: boolean; erros: string[] } {
+  const erros: string[] = [];
+  if (!taxa.data_evento) erros.push('data_evento obrigatória');
+  if (taxa.valor <= 0) erros.push('valor deve ser positivo');
+  if (!taxa.imovel_id) erros.push('imovel_id obrigatório');
+  if (!taxa.referencia_documento) erros.push('referencia_documento obrigatória');
+  return { valida: erros.length === 0, erros };
+}
+
+// ===== SKILL 4: ÁGUA, ENERGIA, INTERNET =====
+export interface UtilitiesExpense {
+  data_evento: string;
+  valor: number;
+  imovel_id: number;
+  tipo_utilidade: 'agua' | 'energia' | 'internet';
+  referencia_documento: string;
+  descricao?: string;
+}
+
+export function procesarUtilitiesExpense(
+  db: any,
+  entidade_id: number,
+  periodo_id: number,
+  utilidade: UtilitiesExpense
+): { sucesso: boolean; ledger_entry_id?: number; errors?: string[] } {
+  const validacao = validarUtilitiesExpense(utilidade);
+  if (!validacao.valida) {
+    return { sucesso: false, errors: validacao.erros };
+  }
+
+  try {
+    // Débito em 2.1.02 (Manutenção corrente, abrangendo utilidades)
+    const contaResult = db.exec(
+      `SELECT id FROM contas_plano_contas WHERE codigo = '2.1.02'`
+    );
+
+    if (!contaResult[0]?.values?.length) {
+      return { sucesso: false, errors: ['Conta 2.1.02 não encontrada'] };
+    }
+
+    const conta_id = contaResult[0].values[0][0];
+
+    const tipoDescricao = {
+      agua: 'Água e Esgoto',
+      energia: 'Eletricidade',
+      internet: 'Internet'
+    }[utilidade.tipo_utilidade];
+
+    db.run(
+      `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, data_lancamento, valor_debito, valor_credito, descricao, origem_modulo, origem_id, referencia_documento, criado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entidade_id,
+        periodo_id,
+        conta_id,
+        utilidade.data_evento,
+        utilidade.valor,
+        0,
+        utilidade.descricao || `${tipoDescricao} - Imóvel ${utilidade.imovel_id}`,
+        'skillos_utilidades',
+        utilidade.imovel_id,
+        utilidade.referencia_documento,
+        new Date().toISOString(),
+      ]
+    );
+
+    return { sucesso: true, ledger_entry_id: conta_id };
+  } catch (erro) {
+    return { sucesso: false, errors: [`Erro ao processar despesa de utilidades: ${String(erro)}`] };
+  }
+}
+
+function validarUtilitiesExpense(utilidade: UtilitiesExpense): { valida: boolean; erros: string[] } {
+  const erros: string[] = [];
+  if (!utilidade.data_evento) erros.push('data_evento obrigatória');
+  if (utilidade.valor <= 0) erros.push('valor deve ser positivo');
+  if (!utilidade.imovel_id) erros.push('imovel_id obrigatório');
+  if (!['agua', 'energia', 'internet'].includes(utilidade.tipo_utilidade)) {
+    erros.push('tipo_utilidade inválido: deve ser agua, energia ou internet');
+  }
+  if (!utilidade.referencia_documento) erros.push('referencia_documento obrigatória');
+  return { valida: erros.length === 0, erros };
+}
+
+// ===== SKILL 5: CONTRATO ANÁLISE =====
+export interface ContratoAnalise {
+  data_evento: string;
+  numero_contrato: string;
+  imovel_id: number;
+  data_inicio: string;
+  valor_aluguel: number;
+  descricao?: string;
+  referencia_documento?: string;
+}
+
+export function procesarContratoAnalise(
+  db: any,
+  entidade_id: number,
+  numero_contrato: string,
+  contrato: ContratoAnalise
+): { sucesso: boolean; contrato_id?: number; errors?: string[] } {
+  const validacao = validarContratoAnalise(contrato);
+  if (!validacao.valida) {
+    return { sucesso: false, errors: validacao.erros };
+  }
+
+  try {
+    // Criar ou atualizar contrato
+    const existente = db.exec(
+      `SELECT id FROM contratos_locacao WHERE entidade_id = ? AND imovel_id = ? AND data_inicio = ?`,
+      [entidade_id, contrato.imovel_id, contrato.data_inicio]
+    );
+
+    if (existente[0]?.values?.length > 0) {
+      const contrato_id = existente[0].values[0][0];
+      db.run(
+        `UPDATE contratos_locacao SET valor_aluguel = ?, valor_referencia = ?, status = ? WHERE id = ?`,
+        [contrato.valor_aluguel, contrato.valor_aluguel, 'ativo', contrato_id]
+      );
+      return { sucesso: true, contrato_id };
+    } else {
+      db.run(
+        `INSERT INTO contratos_locacao (entidade_id, imovel_id, valor_aluguel, valor_referencia, data_inicio, status)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [entidade_id, contrato.imovel_id, contrato.valor_aluguel, contrato.valor_aluguel, contrato.data_inicio, 'ativo']
+      );
+
+      const result = db.exec(
+        `SELECT id FROM contratos_locacao WHERE entidade_id = ? AND imovel_id = ? AND data_inicio = ? ORDER BY id DESC LIMIT 1`,
+        [entidade_id, contrato.imovel_id, contrato.data_inicio]
+      );
+
+      if (result[0]?.values?.length > 0) {
+        return { sucesso: true, contrato_id: result[0].values[0][0] };
+      }
+    }
+
+    return { sucesso: true };
+  } catch (erro) {
+    return { sucesso: false, errors: [`Erro ao processar contrato: ${String(erro)}`] };
+  }
+}
+
+function validarContratoAnalise(contrato: ContratoAnalise): { valida: boolean; erros: string[] } {
+  const erros: string[] = [];
+  if (!contrato.data_evento) erros.push('data_evento obrigatória');
+  if (!contrato.data_inicio) erros.push('data_inicio obrigatória');
+  if (!contrato.imovel_id) erros.push('imovel_id obrigatório');
+  if (contrato.valor_aluguel <= 0) erros.push('valor_aluguel deve ser positivo');
+  return { valida: erros.length === 0, erros };
+}

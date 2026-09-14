@@ -301,6 +301,74 @@ export async function prepararBancoTeste() {
       criado_em TEXT NOT NULL,
       sincronizado_em TEXT
     );
+
+    -- MÓDULO APROVAÇÃO DE DOCUMENTOS
+    CREATE TABLE IF NOT EXISTS approval_requests (
+      id TEXT PRIMARY KEY,
+      documento_id INTEGER NOT NULL,
+      tipo_documento TEXT NOT NULL,
+      entidade_id INTEGER NOT NULL,
+      valor REAL NOT NULL,
+      descricao TEXT NOT NULL,
+      solicitante_id INTEGER NOT NULL,
+      data_criacao TEXT NOT NULL,
+      status TEXT DEFAULT 'draft'
+    );
+
+    CREATE TABLE IF NOT EXISTS approval_steps (
+      id TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL,
+      nivel TEXT NOT NULL,
+      responsavel_id INTEGER,
+      data_atribuida TEXT NOT NULL,
+      data_revisao TEXT,
+      status TEXT DEFAULT 'pendente',
+      comentario TEXT,
+      motivo_rejeicao TEXT,
+      FOREIGN KEY (request_id) REFERENCES approval_requests(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS approval_notifications (
+      id TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL,
+      responsavel_id INTEGER,
+      tipo TEXT NOT NULL,
+      mensagem TEXT NOT NULL,
+      data_envio TEXT NOT NULL,
+      lido INTEGER DEFAULT 0,
+      FOREIGN KEY (request_id) REFERENCES approval_requests(id)
+    );
+
+    -- MÓDULO PAGAMENTOS
+    CREATE TABLE IF NOT EXISTS pagamentos (
+      id TEXT PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      valor REAL NOT NULL,
+      descricao TEXT NOT NULL,
+      tipo_pagamento TEXT NOT NULL,
+      metodo_pagamento TEXT NOT NULL,
+      status TEXT DEFAULT 'pendente',
+      beneficiario TEXT NOT NULL,
+      referencia TEXT NOT NULL,
+      data_criacao TEXT NOT NULL,
+      data_agendado TEXT,
+      data_processamento TEXT,
+      data_conclusao TEXT,
+      tentativas INTEGER DEFAULT 0,
+      ultimo_erro TEXT,
+      reconciliacao_status TEXT DEFAULT 'nao_reconciliado',
+      reconciliado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS pagamento_tentativas (
+      id TEXT PRIMARY KEY,
+      payment_id TEXT NOT NULL,
+      data_tentativa TEXT NOT NULL,
+      resultado TEXT NOT NULL,
+      mensagem TEXT NOT NULL,
+      codigo_retorno TEXT,
+      FOREIGN KEY (payment_id) REFERENCES pagamentos(id)
+    );
   `);
 
   // Inserir dados de teste

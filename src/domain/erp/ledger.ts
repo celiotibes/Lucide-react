@@ -16,7 +16,7 @@ export interface LancamentoContabil {
   valor_debito?: number;
   valor_credito?: number;
   descricao: string;
-  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'manual';
+  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'manual';
   origem_id: number;
   referencia_documento: string;
   criado_por?: number;
