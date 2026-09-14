@@ -44,6 +44,41 @@ export async function prepararBancoTeste() {
       FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id),
       FOREIGN KEY (conta_id) REFERENCES contas_plano_contas(id)
     );
+
+    CREATE TABLE IF NOT EXISTS imoveis (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      endereco TEXT NOT NULL,
+      tipo_imovel TEXT,
+      uso_pessoal INTEGER DEFAULT 0,
+      financiado INTEGER DEFAULT 0,
+      valor_aquisicao REAL DEFAULT 0,
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS contratos_locacao (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      imovel_id INTEGER NOT NULL,
+      valor_aluguel REAL,
+      valor_referencia REAL,
+      data_inicio TEXT,
+      data_fim TEXT,
+      status TEXT DEFAULT 'ativo',
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id),
+      FOREIGN KEY (imovel_id) REFERENCES imoveis(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS transacoes_auditoria (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      periodo_id INTEGER NOT NULL,
+      tipo TEXT,
+      descricao TEXT,
+      status TEXT DEFAULT 'pendente',
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id),
+      FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id)
+    );
   `);
 
   // Inserir dados de teste
@@ -161,6 +196,37 @@ export async function prepararBancoTeste() {
      SELECT ?, ?, id, 'Capital - integralização', 500000, '2025-12-01'
      FROM contas_plano_contas WHERE codigo = '4.1.01'`,
     [entidade_id, periodo_id]
+  );
+
+  // Inserir dados de imoveis
+  db.run(
+    `INSERT INTO imoveis (id, entidade_id, endereco, tipo_imovel, uso_pessoal, financiado, valor_aquisicao) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [1, entidade_id, "Rua Principal 123, Apto 101", "apartamento", 0, 0, 300000]
+  );
+
+  db.run(
+    `INSERT INTO imoveis (id, entidade_id, endereco, tipo_imovel, uso_pessoal, financiado, valor_aquisicao) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [2, entidade_id, "Rua Principal 123, Apto 102", "apartamento", 0, 0, 350000]
+  );
+
+  // Inserir dados de contratos_locacao
+  db.run(
+    `INSERT INTO contratos_locacao (id, entidade_id, imovel_id, valor_aluguel, valor_referencia, data_inicio, data_fim, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, entidade_id, 1, 2000, 2000, "2025-01-01", "2026-12-31", "ativo"]
+  );
+
+  db.run(
+    `INSERT INTO contratos_locacao (id, entidade_id, imovel_id, valor_aluguel, valor_referencia, data_inicio, data_fim, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [2, entidade_id, 2, 2500, 2500, "2025-06-01", "2026-12-31", "ativo"]
+  );
+
+  // Inserir dados de transacoes_auditoria
+  db.run(
+    `INSERT INTO transacoes_auditoria (id, entidade_id, periodo_id, tipo, descricao, status)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [1, entidade_id, periodo_id, "lancamento", "Auditoria de lançamentos", "pendente"]
   );
 
   return { db, entidade_id, periodo_id };
