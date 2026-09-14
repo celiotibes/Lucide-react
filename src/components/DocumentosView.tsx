@@ -42,6 +42,10 @@ interface RascunhoDocumento {
   // num documento salvo antes (nunca aplicado sem o usuário ver e poder corrigir) — mostra
   // um aviso "sugerido, confirme" em vez de deixar parecer que veio de extração de texto.
   sugeridoPorRegra: boolean;
+  // true = tipo/nomeContraparte extraídos por IA (fallback quando heurística falha)
+  // Requer revisão explícita do usuário antes de salvar (badge "extraído com IA — confirme")
+  usouIA?: boolean;
+  confiancaIA?: "alta" | "media" | "baixa";
 }
 
 export function DocumentosView() {
@@ -61,7 +65,7 @@ export function DocumentosView() {
     for (const arquivo of arquivos) {
       try {
         const texto = await extrairTextoDocumento(arquivo);
-        const campos = extrairCamposDeTexto(texto);
+        const campos = await extrairCamposDeTexto(texto);
         const veioDeXmlNota = arquivo.name.toLowerCase().endsWith(".xml") && (campos.nomeContraparte || campos.descricaoProdutoServico);
         const descricao = [campos.numeroDocumento ? `NF nº ${campos.numeroDocumento}` : null, campos.descricaoProdutoServico]
           .filter(Boolean)
@@ -85,6 +89,8 @@ export function DocumentosView() {
           planoContaCodigo: regra?.plano_conta_codigo ?? "",
           imoveisPercentuais: regra?.imovel_id ? [{ imovelId: regra.imovel_id, percentual: "100" }] : [],
           sugeridoPorRegra: regra !== null,
+          usouIA: campos.usouIA,
+          confiancaIA: campos.confiancaIA,
         });
       } catch (erro) {
         setMensagem(`Falha ao extrair "${arquivo.name}": ${erro instanceof Error ? erro.message : String(erro)}`);
@@ -199,6 +205,11 @@ export function DocumentosView() {
                   {r.sugeridoPorRegra && (
                     <span className="pill good" title="Tipo, categoria, fornecedor e imóvel pré-preenchidos a partir de um documento anterior com o mesmo CNPJ/CPF — confira antes de salvar">
                       sugerido por CNPJ conhecido
+                    </span>
+                  )}
+                  {r.usouIA && (
+                    <span className={`pill ${r.confiancaIA === "alta" ? "good" : r.confiancaIA === "media" ? "warn" : "warn"}`} title={`Tipo e/ou fornecedor extraídos por IA (confiança ${r.confiancaIA}) — confira antes de salvar`}>
+                      extraído com IA
                     </span>
                   )}
                 </strong>

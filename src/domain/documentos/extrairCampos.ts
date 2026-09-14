@@ -1,6 +1,7 @@
 import { extrairTextoPdf } from "../parsers/pdfDocumento";
 import { ocrImagem } from "../parsers/ocrImagem";
 import { extrairCamposXmlNota, pareceSerXmlNota } from "./parseNFe";
+import { classificarDocumentoComIA } from "./classificarComIA";
 import type { TipoDocumento } from "../types";
 
 const REGEX_VALOR = /(?:R\$\s?)?(\d{1,3}(?:\.\d{3})*,\d{2})/;
@@ -73,6 +74,8 @@ export interface CamposExtraidosDocumento {
   descricaoProdutoServico?: string;
   numeroDocumento?: string;
   tipo?: TipoDocumento;
+  usouIA?: boolean;
+  confiancaIA?: "alta" | "media" | "baixa";
 }
 
 /** Extração de valor, data, CNPJ/CPF, nome da contraparte e tipo do documento do texto —
@@ -81,10 +84,10 @@ export interface CamposExtraidosDocumento {
  * por tag (estruturado, mais confiável); qualquer outro texto (PDF/OCR) cai para regex
  * determinística — nome da contraparte e tipo são heurísticas por rótulo/palavra-chave
  * comuns em boleto/contrato/recibo/fatura brasileiros, sempre revisáveis no formulário antes
- * de salvar (nunca aplicadas sem confirmação). Não tenta reconhecer produto/serviço em texto
- * livre; isso fica para o usuário preencher (ou, opcionalmente, uma chave de IA própria —
- * ver DocumentosView). */
-export function extrairCamposDeTexto(texto: string): CamposExtraidosDocumento {
+ * de salvar (nunca aplicadas sem confirmação). Se heurística falha (tipo e nomeContraparte
+ * ambos undefined), tenta IA como fallback (requer apiKey ou backend configurado). Nunca envia
+ * dados sensíveis completos — apenas máx 1000 caracteres do documento (minimiza risco). */
+export async function extrairCamposDeTexto(texto: string, apiKeyIA?: string): Promise<CamposExtraidosDocumento> {
   if (pareceSerXmlNota(texto)) {
     const campos = extrairCamposXmlNota(texto);
     if (campos) return { ...campos, tipo: "nota_fiscal" };
@@ -101,6 +104,20 @@ export function extrairCamposDeTexto(texto: string): CamposExtraidosDocumento {
   const cnpjCpf = cnpjCasado?.[1] ?? cpfCasado?.[1];
   const nomeContraparte = extrairNomeContraparte(texto, cnpjCpf);
   const tipo = classificarTipoPorTexto(texto);
+
+  // Fallback para IA se heurística não conseguiu extrair tipo e/ou fornecedor
+  if (!tipo || !nomeContraparte) {
+    const resultadoIA = await classificarDocumentoComIA(texto, apiKeyIA);
+    return {
+      valor,
+      data,
+      cnpjCpf,
+      nomeContraparte: nomeContraparte || resultadoIA.nomeContraparte,
+      tipo: tipo || resultadoIA.tipo,
+      usouIA: !!(resultadoIA.tipo || resultadoIA.nomeContraparte),
+      confiancaIA: resultadoIA.confianca,
+    };
+  }
 
   return { valor, data, cnpjCpf, nomeContraparte, tipo };
 }
