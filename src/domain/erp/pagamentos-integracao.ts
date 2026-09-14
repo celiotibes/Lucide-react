@@ -221,7 +221,7 @@ export function marcarPagamentoComFalha(
 ): { sucesso: boolean; errors?: string[] } {
   try {
     const resultado = db.exec(
-      `SELECT id, tentativas FROM pagamentos WHERE id = ? AND status IN ('pendente', 'processando')`,
+      `SELECT id, tentativas FROM pagamentos WHERE id = ? AND status IN ('pendente', 'processando', 'falho')`,
       [payment_id]
     );
 
