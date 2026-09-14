@@ -4,6 +4,7 @@ import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { Dropzone } from "./Dropzone";
 import { extrairTextoDocumento, extrairCamposDeTexto } from "../domain/documentos/extrairCampos";
+import { buscarRegraPorCnpjCpf, salvarOuAtualizarRegraDocumento } from "../domain/categorize/regrasDocumentos";
 import {
   inserirDocumento,
   listarDocumentos,
@@ -37,6 +38,10 @@ interface RascunhoDocumento {
   descricaoProdutoServico: string;
   planoContaCodigo: string;
   imoveisPercentuais: { imovelId: number; percentual: string }[];
+  // true = tipo/categoria/imóvel abaixo vieram de uma regra aprendida com o mesmo CNPJ/CPF
+  // num documento salvo antes (nunca aplicado sem o usuário ver e poder corrigir) — mostra
+  // um aviso "sugerido, confirme" em vez de deixar parecer que veio de extração de texto.
+  sugeridoPorRegra: boolean;
 }
 
 export function DocumentosView() {
@@ -61,17 +66,25 @@ export function DocumentosView() {
         const descricao = [campos.numeroDocumento ? `NF nº ${campos.numeroDocumento}` : null, campos.descricaoProdutoServico]
           .filter(Boolean)
           .join(" — ");
+
+        // Regra aprendida com o mesmo CNPJ/CPF (de um documento salvo antes) tem prioridade
+        // sobre a heurística de texto — reflete uma classificação já confirmada por você, não
+        // um palpite novo. Nunca aplicada sem revisão: só pré-preenche o formulário abaixo,
+        // que continua editável e exige "Salvar documento" para valer.
+        const regra = db && campos.cnpjCpf ? buscarRegraPorCnpjCpf(db, campos.cnpjCpf) : null;
+
         novos.push({
           arquivoNome: arquivo.name,
           textoExtraido: texto,
-          tipo: veioDeXmlNota ? "nota_fiscal" : "outro",
+          tipo: regra?.tipo ?? campos.tipo ?? (veioDeXmlNota ? "nota_fiscal" : "outro"),
           valor: campos.valor?.toFixed(2).replace(".", ",") ?? "",
           data: campos.data ?? "",
           cnpjCpf: campos.cnpjCpf ?? "",
-          nomeContraparte: campos.nomeContraparte ?? "",
+          nomeContraparte: regra?.nome_contraparte ?? campos.nomeContraparte ?? "",
           descricaoProdutoServico: descricao,
-          planoContaCodigo: "",
-          imoveisPercentuais: [],
+          planoContaCodigo: regra?.plano_conta_codigo ?? "",
+          imoveisPercentuais: regra?.imovel_id ? [{ imovelId: regra.imovel_id, percentual: "100" }] : [],
+          sugeridoPorRegra: regra !== null,
         });
       } catch (erro) {
         setMensagem(`Falha ao extrair "${arquivo.name}": ${erro instanceof Error ? erro.message : String(erro)}`);
@@ -121,6 +134,22 @@ export function DocumentosView() {
       },
       imoveisPct,
     );
+
+    // Grava/atualiza a regra por CNPJ/CPF a partir da classificação que você acabou de
+    // confirmar — o próximo documento do mesmo fornecedor já chega pré-preenchido. Só quando
+    // há CNPJ/CPF e categoria (uma classificação de fato, não um documento deixado em branco).
+    // Rateio entre vários imóveis não vira regra de imóvel único — fica sem imóvel sugerido
+    // (nunca presume qual rateio um novo documento vai ter).
+    if (r.cnpjCpf.trim() && r.planoContaCodigo) {
+      const imovelUnico = imoveisPct.length === 1 && imoveisPct[0].percentual === 100 ? imoveisPct[0].imovelId : null;
+      salvarOuAtualizarRegraDocumento(db, r.cnpjCpf.trim(), {
+        tipo: r.tipo,
+        nomeContraparte: r.nomeContraparte.trim() || null,
+        planoContaCodigo: r.planoContaCodigo,
+        imovelId: imovelUnico,
+      });
+    }
+
     await persistir();
     setRascunhos((atual) => atual.filter((_, i) => i !== indice));
     setDocumentoExpandidoId(id);
@@ -135,10 +164,12 @@ export function DocumentosView() {
     <div>
       <h2 className="section-title">Documentos ({documentos.length})</h2>
       <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 18 }}>
-        Envie contratos, recibos, faturas, notas fiscais, pedidos comerciais e boletos. O sistema extrai valor, data
-        e CNPJ/CPF automaticamente (heurística local, sem IA) e sugere a qual pagamento/PIX cada documento
-        corresponde por proximidade de valor e data — você confirma o vínculo, e a classificação (imóvel e
-        categoria) é aplicada à transação só nesse momento.
+        Envie contratos, recibos, faturas, notas fiscais, pedidos comerciais e boletos. O sistema extrai valor, data,
+        CNPJ/CPF, fornecedor e tipo automaticamente quando possível (heurística local, sem IA) e sugere a qual
+        pagamento/PIX cada documento corresponde por proximidade de valor e data — você confirma o vínculo, e a
+        classificação (imóvel e categoria) é aplicada à transação só nesse momento. Depois que você classifica o
+        primeiro documento de um fornecedor (mesmo CNPJ/CPF), o próximo já chega com tipo, categoria, imóvel e
+        fornecedor pré-preenchidos — só confirme ou corrija.
       </p>
 
       <Dropzone
@@ -165,6 +196,11 @@ export function DocumentosView() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <FileText size={16} /> {r.arquivoNome}
+                  {r.sugeridoPorRegra && (
+                    <span className="pill good" title="Tipo, categoria, fornecedor e imóvel pré-preenchidos a partir de um documento anterior com o mesmo CNPJ/CPF — confira antes de salvar">
+                      sugerido por CNPJ conhecido
+                    </span>
+                  )}
                 </strong>
                 <button className="btn" style={{ padding: "4px 7px" }} onClick={() => descartarRascunho(indice)}>
                   <X size={13} />

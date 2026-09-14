@@ -55,19 +55,31 @@ servi-lo em `http://localhost:4173`.
   comprovante PIX. Cada arquivo é processado no navegador e as transações extraídas
   ficam em preview para revisão antes de gravar no banco.
 - **Documentos e classificação**: envie contratos, recibos, faturas, pedidos comerciais
-  e boletos (PDF ou foto) — o sistema extrai valor, data e CNPJ/CPF do texto (heurística
-  determinística local, sem IA). Para **nota fiscal em XML** (NF-e modelo 55 ou NFS-e), a
-  extração é por tag em vez de regex sobre texto de OCR: pega automaticamente valor,
-  data de emissão, CNPJ/razão social do emitente, número da nota e a descrição do
-  produto/serviço — a NF-e segue o layout nacional único do SEFAZ (extração confiável); a
-  NFS-e não tem padrão nacional (cada prefeitura define o próprio XML), então a extração é
-  best-effort pelos nomes de tag mais comuns e cai para "sem categoria automática" (nunca
-  finge sucesso) se não reconhecer o layout do seu município. Em qualquer caso, o sistema
-  sugere a qual pagamento/PIX cada documento corresponde por proximidade de valor/data e
-  ocorrência do CNPJ/nome do fornecedor na descrição bancária. Ao confirmar um vínculo, a
-  classificação do documento (categoria do plano de contas e imóvel — único ou rateio
-  proporcional entre vários, se o documento cobrir mais de um) é aplicada à transação.
-  Nunca classifica sozinho: toda sugestão precisa de confirmação explícita.
+  e boletos (PDF ou foto) — o sistema extrai valor, data, CNPJ/CPF, **fornecedor/
+  contraparte** e **tipo do documento** do texto (heurística determinística local, sem
+  IA): fornecedor por rótulos comuns em boleto/fatura (CEDENTE, BENEFICIÁRIO, RAZÃO
+  SOCIAL, FAVORECIDO, EMITENTE, PRESTADOR DE SERVIÇOS) ou, na ausência deles, pelo texto
+  que antecede o CNPJ/CPF na mesma linha; tipo por sinais específicos (linha digitável →
+  boleto, LOCADOR+LOCATÁRIO → contrato, "RECIBO" no início → recibo, "FATURA" → fatura,
+  "pedido/orçamento" → pedido comercial) — nunca um palpite sem base: sem sinal claro,
+  fica em branco/"Outro" para você preencher. Para **nota fiscal em XML** (NF-e modelo 55
+  ou NFS-e), a extração é por tag em vez de regex sobre texto de OCR: pega
+  automaticamente valor, data de emissão, CNPJ/razão social do emitente, número da nota e
+  a descrição do produto/serviço — a NF-e segue o layout nacional único do SEFAZ
+  (extração confiável); a NFS-e não tem padrão nacional (cada prefeitura define o próprio
+  XML), então a extração é best-effort pelos nomes de tag mais comuns e cai para "sem
+  categoria automática" (nunca finge sucesso) se não reconhecer o layout do seu
+  município. **Regra aprendida por CNPJ/CPF**: depois que você classifica (tipo +
+  categoria, e opcionalmente um único imóvel) o primeiro documento de um fornecedor, o
+  sistema grava essa classificação associada ao CNPJ/CPF; o próximo documento do mesmo
+  fornecedor já chega no formulário de revisão com tipo, categoria, fornecedor e imóvel
+  pré-preenchidos (badge "sugerido por CNPJ conhecido") — você só confirma ou corrige,
+  nunca é salvo sem revisão. Em qualquer caso, o sistema também sugere a qual
+  pagamento/PIX cada documento corresponde por proximidade de valor/data e ocorrência do
+  CNPJ/nome do fornecedor na descrição bancária. Ao confirmar um vínculo, a classificação
+  do documento (categoria do plano de contas e imóvel — único ou rateio proporcional
+  entre vários, se o documento cobrir mais de um) é aplicada à transação. Nunca classifica
+  sozinho: toda sugestão precisa de confirmação explícita.
 - **Painel**: DRE dos últimos 12 meses, uma cascata (waterfall) do resultado — receita
   bruta menos cada categoria de despesa, da maior para a menor, até o resultado
   líquido, mostrando visualmente como cada corte de despesa corrói o resultado —,

@@ -359,6 +359,24 @@ CREATE TABLE IF NOT EXISTS documento_transacoes (
     UNIQUE (documento_id, transacao_id)
 );
 
+-- Aprendizado por CNPJ/CPF — mesmo princípio de regras_categorizacao (transações), mas para
+-- documentos: ao salvar um documento com CNPJ/CPF e classificação completa, guarda a regra;
+-- o próximo documento do MESMO CNPJ/CPF já chega com tipo/categoria/imóvel/nome pré-
+-- preenchidos, exigindo só confirmação em vez de digitar tudo de novo (achado de uso real:
+-- boletos/faturas de um mesmo fornecedor — condomínio, concessionária, vaga de garagem —
+-- se repetem todo mês com o mesmo CNPJ). UNIQUE por cnpj_cpf: um novo salvamento do mesmo
+-- CNPJ atualiza a regra existente em vez de duplicar.
+CREATE TABLE IF NOT EXISTS regras_categorizacao_documentos (
+    id                  INTEGER PRIMARY KEY,
+    cnpj_cpf            TEXT NOT NULL UNIQUE,
+    tipo                TEXT NOT NULL CHECK (tipo IN ('contrato', 'recibo', 'fatura', 'nota_fiscal', 'pedido_comercial', 'boleto', 'outro')),
+    nome_contraparte    TEXT,
+    plano_conta_codigo  TEXT REFERENCES plano_de_contas(codigo),
+    imovel_id           INTEGER REFERENCES imoveis(id), -- NULL = despesa administrativa geral/PF (mesma convenção de documento_imoveis vazio)
+    criado_em           DATE NOT NULL,
+    atualizado_em       DATE NOT NULL
+);
+
 -- Registro de cada PDF (Laudo pericial / RAD) efetivamente gerado — sem isso, o sistema não
 -- tinha como provar depois qual foi o conteúdo exato entregue numa data específica (só o
 -- hash do backup do banco INTEIRO, granularidade bem mais grossa). O hash aqui é do PDF em

@@ -1,11 +1,54 @@
 import { extrairTextoPdf } from "../parsers/pdfDocumento";
 import { ocrImagem } from "../parsers/ocrImagem";
 import { extrairCamposXmlNota, pareceSerXmlNota } from "./parseNFe";
+import type { TipoDocumento } from "../types";
 
 const REGEX_VALOR = /(?:R\$\s?)?(\d{1,3}(?:\.\d{3})*,\d{2})/;
 const REGEX_DATA = /(\d{2}\/\d{2}\/\d{4})/;
 const REGEX_CNPJ = /(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/;
 const REGEX_CPF = /(\d{3}\.\d{3}\.\d{3}-\d{2})/;
+const REGEX_LINHA_DIGITAVEL = /\d{5}\.\d{5}\s?\d{5}\.\d{6}\s?\d{5}\.\d{6}\s?\d\s?\d{14}/;
+
+// Rótulos comuns em boletos/faturas brasileiros que antecedem o nome da contraparte —
+// heurística determinística (sem IA), captura o texto até o fim da linha. Nunca é a única
+// fonte: sempre revisável/editável no formulário antes de salvar, igual a valor/data/CNPJ.
+const REGEX_ROTULO_CONTRAPARTE = /(?:CEDENTE|BENEFICI[ÁA]RIO|RAZ[ÃA]O SOCIAL|FAVORECIDO|EMITENTE|PRESTADORA? DE SERVI[ÇC]OS?)\s*[:-]?\s*([^\n\r]{4,80})/i;
+
+function limparNomeContraparte(bruto: string): string {
+  return bruto
+    .replace(/\s*(?:CNPJ|CPF)[\s:./-]*[\d.\-/]*$/i, "") // corta se CNPJ/CPF vier colado no fim da mesma linha
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/** Nome da contraparte a partir de rótulos comuns (CEDENTE, BENEFICIÁRIO...) ou, na
+ * ausência deles, do texto que antecede o CNPJ/CPF na mesma linha (layout comum: "EMPRESA
+ * LTDA   CNPJ: 00.000.000/0001-00"). Heurística — pode errar ou vir vazia; sempre editável. */
+function extrairNomeContraparte(texto: string, cnpjCpf: string | undefined): string | undefined {
+  const porRotulo = texto.match(REGEX_ROTULO_CONTRAPARTE);
+  if (porRotulo) {
+    const nome = limparNomeContraparte(porRotulo[1]);
+    if (nome.length >= 4) return nome;
+  }
+  if (!cnpjCpf) return undefined;
+  const linhaComDocumento = texto.split(/\r?\n/).find((l) => l.includes(cnpjCpf));
+  if (!linhaComDocumento) return undefined;
+  const antes = limparNomeContraparte(linhaComDocumento.split(cnpjCpf)[0]);
+  return antes.length >= 4 && /[A-Za-zÀ-ú]/.test(antes) ? antes : undefined;
+}
+
+/** Classifica o tipo do documento por palavras-chave no texto extraído — só retorna um tipo
+ * quando há um sinal razoavelmente inequívoco; caso contrário fica indefinido (o formulário
+ * mantém "outro", nunca um palpite sem base). NF-e/NFS-e em XML já tem caminho próprio
+ * (parseNFe.ts, por tag) — esta heurística cobre o que chega como PDF/OCR de texto livre. */
+function classificarTipoPorTexto(texto: string): TipoDocumento | undefined {
+  if (REGEX_LINHA_DIGITAVEL.test(texto) || /LINHA DIGIT[ÁA]VEL/i.test(texto)) return "boleto";
+  if (/CONTRATO\s+DE\s+LOCA[ÇC][ÃA]O/i.test(texto) || (/LOCAT[ÁA]RIO/i.test(texto) && /LOCADOR/i.test(texto))) return "contrato";
+  if (/^\s*RECIBO\b/im.test(texto)) return "recibo";
+  if (/\bFATURA\b/i.test(texto)) return "fatura";
+  if (/PEDIDO\s+(DE\s+)?COMPRA|OR[ÇC]AMENTO/i.test(texto)) return "pedido_comercial";
+  return undefined;
+}
 
 /** Extrai o texto bruto de um documento de suporte (contrato, recibo, fatura, nota fiscal,
  * pedido comercial, boleto) — PDF com camada de texto usa pdfjs-dist, imagem usa OCR local,
@@ -29,19 +72,22 @@ export interface CamposExtraidosDocumento {
   nomeContraparte?: string;
   descricaoProdutoServico?: string;
   numeroDocumento?: string;
+  tipo?: TipoDocumento;
 }
 
-/** Extração de valor, data, CNPJ/CPF (e, quando XML de nota fiscal, também nome da
- * contraparte, descrição do produto/serviço e número da nota) do texto do documento —
+/** Extração de valor, data, CNPJ/CPF, nome da contraparte e tipo do documento do texto —
  * usada para sugerir automaticamente a que transação bancária o documento se refere (ver
- * matching.ts). XML de NF-e/NFS-e é extraído por tag (estruturado, mais confiável);
- * qualquer outro texto (PDF/OCR) cai para regex determinística. Não tenta reconhecer
- * produto/serviço em texto livre não estruturado; isso fica para o usuário preencher (ou,
- * opcionalmente, uma chave de IA própria — ver DocumentosView). */
+ * matching.ts) e para pré-preencher o formulário de revisão. XML de NF-e/NFS-e é extraído
+ * por tag (estruturado, mais confiável); qualquer outro texto (PDF/OCR) cai para regex
+ * determinística — nome da contraparte e tipo são heurísticas por rótulo/palavra-chave
+ * comuns em boleto/contrato/recibo/fatura brasileiros, sempre revisáveis no formulário antes
+ * de salvar (nunca aplicadas sem confirmação). Não tenta reconhecer produto/serviço em texto
+ * livre; isso fica para o usuário preencher (ou, opcionalmente, uma chave de IA própria —
+ * ver DocumentosView). */
 export function extrairCamposDeTexto(texto: string): CamposExtraidosDocumento {
   if (pareceSerXmlNota(texto)) {
     const campos = extrairCamposXmlNota(texto);
-    if (campos) return campos;
+    if (campos) return { ...campos, tipo: "nota_fiscal" };
     // XML não reconhecido (layout de NFS-e não coberto) — cai para o regex genérico abaixo.
   }
 
@@ -53,6 +99,8 @@ export function extrairCamposDeTexto(texto: string): CamposExtraidosDocumento {
   const valor = valorCasado ? Number.parseFloat(valorCasado[1].replace(/\./g, "").replace(",", ".")) : undefined;
   const data = dataCasada ? `${dataCasada[1].split("/")[2]}-${dataCasada[1].split("/")[1]}-${dataCasada[1].split("/")[0]}` : undefined;
   const cnpjCpf = cnpjCasado?.[1] ?? cpfCasado?.[1];
+  const nomeContraparte = extrairNomeContraparte(texto, cnpjCpf);
+  const tipo = classificarTipoPorTexto(texto);
 
-  return { valor, data, cnpjCpf };
+  return { valor, data, cnpjCpf, nomeContraparte, tipo };
 }
