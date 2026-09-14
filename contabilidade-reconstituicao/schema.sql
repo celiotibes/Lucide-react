@@ -637,3 +637,130 @@ CREATE INDEX IF NOT EXISTS idx_ledger_auditada ON ledger_entries(auditada);
 
 CREATE INDEX IF NOT EXISTS idx_saldos_periodo ON ledger_saldos_periodo(periodo_id);
 CREATE INDEX IF NOT EXISTS idx_encerramentos_periodo ON ledger_encerramentos(periodo_id);
+
+-- ===== SPRINT 2: PORTAL PRESTADOR - APONTAMENTOS E REMUNERAÇÃO =====
+-- Apontamentos diários: entrada/saída do prestador com status de workflows
+CREATE TABLE IF NOT EXISTS apontamentos_diarios (
+    id                  INTEGER PRIMARY KEY,
+    prestador_id        INTEGER NOT NULL REFERENCES prestadores(id),
+    data                DATE NOT NULL,
+    entrada             TEXT NOT NULL,                           -- Hora de chegada (HH:MM:SS)
+    saida_intervalo     TEXT,                                    -- Saída para intervalo/almoço
+    retorno_intervalo   TEXT,                                    -- Retorno do intervalo
+    saida_final         TEXT NOT NULL,                           -- Saída final do dia
+    status              TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'enviado', 'aprovado', 'retificado')),
+    observacoes         TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (prestador_id, data)
+);
+
+-- Histórico de eventos de horários (chegada, saída intervalo, retorno, saída final)
+-- Permite rastrear alterações e justificativas de retificações
+CREATE TABLE IF NOT EXISTS historico_horarios (
+    id                  INTEGER PRIMARY KEY,
+    apontamento_id      INTEGER NOT NULL REFERENCES apontamentos_diarios(id) ON DELETE CASCADE,
+    tipo_evento         TEXT NOT NULL CHECK (tipo_evento IN ('chegada', 'saida_intervalo', 'retorno', 'saida')),
+    horario             TEXT NOT NULL,                           -- Horário efetivo (HH:MM:SS)
+    horario_original    TEXT,                                    -- Horário original (antes de retificação)
+    justificativa_retificacao TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Itens remuneráveis: diária, Airbnb, urgência, deslocamento, materiais, extras
+CREATE TABLE IF NOT EXISTS itens_remuneraveis (
+    id                  INTEGER PRIMARY KEY,
+    apontamento_id      INTEGER NOT NULL REFERENCES apontamentos_diarios(id) ON DELETE CASCADE,
+    tipo                TEXT NOT NULL CHECK (tipo IN ('diaria', 'airbnb', 'urgencia', 'deslocamento', 'materiais', 'extra')),
+    rubrica             TEXT NOT NULL,                           -- Descrição da rubrica
+    valor_base          REAL NOT NULL,
+    adicional_percentual REAL DEFAULT 0,                         -- Percentual de adicional (ex: 10 para 10%)
+    valor_final         REAL NOT NULL,                           -- valor_base + (valor_base * adicional_percentual / 100)
+    observacao          TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Movimentações financeiras: vales, empréstimos, adiantamentos
+CREATE TABLE IF NOT EXISTS movimentacoes_financeiras (
+    id                  INTEGER PRIMARY KEY,
+    apontamento_id      INTEGER NOT NULL REFERENCES apontamentos_diarios(id) ON DELETE CASCADE,
+    tipo                TEXT NOT NULL CHECK (tipo IN ('vale', 'emprestimo', 'adiantamento')),
+    valor               REAL NOT NULL,
+    data_solicitacao    DATE NOT NULL,
+    data_aprovacao      DATE,
+    data_desconto       DATE,                                    -- Data em que foi descontado da remuneração
+    motivo              TEXT,
+    status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'aprovado', 'descontado', 'rejeitado')),
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Fechamentos semanais: consolidação de apontamentos por semana
+CREATE TABLE IF NOT EXISTS fechamentos_semanais (
+    id                  INTEGER PRIMARY KEY,
+    prestador_id        INTEGER NOT NULL REFERENCES prestadores(id),
+    data_inicio         DATE NOT NULL,
+    data_fim            DATE NOT NULL,
+    valor_bruto         REAL NOT NULL,
+    descontos_total     REAL DEFAULT 0,
+    valor_liquido       REAL NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'aberto' CHECK (status IN ('aberto', 'fechado', 'aprovado', 'pago')),
+    aprovado_em         DATETIME,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (prestador_id, data_inicio, data_fim)
+);
+
+-- Empréstimos: contratos de empréstimo com juros
+CREATE TABLE IF NOT EXISTS emprestimos (
+    id                  INTEGER PRIMARY KEY,
+    prestador_id        INTEGER NOT NULL REFERENCES prestadores(id),
+    valor_original      REAL NOT NULL,
+    taxa_juros          REAL NOT NULL,                           -- Percentual mensal de juros
+    parcelas_total      INTEGER NOT NULL,
+    parcelas_pagas      INTEGER DEFAULT 0,
+    valor_total_com_juros REAL NOT NULL,
+    data_contratacao    DATE NOT NULL,
+    data_vencimento     DATE NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'pago', 'cancelado')),
+    observacao          TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Retificações: histórico de alterações em apontamentos
+CREATE TABLE IF NOT EXISTS retificacoes (
+    id                  INTEGER PRIMARY KEY,
+    apontamento_id      INTEGER NOT NULL REFERENCES apontamentos_diarios(id) ON DELETE CASCADE,
+    campo_alterado      TEXT NOT NULL,                           -- Nome do campo modificado
+    valor_anterior      TEXT,                                    -- Valor antes (JSON/TEXT para flexibilidade)
+    valor_novo          TEXT,                                    -- Valor depois
+    motivo              TEXT,
+    data_retificacao    DATE NOT NULL,
+    aprovada_em         DATETIME,
+    observacao          TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Parâmetros operacionais: combustível, reajustes, tabelas Airbnb
+CREATE TABLE IF NOT EXISTS parametros_operacionais (
+    id                  INTEGER PRIMARY KEY,
+    parametro           TEXT NOT NULL,                           -- Ex: combustivel_litro, combustivel_km_litro, reajuste_ipca_proxima
+    valor               REAL,                                    -- Valor numérico do parâmetro
+    valor_descricao     TEXT,                                    -- Para parâmetros não-numéricos
+    vigencia_inicio     DATE NOT NULL,
+    vigencia_fim        DATE,                                    -- NULL = vigente
+    atualizado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (parametro, vigencia_inicio)
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_apontamentos_prestador_data ON apontamentos_diarios(prestador_id, data);
+CREATE INDEX IF NOT EXISTS idx_apontamentos_status ON apontamentos_diarios(status);
+CREATE INDEX IF NOT EXISTS idx_historico_horarios_apontamento ON historico_horarios(apontamento_id);
+CREATE INDEX IF NOT EXISTS idx_itens_remuneraveis_apontamento ON itens_remuneraveis(apontamento_id);
+CREATE INDEX IF NOT EXISTS idx_itens_remuneraveis_tipo ON itens_remuneraveis(tipo);
+CREATE INDEX IF NOT EXISTS idx_movimentacoes_apontamento ON movimentacoes_financeiras(apontamento_id);
+CREATE INDEX IF NOT EXISTS idx_fechamentos_prestador_data ON fechamentos_semanais(prestador_id, data_inicio);
+CREATE INDEX IF NOT EXISTS idx_fechamentos_status ON fechamentos_semanais(status);
+CREATE INDEX IF NOT EXISTS idx_emprestimos_prestador ON emprestimos(prestador_id);
+CREATE INDEX IF NOT EXISTS idx_emprestimos_status ON emprestimos(status);
+CREATE INDEX IF NOT EXISTS idx_retificacoes_apontamento ON retificacoes(apontamento_id);
+CREATE INDEX IF NOT EXISTS idx_parametros_operacionais_parametro ON parametros_operacionais(parametro, vigencia_inicio);

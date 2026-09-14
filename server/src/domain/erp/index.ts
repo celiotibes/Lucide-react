@@ -1,6 +1,6 @@
 /**
  * ERP Module Barrel Export
- * Exporta todos os módulos da SPRINT 1
+ * Exporta todos os módulos da SPRINT 1 e SPRINT 2
  */
 
 // API Gateway Streamlit
@@ -17,3 +17,6 @@ export * from "./despesas-operacionais";
 
 // Document Approvals
 export * from "./document-approvals";
+
+// Apontamento do Prestador (SPRINT 2)
+export * from "./apontamento-prestador";

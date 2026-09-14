@@ -1,17 +1,18 @@
-# ERP Module - SPRINT 1
+# ERP Module - SPRINT 1 & SPRINT 2
 
-Módulos de integração e processamento contábil da SPRINT 1.
+Módulos de integração e processamento contábil.
 
 ## Arquitetura
 
 ```
 domain/erp/
-├── api-gateway-streamlit.ts    # 1A.1 - Integração Streamlit
-├── payroll-base.ts             # 2A.3 - Processamento de Folha
-├── webhook-ledger.ts           # 3A.1 - Lançamento Imediato
-├── despesas-operacionais.ts    # 4A.1 - Automação de Despesas
-├── document-approvals.ts       # 5A.2 - Fluxo de Aprovações
-└── index.ts                    # Barrel export
+├── api-gateway-streamlit.ts     # 1A.1 - Integração Streamlit
+├── payroll-base.ts              # 2A.3 - Processamento de Folha
+├── webhook-ledger.ts            # 3A.1 - Lançamento Imediato
+├── despesas-operacionais.ts     # 4A.1 - Automação de Despesas
+├── document-approvals.ts        # 5A.2 - Fluxo de Aprovações
+├── apontamento-prestador.ts     # 6A.1 - Apontamento do Prestador (SPRINT 2)
+└── index.ts                     # Barrel export
 ```
 
 ## 1. API Gateway Streamlit (1A.1)
@@ -484,6 +485,194 @@ CC-{IMOVEL}  - Por imóvel (CC-IMOV-001, etc)
 
 ---
 
+## 6. Apontamento do Prestador (6A.1 - SPRINT 2)
+
+Gestão de apontamentos diários, remuneração variável, empréstimos e retificações de prestadores.
+
+### Uso Básico
+
+```typescript
+import { 
+  Apontamento,
+  StatusApontamento,
+  validarApontamento,
+  calcularValorRemuneravel,
+  gerarLancamentosRemuneracao,
+  type ItemRemuneravel
+} from './erp/apontamento-prestador';
+
+// Criar apontamento diário
+const apontamento: Partial<Apontamento> = {
+  prestador_id: 'PREST-001',
+  data: '2024-09-14',
+  entrada: '08:00',
+  saida_intervalo: '12:00',
+  retorno_intervalo: '13:00',
+  saida_final: '17:00',
+  status: StatusApontamento.RASCUNHO
+};
+
+// Validar
+const validacao = validarApontamento(apontamento);
+if (validacao.valido) {
+  console.log('Apontamento válido');
+}
+
+// Adicionar item remunerável
+const itemDiaria: Partial<ItemRemuneravel> = {
+  tipo: 'diaria',
+  rubrica: 'Diária Completa',
+  valor_base: 150,
+  adicional_percentual: 0
+};
+
+// Calcular valor final
+const valor_final = calcularValorRemuneravel(150, 0); // 150
+```
+
+### Estrutura de Dados
+
+**Apontamento Diário**
+- ID, Prestador ID, Data
+- Horários: Entrada, Saída Intervalo, Retorno, Saída Final
+- Status: Rascunho → Enviado → Aprovado → Retificado
+- Rastreamento de criação/atualização
+
+**Itens Remuneráveis**
+```
+Tipo: diaria | airbnb | urgencia | deslocamento | materiais | extra
+Valor Base + Adicional Percentual = Valor Final
+```
+
+**Constantes de Cálculo**
+
+```typescript
+// Tabelas Airbnb por trimestre
+TABELA_AIRBNB_1Q: { dentro: 31.50, fora_uteis: 42.00, sabado_domingo_feriado: 63.00 }
+TABELA_AIRBNB_2Q: { dentro: 37.80, fora_uteis: 50.40, sabado_domingo_feriado: 75.60 } // +20%
+
+// Urgência
+URGENCIA_MINIMA_UTEIS: 50.00
+URGENCIA_MINIMA_DOMINGO_FERIADO: 62.50
+
+// Deslocamento
+DESLOCAMENTO_CARVOEIRA_CORREGO: 21.00
+DESLOCAMENTO_BUSCA_MATERIAIS: 30.00
+
+// Combustível
+COMBUSTIVEL: { valor_litro: 6.50, km_por_litro: 10 }
+```
+
+### Validações
+
+```typescript
+// Validar sequência de eventos (entrada < intervalo < retorno < saída)
+validarSequenciaEventos([
+  { tipo_evento: TipoEvento.CHEGADA, horario: '08:00' },
+  { tipo_evento: TipoEvento.SAIDA_INTERVALO, horario: '12:00' },
+  { tipo_evento: TipoEvento.RETORNO, horario: '13:00' },
+  { tipo_evento: TipoEvento.SAIDA, horario: '17:00' }
+]); // → { valido: true, erros: [] }
+
+// Validar item remunerável
+validarItemRemuneravel(item); // → { valido, erros }
+
+// Validar movimentação financeira
+validarMovimentacaoFinanceira(movimentacao); // → { valido, erros }
+
+// Validar empréstimo
+validarEmprestimo(emprestimo); // → { valido, erros }
+```
+
+### Cálculos Financeiros
+
+```typescript
+// Remuneração com adicional
+calcularValorRemuneravel(150, 10); // 150 + (150 * 10/100) = 165
+
+// Combustível
+calcularReembolsoCombustivel(100); // (100 / 10) * 6.50 = 65.00
+
+// Empréstimo com juros compostos
+calcularValorEmprestimoComJuros(1000, 2.5, 12); // 1000 * (1.025)^12 ≈ 1344.89
+```
+
+### Lançamentos Contábeis
+
+```typescript
+// Gerar lançamentos de remuneração
+const lancamentos = gerarLancamentosRemuneracao(apontamento, itens, fechamento);
+// Gera:
+// - Débito 5.1.01 (Despesa Remuneração) / Crédito 3.1.05 (A Pagar)
+// - Se descontos: Débito 3.1.05 / Crédito 1.1.01 (Caixa)
+
+// Gerar lançamentos de empréstimo
+const lancamentosEmprestimo = gerarLancamentosEmprestimo(emprestimo);
+// Gera:
+// - Débito 2.1.02 (Passivo) / Crédito 1.1.01 (Caixa)
+// - Débito 5.3.01 (Juros) / Crédito 2.1.02 (Passivo)
+```
+
+### Contas Contábeis Utilizadas
+
+| Conta | Descrição | Natureza |
+|-------|-----------|----------|
+| 5.1.01 | Despesa com Remuneração de Prestadores | Débito |
+| 3.1.05 | Remuneração de Prestador a Pagar | Crédito |
+| 2.1.02 | Empréstimos a Pagar | Crédito |
+| 5.3.01 | Despesa com Juros | Débito |
+| 1.1.01 | Caixa | Débito |
+
+### Integração com Ledger
+
+Todos os lançamentos são criados automaticamente:
+- `origem_modulo`: `"apontamento-prestador"`
+- `origem_id`: ID da entidade (apontamento_id, emprestimo_id, etc.)
+
+### Funções Principais
+
+```typescript
+// Apontamento
+validarApontamento(apontamento)              // → { valido, erros }
+validarSequenciaEventos(eventos)            // → { valido, erros }
+
+// Remuneração
+validarItemRemuneravel(item)                 // → { valido, erros }
+calcularValorRemuneravel(base, percentual)  // → number
+
+// Movimentação Financeira
+validarMovimentacaoFinanceira(movimentacao) // → { valido, erros }
+
+// Empréstimo
+validarEmprestimo(emprestimo)               // → { valido, erros }
+calcularValorEmprestimoComJuros(v, i, n)   // → number
+
+// Combustível
+calcularReembolsoCombustivel(km)            // → number
+obterTabelaAirbnb(trimestre)                // → Record<string, number>
+
+// Lançamentos
+gerarLancamentosRemuneracao(apt, itens, fech) // → Lançamentos[]
+gerarLancamentosEmprestimo(emprestimo)        // → Lançamentos[]
+```
+
+### Fluxos de Aprovação
+
+```
+Apontamento:
+  rascunho → enviado → aprovado
+           → retificado (via manual do gestor)
+
+Movimentação Financeira:
+  pendente → aprovado → descontado
+          → rejeitado
+
+Fechamento Semanal:
+  aberto → fechado → aprovado → pago
+```
+
+---
+
 ## Contribuindo
 
 1. Adicione testes para novas funções
@@ -499,5 +688,5 @@ Part of Lucide React ERP - SPRINT 1
 
 ---
 
-**Última atualização**: 2024-09-14
-**Versão**: 1.0.0
+**Última atualização**: 2025-09-14
+**Versão**: 2.0.0 (SPRINT 2 - Apontamento do Prestador)

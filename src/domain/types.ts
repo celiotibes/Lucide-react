@@ -321,3 +321,113 @@ export interface VistoriaLog {
   motivo?: string;
   criado_em: string;
 }
+
+// ===== PORTAL PRESTADOR - APONTAMENTOS =====
+
+export type StatusApontamento = "rascunho" | "enviado" | "aprovado" | "retificado";
+export type TipoEvento = "chegada" | "saida_intervalo" | "retorno" | "saida";
+export type TipoItemRemuneravel = "diaria" | "airbnb" | "urgencia" | "deslocamento" | "materiais" | "extra";
+export type TipoMovimentacaoFinanceira = "vale" | "emprestimo" | "adiantamento";
+export type StatusMovimentacao = "pendente" | "aprovado" | "descontado" | "rejeitado";
+export type StatusFechamento = "aberto" | "fechado" | "aprovado" | "pago";
+export type StatusEmprestimo = "ativo" | "pago" | "cancelado";
+
+export interface ApontamentoDiario {
+  id: number;
+  prestador_id: number;
+  data: string; // DATE: YYYY-MM-DD
+  entrada: string; // HH:MM:SS
+  saida_intervalo?: string; // HH:MM:SS
+  retorno_intervalo?: string; // HH:MM:SS
+  saida_final: string; // HH:MM:SS
+  status: StatusApontamento;
+  observacoes?: string;
+  criado_em: string; // DATETIME
+  atualizado_em: string; // DATETIME
+}
+
+export interface HistoricoHorario {
+  id: number;
+  apontamento_id: number;
+  tipo_evento: TipoEvento;
+  horario: string; // HH:MM:SS
+  horario_original?: string; // HH:MM:SS
+  justificativa_retificacao?: string;
+  criado_em: string; // DATETIME
+}
+
+export interface ItemRemunerable {
+  id: number;
+  apontamento_id: number;
+  tipo: TipoItemRemuneravel;
+  rubrica: string;
+  valor_base: number;
+  adicional_percentual: number; // ex: 10 para 10%
+  valor_final: number;
+  observacao?: string;
+  criado_em: string; // DATETIME
+}
+
+export interface MovimentacaoFinanceira {
+  id: number;
+  apontamento_id: number;
+  tipo: TipoMovimentacaoFinanceira;
+  valor: number;
+  data_solicitacao: string; // DATE
+  data_aprovacao?: string; // DATE
+  data_desconto?: string; // DATE
+  motivo?: string;
+  status: StatusMovimentacao;
+  criado_em: string; // DATETIME
+}
+
+export interface FechamentoSemanal {
+  id: number;
+  prestador_id: number;
+  data_inicio: string; // DATE
+  data_fim: string; // DATE
+  valor_bruto: number;
+  descontos_total: number;
+  valor_liquido: number;
+  status: StatusFechamento;
+  aprovado_em?: string; // DATETIME
+  criado_em: string; // DATETIME
+}
+
+export interface Emprestimo {
+  id: number;
+  prestador_id: number;
+  valor_original: number;
+  taxa_juros: number; // Percentual mensal
+  parcelas_total: number;
+  parcelas_pagas: number;
+  valor_total_com_juros: number;
+  data_contratacao: string; // DATE
+  data_vencimento: string; // DATE
+  status: StatusEmprestimo;
+  observacao?: string;
+  criado_em: string; // DATETIME
+}
+
+export interface Retificacao {
+  id: number;
+  apontamento_id: number;
+  campo_alterado: string;
+  valor_anterior?: string;
+  valor_novo?: string;
+  motivo?: string;
+  data_retificacao: string; // DATE
+  aprovada_em?: string; // DATETIME
+  observacao?: string;
+  criado_em: string; // DATETIME
+}
+
+export interface ParametroOperacional {
+  id: number;
+  parametro: string;
+  valor?: number;
+  valor_descricao?: string;
+  vigencia_inicio: string; // DATE
+  vigencia_fim?: string; // DATE
+  atualizado_em: string; // DATETIME
+}
