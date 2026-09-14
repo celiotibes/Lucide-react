@@ -1,0 +1,43 @@
+# Verificação automática e recorrente de dependências vulneráveis (npm audit) para os três
+# projetos deste repositório — nenhum depende de sessão de agente nenhuma para continuar
+# rodando: o Dependabot é do próprio GitHub, roda toda semana e abre PR sozinho quando encontra
+# atualização de segurança. Existe porque, nesta mesma auditoria, `npm audit` encontrou 18
+# vulnerabilidades conhecidas (uma delas HIGH, execução arbitrária de JS via PDF malicioso em
+# pdfjs-dist) que ninguém tinha notado — sem isso rodando sozinho, a próxima só aparece na
+# próxima vez que alguém lembrar de rodar `npm audit` manualmente.
+version: 2
+updates:
+  # App React (raiz do repositório) — inclui pdfjs-dist, dompurify, jspdf, sql.js e a cadeia
+  # de build (vite/rollup).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      dependencias-dev:
+        dependency-type: "development"
+      dependencias-producao:
+        dependency-type: "production"
+
+  # Backend Pluggy (guarda o Client Secret — nunca pode ficar desatualizado sem ninguém notar).
+  - package-ecosystem: "npm"
+    directory: "/server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      dependencias:
+        patterns:
+          - "*"
+
+  # Servidor de sincronização (mesmo motivo: exposto na rede local/VPN do usuário).
+  - package-ecosystem: "npm"
+    directory: "/sync-server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      dependencias:
+        patterns:
+          - "*"
