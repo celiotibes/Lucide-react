@@ -35,11 +35,12 @@ const SincronizacaoView = lazy(() => import("./components/SincronizacaoView").th
 const RelatoriosIntegradosView = lazy(() => import("./components/RelatoriosIntegradosView").then((m) => ({ default: m.RelatoriosIntegradosView })));
 const AnalyticsIntegradosView = lazy(() => import("./components/AnalyticsIntegradosView").then((m) => ({ default: m.AnalyticsIntegradosView })));
 const SincronizacaoIntegridadeView = lazy(() => import("./components/SincronizacaoIntegridadeView").then((m) => ({ default: m.SincronizacaoIntegridadeView })));
+const BudgetVarianceView = lazy(() => import("./components/BudgetVarianceView").then((m) => ({ default: m.BudgetVarianceView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
-  | "relatorios" | "analytics" | "integridade";
+  | "relatorios" | "analytics" | "integridade" | "budget";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -57,6 +58,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
   { id: "analytics", rotulo: "Analytics integrados", icone: TrendingUp },
   { id: "integridade", rotulo: "Sincronização e integridade", icone: ShieldAlert },
+  { id: "budget", rotulo: "Budget vs Realizado", icone: Banknote },
   { id: "indices", rotulo: "Índices econômicos", icone: LineChart },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
@@ -278,6 +280,7 @@ function Conteudo() {
             {aba === "relatorios" && <RelatoriosIntegradosView />}
             {aba === "analytics" && <AnalyticsIntegradosView />}
             {aba === "integridade" && <SincronizacaoIntegridadeView />}
+            {aba === "budget" && <BudgetVarianceView />}
             {aba === "indices" && <IndicesEconomicosView />}
             {aba === "renda" && <RendaTributavelView />}
             {aba === "razao" && <LivroRazaoView />}
