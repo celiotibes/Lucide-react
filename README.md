@@ -56,13 +56,22 @@ servi-lo em `http://localhost:4173`.
   ficam em preview para revisão antes de gravar no banco.
 - **Documentos e classificação**: envie contratos, recibos, faturas, pedidos comerciais
   e boletos (PDF ou foto) — o sistema extrai valor, data, CNPJ/CPF, **fornecedor/
-  contraparte** e **tipo do documento** do texto (heurística determinística local, sem
-  IA): fornecedor por rótulos comuns em boleto/fatura (CEDENTE, BENEFICIÁRIO, RAZÃO
-  SOCIAL, FAVORECIDO, EMITENTE, PRESTADOR DE SERVIÇOS) ou, na ausência deles, pelo texto
-  que antecede o CNPJ/CPF na mesma linha; tipo por sinais específicos (linha digitável →
-  boleto, LOCADOR+LOCATÁRIO → contrato, "RECIBO" no início → recibo, "FATURA" → fatura,
-  "pedido/orçamento" → pedido comercial) — nunca um palpite sem base: sem sinal claro,
-  fica em branco/"Outro" para você preencher. Para **nota fiscal em XML** (NF-e modelo 55
+  contraparte** e **tipo do documento** do texto em dois estágios:
+  1. **Heurística determinística local** (sempre ativo): fornecedor por rótulos comuns
+     em boleto/fatura (CEDENTE, BENEFICIÁRIO, RAZÃO SOCIAL, FAVORECIDO, EMITENTE,
+     PRESTADOR DE SERVIÇOS) ou, na ausência deles, pelo texto que antecede o CNPJ/CPF
+     na mesma linha; tipo por sinais específicos (linha digitável → boleto, 
+     LOCADOR+LOCATÁRIO → contrato, "RECIBO" no início → recibo, "FATURA" → fatura,
+     "pedido/orçamento" → pedido comercial) — nunca um palpite sem base.
+  2. **Fallback para IA** (opcional, requer configuração): se a heurística não conseguir
+     extrair tipo ou fornecedor (documento sem CNPJ ou sem palavras-chave reconhecíveis),
+     o sistema tenta classificação com Claude API (sempre com revisão explícita do
+     usuário — badge "extraído com IA — confirme" garante que você vê e pode corrigir
+     antes de salvar). Para ativar, copie `.env.example` para `.env.local` e configure
+     `VITE_ANTHROPIC_API_KEY` (chave da sua conta Anthropic) ou `VITE_CLASIFICACAO_BACKEND`
+     (seu endpoint de backend que chama IA remotamente). Sem configuração: graceful
+     degradation, o sistema continua funcionando com heurística apenas, tipo/fornecedor
+     ficam em branco/"Outro" para você preencher. Para **nota fiscal em XML** (NF-e modelo 55
   ou NFS-e), a extração é por tag em vez de regex sobre texto de OCR: pega
   automaticamente valor, data de emissão, CNPJ/razão social do emitente, número da nota e
   a descrição do produto/serviço — a NF-e segue o layout nacional único do SEFAZ
@@ -396,6 +405,42 @@ OFX/CSV/PDF continua sendo o caminho 100% local, sem esse trade-off.
 **Segurança**: nunca exponha `CLIENT_SECRET` em código, print de tela ou
 mensagem. Se um Client Secret vazar por engano, regenere-o imediatamente em
 dashboard.pluggy.ai antes de usar o backend em produção.
+
+## Classificação automática com IA (opcional)
+
+Por padrão, a extração de tipo/fornecedor é 100% heurística local (palavras-chave,
+rótulos, regras). Para documentos que não caem em nenhuma heurística (sem CNPJ, sem
+palavras-chave reconhecíveis), é possível ativar um fallback para IA:
+
+```bash
+# Copie o arquivo de exemplo
+cp .env.example .env.local
+
+# Edite .env.local e escolha uma das duas opções:
+
+# OPÇÃO 1: API key Claude local (desenvolvimento/demo)
+# Gere uma chave em https://console.anthropic.com
+VITE_ANTHROPIC_API_KEY=sk-ant-...
+
+# OPÇÃO 2: Backend próprio (recomendado para produção)
+# Seu servidor que implementa POST /api/classificar
+# recebe: {texto: string}
+# retorna: {tipo?: string, nomeContraparte?: string, confianca?: "alta"|"media"|"baixa", explicacao?: string}
+VITE_CLASIFICACAO_BACKEND=https://seu-backend.com/api/classificar
+```
+
+Comportamento:
+- **Com IA configurada**: quando a heurística falha (tipo e fornecedor ambos indefinidos),
+  o sistema chama Claude API com máximo 1000 caracteres do documento (minimiza dados
+  sensíveis — nunca envia CPF/CNPJ isolados ou saldos completos). Uma badge
+  "extraído com IA — confirme" mostra que você deve revisar antes de salvar.
+- **Sem IA configurada** (padrão): heurística funciona normalmente; documentos que ela
+  não classifica ficam com tipo/"Outro" e fornecedor em branco para você preencher
+  manualmente. Sistema continua 100% funcional — é só mais lento se você tiver muitos
+  documentos fora do padrão.
+
+Sempre é preciso confirmação explícita do usuário antes de salvar — nenhuma
+classificação é aplicada sozinha, nem a da heurística nem a da IA.
 
 ## Sincronização entre dispositivos (opcional)
 
