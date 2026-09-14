@@ -5,6 +5,7 @@ import { agendar, listarPorImovel, listarPorStatus, buscarPorId } from "./agenda
 import { realizarInspecao, obterItens, calcularTotalDanos, obterHistorico } from "./inspecao";
 import { concluirInspecao, aprovar, rejeitar } from "./aprova";
 import { obterAudit, obterTempoDecorrido } from "./audit";
+import { gerarDadosLaudo, registrarGeracaoLaudo, obterLaudosGerados, formatarLaudoTexto } from "./laudo";
 import type { Database } from "sql.js";
 import type { Vistoria } from "../types";
 
@@ -494,6 +495,143 @@ describe("Vistorias — Agendamento e Inspeção", () => {
       expect(tempo.criado_em).toBeDefined();
       expect(tempo.tempo_decorrido).toBeDefined();
       expect(tempo.duracao_em_segundos).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe("gerarDadosLaudo", () => {
+    it("coleta todos os dados necessários para gerar laudo", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(
+        db,
+        vistoria.id,
+        [{ tipo: "dano", descricao: "Parede rachada", severidade: "alta", valor_estimado: 500 }],
+        "Celio",
+      );
+
+      const laudo = gerarDadosLaudo(db, vistoria.id);
+
+      expect(laudo.vistoria.id).toBe(vistoria.id);
+      expect(laudo.imovel.apelido).toBe("Apartamento Teste");
+      expect(laudo.items.length).toBe(1);
+      expect(laudo.historico.length).toBeGreaterThan(0);
+      expect(laudo.gerado_em).toBeDefined();
+    });
+
+    it("inclui dados do contrato quando disponível", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      const laudo = gerarDadosLaudo(db, vistoria.id);
+      expect(laudo.contrato).toBeUndefined(); // Vistoria não foi vinculada a contrato
+
+      // Update vistoria para ter contrato
+      executar(db, "UPDATE vistorias SET contrato_id = ? WHERE id = ?", [1, vistoria.id]);
+      const laudoComContrato = gerarDadosLaudo(db, vistoria.id);
+      expect(laudoComContrato.contrato).toBeDefined();
+      expect(laudoComContrato.contrato?.locatario).toBe("João Silva");
+    });
+  });
+
+  describe("registrarGeracaoLaudo", () => {
+    it("registra geração de laudo em documentos_gerados", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      registrarGeracaoLaudo(
+        db,
+        vistoria.id,
+        "laudo_vistoria_001.pdf",
+        "abc123def456",
+        15240,
+      );
+
+      const laudos = obterLaudosGerados(db, vistoria.id);
+      expect(laudos.length).toBe(1);
+      expect(laudos[0].nome_arquivo).toBe("laudo_vistoria_001.pdf");
+    });
+  });
+
+  describe("formatarLaudoTexto", () => {
+    it("gera texto de laudo com todas as seções", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(
+        db,
+        vistoria.id,
+        [
+          { tipo: "dano", descricao: "Porta danificada", severidade: "media", valor_estimado: 500 },
+          { tipo: "achado_positivo", descricao: "Bom estado geral das paredes" },
+        ],
+        "Celio",
+      );
+
+      const laudo = gerarDadosLaudo(db, vistoria.id);
+      const texto = formatarLaudoTexto(laudo);
+
+      expect(texto).toContain("LAUDO TÉCNICO DE VISTORIA");
+      expect(texto).toContain("Apartamento Teste");
+      expect(texto).toContain("Celio");
+      expect(texto).toContain("Porta danificada");
+      expect(texto).toContain("Bom estado geral");
+      expect(texto).toContain("agendada");
+    });
+
+    it("formata valor estimado corretamente", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(
+        db,
+        vistoria.id,
+        [
+          { tipo: "dano", descricao: "Dano 1", valor_estimado: 1500.50 },
+          { tipo: "dano", descricao: "Dano 2", valor_estimado: 2300.75 },
+        ],
+        "Celio",
+      );
+
+      const laudo = gerarDadosLaudo(db, vistoria.id);
+      const texto = formatarLaudoTexto(laudo);
+
+      expect(texto).toContain("R$ 3801.25"); // total = 1500.50 + 2300.75
     });
   });
 });
