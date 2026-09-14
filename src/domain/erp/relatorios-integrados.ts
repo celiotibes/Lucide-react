@@ -375,3 +375,33 @@ export function gerarFluxoCaixa(
     saldo_final: Math.max(0, saldo_final),
   };
 }
+
+export interface RelatorioIntegrado {
+  dre: LinhasDRE;
+  balanço: LinhasBalancete;
+  fluxo_caixa: FluxoCaixaResultado;
+  resultado_liquido: number;
+  margem_operacional: number;
+}
+
+export function gerarRelatorioIntegrado(
+  db: Database,
+  entidade_id: number,
+  periodo_id: number,
+): RelatorioIntegrado {
+  const dre = gerarDRE(db, entidade_id, periodo_id);
+  const balanço = gerarBalanco(db, entidade_id, periodo_id);
+  const fluxo_caixa = gerarFluxoCaixa(db, entidade_id, periodo_id);
+
+  const resultado_liquido = dre.resultado_final;
+  const receita_total = dre.receitas.total_receitas;
+  const margem_operacional = receita_total > 0 ? (resultado_liquido / receita_total) * 100 : 0;
+
+  return {
+    dre,
+    balanço,
+    fluxo_caixa,
+    resultado_liquido,
+    margem_operacional,
+  };
+}

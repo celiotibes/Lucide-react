@@ -32,10 +32,14 @@ const DocumentosView = lazy(() => import("./components/DocumentosView").then((m)
 const CadastrosView = lazy(() => import("./components/CadastrosView").then((m) => ({ default: m.CadastrosView })));
 const PatrimonioView = lazy(() => import("./components/PatrimonioView").then((m) => ({ default: m.PatrimonioView })));
 const SincronizacaoView = lazy(() => import("./components/SincronizacaoView").then((m) => ({ default: m.SincronizacaoView })));
+const RelatoriosIntegradosView = lazy(() => import("./components/RelatoriosIntegradosView").then((m) => ({ default: m.RelatoriosIntegradosView })));
+const AnalyticsIntegradosView = lazy(() => import("./components/AnalyticsIntegradosView").then((m) => ({ default: m.AnalyticsIntegradosView })));
+const SincronizacaoIntegridadeView = lazy(() => import("./components/SincronizacaoIntegridadeView").then((m) => ({ default: m.SincronizacaoIntegridadeView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
-  | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao";
+  | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
+  | "relatorios" | "analytics" | "integridade";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -50,6 +54,9 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
   { id: "patrimonio", rotulo: "Patrimônio e alavancagem", icone: Scale },
+  { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
+  { id: "analytics", rotulo: "Analytics integrados", icone: TrendingUp },
+  { id: "integridade", rotulo: "Sincronização e integridade", icone: ShieldAlert },
   { id: "indices", rotulo: "Índices econômicos", icone: LineChart },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
@@ -268,6 +275,9 @@ function Conteudo() {
             {aba === "caucao" && <CaucaoView />}
             {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
             {aba === "patrimonio" && <PatrimonioView />}
+            {aba === "relatorios" && <RelatoriosIntegradosView />}
+            {aba === "analytics" && <AnalyticsIntegradosView />}
+            {aba === "integridade" && <SincronizacaoIntegridadeView />}
             {aba === "indices" && <IndicesEconomicosView />}
             {aba === "renda" && <RendaTributavelView />}
             {aba === "razao" && <LivroRazaoView />}
