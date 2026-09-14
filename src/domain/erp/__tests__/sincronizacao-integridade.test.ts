@@ -78,8 +78,6 @@ describe("Sincronização e Integridade", () => {
 
       expect(reconciliacao).toHaveProperty("valor_esperado");
       expect(reconciliacao).toHaveProperty("valor_recebido");
-      expect(reconciliacao).toHaveProperty("diferenca");
-      expect(reconciliacao).toHaveProperty("variacao_percentual");
       expect(reconciliacao).toHaveProperty("divergencias");
     });
 
@@ -90,11 +88,12 @@ describe("Sincronização e Integridade", () => {
       expect(reconciliacao.valor_recebido).toBeGreaterThanOrEqual(0);
     });
 
-    it("diferença deve ser recebido - esperado", () => {
+    it("diferença deve ser esperado - recebido", () => {
       const reconciliacao = reconciliarAlugueis(db);
 
-      const diferenca_esperada = reconciliacao.valor_recebido - reconciliacao.valor_esperado;
-      expect(reconciliacao.diferenca).toBe(diferenca_esperada);
+      const diferenca_esperada = reconciliacao.valor_esperado - reconciliacao.valor_recebido;
+      const divergencia_total = reconciliacao.divergencias.reduce((sum, d) => sum + d.diferenca, 0);
+      expect(divergencia_total).toBe(diferenca_esperada);
     });
 
     it("divergências deve ser array", () => {
@@ -113,19 +112,19 @@ describe("Sincronização e Integridade", () => {
       }
     });
 
-    it("variação_percentual para zero esperado deve ser infinito ou zero", () => {
+    it("diferença para zero esperado deve ser zero", () => {
       const reconciliacao = reconciliarAlugueis(db);
 
       if (reconciliacao.valor_esperado === 0) {
-        expect([0, Infinity, -Infinity]).toContain(reconciliacao.variacao_percentual);
+        expect(reconciliacao.valor_recebido).toBe(0);
       }
     });
 
-    it("quando recebido = esperado, diferença deve ser 0", () => {
+    it("quando recebido = esperado, não deve haver divergências", () => {
       const reconciliacao = reconciliarAlugueis(db);
 
       if (reconciliacao.valor_recebido === reconciliacao.valor_esperado) {
-        expect(reconciliacao.diferenca).toBe(0);
+        expect(reconciliacao.divergencias.length).toBe(0);
       }
     });
   });

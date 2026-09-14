@@ -19,6 +19,8 @@ export async function prepararBancoTeste() {
       ano INTEGER NOT NULL,
       mes INTEGER NOT NULL,
       status TEXT DEFAULT 'aberto',
+      data_fechamento TEXT,
+      encerrado_por INTEGER,
       FOREIGN KEY (entidade_id) REFERENCES entidades(id)
     );
 
@@ -28,6 +30,8 @@ export async function prepararBancoTeste() {
       descricao TEXT NOT NULL,
       grupo TEXT NOT NULL,
       natureza TEXT NOT NULL,
+      analisavel INTEGER DEFAULT 1,
+      ativo INTEGER DEFAULT 1,
       UNIQUE(codigo)
     );
 
@@ -35,12 +39,48 @@ export async function prepararBancoTeste() {
       id INTEGER PRIMARY KEY,
       entidade_id INTEGER NOT NULL,
       periodo_id INTEGER NOT NULL,
+      centro_custo_id INTEGER,
       conta_id INTEGER NOT NULL,
-      descricao TEXT,
-      valor_debito REAL DEFAULT 0,
-      valor_credito REAL DEFAULT 0,
       data_lancamento TEXT,
+      valor_debito REAL,
+      valor_credito REAL,
+      descricao TEXT,
+      origem_modulo TEXT,
+      origem_id INTEGER,
+      referencia_documento TEXT,
+      criado_por INTEGER,
+      criado_em TEXT,
+      estornado_por_id INTEGER,
+      motivo_estorno TEXT,
+      auditada INTEGER DEFAULT 0,
+      auditado_em TEXT,
+      auditado_por INTEGER,
       FOREIGN KEY (entidade_id) REFERENCES entidades(id),
+      FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id),
+      FOREIGN KEY (conta_id) REFERENCES contas_plano_contas(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ledger_encerramentos (
+      id INTEGER PRIMARY KEY,
+      periodo_id INTEGER NOT NULL,
+      encerrado_por INTEGER,
+      balancete_OK INTEGER,
+      total_debito REAL,
+      total_credito REAL,
+      hash_snapshot TEXT,
+      observacoes TEXT,
+      data_encerramento TEXT,
+      FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ledger_saldos_periodo (
+      id INTEGER PRIMARY KEY,
+      periodo_id INTEGER NOT NULL,
+      conta_id INTEGER NOT NULL,
+      saldo_anterior REAL DEFAULT 0,
+      total_debito REAL DEFAULT 0,
+      total_credito REAL DEFAULT 0,
+      saldo_final REAL DEFAULT 0,
       FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id),
       FOREIGN KEY (conta_id) REFERENCES contas_plano_contas(id)
     );
@@ -144,56 +184,56 @@ export async function prepararBancoTeste() {
   // Inserir dados de teste (ledger_entries)
   // Receita de aluguel
   db.run(
-    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento)
-     SELECT ?, ?, id, 'Aluguel - janeiro', 15000, '2026-01-01'
+    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento, origem_modulo, origem_id, referencia_documento)
+     SELECT ?, ?, id, 'Aluguel - janeiro', 15000, '2026-01-01', 'manual', 1, 'TEST001'
      FROM contas_plano_contas WHERE codigo = '5.1.01'`,
     [entidade_id, periodo_id]
   );
 
   // Receita de rateios
   db.run(
-    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento)
-     SELECT ?, ?, id, 'Rateios - janeiro', 3000, '2026-01-05'
+    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento, origem_modulo, origem_id, referencia_documento)
+     SELECT ?, ?, id, 'Rateios - janeiro', 3000, '2026-01-05', 'manual', 2, 'TEST002'
      FROM contas_plano_contas WHERE codigo = '5.1.03'`,
     [entidade_id, periodo_id]
   );
 
   // Despesa de condomínio
   db.run(
-    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento)
-     SELECT ?, ?, id, 'Condomínio - janeiro', 2000, '2026-01-10'
+    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
+     SELECT ?, ?, id, 'Condomínio - janeiro', 2000, '2026-01-10', 'manual', 3, 'TEST003'
      FROM contas_plano_contas WHERE codigo = '6.1.01'`,
     [entidade_id, periodo_id]
   );
 
   // Despesa de manutenção
   db.run(
-    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento)
-     SELECT ?, ?, id, 'Manutenção - janeiro', 800, '2026-01-15'
+    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
+     SELECT ?, ?, id, 'Manutenção - janeiro', 800, '2026-01-15', 'manual', 4, 'TEST004'
      FROM contas_plano_contas WHERE codigo = '6.1.05'`,
     [entidade_id, periodo_id]
   );
 
   // Caixa inicial
   db.run(
-    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento)
-     SELECT ?, ?, id, 'Saldo inicial - caixa', 10000, '2026-01-01'
+    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
+     SELECT ?, ?, id, 'Saldo inicial - caixa', 10000, '2026-01-01', 'manual', 5, 'TEST005'
      FROM contas_plano_contas WHERE codigo = '1.1.01'`,
     [entidade_id, periodo_id]
   );
 
   // Ativo imóvel
   db.run(
-    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento)
-     SELECT ?, ?, id, 'Aquisição imóvel', 500000, '2025-12-15'
+    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
+     SELECT ?, ?, id, 'Aquisição imóvel', 500000, '2025-12-15', 'manual', 6, 'TEST006'
      FROM contas_plano_contas WHERE codigo = '2.1.01'`,
     [entidade_id, periodo_id]
   );
 
   // Capital social
   db.run(
-    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento)
-     SELECT ?, ?, id, 'Capital - integralização', 500000, '2025-12-01'
+    `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento, origem_modulo, origem_id, referencia_documento)
+     SELECT ?, ?, id, 'Capital - integralização', 500000, '2025-12-01', 'manual', 7, 'TEST007'
      FROM contas_plano_contas WHERE codigo = '4.1.01'`,
     [entidade_id, periodo_id]
   );

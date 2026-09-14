@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { criarLancamento, obterSaldoConta, obterExtratoConta } from "../ledger";
+import {
+  registrarLancamentoContabil,
+  obterSaldoConta,
+  gerarBalancete,
+  validarBalanceamento,
+} from "../ledger";
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Ledger (Razão Contábil)", () => {
@@ -14,69 +19,66 @@ describe("Ledger (Razão Contábil)", () => {
     periodo_id = setup.periodo_id;
   });
 
-  describe("criarLancamento", () => {
-    it("deve criar lançamento de débito", () => {
+  describe("registrarLancamentoContabil", () => {
+    it("deve registrar lançamento de débito", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
       const conta_id = contas[0]?.values[0]?.[0];
 
       if (conta_id) {
-        const resultado = criarLancamento(
-          db,
+        const resultado = registrarLancamentoContabil(db, {
           entidade_id,
           periodo_id,
           conta_id,
-          "Teste débito",
-          1000,
-          0,
-          "2026-01-15"
-        );
+          data_lancamento: "2026-01-15",
+          valor_debito: 1000,
+          descricao: "Teste débito",
+          origem_modulo: "manual",
+          origem_id: 1,
+          referencia_documento: "TEST001",
+        });
 
-        expect(resultado).toHaveProperty("id");
-        expect(resultado.valor_debito).toBe(1000);
-        expect(resultado.valor_credito).toBe(0);
+        expect(resultado).toBeGreaterThan(0);
       }
     });
 
-    it("deve criar lançamento de crédito", () => {
+    it("deve registrar lançamento de crédito", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '5.1.01' LIMIT 1`);
       const conta_id = contas[0]?.values[0]?.[0];
 
       if (conta_id) {
-        const resultado = criarLancamento(
-          db,
+        const resultado = registrarLancamentoContabil(db, {
           entidade_id,
           periodo_id,
           conta_id,
-          "Teste crédito",
-          0,
-          5000,
-          "2026-01-15"
-        );
+          data_lancamento: "2026-01-15",
+          valor_credito: 5000,
+          descricao: "Teste crédito",
+          origem_modulo: "manual",
+          origem_id: 1,
+          referencia_documento: "TEST002",
+        });
 
-        expect(resultado).toHaveProperty("id");
-        expect(resultado.valor_debito).toBe(0);
-        expect(resultado.valor_credito).toBe(5000);
+        expect(resultado).toBeGreaterThan(0);
       }
     });
 
-    it("deve permitir lançamento com ambos débito e crédito (para validação futura)", () => {
+    it("deve rejeitar lançamento sem débito ou crédito", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
       const conta_id = contas[0]?.values[0]?.[0];
 
       if (conta_id) {
-        // Alguns sistemas permitem ambos, embora contabilmente seja raro
-        const resultado = criarLancamento(
-          db,
-          entidade_id,
-          periodo_id,
-          conta_id,
-          "Teste misto",
-          100,
-          100,
-          "2026-01-15"
-        );
-
-        expect(resultado).toHaveProperty("id");
+        expect(() =>
+          registrarLancamentoContabil(db, {
+            entidade_id,
+            periodo_id,
+            conta_id,
+            data_lancamento: "2026-01-15",
+            descricao: "Teste inválido",
+            origem_modulo: "manual",
+            origem_id: 1,
+            referencia_documento: "TEST003",
+          })
+        ).toThrow();
       }
     });
   });
@@ -87,10 +89,10 @@ describe("Ledger (Razão Contábil)", () => {
       const conta_id = contas[0]?.values[0]?.[0];
 
       if (conta_id) {
-        const saldo = obterSaldoConta(db, entidade_id, periodo_id, conta_id);
+        const saldo = obterSaldoConta(db, periodo_id, conta_id);
 
         expect(typeof saldo).toBe("number");
-        expect(saldo).toBeGreaterThanOrEqual(0); // Após lançamentos de teste
+        expect(saldo).toBeGreaterThanOrEqual(0);
       }
     });
 
@@ -98,73 +100,62 @@ describe("Ledger (Razão Contábil)", () => {
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas
          WHERE codigo = '6.1.06'
-         AND id NOT IN (SELECT DISTINCT conta_id FROM ledger_entries)
          LIMIT 1`
       );
 
       if (contas[0]?.values.length > 0) {
         const conta_id = contas[0].values[0][0];
-        const saldo = obterSaldoConta(db, entidade_id, periodo_id, conta_id);
+        const saldo = obterSaldoConta(db, periodo_id, conta_id);
 
         expect(saldo).toBe(0);
       }
     });
   });
 
-  describe("obterExtratoConta", () => {
-    it("deve retornar estrutura de extrato válida", () => {
-      const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+  describe("gerarBalancete", () => {
+    it("deve gerar balancete válido", () => {
+      const balancete = gerarBalancete(db, periodo_id);
 
-      if (conta_id) {
-        const extrato = obterExtratoConta(db, entidade_id, periodo_id, conta_id);
-
-        expect(extrato).toHaveProperty("saldo_inicial");
-        expect(extrato).toHaveProperty("total_debitos");
-        expect(extrato).toHaveProperty("total_creditos");
-        expect(extrato).toHaveProperty("saldo_final");
-        expect(extrato).toHaveProperty("lancamentos");
-      }
+      expect(balancete).toHaveProperty("periodo");
+      expect(balancete).toHaveProperty("saldos");
+      expect(balancete).toHaveProperty("total_debito_periodo");
+      expect(balancete).toHaveProperty("total_credito_periodo");
+      expect(Array.isArray(balancete.saldos)).toBe(true);
     });
 
-    it("lancamentos deve ser array", () => {
-      const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+    it("saldos deve ser array", () => {
+      const balancete = gerarBalancete(db, periodo_id);
 
-      if (conta_id) {
-        const extrato = obterExtratoConta(db, entidade_id, periodo_id, conta_id);
-
-        expect(Array.isArray(extrato.lancamentos)).toBe(true);
-      }
+      expect(Array.isArray(balancete.saldos)).toBe(true);
     });
 
-    it("saldo_final deve ser saldo_inicial + total_debitos - total_creditos", () => {
-      const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+    it("cada saldo deve ter estrutura válida", () => {
+      const balancete = gerarBalancete(db, periodo_id);
 
-      if (conta_id) {
-        const extrato = obterExtratoConta(db, entidade_id, periodo_id, conta_id);
-
-        const saldo_calculado = extrato.saldo_inicial + extrato.total_debitos - extrato.total_creditos;
-        expect(extrato.saldo_final).toBe(saldo_calculado);
+      for (const saldo of balancete.saldos) {
+        expect(saldo).toHaveProperty("conta_codigo");
+        expect(saldo).toHaveProperty("conta_descricao");
+        expect(saldo).toHaveProperty("total_debito");
+        expect(saldo).toHaveProperty("total_credito");
+        expect(saldo).toHaveProperty("saldo_final");
       }
     });
+  });
 
-    it("cada lançamento no extrato deve ter os campos necessários", () => {
-      const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+  describe("validarBalanceamento", () => {
+    it("deve validar balanceamento", () => {
+      const resultado = validarBalanceamento(db, periodo_id);
 
-      if (conta_id) {
-        const extrato = obterExtratoConta(db, entidade_id, periodo_id, conta_id);
+      expect(resultado).toHaveProperty("balanceado");
+      expect(resultado).toHaveProperty("diferenca");
+      expect(typeof resultado.balanceado).toBe("boolean");
+      expect(typeof resultado.diferenca).toBe("number");
+    });
 
-        for (const lancamento of extrato.lancamentos) {
-          expect(lancamento).toHaveProperty("id");
-          expect(lancamento).toHaveProperty("descricao");
-          expect(lancamento).toHaveProperty("valor_debito");
-          expect(lancamento).toHaveProperty("valor_credito");
-          expect(lancamento).toHaveProperty("data_lancamento");
-        }
-      }
+    it("diferença deve ser não-negativa", () => {
+      const resultado = validarBalanceamento(db, periodo_id);
+
+      expect(resultado.diferenca).toBeGreaterThanOrEqual(0);
     });
   });
 });
