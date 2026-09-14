@@ -37,11 +37,12 @@ const AnalyticsIntegradosView = lazy(() => import("./components/AnalyticsIntegra
 const SincronizacaoIntegridadeView = lazy(() => import("./components/SincronizacaoIntegridadeView").then((m) => ({ default: m.SincronizacaoIntegridadeView })));
 const BudgetVarianceView = lazy(() => import("./components/BudgetVarianceView").then((m) => ({ default: m.BudgetVarianceView })));
 const CashForecastView = lazy(() => import("./components/CashForecastView").then((m) => ({ default: m.CashForecastView })));
+const ECDExportView = lazy(() => import("./components/ECDExportView").then((m) => ({ default: m.ECDExportView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
-  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast";
+  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -61,6 +62,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "integridade", rotulo: "Sincronização e integridade", icone: ShieldAlert },
   { id: "budget", rotulo: "Budget vs Realizado", icone: Banknote },
   { id: "forecast", rotulo: "Projeção de Caixa (12m)", icone: LineChart },
+  { id: "ecd", rotulo: "Exportação ECD (Fiscal)", icone: Download },
   { id: "indices", rotulo: "Índices econômicos", icone: LineChart },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
@@ -284,6 +286,7 @@ function Conteudo() {
             {aba === "integridade" && <SincronizacaoIntegridadeView />}
             {aba === "budget" && <BudgetVarianceView />}
             {aba === "forecast" && <CashForecastView />}
+            {aba === "ecd" && <ECDExportView />}
             {aba === "indices" && <IndicesEconomicosView />}
             {aba === "renda" && <RendaTributavelView />}
             {aba === "razao" && <LivroRazaoView />}

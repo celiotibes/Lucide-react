@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import initSqlJs from "sql.js";
 import { gerarDRE, gerarBalanco, gerarFluxoCaixa, gerarRelatorioIntegrado } from "../relatorios-integrados";
 import { prepararBancoTeste } from "./test-setup";
 
