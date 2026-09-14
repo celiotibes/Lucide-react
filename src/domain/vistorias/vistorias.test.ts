@@ -3,6 +3,8 @@ import { criarBancoDeTeste } from "../../test/fixtureDb";
 import { executar, consultar } from "../../db/connection";
 import { agendar, listarPorImovel, listarPorStatus, buscarPorId } from "./agenda";
 import { realizarInspecao, obterItens, calcularTotalDanos, obterHistorico } from "./inspecao";
+import { concluirInspecao, aprovar, rejeitar } from "./aprova";
+import { obterAudit, obterTempoDecorrido } from "./audit";
 import type { Database } from "sql.js";
 import type { Vistoria } from "../types";
 
@@ -277,6 +279,221 @@ describe("Vistorias — Agendamento e Inspeção", () => {
     it("retorna null quando vistoria não existe", () => {
       const resultado = buscarPorId(db, 999);
       expect(resultado).toBeNull();
+    });
+  });
+
+  describe("concluirInspecao", () => {
+    it("muda status de 'em_progresso' para 'concluida'", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      const concluida = concluirInspecao(db, vistoria.id, "Inspeção sem danos");
+
+      expect(concluida.status).toBe("concluida");
+    });
+
+    it("registra 'concluida' no log de auditoria com motivo", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      concluirInspecao(db, vistoria.id, "Tudo ok");
+
+      const historico = obterHistorico(db, vistoria.id);
+      const ultima = historico[historico.length - 1];
+      expect(ultima.acao).toBe("concluida");
+      expect(ultima.motivo).toBe("Tudo ok");
+    });
+
+    it("rejeita vistoria que não está em progresso", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      expect(() => {
+        concluirInspecao(db, vistoria.id);
+      }).toThrow("não está em progresso");
+    });
+  });
+
+  describe("aprovar", () => {
+    it("muda status de 'concluida' para 'aprovada'", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      concluirInspecao(db, vistoria.id);
+      const aprovada = aprovar(db, { vistoria_id: vistoria.id });
+
+      expect(aprovada.status).toBe("aprovada");
+    });
+
+    it("registra 'aprovada' no log de auditoria", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      concluirInspecao(db, vistoria.id);
+      aprovar(db, { vistoria_id: vistoria.id, motivo: "Aprovado para débito" });
+
+      const historico = obterHistorico(db, vistoria.id);
+      const ultima = historico[historico.length - 1];
+      expect(ultima.acao).toBe("aprovada");
+      expect(ultima.motivo).toBe("Aprovado para débito");
+    });
+
+    it("rejeita aprovação de vistoria que não está concluida", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      expect(() => {
+        aprovar(db, { vistoria_id: vistoria.id });
+      }).toThrow("não pode ser aprovada");
+    });
+  });
+
+  describe("rejeitar", () => {
+    it("volta vistoria para 'agendada' a partir de 'em_progresso'", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      const rejeitada = rejeitar(db, { vistoria_id: vistoria.id, motivo: "Danos inaceitáveis" });
+
+      expect(rejeitada.status).toBe("agendada");
+    });
+
+    it("registra 'rejeitada' no log com motivo", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      rejeitar(db, { vistoria_id: vistoria.id, motivo: "Revisão necessária" });
+
+      const historico = obterHistorico(db, vistoria.id);
+      const ultima = historico[historico.length - 1];
+      expect(ultima.acao).toBe("rejeitada");
+      expect(ultima.motivo).toBe("Revisão necessária");
+    });
+  });
+
+  describe("obterAudit", () => {
+    it("retorna resumo completo de auditoria com tempo decorrido", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      concluirInspecao(db, vistoria.id);
+      aprovar(db, { vistoria_id: vistoria.id });
+
+      const audit = obterAudit(db, vistoria.id);
+      expect(audit.total_acoes).toBe(4); // agendada, inspecao_iniciada, concluida, aprovada
+      expect(audit.primeira_acao.acao).toBe("agendada");
+      expect(audit.ultima_acao.acao).toBe("aprovada");
+      expect(audit.acoes.length).toBe(4);
+    });
+
+    it("calcula tempo desde ação anterior", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+
+      const audit = obterAudit(db, vistoria.id);
+      expect(audit.acoes[1].tempo_desde_anterior).toBeDefined();
+      expect(audit.acoes[1].tempo_desde_anterior).toMatch(/^[\d]+[smhd]/);
+    });
+  });
+
+  describe("obterTempoDecorrido", () => {
+    it("calcula tempo total desde primeira até última ação", () => {
+      const amanhã = new Date();
+      amanhã.setDate(amanhã.getDate() + 1);
+
+      const vistoria = agendar(db, {
+        imovel_id: 1,
+        data: amanhã,
+        responsavel: "Celio",
+        tipo: "entrada",
+      });
+
+      realizarInspecao(db, vistoria.id, [], "Celio");
+      concluirInspecao(db, vistoria.id);
+
+      const tempo = obterTempoDecorrido(db, vistoria.id);
+      expect(tempo.criado_em).toBeDefined();
+      expect(tempo.tempo_decorrido).toBeDefined();
+      expect(tempo.duracao_em_segundos).toBeGreaterThanOrEqual(0);
     });
   });
 });
