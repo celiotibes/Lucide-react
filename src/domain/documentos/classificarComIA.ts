@@ -44,7 +44,7 @@ ${textoLimitado}`;
 
   try {
     // Tenta usar backend endpoint se disponível
-    const endpoint = process.env.VITE_CLASIFICACAO_BACKEND || "";
+    const endpoint = import.meta.env.VITE_CLASIFICACAO_BACKEND || "";
     if (endpoint) {
       const response = await fetch(endpoint, {
         method: "POST",
@@ -58,7 +58,7 @@ ${textoLimitado}`;
     }
 
     // Fallback: tenta usar API key local (apenas desenvolvimento/demo)
-    const chave = apiKey || process.env.VITE_ANTHROPIC_API_KEY || "";
+    const chave = apiKey || import.meta.env.VITE_ANTHROPIC_API_KEY || "";
     if (!chave) {
       console.warn("IA: sem backend nem API key configurada. Retornando resultado vazio.");
       return {};
