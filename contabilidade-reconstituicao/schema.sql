@@ -479,3 +479,161 @@ CREATE INDEX IF NOT EXISTS idx_vistorias_status ON vistorias(status);
 CREATE INDEX IF NOT EXISTS idx_vistoria_item_vistoria ON vistoria_item(vistoria_id);
 CREATE INDEX IF NOT EXISTS idx_vistoria_anexo_vistoria ON vistoria_anexo(vistoria_id);
 CREATE INDEX IF NOT EXISTS idx_vistoria_log_vistoria ON vistoria_log(vistoria_id);
+
+-- ===== SPRINT 1: ERP CORE - LEDGER INTEGRADO =====
+-- Tabela central de lançamentos contábeis com rastreabilidade completa e períodos fecháveis.
+-- Todas as 7 integrações (contratos, patrimônio, rateios, vistorias, financiamentos, etc.)
+-- alimentam esta tabela. Débitos e créditos em colunas separadas para auditoria de balanceamento.
+
+CREATE TABLE IF NOT EXISTS entidades_legais (
+    id              INTEGER PRIMARY KEY,
+    tipo            TEXT NOT NULL CHECK (tipo IN ('pessoa_fisica', 'pessoa_juridica')),
+    cpf_cnpj        TEXT NOT NULL UNIQUE,
+    nome            TEXT NOT NULL,
+    endereco        TEXT,
+    regime_tributario TEXT CHECK (regime_tributario IN ('simples_nacional', 'presumido', 'lucro_real')),
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS periodos_contabeis (
+    id              INTEGER PRIMARY KEY,
+    entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
+    ano             INTEGER NOT NULL,
+    mes             INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+    status          TEXT NOT NULL CHECK (status IN ('aberto', 'fechado')) DEFAULT 'aberto',
+    saldo_anterior_caixa REAL DEFAULT 0,  -- saldo inicial do período (abertura)
+    data_abertura   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    data_fechamento DATETIME,
+    encerrado_por   INTEGER,  -- usuario_id que encerrou o período
+    motivo_encerramento TEXT,
+    UNIQUE (entidade_id, ano, mes)
+);
+
+CREATE TABLE IF NOT EXISTS centros_custo (
+    id              INTEGER PRIMARY KEY,
+    entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
+    codigo          TEXT NOT NULL,
+    descricao       TEXT NOT NULL,
+    tipo            TEXT NOT NULL CHECK (tipo IN ('imavel', 'administrativo', 'operacional')),
+    ativo           INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+    UNIQUE (entidade_id, codigo)
+);
+
+CREATE TABLE IF NOT EXISTS contas_plano_contas (
+    id              INTEGER PRIMARY KEY,
+    entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
+    codigo          TEXT NOT NULL,
+    descricao       TEXT NOT NULL,
+    grupo           TEXT NOT NULL CHECK (grupo IN ('ativo', 'passivo', 'patrimonio_liquido', 'receita', 'despesa', 'resultado')),
+    natureza        TEXT NOT NULL CHECK (natureza IN ('debito', 'credito')),
+    analisavel      INTEGER NOT NULL DEFAULT 1 CHECK (analisavel IN (0, 1)),  -- participa de relatórios
+    ativo           INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+    UNIQUE (entidade_id, codigo)
+);
+
+-- Ledger integrado: banco de dados de transações contábeis com origem rastreável e auditoria
+-- Esta tabela é o "hub central" onde TODAS as operações do ERP alimentam dados.
+-- Diferentemente de transacoes (que é só banco), ledger_entries registra CONTABILIDADE OFICIAL.
+CREATE TABLE IF NOT EXISTS ledger_entries (
+    id                  INTEGER PRIMARY KEY,
+    entidade_id         INTEGER NOT NULL REFERENCES entidades_legais(id),
+    periodo_id          INTEGER NOT NULL REFERENCES periodos_contabeis(id),
+    centro_custo_id     INTEGER REFERENCES centros_custo(id),
+    conta_id            INTEGER NOT NULL REFERENCES contas_plano_contas(id),
+
+    -- Data do lançamento (pode diferir de data do documento-fonte)
+    data_lancamento     DATE NOT NULL,
+
+    -- Débito e Crédito em colunas separadas (padrão contábil internacional)
+    -- Exatamente um deles é NOT NULL e > 0; o outro é 0 ou NULL.
+    valor_debito        REAL CHECK (valor_debito IS NULL OR valor_debito > 0),
+    valor_credito       REAL CHECK (valor_credito IS NULL OR valor_credito > 0),
+
+    -- Descrição/histórico do lançamento
+    descricao           TEXT NOT NULL,
+
+    -- Rastreabilidade: origem do lançamento (qual módulo/operação gerou)
+    origem_modulo       TEXT NOT NULL CHECK (origem_modulo IN (
+        'transacoes',           -- Transação bancária simples
+        'contratos',            -- Contrato de locação
+        'patrimonio',           -- Aquisição/depreciação de imóvel
+        'caucao',               -- Caução
+        'financiamento',        -- Financiamento/amortização
+        'rateio',               -- Rateio de despesa comum
+        'vistorias',            -- Provisão de dano em vistoria
+        'manual'                -- Lançamento manual (ajuste, acerto)
+    )),
+    origem_id           INTEGER NOT NULL,  -- PK da tabela de origem (transacao_id, contrato_id, etc.)
+    referencia_documento TEXT NOT NULL,  -- Código único: CT-123, FIN-456-PAR-001, etc.
+
+    -- Auditoria de criação
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_por          INTEGER,  -- usuario_id
+
+    -- Auditoria contábil: permitir desfazer/corrigir (estorno ou lançamento de ajuste)
+    auditada            INTEGER NOT NULL DEFAULT 0 CHECK (auditada IN (0, 1)),
+    auditado_em         DATETIME,
+    auditado_por        INTEGER,  -- usuario_id que auditou
+
+    -- Se este lançamento foi estornado (reversão contábil), referencia qual é o estorno
+    estornado_por_id    INTEGER REFERENCES ledger_entries(id),
+    motivo_estorno      TEXT,
+
+    -- Índices para performance e consultas comuns
+    UNIQUE (origem_modulo, origem_id),
+    CHECK (
+        (valor_debito IS NOT NULL AND valor_credito IS NULL) OR
+        (valor_debito IS NULL AND valor_credito IS NOT NULL)
+    )
+);
+
+-- Saldos por conta por período (cache para performance de relatórios)
+-- Recalculado ao fechar um período contábil
+CREATE TABLE IF NOT EXISTS ledger_saldos_periodo (
+    id              INTEGER PRIMARY KEY,
+    periodo_id      INTEGER NOT NULL REFERENCES periodos_contabeis(id),
+    conta_id        INTEGER NOT NULL REFERENCES contas_plano_contas(id),
+    saldo_anterior  REAL DEFAULT 0,  -- saldo no início do período
+    total_debito    REAL DEFAULT 0,  -- somatório de débitos do período
+    total_credito   REAL DEFAULT 0,  -- somatório de créditos do período
+    saldo_final     REAL DEFAULT 0,  -- saldo_anterior + débitos - créditos (ou conforme natureza)
+    atualizado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (periodo_id, conta_id)
+);
+
+-- Histórico de encerramento: cada vez que um período é fechado, registra um snapshot
+-- dos saldos finais (para auditoria de que não houve alteração depois de fechado)
+CREATE TABLE IF NOT EXISTS ledger_encerramentos (
+    id              INTEGER PRIMARY KEY,
+    periodo_id      INTEGER NOT NULL REFERENCES periodos_contabeis(id),
+    data_encerramento DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    encerrado_por   INTEGER,  -- usuario_id
+    total_debito    REAL DEFAULT 0,
+    total_credito   REAL DEFAULT 0,
+    balancete_OK    INTEGER NOT NULL DEFAULT 0 CHECK (balancete_OK IN (0, 1)),  -- débitos = créditos?
+    hash_snapshot   TEXT,  -- SHA256 dos saldos finais (para detectar manipulação)
+    observacoes     TEXT
+);
+
+-- Regras de mapeamento automático: quando uma transação chega de um módulo,
+-- qual conta do plano recebe o lançamento contábil?
+CREATE TABLE IF NOT EXISTS regras_contabilizacao (
+    id              INTEGER PRIMARY KEY,
+    entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
+    origem_modulo   TEXT NOT NULL,
+    tipo_operacao   TEXT NOT NULL,  -- ex: "aluguel_recebido", "aluguel_esperado", "rateio_recebido"
+    conta_debito_id INTEGER REFERENCES contas_plano_contas(id),
+    conta_credito_id INTEGER REFERENCES contas_plano_contas(id),
+    descricao       TEXT,
+    UNIQUE (entidade_id, origem_modulo, tipo_operacao)
+);
+
+-- Índices para o ledger (performance crítica)
+CREATE INDEX IF NOT EXISTS idx_ledger_periodo ON ledger_entries(periodo_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_conta ON ledger_entries(conta_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_data ON ledger_entries(data_lancamento);
+CREATE INDEX IF NOT EXISTS idx_ledger_origem ON ledger_entries(origem_modulo, origem_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_auditada ON ledger_entries(auditada);
+
+CREATE INDEX IF NOT EXISTS idx_saldos_periodo ON ledger_saldos_periodo(periodo_id);
+CREATE INDEX IF NOT EXISTS idx_encerramentos_periodo ON ledger_encerramentos(periodo_id);
