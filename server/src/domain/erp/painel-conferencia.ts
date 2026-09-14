@@ -144,7 +144,7 @@ export async function gerarPagamento(
 export async function aprovarMovimentacao(
   movimentacaoId: string,
   usuarioId: string,
-  semanaDes conto: string,
+  semanaDesconto: string,
   parcelas: number = 1,
   juros_percentual: number = 0
 ): Promise<{ auditoria_id: string }> {
@@ -155,7 +155,7 @@ export async function aprovarMovimentacao(
     acao: "aprovacao",
     usuario: usuarioId,
     dados_novos: {
-      semana_desconto: semanaDes conto,
+      semana_desconto: semanaDesconto,
       parcelas,
       juros_percentual,
     },

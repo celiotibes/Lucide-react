@@ -29,7 +29,7 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
   onConfirm,
   usuarioId,
 }) => {
-  const [semanaDes conto, setSemanaDes conto] = useState<string>(
+  const [semanaDesconto, setSemanaDesconto] = useState<string>(
     movimentacao?.semana_desconto || ""
   );
   const [parcelas, setParcelas] = useState<number>(movimentacao?.parcelas || 1);
@@ -39,14 +39,14 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
 
   const isEmprestimo = movimentacao?.tipo === "emprestimo";
 
-  const calcularValorParcel a = () => {
+  const calcularValorParcela = () => {
     if (!movimentacao) return 0;
     const valorComJuros = movimentacao.valor * (1 + juros / 100);
     return valorComJuros / parcelas;
   };
 
   const handleConfirmar = async () => {
-    if (!semanaDes conto) {
+    if (!semanaDesconto) {
       setErro("Semana de desconto é obrigatória");
       return;
     }
@@ -68,10 +68,10 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
           },
           body: JSON.stringify({
             usuario_id: usuarioId,
-            semana_desconto: semanaDes conto,
+            semana_desconto: semanaDesconto,
             parcelas: isEmprestimo ? parcelas : 1,
             juros_percentual: isEmprestimo ? juros : 0,
-            valor_parcela: calcularValorParcel a(),
+            valor_parcela: calcularValorParcela(),
           }),
         }
       );
@@ -140,8 +140,8 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
             <Input
               id="semana-desconto"
               type="date"
-              value={semanaDes conto}
-              onChange={(e) => setSemanaDes conto(e.target.value)}
+              value={semanaDesconto}
+              onChange={(e) => setSemanaDesconto(e.target.value)}
               className="mt-1 bg-slate-50 dark:bg-slate-700"
             />
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
@@ -207,7 +207,7 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
                     )}
                     <div className="pt-1 border-t border-blue-200 dark:border-blue-700 flex justify-between font-semibold text-blue-900 dark:text-blue-100">
                       <span>Valor da Parcela ({parcelas}x)</span>
-                      <span>{formatarMoeda(calcularValorParcel a())}</span>
+                      <span>{formatarMoeda(calcularValorParcela())}</span>
                     </div>
                   </div>
                 </div>
@@ -230,7 +230,7 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
           </Button>
           <Button
             onClick={handleConfirmar}
-            disabled={confirmando || !semanaDes conto}
+            disabled={confirmando || !semanaDesconto}
             className="bg-blue-600 hover:bg-blue-700"
           >
             {confirmando ? "Aprovando..." : "Confirmar Aprovação"}
