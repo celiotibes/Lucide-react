@@ -119,6 +119,188 @@ export async function prepararBancoTeste() {
       FOREIGN KEY (entidade_id) REFERENCES entidades(id),
       FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id)
     );
+
+    -- MÓDULO ADVOCACIA
+    CREATE TABLE IF NOT EXISTS processos_legais (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      numero_processo TEXT UNIQUE NOT NULL,
+      tipo TEXT NOT NULL,
+      descricao TEXT,
+      data_ajuizamento TEXT,
+      data_conclusao TEXT,
+      status TEXT DEFAULT 'ativo',
+      foro TEXT,
+      juiz TEXT,
+      nivel_hierarquia INTEGER DEFAULT 1,
+      valor_causa REAL,
+      estimativa_despesa REAL,
+      risco_potencial TEXT,
+      criado_em TEXT,
+      atualizado_em TEXT,
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS partes_processo (
+      id INTEGER PRIMARY KEY,
+      processo_id INTEGER NOT NULL,
+      tipo_parte TEXT,
+      nome_parte TEXT NOT NULL,
+      contato TEXT,
+      dados_bancarios TEXT,
+      FOREIGN KEY (processo_id) REFERENCES processos_legais(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS despesas_legais (
+      id INTEGER PRIMARY KEY,
+      processo_id INTEGER NOT NULL,
+      entidade_id INTEGER NOT NULL,
+      periodo_id INTEGER NOT NULL,
+      data_lancamento TEXT,
+      tipo_despesa TEXT,
+      descricao TEXT,
+      valor_despesa REAL NOT NULL,
+      beneficiario TEXT,
+      referencia_documento TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (processo_id) REFERENCES processos_legais(id),
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id),
+      FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id)
+    );
+
+    -- MÓDULO CONTAS PESSOAIS
+    CREATE TABLE IF NOT EXISTS contas_pessoais (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      tipo_conta TEXT,
+      descricao TEXT NOT NULL,
+      saldo_inicial REAL DEFAULT 0,
+      data_abertura TEXT,
+      status TEXT DEFAULT 'ativa',
+      observacoes TEXT,
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS movimentos_pessoais (
+      id INTEGER PRIMARY KEY,
+      conta_pessoal_id INTEGER NOT NULL,
+      entidade_id INTEGER NOT NULL,
+      periodo_id INTEGER NOT NULL,
+      data_movimento TEXT,
+      descricao TEXT,
+      tipo_movimento TEXT,
+      valor REAL NOT NULL,
+      categoria TEXT,
+      observacoes TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (conta_pessoal_id) REFERENCES contas_pessoais(id),
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id),
+      FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id)
+    );
+
+    -- MÓDULO GESTÃO DE IMÓVEIS EXPANDIDO
+    CREATE TABLE IF NOT EXISTS imovel_documentos (
+      id INTEGER PRIMARY KEY,
+      imovel_id INTEGER NOT NULL,
+      tipo_documento TEXT,
+      numero_documento TEXT,
+      data_documento TEXT,
+      data_vencimento TEXT,
+      arquivo_url TEXT,
+      status TEXT DEFAULT 'vigente',
+      observacoes TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (imovel_id) REFERENCES imoveis(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS vistorias (
+      id INTEGER PRIMARY KEY,
+      imovel_id INTEGER NOT NULL,
+      data_vistoria TEXT NOT NULL,
+      tipo_vistoria TEXT,
+      responsavel TEXT,
+      descricao TEXT,
+      status_imovel TEXT,
+      observacoes TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (imovel_id) REFERENCES imoveis(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS itens_vistoria (
+      id INTEGER PRIMARY KEY,
+      vistoria_id INTEGER NOT NULL,
+      descricao_item TEXT,
+      condicao TEXT,
+      necessidade_reparo INTEGER DEFAULT 0,
+      custo_estimado REAL DEFAULT 0,
+      prioridade TEXT,
+      FOREIGN KEY (vistoria_id) REFERENCES vistorias(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS manutencoes (
+      id INTEGER PRIMARY KEY,
+      imovel_id INTEGER NOT NULL,
+      data_manutencao TEXT,
+      tipo_manutencao TEXT,
+      descricao TEXT,
+      prestador_servico TEXT,
+      valor_manutencao REAL NOT NULL,
+      status TEXT DEFAULT 'pendente',
+      data_conclusao TEXT,
+      observacoes TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (imovel_id) REFERENCES imoveis(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS despesas_operacionais_agendadas (
+      id INTEGER PRIMARY KEY,
+      imovel_id INTEGER NOT NULL,
+      entidade_id INTEGER NOT NULL,
+      tipo_despesa TEXT,
+      descricao TEXT,
+      valor_mensal REAL,
+      dia_vencimento INTEGER,
+      data_inicio TEXT,
+      data_fim TEXT,
+      status TEXT DEFAULT 'ativa',
+      observacoes TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (imovel_id) REFERENCES imoveis(id),
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS inquilinos (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      imovel_id INTEGER NOT NULL,
+      contrato_id INTEGER,
+      nome_completo TEXT NOT NULL,
+      cpf TEXT,
+      email TEXT,
+      telefone TEXT,
+      data_admissao TEXT,
+      data_saida TEXT,
+      status TEXT DEFAULT 'ativo',
+      observacoes TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (entidade_id) REFERENCES entidades(id),
+      FOREIGN KEY (imovel_id) REFERENCES imoveis(id),
+      FOREIGN KEY (contrato_id) REFERENCES contratos_locacao(id)
+    );
+
+    -- MÓDULO INTEGRAÇÃO SKILLOS
+    CREATE TABLE IF NOT EXISTS skillos_log (
+      id INTEGER PRIMARY KEY,
+      skillos_ref_id TEXT UNIQUE NOT NULL,
+      lucide_tabela TEXT NOT NULL,
+      lucide_id INTEGER,
+      tipo_evento TEXT NOT NULL,
+      dados_json TEXT,
+      status TEXT DEFAULT 'pendente',
+      tentativas INTEGER DEFAULT 0,
+      criado_em TEXT NOT NULL,
+      sincronizado_em TEXT
+    );
   `);
 
   // Inserir dados de teste
@@ -267,6 +449,104 @@ export async function prepararBancoTeste() {
     `INSERT INTO transacoes_auditoria (id, entidade_id, periodo_id, tipo, descricao, status)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [1, entidade_id, periodo_id, "lancamento", "Auditoria de lançamentos", "pendente"]
+  );
+
+  // ===== DADOS DE TESTE: MÓDULO ADVOCACIA =====
+  // Inserir processo legal
+  db.run(
+    `INSERT INTO processos_legais (id, entidade_id, numero_processo, tipo, descricao, data_ajuizamento, status, foro, nivel_hierarquia, valor_causa, risco_potencial, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, entidade_id, "0001234-89.2024.8.26.0100", "cobrança", "Ação de cobrança contra inquilino", "2024-06-15", "ativo", "São Paulo", 1, 15000, "médio", "2026-01-01"]
+  );
+
+  // Inserir partes do processo
+  db.run(
+    `INSERT INTO partes_processo (id, processo_id, tipo_parte, nome_parte, contato)
+     VALUES (?, ?, ?, ?, ?)`,
+    [1, 1, "autor", "Proprietário PJ", "proprietario@email.com"]
+  );
+
+  db.run(
+    `INSERT INTO partes_processo (id, processo_id, tipo_parte, nome_parte)
+     VALUES (?, ?, ?, ?)`,
+    [2, 1, "réu", "João da Silva"]
+  );
+
+  // Inserir despesa legal
+  db.run(
+    `INSERT INTO despesas_legais (id, processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, 1, entidade_id, periodo_id, "2026-01-10", "honorarios_advocaticios", "Honorários causa cobrança", 2500, "Dr. Advogado Silva", "NOTA001", "2026-01-10"]
+  );
+
+  // ===== DADOS DE TESTE: MÓDULO CONTAS PESSOAIS =====
+  // Inserir conta pessoal
+  db.run(
+    `INSERT INTO contas_pessoais (id, entidade_id, tipo_conta, descricao, saldo_inicial, data_abertura, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [1, entidade_id, "conta_corrente_pessoal", "Conta pessoal Banco X", 500, "2020-01-01", "ativa"]
+  );
+
+  // ===== DADOS DE TESTE: MÓDULO GESTÃO DE IMÓVEIS =====
+  // Inserir documento de imóvel (Escritura)
+  db.run(
+    `INSERT INTO imovel_documentos (id, imovel_id, tipo_documento, numero_documento, data_documento, status, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [1, 1, "escritura", "123456-789", "2020-05-10", "vigente", "2026-01-01"]
+  );
+
+  // Inserir documento de imóvel (IPTU)
+  db.run(
+    `INSERT INTO imovel_documentos (id, imovel_id, tipo_documento, numero_documento, data_vencimento, status, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [2, 1, "iptu", "12345-67890-12", "2026-12-31", "vigente", "2026-01-01"]
+  );
+
+  // Inserir vistoria
+  db.run(
+    `INSERT INTO vistorias (id, imovel_id, data_vistoria, tipo_vistoria, responsavel, descricao, status_imovel, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, 1, "2026-01-15", "de_entrada", "Gerente Imóvel", "Vistoria de entrada - sem danos aparentes", "bom", "2026-01-15"]
+  );
+
+  // Inserir itens da vistoria
+  db.run(
+    `INSERT INTO itens_vistoria (id, vistoria_id, descricao_item, condicao, necessidade_reparo)
+     VALUES (?, ?, ?, ?, ?)`,
+    [1, 1, "Pintura", "boa", 0]
+  );
+
+  db.run(
+    `INSERT INTO itens_vistoria (id, vistoria_id, descricao_item, condicao, necessidade_reparo, custo_estimado, prioridade)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [2, 1, "Tomada danificada", "ruim", 1, 150, "média"]
+  );
+
+  // Inserir manutenção
+  db.run(
+    `INSERT INTO manutencoes (id, imovel_id, data_manutencao, tipo_manutencao, descricao, prestador_servico, valor_manutencao, status, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, 1, "2026-01-20", "eletrica", "Reparo tomada danificada", "Eletricista João", 150, "concluida", "2026-01-20"]
+  );
+
+  // Inserir despesa operacional agendada
+  db.run(
+    `INSERT INTO despesas_operacionais_agendadas (id, imovel_id, entidade_id, tipo_despesa, descricao, valor_mensal, dia_vencimento, data_inicio, status, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, 1, entidade_id, "condominio", "Condomínio - Apto 101", 1500, 10, "2025-01-01", "ativa", "2025-01-01"]
+  );
+
+  db.run(
+    `INSERT INTO despesas_operacionais_agendadas (id, imovel_id, entidade_id, tipo_despesa, descricao, valor_mensal, dia_vencimento, data_inicio, status, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [2, 1, entidade_id, "agua", "Água e esgoto", 150, 20, "2025-01-01", "ativa", "2025-01-01"]
+  );
+
+  // Inserir inquilino
+  db.run(
+    `INSERT INTO inquilinos (id, entidade_id, imovel_id, contrato_id, nome_completo, cpf, email, data_admissao, status, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [1, entidade_id, 1, 1, "João da Silva", "123.456.789-00", "joao@email.com", "2025-01-01", "ativo", "2025-01-01"]
   );
 
   return { db, entidade_id, periodo_id };
