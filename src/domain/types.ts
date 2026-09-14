@@ -272,3 +272,52 @@ export interface LogAlteracao {
   dados_anteriores?: string; // JSON
   dados_novos?: string; // JSON
 }
+
+export type StatusVistoria = "agendada" | "em_progresso" | "concluida" | "aprovada";
+export type TipoItemVistoria = "dano" | "necessidade_reparo" | "achado_positivo";
+export type SeveridadeItem = "baixa" | "media" | "alta";
+export type TipoAnexo = "foto" | "documento" | "laudo";
+export type AcaoVistoria = "agendada" | "inspecao_iniciada" | "concluida" | "aprovada" | "rejeitada";
+
+export interface Vistoria {
+  id: number;
+  imovel_id: number;
+  contrato_id?: number;
+  data_agendada?: string;
+  data_realizada?: string;
+  responsavel?: string;
+  status: StatusVistoria;
+  observacoes?: string;
+  valor_estimado?: number;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface VistoriaItem {
+  id: number;
+  vistoria_id: number;
+  tipo: TipoItemVistoria;
+  descricao: string;
+  severidade?: SeveridadeItem;
+  valor_estimado?: number;
+  criado_em: string;
+}
+
+export interface VistoriaAnexo {
+  id: number;
+  vistoria_id: number;
+  tipo?: TipoAnexo;
+  url_storage?: string;
+  mime_type?: string;
+  tamanho_bytes?: number;
+  criado_em: string;
+}
+
+export interface VistoriaLog {
+  id: number;
+  vistoria_id: number;
+  acao: AcaoVistoria;
+  usuario_id?: number;
+  motivo?: string;
+  criado_em: string;
+}

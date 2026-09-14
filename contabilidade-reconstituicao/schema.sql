@@ -425,3 +425,57 @@ CREATE INDEX IF NOT EXISTS idx_documentos_data ON documentos(data_documento);
 CREATE INDEX IF NOT EXISTS idx_documento_imoveis_documento ON documento_imoveis(documento_id);
 CREATE INDEX IF NOT EXISTS idx_documento_transacoes_documento ON documento_transacoes(documento_id);
 CREATE INDEX IF NOT EXISTS idx_documento_transacoes_transacao ON documento_transacoes(transacao_id);
+
+-- Vistorias/Inspeções — agendamento, realização e aprovação
+CREATE TABLE IF NOT EXISTS vistorias (
+    id              INTEGER PRIMARY KEY,
+    imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
+    contrato_id     INTEGER REFERENCES contratos_locacao(id),
+    data_agendada   DATETIME,
+    data_realizada  DATETIME,
+    responsavel     TEXT,
+    status          TEXT NOT NULL CHECK (status IN ('agendada', 'em_progresso', 'concluida', 'aprovada')) DEFAULT 'agendada',
+    observacoes     TEXT,
+    valor_estimado  REAL,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Items da vistoria (danos, achados, necessidades de reparo)
+CREATE TABLE IF NOT EXISTS vistoria_item (
+    id              INTEGER PRIMARY KEY,
+    vistoria_id     INTEGER NOT NULL REFERENCES vistorias(id),
+    tipo            TEXT NOT NULL CHECK (tipo IN ('dano', 'necessidade_reparo', 'achado_positivo')),
+    descricao       TEXT NOT NULL,
+    severidade      TEXT CHECK (severidade IN ('baixa', 'media', 'alta')),
+    valor_estimado  REAL,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Anexos da vistoria (fotos, documentos, laudos)
+CREATE TABLE IF NOT EXISTS vistoria_anexo (
+    id              INTEGER PRIMARY KEY,
+    vistoria_id     INTEGER NOT NULL REFERENCES vistorias(id),
+    tipo            TEXT CHECK (tipo IN ('foto', 'documento', 'laudo')),
+    url_storage     TEXT,
+    mime_type       TEXT,
+    tamanho_bytes   INTEGER,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Log de auditoria das ações realizadas na vistoria
+CREATE TABLE IF NOT EXISTS vistoria_log (
+    id              INTEGER PRIMARY KEY,
+    vistoria_id     INTEGER NOT NULL REFERENCES vistorias(id),
+    acao            TEXT NOT NULL CHECK (acao IN ('agendada', 'inspecao_iniciada', 'concluida', 'aprovada', 'rejeitada')),
+    usuario_id      INTEGER,
+    motivo          TEXT,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vistorias_imovel ON vistorias(imovel_id);
+CREATE INDEX IF NOT EXISTS idx_vistorias_contrato ON vistorias(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_vistorias_status ON vistorias(status);
+CREATE INDEX IF NOT EXISTS idx_vistoria_item_vistoria ON vistoria_item(vistoria_id);
+CREATE INDEX IF NOT EXISTS idx_vistoria_anexo_vistoria ON vistoria_anexo(vistoria_id);
+CREATE INDEX IF NOT EXISTS idx_vistoria_log_vistoria ON vistoria_log(vistoria_id);
