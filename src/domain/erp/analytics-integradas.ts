@@ -22,21 +22,23 @@ export function calcularKPIRentabilidade(
   entidade_id: number,
   periodo_id: number,
 ): KPIRentabilidade {
-  // Receita Total
+  // Receita Total: contas 5.x.xx
   const [receita] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND tipo = 'credit' AND conta_id IN (1, 3, 25, 26)`,
+    `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.grupo = 'receita'`,
     [entidade_id, periodo_id],
   );
 
-  // Despesa Total
+  // Despesa Total: contas 6.x.xx
   const [despesa] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND tipo = 'debit' AND conta_id IN (5, 13, 17, 20, 21, 22, 23, 24, 28)`,
+    `SELECT COALESCE(SUM(le.valor_debito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.grupo = 'despesa'`,
     [entidade_id, periodo_id],
   );
 
@@ -45,34 +47,37 @@ export function calcularKPIRentabilidade(
   const resultado_liquido = receita_total - despesa_total;
   const margem_operacional = receita_total > 0 ? (resultado_liquido / receita_total) * 100 : 0;
 
-  // ROI: Resultado / Patrimônio Invested
+  // ROI: Resultado / Patrimônio Investido (imóveis)
   const [patrimonio] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id IN (10, 12)`,
+    `SELECT COALESCE(SUM(
+      CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
+           ELSE le.valor_credito END), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('2.1.01', '2.1.02')`,
     [entidade_id, periodo_id],
   );
 
   const roi = patrimonio?.total ? (resultado_liquido / patrimonio.total) * 100 : 0;
 
   // Taxa de Inadimplência
-  const [inadimplentes] = consultar<{ count: number; valor: number }>(
+  const [inadimplentes] = consultar<{ valor: number }>(
     db,
-    `SELECT COUNT(*) as count, COALESCE(SUM(valor_mensal), 0) as valor
-     FROM contratos_locacao WHERE status = 'inadimplente'`,
+    `SELECT COALESCE(SUM(valor_referencia), 0) as valor
+     FROM contratos_locacao WHERE status IN ('com_atraso', 'em_cobranca', 'litigioso')`,
     [],
   );
 
-  const [contatosTodos] = consultar<{ valor: number }>(
+  const [contratosTodos] = consultar<{ valor: number }>(
     db,
-    "SELECT COALESCE(SUM(valor_mensal), 0) as valor FROM contratos_locacao",
+    "SELECT COALESCE(SUM(valor_referencia), 0) as valor FROM contratos_locacao WHERE status IN ('ativo', 'pendente')",
     [],
   );
 
   const taxa_inadimplencia =
-    (contatosTodos?.valor || 0) > 0
-      ? ((inadimplentes?.valor || 0) / (contatosTodos?.valor || 0)) * 100
+    (contratosTodos?.valor || 0) > 0
+      ? ((inadimplentes?.valor || 0) / (contratosTodos?.valor || 0)) * 100
       : 0;
 
   const [periodo] = consultar<{ ano: number; mes: number }>(
@@ -82,7 +87,7 @@ export function calcularKPIRentabilidade(
   );
 
   return {
-    periodo: `${periodo?.ano}/${periodo?.mes || 1}`,
+    periodo: `${periodo?.ano}/${String(periodo?.mes || 1).padStart(2, "0")}`,
     receita_total,
     despesa_total,
     resultado_liquido,
@@ -160,14 +165,17 @@ export function calcularOcupacao(db: Database): AnaliseOcupacao {
 
   const [alugados] = consultar<{ count: number; receita: number }>(
     db,
-    `SELECT COUNT(DISTINCT c.imovel_id) as count, COALESCE(SUM(c.valor_mensal), 0) as receita
+    `SELECT COUNT(DISTINCT c.imovel_id) as count, COALESCE(SUM(c.valor_referencia), 0) as receita
      FROM contratos_locacao c WHERE c.status IN ('ativo', 'pendente')`,
     [],
   );
 
   const [receitaRealizada] = consultar<{ total: number }>(
     db,
-    "SELECT COALESCE(SUM(valor), 0) as total FROM transacoes_integradas WHERE conta_id = 1 AND tipo = 'credit'",
+    `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE cp.codigo = '5.1.01'`,
     [],
   );
 
@@ -203,25 +211,40 @@ export interface AnalisePatrimonio {
 export function calcularComposicaoPatrimonio(
   db: Database,
 ): AnalisePatrimonio {
-  const [imoveis] = consultar<{ valor_total: number; valor_financiado: number }>(
+  // Imóveis para Locação + Uso Pessoal
+  const [imoveis] = consultar<{ valor_total: number }>(
     db,
-    `SELECT
-      COALESCE(SUM(i.valor_aquisicao), 0) as valor_total,
-      COALESCE(SUM(f.valor_contratado), 0) as valor_financiado
-     FROM imoveis i
-     LEFT JOIN financiamentos f ON i.id = f.imovel_id`,
+    `SELECT COALESCE(SUM(i.valor_aquisicao), 0) as valor_total
+     FROM imoveis i`,
     [],
   );
 
+  // Financiamentos LP (3.2.01)
+  const [financiamentos] = consultar<{ valor_financiado: number }>(
+    db,
+    `SELECT COALESCE(SUM(
+      CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
+           ELSE le.valor_debito END), 0) as valor_financiado
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE cp.codigo = '3.2.01'`,
+    [],
+  );
+
+  // Depreciação Acumulada (2.2.01)
   const [depreciacaoAcumulada] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas WHERE conta_id = 14 AND tipo = 'credit'`,
+    `SELECT COALESCE(SUM(
+      CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
+           ELSE le.valor_debito END), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE cp.codigo = '2.2.01'`,
     [],
   );
 
   const valor_total = imoveis?.valor_total || 0;
-  const valor_financiado = imoveis?.valor_financiado || 0;
+  const valor_financiado = financiamentos?.valor_financiado || 0;
   const valor_proprio = valor_total - valor_financiado;
   const depreciacao = depreciacaoAcumulada?.total || 0;
   const valor_liquido = valor_total - depreciacao;
@@ -255,16 +278,16 @@ export function calcularRankingImoveisPerformance(
     `SELECT
       i.id as imovel_id,
       i.apelido,
-      COALESCE(SUM(CASE WHEN t.tipo = 'credit' THEN t.valor ELSE 0 END), 0) as receita_mensal,
-      COALESCE(SUM(CASE WHEN t.tipo = 'debit' THEN t.valor ELSE 0 END), 0) as despesa_mensal,
-      (COALESCE(SUM(CASE WHEN t.tipo = 'credit' THEN t.valor ELSE 0 END), 0) -
-       COALESCE(SUM(CASE WHEN t.tipo = 'debit' THEN t.valor ELSE 0 END), 0)) as resultado_liquido,
+      COALESCE(SUM(CASE WHEN le.origem_modulo = 'contratos' THEN le.valor_credito ELSE 0 END), 0) as receita_mensal,
+      COALESCE(SUM(CASE WHEN le.origem_modulo IN ('rateios', 'vistorias') THEN le.valor_debito ELSE 0 END), 0) as despesa_mensal,
+      (COALESCE(SUM(CASE WHEN le.origem_modulo = 'contratos' THEN le.valor_credito ELSE 0 END), 0) -
+       COALESCE(SUM(CASE WHEN le.origem_modulo IN ('rateios', 'vistorias') THEN le.valor_debito ELSE 0 END), 0)) as resultado_liquido,
       CASE WHEN i.valor_aquisicao > 0
-        THEN (((COALESCE(SUM(CASE WHEN t.tipo = 'credit' THEN t.valor ELSE 0 END), 0) -
-                COALESCE(SUM(CASE WHEN t.tipo = 'debit' THEN t.valor ELSE 0 END), 0)) / i.valor_aquisicao) * 100)
+        THEN (((COALESCE(SUM(CASE WHEN le.origem_modulo = 'contratos' THEN le.valor_credito ELSE 0 END), 0) -
+                COALESCE(SUM(CASE WHEN le.origem_modulo IN ('rateios', 'vistorias') THEN le.valor_debito ELSE 0 END), 0)) / i.valor_aquisicao) * 100)
         ELSE 0 END as taxa_rentabilidade_pct
      FROM imoveis i
-     LEFT JOIN transacoes_integradas t ON i.id = t.origem_id AND t.origem_modulo IN ('contratos', 'rateio')
+     LEFT JOIN ledger_entries le ON i.id = le.origem_id AND le.origem_modulo IN ('contratos', 'rateios', 'vistorias')
      WHERE i.uso_pessoal = 0 AND i.financiado = 0
      GROUP BY i.id
      ORDER BY resultado_liquido DESC`,

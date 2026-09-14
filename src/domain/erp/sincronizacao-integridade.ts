@@ -23,7 +23,6 @@ export interface DiscrepanciaEncontrada {
   dados: Record<string, unknown>;
 }
 
-/** Verificação de integridade do ERP */
 export function verificarIntegridade(db: Database): RelatoriIntegridade {
   const discrepancias: DiscrepanciaEncontrada[] = [];
   const acoes_recomendadas: string[] = [];
@@ -46,41 +45,43 @@ export function verificarIntegridade(db: Database): RelatoriIntegridade {
     acoes_recomendadas.push("Fechar os períodos contábeis antigos antes de abrir novos");
   }
 
-  // 2. Verificar transações não auditadas
-  const [transacoesNaoAuditadas] = consultar<{ count: number }>(
+  // 2. Verificar lançamentos não auditados
+  const [lancamentosNaoAuditados] = consultar<{ count: number }>(
     db,
-    "SELECT COUNT(*) as count FROM transacoes_integradas WHERE auditada = 0",
+    "SELECT COUNT(*) as count FROM ledger_entries WHERE auditada = 0",
     [],
   );
 
-  if ((transacoesNaoAuditadas?.count || 0) > 100) {
+  if ((lancamentosNaoAuditados?.count || 0) > 100) {
     discrepancias.push({
-      tipo: "alto_volume_transacoes_nao_auditadas",
-      descricao: `${transacoesNaoAuditadas?.count} transações aguardando auditoria`,
+      tipo: "alto_volume_lancamentos_nao_auditados",
+      descricao: `${lancamentosNaoAuditados?.count} lançamentos aguardando auditoria`,
       modulo_afetado: "core",
       severidade: "aviso",
-      dados: { transacoes_pendentes: transacoesNaoAuditadas?.count },
+      dados: { lancamentos_pendentes: lancamentosNaoAuditados?.count },
     });
-    acoes_recomendadas.push("Executar auditoria de transações integradas");
+    acoes_recomendadas.push("Executar auditoria de lançamentos contábeis");
   }
 
   // 3. Validar receitas de aluguel vs contratos ativos
-  const [contatosAtivos] = consultar<{ count: number; valor_total: number }>(
+  const [contratosAtivos] = consultar<{ count: number; valor_total: number }>(
     db,
-    `SELECT COUNT(*) as count, COALESCE(SUM(valor_mensal), 0) as valor_total
-     FROM contratos_locacao WHERE status = 'ativo'`,
+    `SELECT COUNT(*) as count, COALESCE(SUM(valor_referencia), 0) as valor_total
+     FROM contratos_locacao WHERE status IN ('ativo', 'pendente')`,
     [],
   );
 
-  const [receitasEsperadas] = consultar<{ total: number }>(
+  const [receitasAluguel] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas WHERE conta_id = 1 AND tipo = 'credit'`,
+    `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE cp.codigo = '5.1.01'`,
     [],
   );
 
-  if (contatosAtivos && receitasEsperadas) {
-    const diferenca = Math.abs((contatosAtivos.valor_total || 0) - (receitasEsperadas.total || 0));
+  if (contratosAtivos && receitasAluguel) {
+    const diferenca = Math.abs((contratosAtivos.valor_total || 0) - (receitasAluguel.total || 0));
     if (diferenca > 100) {
       discrepancias.push({
         tipo: "receitas_aluguel_divergentes",
@@ -88,61 +89,30 @@ export function verificarIntegridade(db: Database): RelatoriIntegridade {
         modulo_afetado: "contratos",
         severidade: "critico",
         dados: {
-          valor_esperado_contratos: contatosAtivos.valor_total,
-          valor_registrado: receitasEsperadas.total,
+          valor_esperado_contratos: contratosAtivos.valor_total,
+          valor_registrado: receitasAluguel.total,
           diferenca,
         },
       });
-      acoes_recomendadas.push(
-        "Revisar mapeamento de receitas de aluguel nos contratos (possível contrato não contabilizado)",
-      );
+      acoes_recomendadas.push("Revisar receitas de aluguel (possível período não contabilizado)");
     }
   }
 
-  // 4. Verificar rateios vs despesas
-  const [despesasComuns] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE conta_id IN (20, 21, 22, 23, 24) AND tipo = 'debit'`,
-    [],
-  );
-
-  const [rateiados] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE conta_id IN (25, 26) AND tipo = 'credit'`,
-    [],
-  );
-
-  if (despesasComuns && rateiados && Math.abs((despesasComuns.total || 0) - (rateiados.total || 0)) > 50) {
-    discrepancias.push({
-      tipo: "rateios_incompletos",
-      descricao: `Despesas (R$ ${despesasComuns.total}) não correspondem a rateios (R$ ${rateiados.total})`,
-      modulo_afetado: "rateio",
-      severidade: "aviso",
-      dados: { despesas: despesasComuns.total, rateiados: rateiados.total },
-    });
-    acoes_recomendadas.push("Verificar rateios de despesas comuns (possível falta de alocação)");
-  }
-
-  // 5. Verificar balancete (débitos = créditos)
+  // 4. Verificar balancete (débitos = créditos)
   const [debitos] = consultar<{ total: number }>(
     db,
-    "SELECT COALESCE(SUM(valor), 0) as total FROM transacoes_integradas WHERE tipo = 'debit'",
+    "SELECT COALESCE(SUM(valor_debito), 0) as total FROM ledger_entries",
     [],
   );
 
   const [creditos] = consultar<{ total: number }>(
     db,
-    "SELECT COALESCE(SUM(valor), 0) as total FROM transacoes_integradas WHERE tipo = 'credit'",
+    "SELECT COALESCE(SUM(valor_credito), 0) as total FROM ledger_entries",
     [],
   );
 
   const diferenca = Math.abs((debitos?.total || 0) - (creditos?.total || 0));
   if (diferenca > 1) {
-    // Permite margem de arredondamento
     discrepancias.push({
       tipo: "balancete_desbalanceado",
       descricao: `Débitos (R$ ${debitos?.total}) != Créditos (R$ ${creditos?.total}). Diferença: R$ ${diferenca}`,
@@ -150,80 +120,106 @@ export function verificarIntegridade(db: Database): RelatoriIntegridade {
       severidade: "critico",
       dados: { debitos: debitos?.total, creditos: creditos?.total, diferenca },
     });
-    acoes_recomendadas.push(
-      "Auditar transações integradas para encontrar lançamento duplo ou faltante",
-    );
+    acoes_recomendadas.push("Auditar lançamentos para encontrar erro de balanceamento");
   }
 
-  // 6. Verificar inadimplência não contabilizada
-  const [inadimplentes] = consultar<{ total: number; quantidade: number }>(
+  // 5. Verificar períodos com lançamentos futuros
+  const [lancamentosFuturos] = consultar<{ count: number }>(
     db,
-    `SELECT COALESCE(SUM(c.valor_mensal), 0) as total, COUNT(*) as quantidade
-     FROM contratos_locacao c
-     WHERE c.status = 'inadimplente'`,
+    `SELECT COUNT(*) as count FROM ledger_entries
+     WHERE data_lancamento > datetime('now')`,
     [],
   );
 
-  if ((inadimplentes?.quantidade || 0) > 0) {
+  if ((lancamentosFuturos?.count || 0) > 0) {
     discrepancias.push({
-      tipo: "inadimplencia_nao_provisionada",
-      descricao: `${inadimplentes?.quantidade} contratos inadimplentes sem provisão contábil registrada`,
-      modulo_afetado: "contratos",
+      tipo: "lancamentos_com_data_futura",
+      descricao: `${lancamentosFuturos?.count} lançamentos com data anterior à data de processamento`,
+      modulo_afetado: "core",
       severidade: "aviso",
-      dados: {
-        contratos_inadimplentes: inadimplentes?.quantidade,
-        valor_em_risco: inadimplentes?.total,
-      },
+      dados: { lancamentos_futuros: lancamentosFuturos?.count },
     });
-    acoes_recomendadas.push("Criar provisão para devedora em conta de resultado");
+    acoes_recomendadas.push("Revisar datas de lançamento para garantir conformidade");
   }
 
-  const status = discrepancias.some((d) => d.severidade === "critico") ? "erro" :
-                 discrepancias.length > 0 ? "alerta" : "ok";
+  // 6. Verificar estornos sem aprovação
+  const [esturnosNaoAprovados] = consultar<{ count: number }>(
+    db,
+    `SELECT COUNT(*) as count FROM ledger_entries
+     WHERE estornado_por_id IS NOT NULL AND auditada = 0`,
+    [],
+  );
+
+  if ((esturnosNaoAprovados?.count || 0) > 0) {
+    discrepancias.push({
+      tipo: "estornos_nao_aprovados",
+      descricao: `${esturnosNaoAprovados?.count} estornos aguardando aprovação`,
+      modulo_afetado: "core",
+      severidade: "aviso",
+      dados: { estornos_pendentes: esturnosNaoAprovados?.count },
+    });
+    acoes_recomendadas.push("Revisar e aprovar estornos contábeis");
+  }
+
+  const status =
+    discrepancias.some((d) => d.severidade === "critico")
+      ? "erro"
+      : discrepancias.length > 0
+        ? "alerta"
+        : "ok";
 
   return {
     status,
     data_verificacao: new Date().toISOString(),
     periodos_abertos: periodosAbertos?.count || 0,
-    transacoes_pendentes_auditoria: transacoesNaoAuditadas?.count || 0,
+    transacoes_pendentes_auditoria: lancamentosNaoAuditados?.count || 0,
     discrepancias,
     resumo_acoes_recomendadas: acoes_recomendadas,
   };
 }
 
-/** Reconciliação automática: Aluguel esperado vs Recebido */
 export function reconciliarAlugueis(db: Database): {
   valor_esperado: number;
   valor_recebido: number;
-  divergencias: Array<{ imovel_id: number; diferenca: number }>;
+  divergencias: Array<{ imovel_id: number; contrato_id: number; diferenca: number }>;
 } {
-  const alugueisPorImovel = consultar<{
+  const alugueisPorContrato = consultar<{
+    contrato_id: number;
     imovel_id: number;
-    valor_mensal: number;
+    valor_esperado: number;
     valor_recebido: number;
   }>(
     db,
     `SELECT
+      c.id as contrato_id,
       c.imovel_id,
-      c.valor_mensal,
-      COALESCE(SUM(t.valor), 0) as valor_recebido
+      c.valor_referencia as valor_esperado,
+      COALESCE(SUM(le.valor_debito), 0) as valor_recebido
      FROM contratos_locacao c
-     LEFT JOIN transacoes_integradas t ON t.origem_id = c.id
-       AND t.origem_modulo = 'contratos' AND t.conta_id = 2
-     WHERE c.status = 'ativo'
-     GROUP BY c.imovel_id`,
+     LEFT JOIN ledger_entries le ON le.origem_modulo = 'contratos'
+       AND le.origem_id = c.id
+       AND le.valor_debito > 0
+     WHERE c.status IN ('ativo', 'pendente')
+     GROUP BY c.id, c.imovel_id`,
     [],
   );
 
-  const divergencias = (alugueisPorImovel || [])
-    .filter((r: any) => Math.abs((r.valor_mensal || 0) - (r.valor_recebido || 0)) > 10)
+  const divergencias = (alugueisPorContrato || [])
+    .filter((r: any) => Math.abs((r.valor_esperado || 0) - (r.valor_recebido || 0)) > 10)
     .map((r: any) => ({
       imovel_id: r.imovel_id,
-      diferenca: (r.valor_mensal || 0) - (r.valor_recebido || 0),
+      contrato_id: r.contrato_id,
+      diferenca: (r.valor_esperado || 0) - (r.valor_recebido || 0),
     }));
 
-  const valor_esperado = (alugueisPorImovel || []).reduce((sum: number, r: any) => sum + (r.valor_mensal || 0), 0);
-  const valor_recebido = (alugueisPorImovel || []).reduce((sum: number, r: any) => sum + (r.valor_recebido || 0), 0);
+  const valor_esperado = (alugueisPorContrato || []).reduce(
+    (sum: number, r: any) => sum + (r.valor_esperado || 0),
+    0,
+  );
+  const valor_recebido = (alugueisPorContrato || []).reduce(
+    (sum: number, r: any) => sum + (r.valor_recebido || 0),
+    0,
+  );
 
   return {
     valor_esperado,

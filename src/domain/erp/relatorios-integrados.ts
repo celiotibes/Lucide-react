@@ -1,33 +1,42 @@
 /**
  * Relatórios Integrados ERP
  * DRE (Demonstração de Resultado), Balanço Patrimonial, Fluxo de Caixa
- * Consolidando dados de todos os módulos
+ * Baseado em ledger_entries com novo plano de contas integrado
  */
 
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 
-/** Demonstração de Resultado do Exercício (DRE) */
 export interface LinhasDRE {
   receitas: {
     aluguel: number;
     reajustes: number;
+    rateios: number;
+    juros: number;
     outras_receitas: number;
     total_receitas: number;
   };
   custos: {
     condominio: number;
+    agua_esgoto: number;
+    eletricidade: number;
+    internet: number;
     manutencao: number;
-    agua_energia: number;
-    impostos: number;
+    limpeza: number;
+    seguros: number;
     depreciacao: number;
     total_custos: number;
   };
   resultado_operacional: number;
-  juros: {
+  juros_e_multas: {
     despesa_juros_financiamento: number;
+    despesa_juros_mora: number;
     receita_juros: number;
+    receita_multa: number;
     resultado_juros: number;
+  };
+  provisoes: {
+    provisao_devedora: number;
   };
   resultado_final: number;
 }
@@ -37,140 +46,113 @@ export function gerarDRE(
   entidade_id: number,
   periodo_id: number,
 ): LinhasDRE {
-  // Receitas
-  const [receitasAluguel] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 1 AND tipo = 'credit'`,
-    [entidade_id, periodo_id],
-  );
+  const getCredito = (codigo: string) => {
+    const [result] = consultar<{ total: number }>(
+      db,
+      `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+       FROM ledger_entries le
+       INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`,
+      [entidade_id, periodo_id, codigo],
+    );
+    return result?.total || 0;
+  };
 
-  const [receitasReajustes] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 3 AND tipo = 'credit'`,
-    [entidade_id, periodo_id],
-  );
+  const getDebito = (codigo: string) => {
+    const [result] = consultar<{ total: number }>(
+      db,
+      `SELECT COALESCE(SUM(le.valor_debito), 0) as total
+       FROM ledger_entries le
+       INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`,
+      [entidade_id, periodo_id, codigo],
+    );
+    return result?.total || 0;
+  };
 
-  const [outrasReceitas] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND tipo = 'credit' AND conta_id NOT IN (1, 3, 4)`,
-    [entidade_id, periodo_id],
-  );
+  // Receitas: contas 5.x.xx
+  const receitasAluguel = getCredito("5.1.01");
+  const receitasReajustes = getCredito("5.1.02");
+  const receitasRateios = getCredito("5.1.03");
+  const receitasJuros = getCredito("5.2.01");
+  const outrasReceitas = getCredito("5.3.01");
 
   const totalReceitas =
-    (receitasAluguel?.total || 0) + (receitasReajustes?.total || 0) + (outrasReceitas?.total || 0);
+    receitasAluguel + receitasReajustes + receitasRateios + receitasJuros + outrasReceitas;
 
-  // Custos e Despesas
-  const [condominio] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 20 AND tipo = 'debit'`,
-    [entidade_id, periodo_id],
-  );
-
-  const [manutencao] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id IN (5, 24) AND tipo = 'debit'`,
-    [entidade_id, periodo_id],
-  );
-
-  const [aguaEnergia] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id IN (21, 22, 23) AND tipo = 'debit'`,
-    [entidade_id, periodo_id],
-  );
-
-  const [impostos] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 28 AND tipo = 'debit'`,
-    [entidade_id, periodo_id],
-  );
-
-  const [depreciacao] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 13 AND tipo = 'debit'`,
-    [entidade_id, periodo_id],
-  );
+  // Custos e Despesas: contas 6.x.xx
+  const condominio = getDebito("6.1.01");
+  const aguaEsgoto = getDebito("6.1.02");
+  const eletricidade = getDebito("6.1.03");
+  const internet = getDebito("6.1.04");
+  const manutencao = getDebito("6.1.05");
+  const limpeza = getDebito("6.1.06");
+  const seguros = getDebito("6.1.07");
+  const depreciacao = getDebito("6.2.01");
 
   const totalCustos =
-    (condominio?.total || 0) +
-    (manutencao?.total || 0) +
-    (aguaEnergia?.total || 0) +
-    (impostos?.total || 0) +
-    (depreciacao?.total || 0);
+    condominio + aguaEsgoto + eletricidade + internet + manutencao + limpeza + seguros + depreciacao;
 
   const resultadoOperacional = totalReceitas - totalCustos;
 
-  // Juros
-  const [despesaJuros] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 17 AND tipo = 'debit'`,
-    [entidade_id, periodo_id],
-  );
+  // Juros e Multas
+  const despesaJurosFinanciamento = getDebito("6.3.01");
+  const despesaJurosMora = getDebito("6.3.02");
+  const receitaJurosJuros = getCredito("5.2.01");
+  const receitaMulta = getCredito("5.3.01");
 
-  const [receitaJuros] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 29 AND tipo = 'credit'`,
-    [entidade_id, periodo_id],
-  );
+  // Provisões
+  const provisaoDevedora = getDebito("6.4.01");
 
   const resultadoFinal =
-    resultadoOperacional - (despesaJuros?.total || 0) + (receitaJuros?.total || 0);
+    resultadoOperacional - despesaJurosFinanciamento - despesaJurosMora - provisaoDevedora +
+    receitaJurosJuros + receitaMulta;
 
   return {
     receitas: {
-      aluguel: receitasAluguel?.total || 0,
-      reajustes: receitasReajustes?.total || 0,
-      outras_receitas: outrasReceitas?.total || 0,
+      aluguel: receitasAluguel,
+      reajustes: receitasReajustes,
+      rateios: receitasRateios,
+      juros: receitasJuros,
+      outras_receitas: outrasReceitas,
       total_receitas: totalReceitas,
     },
     custos: {
-      condominio: condominio?.total || 0,
-      manutencao: manutencao?.total || 0,
-      agua_energia: aguaEnergia?.total || 0,
-      impostos: impostos?.total || 0,
-      depreciacao: depreciacao?.total || 0,
+      condominio,
+      agua_esgoto: aguaEsgoto,
+      eletricidade,
+      internet,
+      manutencao,
+      limpeza,
+      seguros,
+      depreciacao,
       total_custos: totalCustos,
     },
     resultado_operacional: resultadoOperacional,
-    juros: {
-      despesa_juros_financiamento: despesaJuros?.total || 0,
-      receita_juros: receitaJuros?.total || 0,
-      resultado_juros: (receitaJuros?.total || 0) - (despesaJuros?.total || 0),
+    juros_e_multas: {
+      despesa_juros_financiamento: despesaJurosFinanciamento,
+      despesa_juros_mora: despesaJurosMora,
+      receita_juros: receitaJurosJuros,
+      receita_multa: receitaMulta,
+      resultado_juros:
+        receitaJurosJuros + receitaMulta - despesaJurosFinanciamento - despesaJurosMora,
+    },
+    provisoes: {
+      provisao_devedora: provisaoDevedora,
     },
     resultado_final: resultadoFinal,
   };
 }
 
-/** Balanço Patrimonial */
 export interface LinhasBalancete {
   ativo: {
-    circulante: number;
-    imovel: number;
-    depreciacaoAcumulada: number;
+    circulante_total: number;
+    nao_circulante_total: number;
     total_ativo: number;
   };
   passivo: {
-    circulante: number;
-    financiamentos: number;
+    circulante_total: number;
+    nao_circulante_total: number;
     total_passivo: number;
   };
   patrimonio_liquido: number;
@@ -181,77 +163,84 @@ export function gerarBalanco(
   entidade_id: number,
   periodo_id: number,
 ): LinhasBalancete {
-  // Ativo Circulante (Contas Correntes)
-  const [ativoCirculante] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(CASE WHEN tipo = 'debit' THEN valor ELSE -valor END), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 2`,
-    [entidade_id, periodo_id],
-  );
+  const getAtivoConta = (codigo: string) => {
+    const [result] = consultar<{ total: number }>(
+      db,
+      `SELECT COALESCE(SUM(
+        CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
+             ELSE le.valor_credito END), 0) as total
+       FROM ledger_entries le
+       INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`,
+      [entidade_id, periodo_id, codigo],
+    );
+    return result?.total || 0;
+  };
 
-  // Imóvel (Ativo Imobilizado)
-  const [imovel] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 10 AND tipo = 'debit'`,
-    [entidade_id, periodo_id],
-  );
+  const getPassivoConta = (codigo: string) => {
+    const [result] = consultar<{ total: number }>(
+      db,
+      `SELECT COALESCE(SUM(
+        CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
+             ELSE le.valor_debito END), 0) as total
+       FROM ledger_entries le
+       INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`,
+      [entidade_id, periodo_id, codigo],
+    );
+    return result?.total || 0;
+  };
 
-  // Depreciação Acumulada
-  const [depreciacaoAcumulada] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 14 AND tipo = 'credit'`,
-    [entidade_id, periodo_id],
-  );
+  const getPatrimonioLiquidoConta = (codigo: string) => {
+    const [result] = consultar<{ total: number }>(
+      db,
+      `SELECT COALESCE(SUM(
+        CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
+             ELSE le.valor_debito END), 0) as total
+       FROM ledger_entries le
+       INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`,
+      [entidade_id, periodo_id, codigo],
+    );
+    return result?.total || 0;
+  };
 
-  const totalAtivo =
-    (ativoCirculante?.total || 0) + (imovel?.total || 0) - (depreciacaoAcumulada?.total || 0);
+  // Ativo Circulante (1.%)
+  const ativoCirculante = getAtivoConta("1.%");
 
-  // Passivo Circulante
-  const [passivoCirculante] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 4 AND tipo = 'credit'`,
-    [entidade_id, periodo_id],
-  );
+  // Ativo Não-Circulante (2.%)
+  const ativoNaoCirculante = getAtivoConta("2.%");
 
-  // Financiamentos a Pagar
-  const [financiamentos] = consultar<{ total: number }>(
-    db,
-    `SELECT COALESCE(SUM(CASE WHEN tipo = 'credit' THEN valor ELSE -valor END), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 11`,
-    [entidade_id, periodo_id],
-  );
+  const totalAtivo = ativoCirculante + ativoNaoCirculante;
 
-  const totalPassivo = (passivoCirculante?.total || 0) + (financiamentos?.total || 0);
+  // Passivo Circulante (3.1%)
+  const passivoCirculante = getPassivoConta("3.1%");
 
-  // Patrimônio Líquido
-  const patrimonioLiquido = totalAtivo - totalPassivo;
+  // Passivo Não-Circulante (3.2%)
+  const passivoNaoCirculante = getPassivoConta("3.2%");
+
+  const totalPassivo = passivoCirculante + passivoNaoCirculante;
+
+  // Patrimônio Líquido (4.%)
+  const patrimonioLiquido = getPatrimonioLiquidoConta("4.%");
 
   return {
     ativo: {
-      circulante: ativoCirculante?.total || 0,
-      imovel: imovel?.total || 0,
-      depreciacaoAcumulada: depreciacaoAcumulada?.total || 0,
+      circulante_total: ativoCirculante,
+      nao_circulante_total: ativoNaoCirculante,
       total_ativo: totalAtivo,
     },
     passivo: {
-      circulante: passivoCirculante?.total || 0,
-      financiamentos: financiamentos?.total || 0,
+      circulante_total: passivoCirculante,
+      nao_circulante_total: passivoNaoCirculante,
       total_passivo: totalPassivo,
     },
     patrimonio_liquido: patrimonioLiquido,
   };
 }
 
-/** Fluxo de Caixa */
 export interface FluxoCaixaResultado {
+  saldo_inicial: number;
   operacional: {
     entradas: number;
     saidas: number;
@@ -259,7 +248,6 @@ export interface FluxoCaixaResultado {
   };
   investimento: {
     aquisicoes: number;
-    depreciacao: number;
     liquido: number;
   };
   financiamento: {
@@ -275,67 +263,108 @@ export function gerarFluxoCaixa(
   entidade_id: number,
   periodo_id: number,
 ): FluxoCaixaResultado {
-  // Operacional: Entradas (Aluguel, Rateios, etc)
-  const [entradasOperacional] = consultar<{ total: number }>(
+  // Saldo inicial (caixa no período anterior)
+  let saldo_inicial = 0;
+  const [periodo] = consultar<{ ano: number; mes: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND tipo = 'debit' AND conta_id IN (1, 2, 25, 26)`,
+    `SELECT ano, mes FROM periodos_contabeis WHERE id = ?`,
+    [periodo_id],
+  );
+
+  if (periodo && (periodo.mes > 1 || periodo.ano > 1)) {
+    const mes_ant = periodo.mes === 1 ? 12 : periodo.mes - 1;
+    const ano_ant = periodo.mes === 1 ? periodo.ano - 1 : periodo.ano;
+
+    const [periodo_anterior] = consultar<{ id: number }>(
+      db,
+      `SELECT id FROM periodos_contabeis
+       WHERE entidade_id = ? AND ano = ? AND mes = ?`,
+      [entidade_id, ano_ant, mes_ant],
+    );
+
+    if (periodo_anterior) {
+      const [saldo] = consultar<{ total: number }>(
+        db,
+        `SELECT COALESCE(SUM(
+          CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
+               ELSE le.valor_credito END), 0) as total
+         FROM ledger_entries le
+         INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+         WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`,
+        [entidade_id, periodo_anterior.id],
+      );
+      saldo_inicial = saldo?.total || 0;
+    }
+  }
+
+  // Entradas: Débitos em contas de caixa (1.1.01, 1.1.02, 1.1.03)
+  const [entradas] = consultar<{ total: number }>(
+    db,
+    `SELECT COALESCE(SUM(le.valor_debito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ?
+       AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`,
     [entidade_id, periodo_id],
   );
 
-  // Operacional: Saídas (Despesas com Condomínio, Manutenção, etc)
-  const [saidasOperacional] = consultar<{ total: number }>(
+  // Saídas: Créditos em contas de caixa (1.1.01, 1.1.02, 1.1.03)
+  const [saidas] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND tipo = 'credit' AND conta_id IN (20, 21, 22, 23, 24, 28)`,
+    `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ?
+       AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`,
     [entidade_id, periodo_id],
   );
 
-  // Investimento: Aquisição de Imóvel
+  // Investimento: Aquisição de Imóvel (2.1.01)
   const [aquisicoes] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 10 AND tipo = 'debit'`,
+    `SELECT COALESCE(SUM(le.valor_debito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '2.1.01'`,
     [entidade_id, periodo_id],
   );
 
-  // Financiamento: Novos Empréstimos
+  // Financiamento: Empréstimos (3.2.01)
   const [emprestimos] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 11 AND tipo = 'credit'`,
+    `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '3.2.01'`,
     [entidade_id, periodo_id],
   );
 
-  // Financiamento: Amortizações
+  // Amortizações (3.2.01)
   const [amortizacoes] = consultar<{ total: number }>(
     db,
-    `SELECT COALESCE(SUM(valor), 0) as total
-     FROM transacoes_integradas
-     WHERE entidade_id = ? AND periodo_id = ? AND conta_id = 11 AND tipo = 'debit'`,
+    `SELECT COALESCE(SUM(le.valor_debito), 0) as total
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '3.2.01'`,
     [entidade_id, periodo_id],
   );
 
-  const fluxoOperacional = (entradasOperacional?.total || 0) - (saidasOperacional?.total || 0);
+  const ent = entradas?.total || 0;
+  const sai = saidas?.total || 0;
+  const fluxoOperacional = ent - sai;
   const fluxoInvestimento = -(aquisicoes?.total || 0);
-  const fluxoFinanciamento =
-    (emprestimos?.total || 0) - (amortizacoes?.total || 0);
-
-  const saldoFinal = fluxoOperacional + fluxoInvestimento + fluxoFinanciamento;
+  const fluxoFinanciamento = (emprestimos?.total || 0) - (amortizacoes?.total || 0);
+  const saldo_final = saldo_inicial + fluxoOperacional + fluxoInvestimento + fluxoFinanciamento;
 
   return {
+    saldo_inicial,
     operacional: {
-      entradas: entradasOperacional?.total || 0,
-      saidas: saidasOperacional?.total || 0,
+      entradas: ent,
+      saidas: sai,
       liquido: fluxoOperacional,
     },
     investimento: {
       aquisicoes: aquisicoes?.total || 0,
-      depreciacao: 0, // Não gera fluxo de caixa
       liquido: fluxoInvestimento,
     },
     financiamento: {
@@ -343,6 +372,6 @@ export function gerarFluxoCaixa(
       amortizacoes: amortizacoes?.total || 0,
       liquido: fluxoFinanciamento,
     },
-    saldo_final: saldoFinal,
+    saldo_final: Math.max(0, saldo_final),
   };
 }
