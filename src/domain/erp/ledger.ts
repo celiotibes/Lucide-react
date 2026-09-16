@@ -6,6 +6,10 @@
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import crypto from "crypto";
+import {
+  assegurarPeriodoAberto,
+  obterDescricaoPeriodo,
+} from "./ledger-period-validation";
 
 export interface LancamentoContabil {
   entidade_id: number;
@@ -16,7 +20,7 @@ export interface LancamentoContabil {
   valor_debito?: number;
   valor_credito?: number;
   descricao: string;
-  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'manual';
+  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'apontamento-prestador' | 'manual';
   origem_id: number;
   referencia_documento: string;
   criado_por?: number;
@@ -43,6 +47,10 @@ export function registrarLancamentoContabil(
   db: Database,
   lancamento: LancamentoContabil,
 ): number {
+  // VALIDAÇÃO 1: Verificar se período está aberto
+  // Deve ser feito ANTES de qualquer INSERT para evitar duplicação
+  assegurarPeriodoAberto(db, lancamento.periodo_id);
+
   if (!lancamento.valor_debito && !lancamento.valor_credito) {
     throw new Error("Lançamento deve ter débito ou crédito");
   }
