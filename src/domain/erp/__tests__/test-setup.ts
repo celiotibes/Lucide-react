@@ -162,6 +162,8 @@ export async function prepararBancoTeste() {
       valor_despesa REAL NOT NULL,
       beneficiario TEXT,
       referencia_documento TEXT,
+      origem_modulo TEXT DEFAULT 'advocacia',
+      tentativas INTEGER DEFAULT 0,
       criado_em TEXT,
       FOREIGN KEY (processo_id) REFERENCES processos_legais(id),
       FOREIGN KEY (entidade_id) REFERENCES entidades(id),
@@ -368,6 +370,115 @@ export async function prepararBancoTeste() {
       mensagem TEXT NOT NULL,
       codigo_retorno TEXT,
       FOREIGN KEY (payment_id) REFERENCES pagamentos(id)
+    );
+
+    -- MÓDULO INTEGRAÇÃO ADVOCACIA-LEDGER (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS sincronizacoes_advocacia_ledger (
+      id INTEGER PRIMARY KEY,
+      despesa_legal_id INTEGER,
+      processo_id INTEGER,
+      ledger_entry_id INTEGER,
+      tipo_registro TEXT NOT NULL,
+      tipo_despesa TEXT,
+      origem_modulo TEXT DEFAULT 'advocacia',
+      status TEXT DEFAULT 'sucesso',
+      hash_provenance TEXT,
+      mensagem_erro TEXT,
+      criado_em TEXT,
+      tentativas INTEGER DEFAULT 1
+    );
+
+    -- MÓDULO CONTAS PESSOAIS-LEDGER (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS contas_pessoais_ledger_mapping (
+      id INTEGER PRIMARY KEY,
+      conta_pessoal_id INTEGER NOT NULL,
+      movimento_pessoal_id INTEGER,
+      conta_id INTEGER NOT NULL,
+      tipo_mapeamento TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (conta_pessoal_id) REFERENCES contas_pessoais(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS contas_pessoais_sincronizacao_log (
+      id INTEGER PRIMARY KEY,
+      conta_pessoal_id INTEGER NOT NULL,
+      movimento_id INTEGER,
+      ledger_entry_id INTEGER NOT NULL,
+      processado_em TEXT,
+      status TEXT DEFAULT 'sucesso',
+      hash_provenance TEXT,
+      criado_em TEXT,
+      FOREIGN KEY (conta_pessoal_id) REFERENCES contas_pessoais(id)
+    );
+
+    -- MÓDULO PAGAMENTOS-LEDGER (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS sincronizacoes_pagamentos_ledger (
+      id INTEGER PRIMARY KEY,
+      pagamento_id TEXT,
+      ledger_entry_id INTEGER,
+      status TEXT DEFAULT 'sucesso',
+      criado_em TEXT
+    );
+
+    -- MÓDULO TRANSAÇÕES INTEGRADAS (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS transacoes_integradas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      tipo TEXT,
+      valor REAL,
+      origem_modulo TEXT,
+      origem_id INTEGER,
+      hash_provenance TEXT,
+      criado_em TEXT
+    );
+
+    -- MÓDULO RETIFICAÇÃO (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS retificacao_ledger_mapping (
+      id INTEGER PRIMARY KEY,
+      ledger_entry_original_id INTEGER,
+      ledger_entry_retificacao_id INTEGER,
+      motivo TEXT,
+      criado_em TEXT
+    );
+
+    -- MÓDULO APONTAMENTOS (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS apontamentos_urgencia (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      descricao TEXT,
+      status TEXT DEFAULT 'aberto',
+      prioridade TEXT,
+      criado_em TEXT
+    );
+
+    -- MÓDULO PESSOAS E PRESTADORES (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS pessoas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      nome TEXT,
+      tipo_pessoa TEXT,
+      documento TEXT,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS prestadores (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      nome TEXT,
+      tipo_servico TEXT,
+      documento TEXT,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS reembolsos (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      valor REAL,
+      descricao TEXT,
+      status TEXT DEFAULT 'pendente',
+      criado_em TEXT
     );
   `);
 
