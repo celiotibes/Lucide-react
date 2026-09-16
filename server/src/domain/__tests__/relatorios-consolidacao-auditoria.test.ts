@@ -587,7 +587,7 @@ describe("Audit Log - Acesso de Pessoas", () => {
   });
 
   test("Deve rastrear operações críticas", () => {
-    const acessosCom Delecao: AcessoUsuario[] = [
+    const acessosComDelecao: AcessoUsuario[] = [
       ...ACESSOS_TESTE,
       {
         timestamp: "2024-09-12T10:00:00Z",
@@ -601,7 +601,7 @@ describe("Audit Log - Acesso de Pessoas", () => {
       },
     ];
 
-    const relatorio = relatorioAcessoPessoas(acessosCom Delecao, "2024-09");
+    const relatorio = relatorioAcessoPessoas(acessosComDelecao, "2024-09");
 
     expect(relatorio.operacoes_criticas.length).toBeGreaterThan(0);
     expect(relatorio.operacoes_criticas.some(o => o.acao === "delecao")).toBe(true);

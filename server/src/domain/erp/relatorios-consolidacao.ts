@@ -12,7 +12,7 @@
  * 6. relatorioProjetacaoProximos12Meses() - Projeção orçamentária forward-looking
  */
 
-import crypto from "crypto";
+import { createHash } from "crypto";
 
 // ============================================================================
 // TIPOS E INTERFACES
@@ -202,7 +202,7 @@ export class RelatorioBuilder {
       grupos.get(modulo)!.push(lancamento);
     }
 
-    for (const [modulo, lancamentos] of grupos.entries()) {
+    Array.from(grupos.entries()).forEach(([modulo, lancamentos]) => {
       const totalValor = lancamentos.reduce((sum, l) => sum + l.valor, 0);
       const hashModulo = this.gerarHashModulo(lancamentos);
 
@@ -214,7 +214,7 @@ export class RelatorioBuilder {
         data_snapshot: new Date().toISOString(),
         hash_modulo: hashModulo,
       });
-    }
+    });
 
     return this;
   }
@@ -260,7 +260,7 @@ export class RelatorioBuilder {
       .map(l => `${l.id}|${l.valor}|${l.conta_debito}|${l.conta_credito}`)
       .join(";");
 
-    return crypto.createHash("sha256").update(dados).digest("hex");
+    return createHash("sha256").update(dados).digest("hex");
   }
 
   /**
