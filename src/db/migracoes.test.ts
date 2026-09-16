@@ -6,8 +6,8 @@ import { parseTabelasDoSchema, garantirColunasAtualizadas } from "./migracoes";
 describe("parseTabelasDoSchema — contra o schema.sql real", () => {
   const tabelas = parseTabelasDoSchema(schemaSql);
 
-  it("encontra todas as 37 tabelas do schema", () => {
-    expect(tabelas.size).toBe(37);
+  it("encontra todas as 45 tabelas do schema", () => {
+    expect(tabelas.size).toBe(45);
   });
 
   it("imoveis: extrai co_titular_nome corretamente apesar do comentário multilinha com parêntese desbalanceado numa única linha (achado de auditoria anterior)", () => {
