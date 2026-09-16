@@ -1,6 +1,11 @@
 /**
  * Core ERP Compartilhado
  * Base de dados mestres que todos os módulos dependem para funcionamento integrado
+ *
+ * DEPRECATION NOTICE (2026-09-16):
+ * This module contains deprecated functions and interfaces for backward compatibility.
+ * All new accounting operations MUST use ledger.ts:registrarLancamentoContabil() instead.
+ * See server/migrations/002_consolidate_ledger_entries.sql for consolidation details.
  */
 
 import type { Database } from "sql.js";
@@ -66,7 +71,15 @@ export interface ContaPlanoContas {
   ativo: boolean;
 }
 
-/** Integração de transações entre módulos */
+/**
+ * DEPRECATED: Use ledger.ts:LancamentoContabil instead
+ *
+ * This interface is maintained for backward compatibility only.
+ * transacoes_integradas table is read-only legacy.
+ * All new code must use registrarLancamentoContabil() from ledger.ts.
+ *
+ * Migration: server/migrations/002_consolidate_ledger_entries.sql
+ */
 export interface TransacaoIntegrada {
   id: number;
   entidade_id: number;
@@ -101,11 +114,26 @@ export function obterPeriodoAtual(db: Database): PeriodoContabil {
   return periodo;
 }
 
-/** Registrar transação integrada vindo de qualquer módulo */
+/**
+ * DEPRECATED: Use ledger.ts:registrarLancamentoContabil() instead
+ *
+ * This function is maintained for backward compatibility only.
+ * transacoes_integradas table is read-only legacy. Do not insert new records.
+ * All new accounting entries must use the unified ledger_entries table.
+ *
+ * Migration completed: server/migrations/002_consolidate_ledger_entries.sql
+ * @deprecated Use ledger.registrarLancamentoContabil() instead
+ */
 export function registrarTransacaoIntegrada(
   db: Database,
   transacao: Omit<TransacaoIntegrada, "id" | "criado_em">,
 ): TransacaoIntegrada {
+  console.warn(
+    "[DEPRECATED] registrarTransacaoIntegrada() is deprecated. " +
+    "Use ledger.ts:registrarLancamentoContabil() instead. " +
+    "See server/migrations/002_consolidate_ledger_entries.sql"
+  );
+
   const agora = new Date().toISOString();
 
   executar(
@@ -144,7 +172,16 @@ export function registrarTransacaoIntegrada(
   return resultado;
 }
 
-/** Consolidar balancete para relatório contábil */
+/**
+ * DEPRECATED: Use ledger.ts:gerarBalancete() instead
+ *
+ * This interface and function are maintained for backward compatibility only.
+ * The query uses the deprecated transacoes_integradas table.
+ * All new code must use ledger.ts:gerarBalancete() for the unified ledger_entries table.
+ *
+ * Migration completed: server/migrations/002_consolidate_ledger_entries.sql
+ * @deprecated Use ledger.gerarBalancete() instead
+ */
 export interface BalanceteResultado {
   conta_id: number;
   codigo: string;
@@ -155,11 +192,26 @@ export interface BalanceteResultado {
   saldo_atual: number;
 }
 
+/**
+ * DEPRECATED: Use ledger.ts:gerarBalancete() instead
+ *
+ * This function is maintained for backward compatibility only.
+ * It queries the deprecated transacoes_integradas table.
+ * All new code must use ledger.ts:gerarBalancete() for accurate results from ledger_entries.
+ *
+ * @deprecated Use ledger.gerarBalancete() instead
+ */
 export function gerarBalancete(
   db: Database,
   periodo_id: number,
   entidade_id: number,
 ): BalanceteResultado[] {
+  console.warn(
+    "[DEPRECATED] gerarBalancete() from core.ts is deprecated. " +
+    "Use ledger.ts:gerarBalancete() instead. " +
+    "See server/migrations/002_consolidate_ledger_entries.sql"
+  );
+
   return consultar<BalanceteResultado>(
     db,
     `SELECT
@@ -178,8 +230,22 @@ export function gerarBalancete(
   );
 }
 
-/** Auditoria de transações: rastreabilidade completa */
+/**
+ * DEPRECATED: Use ledger.ts:estornarLancamento() or ledger.ts:aprovarLancamentos() instead
+ *
+ * Auditoria de transações: rastreabilidade completa
+ * This function queries the deprecated transacoes_integradas table.
+ * Use ledger_entries through ledger.ts functions for new audit trails.
+ *
+ * @deprecated Use ledger.ts functions for audit operations
+ */
 export function rastrearTransacao(db: Database, transacao_id: number) {
+  console.warn(
+    "[DEPRECATED] rastrearTransacao() from core.ts is deprecated. " +
+    "Use ledger.ts functions (estornarLancamento, aprovarLancamentos) instead. " +
+    "See server/migrations/002_consolidate_ledger_entries.sql"
+  );
+
   const [transacao] = consultar<TransacaoIntegrada>(
     db,
     "SELECT * FROM transacoes_integradas WHERE id = ?",
