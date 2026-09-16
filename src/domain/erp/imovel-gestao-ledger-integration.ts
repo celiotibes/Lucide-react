@@ -25,7 +25,7 @@ import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import { registrarLancamentoContabil } from "./ledger";
 import { assegurarPeriodoAberto } from "./ledger-period-validation";
-import crypto from "crypto";
+import { createHash } from "crypto";
 
 export interface SincronizacaoImovelsLedger {
   id: number;
@@ -172,7 +172,7 @@ function gerarHashProvenance(
   dataLancamento: string
 ): string {
   const dados = `IMOVEL_DESPESA|${imovelId}|${tipoDespesa}|${valor}|${dataLancamento}`;
-  return crypto.createHash("sha256").update(dados).digest("hex");
+  return createHash("sha256").update(dados).digest("hex");
 }
 
 /**
@@ -185,7 +185,7 @@ function gerarHashProvenanceReceita(
   mesReferencia: string
 ): string {
   const dados = `IMOVEL_RECEITA|${imovelId}|${tipoReceita}|${valor}|${mesReferencia}`;
-  return crypto.createHash("sha256").update(dados).digest("hex");
+  return createHash("sha256").update(dados).digest("hex");
 }
 
 /**
@@ -615,7 +615,7 @@ export function registrarArrecadacaoTaxaNoLedger(
       conta_id: mapeamento.conta_id_debito,
       data_lancamento: arrecadacao.data_lancamento,
       valor_debito: arrecadacao.valor_taxa,
-      descricao: `${mapeamento.descricao_padrano} - Imóvel ${arrecadacao.imovel_id}: ${arrecadacao.descricao}`,
+      descricao: `${mapeamento.descricao_padrao} - Imóvel ${arrecadacao.imovel_id}: ${arrecadacao.descricao}`,
       origem_modulo: "imovel-gestao",
       origem_id: arrecadacao.imovel_id,
       referencia_documento:
@@ -710,8 +710,8 @@ export function obterSaldoImoveisParaLedger(
 
     query += ` GROUP BY le.origem_id, tipo_despesa ORDER BY le.origem_id, tipo_despesa`;
 
-    const saldos = consultar<SaldoImovePeriodo>(db, query, params);
-    return saldos[0] || [];
+    const [saldos] = consultar<SaldoImovePeriodo>(db, query, params);
+    return saldos || [];
   } catch (erro) {
     console.error("Erro ao obter saldos:", erro);
     return [];
