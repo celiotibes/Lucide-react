@@ -20,7 +20,7 @@ export interface LancamentoContabil {
   valor_debito?: number;
   valor_credito?: number;
   descricao: string;
-  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'apontamento-prestador' | 'manual';
+  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'apontamento-prestador' | 'pagamentos-integracao' | 'manual';
   origem_id: number;
   referencia_documento: string;
   criado_por?: number;
@@ -427,4 +427,188 @@ export function aprovarLancamentos(
   });
 
   return aprovados;
+}
+
+/** Interface para retificação contábil (valor anterior → valor novo) */
+export interface RetificacaoContabil {
+  apontamento_id?: number;
+  retificacao_id?: number;
+  conta_id: number;
+  valor_anterior: number;
+  valor_novo: number;
+  entidade_id: number;
+  periodo_id: number;
+  data_lancamento: string;
+  origem_modulo:
+    | "transacoes"
+    | "contratos"
+    | "patrimonio"
+    | "caucao"
+    | "financiamento"
+    | "rateios"
+    | "vistorias"
+    | "apontamento-prestador"
+    | "manual";
+  motivo_retificacao: string;
+  retificada_por: number;
+}
+
+/**
+ * Registrar retificação com mecanismo de reversão (sem duplicação)
+ *
+ * Fluxo:
+ * 1. Se valor_anterior > 0: cria lançamento REVERSO (inverte débito ↔ crédito)
+ * 2. Registra novo lançamento com valor_novo
+ * 3. Mapeia ambos no rastreamento (retificacao_ledger_mapping)
+ *
+ * Resultado: débito original REVERSADO + novo lançamento = valor final correto
+ * (não duplicado, sim corrigido)
+ */
+export function registrarRetificacao(
+  db: Database,
+  retificacao: RetificacaoContabil,
+): { sucesso: boolean; ledger_reverso_id?: number; ledger_novo_id?: number; mensagem: string } {
+  try {
+    // VALIDAÇÃO: Período deve estar aberto
+    assegurarPeriodoAberto(db, retificacao.periodo_id);
+
+    // PASSO 1: Se havia valor anterior, reverter o lançamento original
+    let ledger_reverso_id: number | undefined;
+
+    if (retificacao.valor_anterior > 0) {
+      // Encontrar lançamento original
+      const [original] = consultar<{
+        id: number;
+        valor_debito: number;
+        valor_credito: number;
+      }>(
+        db,
+        `SELECT id, valor_debito, valor_credito FROM ledger_entries
+         WHERE conta_id = ? AND periodo_id = ? AND (valor_debito = ? OR valor_credito = ?)
+         ORDER BY id DESC LIMIT 1`,
+        [
+          retificacao.conta_id,
+          retificacao.periodo_id,
+          retificacao.valor_anterior,
+          retificacao.valor_anterior,
+        ]
+      );
+
+      // PASSO 1a: Criar lançamento reverso (inverte débito ↔ crédito)
+      const lancamento_reverso: LancamentoContabil = {
+        entidade_id: retificacao.entidade_id,
+        periodo_id: retificacao.periodo_id,
+        conta_id: retificacao.conta_id,
+        data_lancamento: retificacao.data_lancamento,
+        // Inverter: se original era débito, reverso é crédito
+        valor_debito: original?.valor_credito || undefined,
+        valor_credito: original?.valor_debito || undefined,
+        descricao: `RETIFICAÇÃO REVERSO: ${retificacao.motivo_retificacao}`,
+        origem_modulo: retificacao.origem_modulo,
+        origem_id: retificacao.retificacao_id || retificacao.apontamento_id || 0,
+        referencia_documento: `RETIF-${retificacao.retificacao_id || "MANUAL"}-REV`,
+        criado_por: retificacao.retificada_por,
+      };
+
+      // Registrar sem validação (já validamos período acima)
+      ledger_reverso_id = registrarLancamentoSemValidacao(
+        db,
+        lancamento_reverso
+      );
+    }
+
+    // PASSO 2: Registrar novo lançamento com valor correto
+    const lancamento_novo: LancamentoContabil = {
+      entidade_id: retificacao.entidade_id,
+      periodo_id: retificacao.periodo_id,
+      conta_id: retificacao.conta_id,
+      data_lancamento: retificacao.data_lancamento,
+      // Manter natureza da conta: se débito era débito, continua débito
+      valor_debito:
+        retificacao.valor_novo > 0
+          ? retificacao.valor_novo
+          : undefined,
+      valor_credito:
+        retificacao.valor_novo > 0 ? undefined : Math.abs(retificacao.valor_novo),
+      descricao: `RETIFICAÇÃO: ${retificacao.motivo_retificacao}`,
+      origem_modulo: retificacao.origem_modulo,
+      origem_id: retificacao.retificacao_id || retificacao.apontamento_id || 0,
+      referencia_documento: `RETIF-${retificacao.retificacao_id || "MANUAL"}`,
+      criado_por: retificacao.retificada_por,
+    };
+
+    const ledger_novo_id = registrarLancamentoSemValidacao(db, lancamento_novo);
+
+    // PASSO 3: Registrar rastreamento (se tabela existir)
+    if (ledger_reverso_id && retificacao.retificacao_id) {
+      executar(
+        db,
+        `INSERT OR IGNORE INTO retificacao_ledger_mapping
+         (retificacao_id, ledger_entry_reverso_id, ledger_entry_novo_id)
+         VALUES (?, ?, ?)`,
+        [retificacao.retificacao_id, ledger_reverso_id, ledger_novo_id]
+      );
+    }
+
+    return {
+      sucesso: true,
+      ledger_reverso_id,
+      ledger_novo_id,
+      mensagem: `Retificação registrada: R$${retificacao.valor_anterior.toFixed(2)} → R$${retificacao.valor_novo.toFixed(2)}`,
+    };
+  } catch (erro) {
+    return {
+      sucesso: false,
+      mensagem: `Erro ao registrar retificação: ${erro instanceof Error ? erro.message : String(erro)}`,
+    };
+  }
+}
+
+/**
+ * Versão interna de registrarLancamentoContabil sem validação de período
+ * Usada por registrarRetificacao para evitar validação dupla
+ */
+function registrarLancamentoSemValidacao(
+  db: Database,
+  lancamento: LancamentoContabil,
+): number {
+  if (!lancamento.valor_debito && !lancamento.valor_credito) {
+    throw new Error("Lançamento deve ter débito ou crédito");
+  }
+
+  if (lancamento.valor_debito && lancamento.valor_credito) {
+    throw new Error("Lançamento não pode ter débito E crédito simultaneamente");
+  }
+
+  executar(
+    db,
+    `INSERT INTO ledger_entries (
+      entidade_id, periodo_id, centro_custo_id, conta_id,
+      data_lancamento, valor_debito, valor_credito,
+      descricao, origem_modulo, origem_id, referencia_documento,
+      criado_por, criado_em
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    [
+      lancamento.entidade_id,
+      lancamento.periodo_id,
+      lancamento.centro_custo_id || null,
+      lancamento.conta_id,
+      lancamento.data_lancamento,
+      lancamento.valor_debito || null,
+      lancamento.valor_credito || null,
+      lancamento.descricao,
+      lancamento.origem_modulo,
+      lancamento.origem_id,
+      lancamento.referencia_documento,
+      lancamento.criado_por || null,
+    ]
+  );
+
+  const [result] = consultar<{ id: number }>(
+    db,
+    "SELECT last_insert_rowid() as id",
+    []
+  );
+
+  return result?.id || 0;
 }
