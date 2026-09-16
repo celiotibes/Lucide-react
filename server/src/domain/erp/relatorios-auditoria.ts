@@ -11,7 +11,7 @@
  * 6. relatorioAcessoPessoas() - Audit log de acesso e modificações de usuários
  */
 
-import crypto from "crypto";
+import { createHash } from "crypto";
 
 // ============================================================================
 // TIPOS E INTERFACES
@@ -175,7 +175,7 @@ export interface RelatorioAcesso {
  */
 export function gerarHashLancamento(lancamento: AuditoriaLancamento): string {
   const chave = `${lancamento.lancamento_id}|${lancamento.data_lancamento}|${lancamento.conta_debito}|${lancamento.conta_credito}|${lancamento.valor}|${lancamento.usuario_criador}`;
-  return crypto.createHash("sha256").update(chave).digest("hex");
+  return createHash("sha256").update(chave).digest("hex");
 }
 
 /**
@@ -187,7 +187,7 @@ export function gerarHashPeriodo(lancamentos: AuditoriaLancamento[]): string {
     .map(l => gerarHashLancamento(l))
     .join("|");
 
-  return crypto.createHash("sha256").update(orderedData).digest("hex");
+  return createHash("sha256").update(orderedData).digest("hex");
 }
 
 /**

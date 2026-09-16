@@ -1,6 +1,6 @@
 /**
  * ERP Module Barrel Export
- * Exporta todos os módulos da SPRINT 1 e SPRINT 2
+ * Exporta todos os módulos da SPRINT 1, SPRINT 2 e SPRINT 3
  */
 
 // API Gateway Streamlit
@@ -20,3 +20,9 @@ export * from "./document-approvals";
 
 // Apontamento do Prestador (SPRINT 2)
 export * from "./apontamento-prestador";
+
+// Relatórios de Consolidação (SPRINT 3)
+export * from "./relatorios-consolidacao";
+
+// Relatórios de Auditoria (SPRINT 3)
+export * from "./relatorios-auditoria";
