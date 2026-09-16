@@ -32,6 +32,9 @@ export interface DespesaLegal {
   valor_despesa: number;
   beneficiario: string;
   referencia_documento: string;
+  origem_modulo?: 'advocacia';
+  ledger_entry_id?: number; // ID do lançamento contábil no ledger
+  tentativas?: number; // Tentativas de sincronização com ledger
 }
 
 export interface RelatorioAdvocacia {
@@ -66,10 +69,16 @@ export function registrarProcessoLegal(db: any, entidade_id: number, processo: O
   return resultado ? 1 : 0;
 }
 
-export function registrarDespesaLegal(db: any, entidade_id: number, periodo_id: number, despesa: Omit<DespesaLegal, 'id'>): number {
-  db.run(
-    `INSERT INTO despesas_legais (processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+export function registrarDespesaLegal(
+  db: any,
+  entidade_id: number,
+  periodo_id: number,
+  despesa: Omit<DespesaLegal, 'id'>,
+  sincronizarComLedger: boolean = true
+): number {
+  const resultado = db.run(
+    `INSERT INTO despesas_legais (processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, origem_modulo, tentativas, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'advocacia', 0, ?)`,
     [
       despesa.processo_id,
       entidade_id,
@@ -83,6 +92,35 @@ export function registrarDespesaLegal(db: any, entidade_id: number, periodo_id: 
       new Date().toISOString(),
     ]
   );
+
+  if (sincronizarComLedger && resultado) {
+    // Importação dinâmica para evitar circular dependency
+    try {
+      const { registrarDespesaLegalNoLedger } = require('./advocacia-ledger-integration');
+
+      // Obter ID da despesa recém inserida
+      const idResult = db.exec("SELECT last_insert_rowid() as id");
+      const despesaId = idResult[0]?.values[0]?.[0] || 0;
+
+      if (despesaId > 0) {
+        registrarDespesaLegalNoLedger(db, despesaId, {
+          processo_id: despesa.processo_id,
+          entidade_id,
+          periodo_id,
+          data_lancamento: despesa.data_lancamento,
+          tipo_despesa: despesa.tipo_despesa,
+          valor_despesa: despesa.valor_despesa,
+          descricao: despesa.descricao,
+          beneficiario: despesa.beneficiario,
+          referencia_documento: despesa.referencia_documento,
+        });
+      }
+    } catch (erro) {
+      console.warn('Erro ao sincronizar despesa com ledger:', erro);
+      // Não falha a operação se a sincronização falhar
+    }
+  }
+
   return 1;
 }
 
