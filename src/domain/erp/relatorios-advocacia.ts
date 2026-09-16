@@ -811,7 +811,7 @@ export function relatorioPrevisaoDespesas(
   );
 
   const gastoReal = gastoRealizado?.total || 0;
-  const gastoProjeta do = gastoReal * 1.1; // Projeção: +10%
+  const gastoProjetado = gastoReal * 1.1; // Projeção: +10%
 
   const saldoDisponivel = orcamentoAnual - gastoReal;
   const taxaUtilizacao = orcamentoAnual > 0 ? gastoReal / orcamentoAnual : 0;

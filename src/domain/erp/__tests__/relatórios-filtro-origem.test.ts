@@ -850,7 +850,7 @@ describe("Relatórios com Filtro de Origem de Módulo", () => {
       expect(dre.resultado_final).toBe(0);
     });
 
-    it("deve aceitar array vazio de origem_modulos como "sem filtro"", () => {
+    it('deve aceitar array vazio de origem_modulos como "sem filtro"', () => {
       executar(
         db,
         `INSERT INTO ledger_entries (

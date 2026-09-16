@@ -30,7 +30,7 @@ export interface SincronizacaoContratoImovel {
  * Sincronizar contrato após criação em imovel-gestao
  * Garante contabilização imediata de receita esperada
  */
-export function sincronizarCriacao ContratoFromImovel(
+export function sincronizarCriacao_ContratoFromImovel(
   db: Database,
   contratoId: number,
   entidadeId: number,
@@ -409,7 +409,7 @@ export function reconciliarContratosImovel(
   let erros = 0;
 
   contratosPendentes.forEach((contrato) => {
-    const resultado = sincronizarCriacao ContratoFromImovel(
+    const resultado = sincronizarCriacao_ContratoFromImovel(
       db,
       contrato.id,
       entidadeId,
