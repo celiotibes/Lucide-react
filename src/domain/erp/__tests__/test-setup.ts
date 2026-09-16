@@ -530,15 +530,31 @@ export async function prepararBancoTeste() {
     ["6.1.06", "Limpeza", "despesa", "debito"],
     ["6.1.07", "Seguros", "despesa", "debito"],
     ["6.2.01", "Depreciação", "despesa", "debito"],
-    ["6.3.01", "Juros Financiamento", "despesa", "debito"],
-    ["6.3.02", "Juros Mora", "despesa", "debito"],
-    ["6.4.01", "Provisão Devedora", "despesa", "debito"],
+    ["6.3.01", "Despesa com Honorários Advocatícios", "despesa", "debito"],
+    ["6.3.02", "Despesa com Custas Judiciais", "despesa", "debito"],
+    ["6.3.03", "Despesa com Perícia", "despesa", "debito"],
+    ["6.3.04", "Outras Despesas com Processos Legais", "despesa", "debito"],
+    ["6.4.01", "Provisão para Processos Legais", "despesa", "debito"],
   ];
 
+  // Mapeamento de códigos para IDs esperados pela lógica de negócios
+  const codigoParaId: Record<string, number> = {
+    "1.1.01": 1101, "1.1.02": 1102, "1.1.03": 1103,
+    "2.1.01": 2101, "2.1.02": 2102,
+    "3.1.01": 3101, "3.1.02": 3102, "3.2.01": 3201,
+    "4.1.01": 4101, "4.1.02": 4102,
+    "5.1.01": 5101, "5.1.02": 5102, "5.1.03": 5103, "5.2.01": 5201, "5.3.01": 5301,
+    "6.1.01": 6101, "6.1.02": 6102, "6.1.03": 6103, "6.1.04": 6104, "6.1.05": 6105, "6.1.06": 6106, "6.1.07": 6107,
+    "6.2.01": 6201,
+    "6.3.01": 6301, "6.3.02": 6302, "6.3.03": 6303, "6.3.04": 6304,
+    "6.4.01": 6401,
+  };
+
   for (const [codigo, desc, grupo, natureza] of contasPadrao) {
+    const id = codigoParaId[codigo] || Math.random() * 10000; // Fallback if not mapped
     db.run(
-      `INSERT INTO contas_plano_contas (codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?)`,
-      [codigo, desc, grupo, natureza]
+      `INSERT INTO contas_plano_contas (id, codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?, ?)`,
+      [id, codigo, desc, grupo, natureza]
     );
   }
 
@@ -651,11 +667,23 @@ export async function prepararBancoTeste() {
     [2, 1, "réu", "João da Silva"]
   );
 
-  // Inserir despesa legal
+  // Inserir despesas legais
   db.run(
     `INSERT INTO despesas_legais (id, processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [1, 1, entidade_id, periodo_id, "2026-01-10", "honorarios_advocaticios", "Honorários causa cobrança", 2500, "Dr. Advogado Silva", "NOTA001", "2026-01-10"]
+  );
+
+  db.run(
+    `INSERT INTO despesas_legais (id, processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [2, 1, entidade_id, periodo_id, "2026-01-11", "custas_judiciais", "Custas processuais", 1500, "Tribunal", "CUSTAS_001", "2026-01-11"]
+  );
+
+  db.run(
+    `INSERT INTO despesas_legais (id, processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [3, 1, entidade_id, periodo_id, "2026-01-12", "pericia", "Perícia técnica", 3000, "Perito João", "PERICIA_001", "2026-01-12"]
   );
 
   // ===== DADOS DE TESTE: MÓDULO CONTAS PESSOAIS =====
