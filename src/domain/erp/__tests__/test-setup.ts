@@ -26,6 +26,7 @@ export async function prepararBancoTeste() {
 
     CREATE TABLE IF NOT EXISTS contas_plano_contas (
       id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
       codigo TEXT NOT NULL,
       descricao TEXT NOT NULL,
       grupo TEXT NOT NULL,
@@ -553,8 +554,8 @@ export async function prepararBancoTeste() {
   for (const [codigo, desc, grupo, natureza] of contasPadrao) {
     const id = codigoParaId[codigo] || Math.random() * 10000; // Fallback if not mapped
     db.run(
-      `INSERT INTO contas_plano_contas (id, codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?, ?)`,
-      [id, codigo, desc, grupo, natureza]
+      `INSERT INTO contas_plano_contas (id, entidade_id, codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, entidade_id, codigo, desc, grupo, natureza]
     );
   }
 
