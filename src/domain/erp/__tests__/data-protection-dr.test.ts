@@ -3,7 +3,7 @@
  * Comprehensive test suite (200+ tests)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EstrategiaBackup, TipoBackup, StatusBackup, NivelRetencao } from '../strategy-backup';
 import { GerenciadorEncriptacao, TipoCriptografia, StatusChave, TipoChave } from '../encriptacao';
 import { GerenciadorReplicacaoHA, StatusReplica, TipoReplica } from '../replicacao-ha';
