@@ -824,7 +824,7 @@ export function gerarRelatorioImoveisParaLedger(
     }
 
     // 2. Obter imóveis da entidade
-    const [imoveisData] = consultar<{
+    const imoveis = consultar<{
       id: number;
       endereco: string;
     }>(
@@ -833,7 +833,6 @@ export function gerarRelatorioImoveisParaLedger(
       [entidadeId]
     );
 
-    const imoveis = imoveisData || [];
     if (imoveis.length === 0) {
       return {
         periodo: `${periodo.mes}/${periodo.ano}`,
@@ -852,7 +851,7 @@ export function gerarRelatorioImoveisParaLedger(
 
     const saldos_por_imovel = imoveis.map((imovel) => {
       // Obter despesas do imóvel
-      const [despesasData] = consultar<{
+      const despesasData = consultar<{
         tipo_despesa: string;
         valor_total: number;
         quantidade: number;
@@ -879,12 +878,11 @@ export function gerarRelatorioImoveisParaLedger(
         [periodoId, imovel.id]
       );
 
-      const despesas_por_tipo =
-        despesasData?.map((d) => ({
-          tipo_despesa: d.tipo_despesa,
-          valor_total: d.valor_total,
-          quantidade_lancamentos: d.quantidade,
-        })) || [];
+      const despesas_por_tipo = despesasData.map((d: any) => ({
+        tipo_despesa: d.tipo_despesa,
+        valor_total: d.valor_total,
+        quantidade_lancamentos: d.quantidade,
+      }));
 
       // Obter receitas de aluguel
       const [receitasData] = consultar<{ valor_total: number }>(
