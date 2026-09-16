@@ -733,7 +733,7 @@ export function sincronizarMovimentosImoveisParaLedger(
     assegurarPeriodoAberto(db, periodoId);
 
     // 2. Obter despesas operacionais não sincronizadas
-    const [despesas] = consultar<{
+    const [despesasData] = consultar<{
       id: number;
       imovel_id: number;
       data_lancamento: string;
@@ -754,6 +754,8 @@ export function sincronizarMovimentosImoveisParaLedger(
        LIMIT ?`,
       [entidadeId, limiteEntries]
     );
+
+    const despesas = despesasData || [];
 
     let sucessos = 0;
     let falhas = 0;
@@ -824,7 +826,7 @@ export function gerarRelatorioImoveisParaLedger(
     }
 
     // 2. Obter imóveis da entidade
-    const [imoveis] = consultar<{
+    const [imoveisData] = consultar<{
       id: number;
       endereco: string;
     }>(
@@ -833,7 +835,8 @@ export function gerarRelatorioImoveisParaLedger(
       [entidadeId]
     );
 
-    if (!imoveis || imoveis.length === 0) {
+    const imoveis = imoveisData || [];
+    if (imoveis.length === 0) {
       return {
         periodo: `${periodo.mes}/${periodo.ano}`,
         total_imoveis: 0,
