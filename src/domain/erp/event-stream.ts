@@ -369,13 +369,13 @@ export class EventStream {
   } {
     const eventos_por_tipo: Record<string, number> = {};
     const agora = new Date();
-    const 24h_atras = new Date(agora.getTime() - 24 * 60 * 60 * 1000);
+    const vinte_quatro_horas_atras = new Date(agora.getTime() - 24 * 60 * 60 * 1000);
 
     let ultimos_24h = 0;
 
     for (const evento of this.eventos) {
       eventos_por_tipo[evento.tipo] = (eventos_por_tipo[evento.tipo] || 0) + 1;
-      if (new Date(evento.timestamp) >= 24h_atras) {
+      if (new Date(evento.timestamp) >= vinte_quatro_horas_atras) {
         ultimos_24h++;
       }
     }
