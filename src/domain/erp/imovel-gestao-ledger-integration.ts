@@ -809,7 +809,7 @@ export function sincronizarMovimentosImoveisParaLedger(
 export function gerarRelatorioImoveisParaLedger(
   db: Database,
   entidadeId: number,
-  periodoId: string
+  periodoId: number
 ): RelatorioImoveisLedger | null {
   try {
     // 1. Obter período
