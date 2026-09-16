@@ -710,8 +710,8 @@ export function obterSaldoImoveisParaLedger(
 
     query += ` GROUP BY le.origem_id, tipo_despesa ORDER BY le.origem_id, tipo_despesa`;
 
-    const [saldos] = consultar<SaldoImovePeriodo>(db, query, params);
-    return saldos || [];
+    const saldos = consultar<SaldoImovePeriodo>(db, query, params);
+    return saldos;
   } catch (erro) {
     console.error("Erro ao obter saldos:", erro);
     return [];
