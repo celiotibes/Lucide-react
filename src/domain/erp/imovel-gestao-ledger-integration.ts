@@ -733,7 +733,7 @@ export function sincronizarMovimentosImoveisParaLedger(
     assegurarPeriodoAberto(db, periodoId);
 
     // 2. Obter despesas operacionais não sincronizadas
-    const [despesasData] = consultar<{
+    const despesas = consultar<{
       id: number;
       imovel_id: number;
       data_lancamento: string;
@@ -755,12 +755,10 @@ export function sincronizarMovimentosImoveisParaLedger(
       [entidadeId, limiteEntries]
     );
 
-    const despesas = despesasData || [];
-
     let sucessos = 0;
     let falhas = 0;
 
-    if (despesas && despesas.length > 0) {
+    if (despesas.length > 0) {
       despesas.forEach((despesa) => {
         try {
           const resultado = registrarDespesaImovelNoLedger(
