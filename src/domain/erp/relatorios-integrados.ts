@@ -2,10 +2,49 @@
  * Relatórios Integrados ERP
  * DRE (Demonstração de Resultado), Balanço Patrimonial, Fluxo de Caixa
  * Baseado em ledger_entries com novo plano de contas integrado
+ *
+ * Suporte a filtro por origem_modulo para análise de receitas/despesas por módulo
  */
 
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
+
+export type OrigemModulo =
+  | "transacoes"
+  | "contratos"
+  | "patrimonio"
+  | "caucao"
+  | "financiamento"
+  | "rateio"
+  | "vistorias"
+  | "advocacia"
+  | "contas-pessoais"
+  | "imovel-gestao"
+  | "apontamento-prestador"
+  | "pagamentos"
+  | "manual";
+
+export interface LancamentoPorModulo {
+  conta_id: number;
+  conta_codigo: string;
+  conta_descricao: string;
+  origem_modulo: OrigemModulo;
+  valor_debito: number;
+  valor_credito: number;
+  saldo: number;
+  descricao: string;
+  data_lancamento: string;
+  referencia_documento: string;
+}
+
+export interface RelatorioAuditoriaModulo {
+  origem_modulo: OrigemModulo;
+  total_lancamentos: number;
+  total_debito: number;
+  total_credito: number;
+  saldo_liquido: number;
+  linhas: LancamentoPorModulo[];
+}
 
 export interface LinhasDRE {
   receitas: {
@@ -39,6 +78,86 @@ export interface LinhasDRE {
     provisao_devedora: number;
   };
   resultado_final: number;
+}
+
+/**
+ * Obtém lançamentos brutos de um módulo específico
+ * @param db Database
+ * @param entidade_id ID da entidade legal
+ * @param periodo_id ID do período contábil
+ * @param origem_modulo Módulo de origem (opcional)
+ * @returns Array de lançamentos com detalhes de conta
+ */
+export function obterLancamentosParModulo(
+  db: Database,
+  entidade_id: number,
+  periodo_id: number,
+  origem_modulo?: string,
+): LancamentoPorModulo[] {
+  let query = `
+    SELECT
+      le.conta_id,
+      cp.codigo as conta_codigo,
+      cp.descricao as conta_descricao,
+      le.origem_modulo,
+      COALESCE(le.valor_debito, 0) as valor_debito,
+      COALESCE(le.valor_credito, 0) as valor_credito,
+      (COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0)) as saldo,
+      le.descricao,
+      le.data_lancamento,
+      le.referencia_documento
+    FROM ledger_entries le
+    INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+    WHERE le.entidade_id = ? AND le.periodo_id = ?
+  `;
+
+  const params: (number | string)[] = [entidade_id, periodo_id];
+
+  if (origem_modulo) {
+    query += ` AND le.origem_modulo = ?`;
+    params.push(origem_modulo);
+  }
+
+  query += ` ORDER BY le.data_lancamento, le.conta_id`;
+
+  return consultar<LancamentoPorModulo>(db, query, params);
+}
+
+/**
+ * Gera relatório de auditoria agrupado por módulo de origem
+ * @param db Database
+ * @param entidade_id ID da entidade legal
+ * @param periodo_id ID do período contábil
+ * @returns Array de relatórios por módulo
+ */
+export function gerarRelatorioAuditoriaParModulo(
+  db: Database,
+  entidade_id: number,
+  periodo_id: number,
+): RelatorioAuditoriaModulo[] {
+  const query = `
+    SELECT
+      le.origem_modulo,
+      COUNT(*) as total_lancamentos,
+      COALESCE(SUM(le.valor_debito), 0) as total_debito,
+      COALESCE(SUM(le.valor_credito), 0) as total_credito,
+      COALESCE(SUM(le.valor_debito), 0) - COALESCE(SUM(le.valor_credito), 0) as saldo_liquido
+    FROM ledger_entries le
+    WHERE le.entidade_id = ? AND le.periodo_id = ?
+    GROUP BY le.origem_modulo
+    ORDER BY le.origem_modulo
+  `;
+
+  const results = consultar<any>(db, query, [entidade_id, periodo_id]);
+
+  return results.map((row) => ({
+    origem_modulo: row.origem_modulo as OrigemModulo,
+    total_lancamentos: row.total_lancamentos,
+    total_debito: row.total_debito,
+    total_credito: row.total_credito,
+    saldo_liquido: row.saldo_liquido,
+    linhas: obterLancamentosParModulo(db, entidade_id, periodo_id, row.origem_modulo),
+  }));
 }
 
 export function gerarDRE(
