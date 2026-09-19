@@ -18,6 +18,33 @@ interface DiaTrabalho {
   ativo: boolean; // Checkbox para incluir/excluir do cálculo
 }
 
+/**
+ * Valida e normaliza valores numéricos com range checking
+ */
+function validarNumero(
+  valor: string | number,
+  min: number = 0,
+  max: number = Infinity,
+  padrao: number = 0
+): { valor: number; valido: boolean; aviso?: string } {
+  const num = typeof valor === "string" ? parseFloat(valor) : valor;
+
+  // Verificar NaN
+  if (isNaN(num)) {
+    return { valor: padrao, valido: false, aviso: "Valor inválido (não é número)" };
+  }
+
+  // Verificar ranges
+  if (num < min) {
+    return { valor: min, valido: false, aviso: `Valor abaixo do mínimo (${min})` };
+  }
+  if (num > max) {
+    return { valor: max, valido: false, aviso: `Valor acima do máximo (${max})` };
+  }
+
+  return { valor: num, valido: true };
+}
+
 export function PauloBruxelPrestadorPanel() {
   const [mesReferencia, setMesReferencia] = useState("2026-08");
   const [diasTrabalho, setDiasTrabalho] = useState<DiaTrabalho[]>([
@@ -107,9 +134,26 @@ export function PauloBruxelPrestadorPanel() {
   };
 
   const atualizarDia = (id: string, campo: keyof DiaTrabalho, valor: any) => {
+    let valorFinal = valor;
+
+    // Validar campos numéricos com ranges específicos
+    if (campo === "horas_trabalhadas") {
+      const validacao = validarNumero(valor, 0, 24, 0);
+      valorFinal = validacao.valor;
+      if (!validacao.valido && validacao.aviso) {
+        setAvisosValidacao((prev) => [...prev, `Horas: ${validacao.aviso}`]);
+      }
+    } else if (campo === "km_percorridos") {
+      const validacao = validarNumero(valor, 0, Infinity, 0);
+      valorFinal = Math.floor(validacao.valor); // km sempre inteiro
+      if (validacao.valor > 500 && validacao.valido) {
+        setAvisosValidacao((prev) => [...prev, `Km: Valor alto (${validacao.valor}km) - verificar digitação`]);
+      }
+    }
+
     setDiasTrabalho(
       diasTrabalho.map((d) =>
-        d.id === id ? { ...d, [campo]: valor } : d
+        d.id === id ? { ...d, [campo]: valorFinal } : d
       )
     );
   };
@@ -257,9 +301,9 @@ export function PauloBruxelPrestadorPanel() {
                       min="0"
                       max="24"
                       step="0.5"
-                      value={dia.horas_trabalhadas}
+                      value={dia.horas_trabalhadas || ""}
                       onChange={(e) =>
-                        atualizarDia(dia.id, "horas_trabalhadas", parseFloat(e.target.value) || 0)
+                        atualizarDia(dia.id, "horas_trabalhadas", e.target.value)
                       }
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="0"
@@ -269,10 +313,9 @@ export function PauloBruxelPrestadorPanel() {
                     <input
                       type="number"
                       min="0"
-                      max="500"
-                      value={dia.km_percorridos}
+                      value={dia.km_percorridos || ""}
                       onChange={(e) =>
-                        atualizarDia(dia.id, "km_percorridos", parseInt(e.target.value) || 0)
+                        atualizarDia(dia.id, "km_percorridos", e.target.value)
                       }
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="0"
@@ -319,8 +362,14 @@ export function PauloBruxelPrestadorPanel() {
                 type="number"
                 min="0"
                 step="0.01"
-                value={reembolsoCartao}
-                onChange={(e) => setReembolsoCartao(parseFloat(e.target.value) || 0)}
+                value={reembolsoCartao || ""}
+                onChange={(e) => {
+                  const validacao = validarNumero(e.target.value, 0, 100000, 0);
+                  setReembolsoCartao(validacao.valor);
+                  if (!validacao.valido && validacao.aviso) {
+                    setAvisosValidacao((prev) => [...prev, `Reembolso Cartão: ${validacao.aviso}`]);
+                  }
+                }}
                 className="flex-1 px-3 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="0.00"
               />
@@ -337,8 +386,14 @@ export function PauloBruxelPrestadorPanel() {
                 type="number"
                 min="0"
                 step="0.01"
-                value={reembolsoPix}
-                onChange={(e) => setReembolsoPix(parseFloat(e.target.value) || 0)}
+                value={reembolsoPix || ""}
+                onChange={(e) => {
+                  const validacao = validarNumero(e.target.value, 0, 100000, 0);
+                  setReembolsoPix(validacao.valor);
+                  if (!validacao.valido && validacao.aviso) {
+                    setAvisosValidacao((prev) => [...prev, `Reembolso PIX: ${validacao.aviso}`]);
+                  }
+                }}
                 className="flex-1 px-3 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="0.00"
               />
