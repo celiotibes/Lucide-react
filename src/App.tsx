@@ -48,12 +48,13 @@ const BudgetVarianceView = lazy(() => import("./components/BudgetVarianceView").
 const CashForecastView = lazy(() => import("./components/CashForecastView").then((m) => ({ default: m.CashForecastView })));
 const ECDExportView = lazy(() => import("./components/ECDExportView").then((m) => ({ default: m.ECDExportView })));
 const PainelAuditoria = lazy(() => import("./ui/PainelAuditoria").then((m) => ({ default: m.PainelAuditoria })));
+const TriagemImportacao = lazy(() => import("./ui/TriagemImportacao").then((m) => ({ default: m.TriagemImportacao })));
 const PainelConferencia = lazy(() => import("./components/painel-conferencia/PainelConferencia"));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
-  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha";
+  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -61,6 +62,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "imoveis", rotulo: "Imóveis", icone: Building2 },
   { id: "cadastros", rotulo: "Cadastros", icone: ClipboardList },
   { id: "importar", rotulo: "Importar documentos", icone: UploadCloud },
+  { id: "triagem", rotulo: "Triagem de importação", icone: ListChecks },
   { id: "documentos", rotulo: "Documentos e classificação", icone: FolderSearch },
   { id: "transacoes", rotulo: "Transações", icone: ListChecks },
   { id: "contratos", rotulo: "Contratos e inadimplência", icone: FileSignature },
@@ -395,6 +397,7 @@ function Conteudo() {
             {aba === "imoveis" && <ImoveisView />}
             {aba === "cadastros" && <CadastrosView />}
             {aba === "importar" && <ImportarView />}
+            {aba === "triagem" && <TriagemImportacao />}
             {aba === "documentos" && <DocumentosView />}
             {aba === "transacoes" && <TransacoesView filtroInicial={filtroTransacoesDrillDown} />}
             {aba === "contratos" && <ContratosInadimplenciaView />}

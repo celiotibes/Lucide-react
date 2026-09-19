@@ -782,3 +782,106 @@ CREATE INDEX IF NOT EXISTS idx_emprestimos_prestador ON emprestimos(prestador_id
 CREATE INDEX IF NOT EXISTS idx_emprestimos_status ON emprestimos(status);
 CREATE INDEX IF NOT EXISTS idx_retificacoes_apontamento ON retificacoes(apontamento_id);
 CREATE INDEX IF NOT EXISTS idx_parametros_operacionais_parametro ON parametros_operacionais(parametro, vigencia_inicio);
+
+-- ============================================================================
+-- COFRE DE EVIDÊNCIAS E TRIAGEM DE IMPORTAÇÃO
+-- ============================================================================
+-- O critério de sucesso do sistema é responder, para qualquer valor: de onde veio, qual
+-- regra o classificou, quem aprovou, o que mudou, qual documento prova e como reproduzir
+-- o cálculo. Duas dessas perguntas não tinham resposta possível.
+--
+-- "QUEM APROVOU": os parsers escreviam direto em `transacoes`. A tela de importação tem
+-- uma etapa "Revisar antes de importar", mas ela vive em estado do React — recarregar a
+-- página perde tudo, e nada fica registrado sobre quem decidiu o quê. Agora cada arquivo
+-- vira um LOTE, cada linha do arquivo vira uma LINHA EM TRIAGEM com status próprio, e só
+-- linha aprovada vira transação.
+--
+-- "QUAL DOCUMENTO PROVA": `transacoes.documento_fonte` é só o NOME do arquivo em texto.
+-- Nome de arquivo não prova nada — dois arquivos diferentes podem ter o mesmo nome, e o
+-- mesmo arquivo pode ser editado sem mudar de nome. O lote guarda o SHA-256 do conteúdo:
+-- é isso que permite, num laudo ou numa petição, demonstrar que o extrato apresentado é
+-- byte a byte o que originou o lançamento.
+
+CREATE TABLE IF NOT EXISTS lotes_importacao (
+    id                  INTEGER PRIMARY KEY,
+    arquivo_nome        TEXT NOT NULL,
+    -- SHA-256 do CONTEÚDO do arquivo. É a evidência: reapresentado depois, o mesmo
+    -- arquivo tem o mesmo hash; alterado em um byte, tem outro.
+    arquivo_hash_sha256 TEXT NOT NULL,
+    arquivo_bytes       INTEGER NOT NULL,
+    tipo_detectado      TEXT NOT NULL,           -- ofx, csv, pdf_extrato, open_finance...
+    conta_id            INTEGER REFERENCES contas_bancarias(id),
+    status              TEXT NOT NULL CHECK (status IN ('em_triagem', 'concluido', 'descartado')) DEFAULT 'em_triagem',
+    importado_em        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    concluido_em        DATETIME,
+    total_linhas        INTEGER NOT NULL DEFAULT 0,
+    observacoes         TEXT,
+    -- Reimportar o mesmo arquivo na mesma conta reabre o lote existente em vez de criar um
+    -- segundo — era assim que o mesmo extrato entrava duas vezes sem ninguém ver.
+    UNIQUE (arquivo_hash_sha256, conta_id)
+);
+
+CREATE TABLE IF NOT EXISTS importacao_linhas (
+    id                  INTEGER PRIMARY KEY,
+    lote_id             INTEGER NOT NULL REFERENCES lotes_importacao(id),
+    -- Posição da linha dentro do arquivo: é o que permite voltar ao documento original e
+    -- apontar exatamente de onde o valor saiu.
+    linha_numero        INTEGER NOT NULL,
+    data                DATE,
+    valor               REAL,
+    descricao_original  TEXT NOT NULL,
+    fitid               TEXT,
+    plano_conta_codigo  TEXT REFERENCES plano_de_contas(codigo),
+    status              TEXT NOT NULL CHECK (status IN (
+        'pendente',              -- aguardando decisão humana
+        'aprovada',              -- virou transação (transacao_id preenchido)
+        'rejeitada',             -- decidido que não entra; motivo obrigatório na prática
+        'duplicata_provavel',    -- casa com transação já existente (duplicata_de_id)
+        'malformada'             -- data ou valor ilegíveis no arquivo
+    )) DEFAULT 'pendente',
+    motivo              TEXT,
+    -- Preenchido ao aprovar. É a ponte que responde "qual documento prova este lançamento":
+    -- transacoes -> importacao_linhas -> lotes_importacao.arquivo_hash_sha256.
+    transacao_id        INTEGER REFERENCES transacoes(id),
+    -- A transação já existente que motivou a suspeita de duplicidade.
+    duplicata_de_id     INTEGER REFERENCES transacoes(id),
+    decidido_em         DATETIME,
+    decidido_por        TEXT,
+    UNIQUE (lote_id, linha_numero)
+);
+
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_lote ON importacao_linhas(lote_id, status);
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_transacao ON importacao_linhas(transacao_id);
+CREATE INDEX IF NOT EXISTS idx_lotes_importacao_hash ON lotes_importacao(arquivo_hash_sha256);
+
+-- Trilha de auditoria persistente, encadeada por hash (hash_anterior -> hash_sha256).
+-- src/domain/erp/compliance-audit-log.ts já grava e lê exatamente estas colunas, mas a
+-- tabela só existia no fixture de teste: contra o banco real as funções davam
+-- "no such table" e devolviam zero registros em silêncio. Sem ela, a trilha do Painel de
+-- Auditoria vive só na memória da aba e zera ao recarregar a página.
+CREATE TABLE IF NOT EXISTS auditoria_log (
+    id                      INTEGER PRIMARY KEY,
+    timestamp               TEXT,
+    usuario_id              INTEGER,
+    usuario_nome            TEXT,
+    ip_origem               TEXT,
+    modulo_chamador         TEXT,
+    tipo_operacao           TEXT,
+    entidade_afetada        TEXT,
+    id_entidade             INTEGER,
+    descricao_alteracao     TEXT,
+    valor_anterior          TEXT,
+    valor_novo              TEXT,
+    hash_sha256             TEXT,
+    hash_anterior           TEXT,
+    status                  TEXT,
+    mensagem_erro           TEXT,
+    tempo_processamento_ms  INTEGER,
+    retencao_ate            TEXT,
+    assinado                INTEGER DEFAULT 0,
+    assinatura_digital      TEXT,
+    criado_em               TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_auditoria_log_entidade ON auditoria_log(entidade_afetada, id_entidade);
+CREATE INDEX IF NOT EXISTS idx_auditoria_log_timestamp ON auditoria_log(timestamp);
