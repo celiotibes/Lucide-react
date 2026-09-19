@@ -26,18 +26,38 @@ function createTestDatabase(): Database.Database {
   db.pragma("foreign_keys = ON");
 
   // Read and run schema
-  const schemaPath = path.join(__dirname, "../../../migrations-phase2-auth.sql");
+  let schemaPath = path.join(__dirname, "../../../migrations-phase2-auth.sql");
+
+  // Fallback: try from current working directory (for tests run from different locations)
+  if (!fs.existsSync(schemaPath)) {
+    schemaPath = path.join(process.cwd(), "server/src/migrations-phase2-auth.sql");
+  }
+
+  if (!fs.existsSync(schemaPath)) {
+    throw new Error(`Migration file not found at ${schemaPath}`);
+  }
+
   const schema = fs.readFileSync(schemaPath, "utf-8");
 
-  // Execute schema
-  const statements = schema
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith("--"));
+  // Execute schema - use db.exec() to execute the full script
+  try {
+    db.exec(schema);
+  } catch (e) {
+    // If exec fails, try splitting and executing statements one by one
+    const statements = schema
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !s.startsWith("--"));
 
-  statements.forEach((statement) => {
-    db.exec(statement);
-  });
+    for (const statement of statements) {
+      try {
+        db.exec(statement);
+      } catch (err) {
+        console.error("Failed to execute statement:", statement.substring(0, 100));
+        throw err;
+      }
+    }
+  }
 
   return db;
 }
