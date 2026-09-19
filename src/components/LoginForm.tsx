@@ -26,7 +26,8 @@ export function LoginForm({
     setErro(null);
 
     try {
-      const resultado = authService.autenticar(email, senha, usuarios);
+      // autenticar() é assíncrono desde que a validação passou a usar bcrypt.compare.
+      const resultado = await authService.autenticar(email, senha, usuarios);
 
       if (!resultado.sucesso) {
         setErro(resultado.erro || "Falha ao autenticar");

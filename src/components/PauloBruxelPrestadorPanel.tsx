@@ -262,13 +262,34 @@ export function PauloBruxelPrestadorPanel({
     }
 
     // 7. Register payment in payment guard
-    const pagamentoRegistrado = paymentGuard.registrarPagamento(
+    const registro = paymentGuard.registrarPagamento(
       contexto,
       prestadorId,
       mesReferencia,
       componentes.total,
       "pendente"
     );
+
+    // registrarPagamento recusa a submissão se a autorização falhar. Sem esta checagem
+    // o fluxo seguia adiante e dizia "enviado com sucesso" para um envio que não houve.
+    if (!registro.sucesso || !registro.pagamento) {
+      auditService.registrarAcao(
+        contexto,
+        "criar_apontamento",
+        "prestador_apontamento",
+        `apon_${mesReferencia}`,
+        {
+          descricao: `Falha ao registrar apontamento - ${registro.erro ?? "motivo não informado"}`,
+          resultado: "falha",
+          motivo_falha: registro.erro,
+          prestador_id: prestadorId,
+        }
+      );
+      setErrosValidacao([registro.erro ?? "Não foi possível registrar o apontamento"]);
+      return;
+    }
+
+    const pagamentoRegistrado = registro.pagamento;
 
     // 8. Log successful submission to audit trail
     auditService.registrarAcao(
@@ -286,7 +307,12 @@ export function PauloBruxelPrestadorPanel({
             0
           ),
           total_pagar: componentes.total,
-          pagamento_id: pagamentoRegistrado.prestador_id,
+          // O pagamento não tem id próprio: a identidade é (prestador, mês), que é
+          // também a chave do UNIQUE que barra duplicata. Registrar as duas mantém o
+          // evento da auditoria ligável à linha de pagamentos_apontamentos.
+          pagamento_prestador_id: pagamentoRegistrado.prestador_id,
+          pagamento_mes_referencia: pagamentoRegistrado.mes_referencia,
+          data_submissao: pagamentoRegistrado.data_submissao,
         },
         resultado: "sucesso",
         prestador_id: prestadorId,
