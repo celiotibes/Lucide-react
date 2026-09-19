@@ -7,6 +7,8 @@ import {
   ParametrosContrato,
   ComponentesPagamento,
 } from "../domain/erp/paulo-bruxel-contrato";
+import { ContextoAutenticacao, AuthService } from "../domain/auth/auth-service";
+import { AuditTrailService } from "../domain/auth/audit-trail";
 
 interface DiaTrabalho {
   id: string;
@@ -45,7 +47,17 @@ function validarNumero(
   return { valor: num, valido: true };
 }
 
-export function PauloBruxelPrestadorPanel() {
+interface PauloBruxelPrestadorPanelProps {
+  contexto?: ContextoAutenticacao;
+  authService?: AuthService;
+  auditService?: AuditTrailService;
+}
+
+export function PauloBruxelPrestadorPanel({
+  contexto,
+  authService,
+  auditService,
+}: PauloBruxelPrestadorPanelProps = {}) {
   const [mesReferencia, setMesReferencia] = useState("2026-08");
   const [diasTrabalho, setDiasTrabalho] = useState<DiaTrabalho[]>([
     {
@@ -163,8 +175,95 @@ export function PauloBruxelPrestadorPanel() {
     return dias[new Date(data + "T00:00:00").getDay()];
   };
 
+  const handleSubmit = () => {
+    if (!contexto || !authService || !auditService) {
+      setErrosValidacao(["Sistema de autenticação não configurado"]);
+      return;
+    }
+
+    // Check authorization - prestador pode enviar seus apontamentos, gestor/admin podem enviar de qualquer um
+    const podeSubmeter =
+      authService.temPermissao(contexto, "prestador_apontamento", "criar");
+
+    if (!podeSubmeter) {
+      setErrosValidacao([
+        "Você não tem permissão para enviar apontamentos",
+      ]);
+      return;
+    }
+
+    // Log audit trail for submission
+    const registrosFiltrados = diasTrabalho.filter((d) => d.ativo);
+    auditService.registrarAcao(
+      contexto,
+      "criar_apontamento",
+      "prestador_apontamento",
+      `apon_${mesReferencia}`,
+      {
+        descricao: `Apontamento enviado para aprovação - ${registrosFiltrados.length} dias`,
+        valores_novos: {
+          mes_referencia: mesReferencia,
+          dias_trabalhados: registrosFiltrados.length,
+          horas_totais: registrosFiltrados.reduce((sum, d) => sum + d.horas_trabalhadas, 0),
+          total_pagar: componentes?.total || 0,
+        },
+        resultado: "sucesso",
+        prestador_id: contexto.usuario?.prestador_id,
+      }
+    );
+
+    alert(
+      `Apontamento enviado com sucesso!\nTotal a pagar: R$ ${componentes?.total.toFixed(2)}`
+    );
+  };
+
+  const handleClear = () => {
+    if (!contexto || !authService || !auditService) {
+      setErrosValidacao(["Sistema de autenticação não configurado"]);
+      return;
+    }
+
+    auditService.registrarAcao(
+      contexto,
+      "atualizar_apontamento",
+      "prestador_apontamento",
+      `apon_${mesReferencia}`,
+      {
+        descricao: "Apontamento limpo/resetado",
+        resultado: "sucesso",
+        prestador_id: contexto.usuario?.prestador_id,
+      }
+    );
+
+    setDiasTrabalho([
+      {
+        id: "1",
+        data: mesReferencia + "-01",
+        tipo_dia: "dia_util",
+        horas_trabalhadas: 0,
+        km_percorridos: 0,
+        descricao: "",
+        ativo: false,
+      },
+    ]);
+    setReembolsoCartao(0);
+    setReembolsoPix(0);
+    setErrosValidacao([]);
+    setAvisosValidacao([]);
+  };
+
   if (!parametros) {
     return <div className="p-4 text-red-600">Erro ao carregar parâmetros do contrato</div>;
+  }
+
+  // Authorization check: only prestador, gestor, and admin can view this panel
+  if (contexto && !authService?.temPermissao(contexto, "prestador_apontamento", "ler")) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <h2 className="font-bold mb-2">Acesso Negado</h2>
+        <p>Você não tem permissão para acessar este módulo.</p>
+      </div>
+    );
   }
 
   return (
@@ -490,11 +589,15 @@ export function PauloBruxelPrestadorPanel() {
 
         {/* Botões de Ação */}
         <div className="flex gap-3 justify-end">
-          <button className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">
+          <button
+            onClick={handleClear}
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+          >
             Limpar
           </button>
           <button
-            disabled={errosValidacao.length > 0 || !componentes}
+            onClick={handleSubmit}
+            disabled={errosValidacao.length > 0 || !componentes || !contexto}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Enviar para Aprovação
