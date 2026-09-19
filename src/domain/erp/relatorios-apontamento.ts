@@ -281,6 +281,22 @@ export interface ProvisaoImposto {
 // REPORT FUNCTIONS
 // ============================================================================
 
+/** Intervalo de datas de um período contábil.
+ *
+ * periodos_contabeis guarda ano/mes — nem o schema de produção nem o de teste têm
+ * data_inicio/data_fim. Este módulo consultava essas duas colunas e portanto falhava
+ * com "no such column" contra qualquer banco real, não só no teste. O restante do
+ * código (ledger.ts) já lê ano/mes; aqui passa a derivar o intervalo deles. */
+function intervaloDoPeriodo(periodo?: { ano: number; mes: number }): { inicio: string; fim: string } {
+  if (!periodo) return { inicio: "", fim: "" };
+  const mes = String(periodo.mes).padStart(2, "0");
+  const ultimoDia = new Date(periodo.ano, periodo.mes, 0).getDate();
+  return {
+    inicio: `${periodo.ano}-${mes}-01`,
+    fim: `${periodo.ano}-${mes}-${String(ultimoDia).padStart(2, "0")}`,
+  };
+}
+
 /**
  * Relatório 1: Resumo de Apontamentos
  * Análise agregada por tipo de apontamento e prestador
@@ -296,11 +312,12 @@ export function relatorioResumoApontamentos(
   );
 
   // Buscar período
-  const [periodo] = consultar<{ data_inicio: string; data_fim: string }>(
+  const [periodo] = consultar<{ ano: number; mes: number }>(
     db,
-    `SELECT data_inicio, data_fim FROM periodos_contabeis WHERE id = ?`,
+    `SELECT ano, mes FROM periodos_contabeis WHERE id = ?`,
     [periodo_id]
   );
+  const intervalo = intervaloDoPeriodo(periodo);
 
   // Total de apontamentos por tipo
   const [urgencias] = consultar<{ qtd: number; valor: number }>(
@@ -374,8 +391,8 @@ export function relatorioResumoApontamentos(
     (emprestimo?.valor || 0);
 
   const result: ResumoApontamentos = {
-    periodo_inicio: periodo?.data_inicio || "",
-    periodo_fim: periodo?.data_fim || "",
+    periodo_inicio: intervalo.inicio,
+    periodo_fim: intervalo.fim,
     prestadores_ativos: prestadores.length,
     total_apontamentos:
       (urgencias?.qtd || 0) +
@@ -770,11 +787,12 @@ export function relatorioAcumuloIPCA(
   entidade_id: number,
   periodo_id: number,
 ): AcumuloIPCA {
-  const [periodo] = consultar<{ data_inicio: string; data_fim: string }>(
+  const [periodo] = consultar<{ ano: number; mes: number }>(
     db,
-    `SELECT data_inicio, data_fim FROM periodos_contabeis WHERE id = ?`,
+    `SELECT ano, mes FROM periodos_contabeis WHERE id = ?`,
     [periodo_id]
   );
+  const intervalo = intervaloDoPeriodo(periodo);
 
   const reajustes = consultar<{
     id: number;
@@ -786,7 +804,7 @@ export function relatorioAcumuloIPCA(
     data_reajuste: string;
   }>(
     db,
-    `SELECT id, p.nome as prestador_nome, tipo_item, valor_anterior, indice_ipca,
+    `SELECT mr.id, p.nome as prestador_nome, tipo_item, valor_anterior, indice_ipca,
             valor_novo, data_reajuste
      FROM memorias_reajuste mr
      LEFT JOIN prestadores p ON mr.prestador_id = p.id
@@ -817,8 +835,8 @@ export function relatorioAcumuloIPCA(
   const economiaTotal = itens.reduce((sum, i) => sum + i.economia, 0);
 
   return {
-    periodo_inicio: periodo?.data_inicio || "",
-    periodo_fim: periodo?.data_fim || "",
+    periodo_inicio: intervalo.inicio,
+    periodo_fim: intervalo.fim,
     itens,
     resumo: {
       total_itens_reajustados: itens.length,

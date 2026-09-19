@@ -459,12 +459,88 @@ export async function prepararBancoTeste() {
     );
 
     -- MÓDULO APONTAMENTOS (PHASE 4-7)
+    -- Apontamentos do prestador, por tipo de serviço. Estas cinco tabelas e
+    -- memorias_reajuste/emprestimos_parcelas abaixo são consultadas por
+    -- relatorios-apontamento.ts e não existem em schema.sql nem em migration nenhuma:
+    -- o módulo nunca teve onde rodar. As colunas aqui são o contrato que as próprias
+    -- consultas daquele arquivo exigem.
+    -- FIXME: promover a uma migration de verdade — enquanto o schema só existir no
+    -- fixture, o módulo continua sem poder rodar fora do teste.
     CREATE TABLE IF NOT EXISTS apontamentos_urgencia (
       id INTEGER PRIMARY KEY,
       entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      valor_total REAL,
+      minutos_trabalhados INTEGER,
+      eh_domingo INTEGER DEFAULT 0,
       descricao TEXT,
       status TEXT DEFAULT 'aberto',
       prioridade TEXT,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS apontamentos_airbnb (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      tipo_servico TEXT,
+      numero_quartos INTEGER,
+      valor_total REAL,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS apontamentos_combustivel (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      km_percorrido REAL,
+      valor_litro REAL,
+      valor_total REAL,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS apontamentos_horas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      horas_efetivas REAL,
+      valor_hora REAL,
+      valor_total REAL,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS emprestimos_parcelas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      emprestimo_id INTEGER,
+      numero INTEGER,
+      data_vencimento TEXT,
+      principal REAL,
+      juros REAL,
+      valor_parcela REAL,
+      status TEXT DEFAULT 'aberta',
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS memorias_reajuste (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      tipo_item TEXT,
+      valor_anterior REAL,
+      indice_ipca REAL,
+      valor_novo REAL,
+      data_reajuste TEXT,
       criado_em TEXT
     );
 
@@ -487,10 +563,29 @@ export async function prepararBancoTeste() {
       criado_em TEXT
     );
 
+    -- ATENÇÃO: "reembolsos" hoje carrega dois conceitos diferentes com o mesmo nome.
+    --   1) reembolso de despesa do prestador — lido por relatorios-apontamento.ts
+    --      (valor_solicitado/valor_aprovado, tipo_despesa, prestador_id);
+    --   2) estorno de um pagamento — gravado por pagamentos-*.ts
+    --      (pagamento_original_id, valor_reembolso, motivo).
+    -- As colunas abaixo são a união das duas, para os dois módulos rodarem. A separação
+    -- em duas tabelas é mudança de modelagem de produção, fora do alcance de corrigir
+    -- a suíte; enquanto não acontecer, uma linha só faz sentido para um dos usos.
     CREATE TABLE IF NOT EXISTS reembolsos (
       id INTEGER PRIMARY KEY,
       entidade_id INTEGER,
       periodo_id INTEGER,
+      prestador_id INTEGER,
+      data_solicitacao TEXT,
+      tipo_despesa TEXT,
+      valor_solicitado REAL,
+      valor_aprovado REAL,
+      justificativa TEXT,
+      observacoes TEXT,
+      pagamento_original_id INTEGER,
+      valor_reembolso REAL,
+      motivo TEXT,
+      data_processamento TEXT,
       valor REAL,
       descricao TEXT,
       status TEXT DEFAULT 'pendente',
