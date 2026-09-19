@@ -655,10 +655,11 @@ describe("Integração Imovel Gestao-Ledger", () => {
       expect(relatorio?.total_despesas).toBe(1100); // 800 + 300
       expect(relatorio?.total_receitas).toBe(4500); // 2500 + 2000
 
-      // Verificar saldos individuais
-      const saldos = relatorio?.saldos_por_imovel || [];
-      expect(saldos[0].saldo_liquido).toBe(1700); // 2500 - 800
-      expect(saldos[1].saldo_liquido).toBe(1700); // 2000 - 300
+      // Verificar saldos individuais por id, e não por posição: saldos_por_imovel
+      // cobre todos os imóveis da entidade, então o índice 0 é o imóvel do fixture,
+      // sem movimento e com saldo zero.
+      expect(porImovel.get(imovel_id)?.saldo_liquido).toBe(1700); // 2500 - 800
+      expect(porImovel.get(imovel2_id)?.saldo_liquido).toBe(1700); // 2000 - 300
     });
   });
 
