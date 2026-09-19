@@ -2,6 +2,8 @@ import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
+import { ToastProvider } from "./ui/ToastProvider";
+import { SeletorDensidade, SeletorTema } from "./ui/Preferencias";
 import { useDb } from "./db/useDb";
 import { exportarArquivo, importarArquivo } from "./db/connection";
 import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
@@ -228,6 +230,8 @@ function Conteudo() {
             >
               Limpar tudo
             </button>
+            <SeletorDensidade />
+            <SeletorTema />
           </div>
         </header>
 
@@ -302,9 +306,11 @@ function Conteudo() {
 
 function App() {
   return (
-    <DbProvider>
-      <Conteudo />
-    </DbProvider>
+    <ToastProvider>
+      <DbProvider>
+        <Conteudo />
+      </DbProvider>
+    </ToastProvider>
   );
 }
 
