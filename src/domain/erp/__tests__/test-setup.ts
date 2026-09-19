@@ -199,6 +199,9 @@ export async function prepararBancoTeste() {
       referencia_documento TEXT,
       origem_modulo TEXT DEFAULT 'advocacia',
       tentativas INTEGER DEFAULT 0,
+      -- Guarda de idempotência, como em pagamentos: marca a despesa já lançada no
+      -- ledger para a sincronização não lançá-la de novo.
+      ledger_entry_id INTEGER,
       criado_em TEXT,
       FOREIGN KEY (processo_id) REFERENCES processos_legais(id),
       FOREIGN KEY (entidade_id) REFERENCES entidades(id),
@@ -451,14 +454,22 @@ export async function prepararBancoTeste() {
     );
 
     -- MÓDULO TRANSAÇÕES INTEGRADAS (PHASE 4-7)
+    -- Colunas conforme o INSERT de core.ts (entidade, período, centro de custo, conta,
+    -- data, descrição, valor, tipo, origem, referência, auditada, criação).
     CREATE TABLE IF NOT EXISTS transacoes_integradas (
       id INTEGER PRIMARY KEY,
       entidade_id INTEGER,
       periodo_id INTEGER,
+      centro_custo_id INTEGER,
+      conta_id INTEGER,
+      data TEXT,
+      descricao TEXT,
       tipo TEXT,
       valor REAL,
       origem_modulo TEXT,
       origem_id INTEGER,
+      referencia_documento TEXT,
+      auditada INTEGER DEFAULT 0,
       hash_provenance TEXT,
       criado_em TEXT
     );

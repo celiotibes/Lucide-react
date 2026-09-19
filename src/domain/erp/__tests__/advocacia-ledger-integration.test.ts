@@ -69,8 +69,10 @@ describe("Integração Advocacia-Ledger", () => {
       const saldoDebito = obterSaldoConta(db, periodo_id, 6301); // Despesa com Honorários
       expect(saldoDebito).toBe(2000);
 
+      // obterSaldoConta devolve o saldo na direção natural da conta (ledger.ts:124):
+      // crédito numa conta credora é positivo. Negativo indicaria saldo invertido.
       const saldoCredito = obterSaldoConta(db, periodo_id, 3102); // Contas a Pagar
-      expect(saldoCredito).toBe(-2000); // Conta de crédito
+      expect(saldoCredito).toBe(2000);
     });
 
     it("deve evitar duplicação de despesa", () => {
@@ -89,13 +91,19 @@ describe("Integração Advocacia-Ledger", () => {
         referencia_documento: "CUSTAS_001",
       };
 
-      // Primeira vez deve funcionar
+      // A chave de deduplicação inclui o id da despesa (gerarHashProvenance), e com
+      // razão: dois honorários de mesmo valor, tipo e data são despesas distintas e
+      // devem gerar dois lançamentos. O que não pode acontecer é a MESMA despesa ser
+      // lançada duas vezes. O teste antes passava ids diferentes (2 e 3) e exigia
+      // dedupe, ou seja, cobrava do código o comportamento errado.
       const resultado1 = registrarDespesaLegalNoLedger(db, 2, despesa);
       expect(resultado1).not.toBeNull();
 
-      // Segunda vez deve retornar duplicado
-      const resultado2 = registrarDespesaLegalNoLedger(db, 3, despesa);
+      const resultado2 = registrarDespesaLegalNoLedger(db, 2, despesa);
       expect(resultado2).toBeNull();
+
+      // Despesa diferente com o mesmo conteúdo continua sendo lançada.
+      expect(registrarDespesaLegalNoLedger(db, 3, despesa)).not.toBeNull();
     });
   });
 
@@ -154,10 +162,19 @@ describe("Integração Advocacia-Ledger", () => {
       );
 
       // 2. Registrar provisões
-      const resultado = registrarProvisoesProcessos(db, entidade_id, periodo_id);
+      const [idBaixo] = db.exec("SELECT last_insert_rowid() as id");
+      const processoBaixoId = idBaixo?.values[0]?.[0];
 
-      // 3. Não deve haver processamento para risco baixo
-      expect(resultado.sucessos).toBe(0);
+      registrarProvisoesProcessos(db, entidade_id, periodo_id);
+
+      // 3. O que se verifica é que ESTE processo não foi provisionado. Afirmar
+      // sucessos === 0 era outra coisa: o beforeEach já semeia um processo de risco
+      // médio, que é provisionado com razão, então o total nunca seria zero.
+      const [provisoes] = db.exec(
+        `SELECT COUNT(*) FROM ledger_entries
+         WHERE periodo_id = ${periodo_id} AND origem_modulo = 'advocacia' AND origem_id = ${processoBaixoId}`
+      );
+      expect(provisoes?.values[0]?.[0]).toBe(0);
     });
   });
 
