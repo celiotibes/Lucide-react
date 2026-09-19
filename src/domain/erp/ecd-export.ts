@@ -61,7 +61,10 @@ export function gerarExportacaoECD(
   // Obter dados da entidade
   const [entidade] = consultar<{ nome: string; cnpj: string }>(
     db,
-    "SELECT nome, cnpj FROM entidades WHERE id = ?",
+    // A tabela é entidades_legais e a coluna é cpf_cnpj (ver schema.sql). "entidades" e
+    // "cnpj" não existem no banco do app: a exportação ECD derrubava a tela com
+    // "no such table: entidades" antes de gerar qualquer linha.
+    "SELECT nome, cpf_cnpj AS cnpj FROM entidades_legais WHERE id = ?",
     [entidade_id],
   );
 

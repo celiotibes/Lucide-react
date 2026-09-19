@@ -30,6 +30,7 @@ export interface Payment {
   ultimo_erro?: string;
   reconciliacao_status: ReconciliationStatus;
   reconciliado_em?: string;
+  ledger_entry_id?: number; // ID do lançamento contábil no ledger
 }
 
 export interface PaymentAttempt {
@@ -90,7 +91,9 @@ export function criarPagamento(
         tentativas INTEGER DEFAULT 0,
         ultimo_erro TEXT,
         reconciliacao_status TEXT DEFAULT 'nao_reconciliado',
-        reconciliado_em TEXT
+        reconciliado_em TEXT,
+        ledger_entry_id INTEGER,
+        FOREIGN KEY (ledger_entry_id) REFERENCES ledger_entries(id)
       )`
     );
 
@@ -189,11 +192,14 @@ export function procesarPagamento(
 
 export function confirmarPagamento(
   db: any,
-  payment_id: string
+  payment_id: string,
+  entidade_id?: number,
+  periodo_id?: number,
+  sincronizarComLedger: boolean = true
 ): { sucesso: boolean; errors?: string[] } {
   try {
     const resultado = db.exec(
-      `SELECT id, valor FROM pagamentos WHERE id = ? AND status = 'processando'`,
+      `SELECT id, valor, entidade_id FROM pagamentos WHERE id = ? AND status = 'processando'`,
       [payment_id]
     );
 
@@ -201,12 +207,25 @@ export function confirmarPagamento(
       return { sucesso: false, errors: ['Pagamento não encontrado ou não está em processamento'] };
     }
 
+    const [, , ent_id] = resultado[0].values[0];
+
     db.run(
       `UPDATE pagamentos SET status = ?, data_conclusao = ?, reconciliacao_status = ? WHERE id = ?`,
       ['pago', new Date().toISOString(), 'nao_reconciliado', payment_id]
     );
 
     registrarTentativa(db, payment_id, 'sucesso', 'Pagamento confirmado com sucesso');
+
+    // Sincronizar com ledger após confirmação
+    if (sincronizarComLedger && (entidade_id || ent_id) && periodo_id) {
+      try {
+        const { sincronizarPagamentoImediato } = require('./pagamentos-ledger-integration');
+        sincronizarPagamentoImediato(db, payment_id, entidade_id || ent_id, periodo_id);
+      } catch (erro) {
+        console.warn('Erro ao sincronizar pagamento com ledger:', erro);
+        // Não falha a operação se a sincronização falhar
+      }
+    }
 
     return { sucesso: true };
   } catch (erro) {
@@ -328,7 +347,7 @@ export function obterPagamento(
 ): Payment | null {
   try {
     const resultado = db.exec(
-      `SELECT id, entidade_id, valor, descricao, tipo_pagamento, metodo_pagamento, status, beneficiario, referencia, data_criacao, data_agendado, data_processamento, data_conclusao, tentativas, ultimo_erro, reconciliacao_status, reconciliado_em
+      `SELECT id, entidade_id, valor, descricao, tipo_pagamento, metodo_pagamento, status, beneficiario, referencia, data_criacao, data_agendado, data_processamento, data_conclusao, tentativas, ultimo_erro, reconciliacao_status, reconciliado_em, ledger_entry_id
        FROM pagamentos WHERE id = ?`,
       [payment_id]
     );
@@ -337,7 +356,7 @@ export function obterPagamento(
       return null;
     }
 
-    const [id, ent, val, desc, tipo, metodo, status, benef, ref, data_cria, data_agend, data_proc, data_conc, tent, erro, rec_status, rec_em] = resultado[0].values[0];
+    const [id, ent, val, desc, tipo, metodo, status, benef, ref, data_cria, data_agend, data_proc, data_conc, tent, erro, rec_status, rec_em, ledger_id] = resultado[0].values[0];
 
     return {
       id,
@@ -357,6 +376,7 @@ export function obterPagamento(
       ultimo_erro: erro,
       reconciliacao_status: rec_status as ReconciliationStatus,
       reconciliado_em: rec_em,
+      ledger_entry_id: ledger_id,
     };
   } catch {
     return null;

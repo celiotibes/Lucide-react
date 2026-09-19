@@ -30,7 +30,7 @@ export interface SincronizacaoContratoImovel {
  * Sincronizar contrato após criação em imovel-gestao
  * Garante contabilização imediata de receita esperada
  */
-export function sincronizarCriacao ContratoFromImovel(
+export function sincronizarCriacao_ContratoFromImovel(
   db: Database,
   contratoId: number,
   entidadeId: number,
@@ -394,12 +394,13 @@ export function reconciliarContratosImovel(
   erros: number;
 } {
   // Obter contratos com sincronização pendente ou com erro
-  const [contratosPendentes] = consultar<{ id: number }>(
+  const contratosPendentes = consultar<{ id: number }>(
     db,
     `SELECT DISTINCT c.id
      FROM contratos_locacao c
      LEFT JOIN sincronizacoes_contratos_imovel s ON c.id = s.contrato_id
-     WHERE c.status IN ('ativo', 'pendente')
+     -- contrato vigente: contratos_locacao não tem status; data_fim nulo = em vigor
+     WHERE c.data_fim IS NULL OR c.data_fim >= DATE('now')
        AND (s.id IS NULL OR s.status = 'erro')
      ORDER BY c.criado_em ASC`,
     []
@@ -409,7 +410,7 @@ export function reconciliarContratosImovel(
   let erros = 0;
 
   contratosPendentes.forEach((contrato) => {
-    const resultado = sincronizarCriacao ContratoFromImovel(
+    const resultado = sincronizarCriacao_ContratoFromImovel(
       db,
       contrato.id,
       entidadeId,
