@@ -5,6 +5,8 @@ import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
 import { useToast } from "./ui/useToast";
 import { SeletorDensidade, SeletorTema } from "./ui/Preferencias";
+import { OnboardingEntidade } from "./ui/OnboardingEntidade";
+import { obterEntidadeAtiva, resumirMigracao, sincronizarRazao } from "./domain/erp/entidadeLegal";
 import { useDb } from "./db/useDb";
 import { exportarArquivo, importarArquivo } from "./db/connection";
 import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
@@ -116,6 +118,7 @@ function Conteudo() {
   const [ultimoRegistroBackup, setUltimoRegistroBackup] = useState<RegistroBackup | null>(null);
   const [hashCopiado, setHashCopiado] = useState(false);
   const [backupTick, setBackupTick] = useState(0);
+  const [onboardingTick, setOnboardingTick] = useState(0);
   const inputImportarRef = useRef<HTMLInputElement>(null);
   const temporizadorHash = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -149,6 +152,12 @@ function Conteudo() {
   // (backupTick muda) — os dois únicos eventos que afetam o status.
   const statusBackup = useMemo(() => calcularStatusBackup(), [versao, backupTick]);
 
+  // Titular da contabilidade. Enquanto não existir, o razão não tem onde pendurar nada
+  // (entidade_id NOT NULL em periodos_contabeis, contas_plano_contas e ledger_entries) e
+  // o app mostra o onboarding no lugar da aplicação. `versao` muda a cada persistência,
+  // o que inclui a criação da própria entidade — daí ser dependência.
+  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao, onboardingTick]);
+
   const hoje = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const pendenciasCriticas = useMemo(
     () => (db ? gerarPainelPendencias(db, hoje).filter((p) => p.severidade === "critica").length : 0),
@@ -160,11 +169,18 @@ function Conteudo() {
     try {
       limparBanco(db);
       const resultado = gerarDadosSimulados(db);
+
+      // Sem isto a demonstração povoa `transacoes` e o razão continua vazio — era
+      // exatamente o descompasso da auditoria: Painel com quase R$ 1,9 milhão e
+      // Relatórios Integrados com R$ 0,00 sobre os mesmos dados.
+      const migracao = entidade ? sincronizarRazao(db, entidade.id) : null;
+
       await persistir();
       // A contagem continua no aviso fixo, e não num toast: é detalhe que a pessoa
       // volta a consultar enquanto confere a demonstração, e sumiria em 4 segundos.
       setMensagemSeed(
-        `Dados simulados carregados: ${resultado.imoveis} imóveis, ${resultado.contratos} contratos, ${resultado.transacoes} transações, ${resultado.caucoes} cauções.`,
+        `Dados simulados carregados: ${resultado.imoveis} imóveis, ${resultado.contratos} contratos, ${resultado.transacoes} transações, ${resultado.caucoes} cauções.` +
+          (migracao ? ` ${resumirMigracao(migracao)}` : ""),
       );
     } catch (erro) {
       // limparBanco já rodou: falhar aqui deixa o banco vazio ou pela metade, e sem
@@ -172,7 +188,7 @@ function Conteudo() {
       setMensagemSeed(null);
       avisar("critical", `Falha ao carregar a demonstração: ${erro instanceof Error ? erro.message : "erro desconhecido"}. Os dados anteriores foram apagados — importe um backup para recuperá-los.`);
     }
-  }, [db, persistir, avisar]);
+  }, [db, persistir, avisar, entidade]);
 
   const exportarBanco = useCallback(async () => {
     if (!db) return;
@@ -265,6 +281,15 @@ function Conteudo() {
         </div>
       </div>
     );
+  }
+
+  // Nenhuma entidade legal cadastrada: o núcleo contábil inteiro depende dela, então a
+  // pergunta vem antes da aplicação em vez de o app abrir com metade das telas zerada
+  // sem explicação. `persistir()` dentro do onboarding faz `versao` mudar, o que
+  // recalcula `entidade` e derruba este bloco sozinho — aoConcluir só força o caso em
+  // que a persistência não moveu a versão.
+  if (db && !entidade) {
+    return <OnboardingEntidade aoConcluir={() => setOnboardingTick((t) => t + 1)} />;
   }
 
   return (

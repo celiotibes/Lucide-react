@@ -552,15 +552,28 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
     -- Descrição/histórico do lançamento
     descricao           TEXT NOT NULL,
 
-    -- Rastreabilidade: origem do lançamento (qual módulo/operação gerou)
+    -- Rastreabilidade: origem do lançamento (qual módulo/operação gerou).
+    -- A lista precisa acompanhar a união `origem_modulo` de LancamentoContabil
+    -- (src/domain/erp/ledger.ts): o CHECK aqui era mais estreito que o tipo, e sete dos
+    -- módulos do ERP (advocacia, contas-pessoais, imovel-gestao, apontamento-prestador,
+    -- pagamentos-integracao, skillos, rateios no plural) gravavam um valor que o banco
+    -- real rejeitava — nenhum deles conseguia escrever no ledger em produção, só nos
+    -- fixtures de teste, que não tinham este CHECK.
     origem_modulo       TEXT NOT NULL CHECK (origem_modulo IN (
         'transacoes',           -- Transação bancária simples
         'contratos',            -- Contrato de locação
         'patrimonio',           -- Aquisição/depreciação de imóvel
         'caucao',               -- Caução
         'financiamento',        -- Financiamento/amortização
-        'rateio',               -- Rateio de despesa comum
+        'rateio',               -- Rateio de despesa comum (grafia legada, mantida)
+        'rateios',              -- Rateio de despesa comum
         'vistorias',            -- Provisão de dano em vistoria
+        'advocacia',            -- Honorários, custas e provisões de processo
+        'contas-pessoais',      -- Movimentos da pessoa física
+        'imovel-gestao',        -- Gestão operacional do imóvel
+        'apontamento-prestador',-- Apontamento de horas de prestador
+        'pagamentos-integracao',-- Baixa de pagamento a prestador
+        'skillos',              -- Módulo de habilidades
         'manual'                -- Lançamento manual (ajuste, acerto)
     )),
     origem_id           INTEGER NOT NULL,  -- PK da tabela de origem (transacao_id, contrato_id, etc.)
@@ -579,8 +592,13 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
     estornado_por_id    INTEGER REFERENCES ledger_entries(id),
     motivo_estorno      TEXT,
 
-    -- Índices para performance e consultas comuns
-    UNIQUE (origem_modulo, origem_id),
+    -- Uma partida dobrada tem DUAS pernas com a mesma origem (débito numa conta, crédito
+    -- em outra). O UNIQUE anterior era (origem_modulo, origem_id) e só deixava passar UMA
+    -- linha por documento de origem: era impossível registrar a contrapartida, e o ledger
+    -- nascia estruturalmente desbalanceado — nenhum período fecharia. A chave certa
+    -- inclui a conta, o que continua barrando reimportação duplicada da mesma transação
+    -- na mesma conta, que era o objetivo original.
+    UNIQUE (origem_modulo, origem_id, conta_id),
     CHECK (
         (valor_debito IS NOT NULL AND valor_credito IS NULL) OR
         (valor_debito IS NULL AND valor_credito IS NOT NULL)
