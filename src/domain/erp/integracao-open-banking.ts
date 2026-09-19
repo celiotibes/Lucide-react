@@ -97,6 +97,10 @@ export function initiarPagamentoPIX(
   const pagamentoComId = {
     ...pagamento,
     id: txid,
+    // O txid é o identificador da transação no arranjo PIX e é o que permite conciliar
+    // depois com o extrato. Era gravado no banco mas não voltava para quem chamou, que
+    // só recebia id — obrigando a reconsultar para descobrir o próprio txid.
+    txid,
   };
 
   try {

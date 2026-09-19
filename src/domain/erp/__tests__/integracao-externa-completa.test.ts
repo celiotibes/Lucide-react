@@ -1013,7 +1013,9 @@ describe('PHASE 4: External Systems Integration', () => {
       auditLog.registrarChamadaAPI(
         db,
         {
-          timestamp: new Date().toISOString(),
+          // Dentro da janela consultada no passo 3: com new Date() o registro caía no
+          // mês corrente e a consulta a janeiro/2026 nunca o encontrava.
+          timestamp: '2026-01-15T10:00:00.000Z',
           usuario_id: 1,
           usuario_nome: 'Sistema',
           ip_origem: '127.0.0.1',

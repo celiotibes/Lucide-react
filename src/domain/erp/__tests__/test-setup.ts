@@ -436,6 +436,52 @@ export async function prepararBancoTeste() {
     -- ao final desta função. Não recrie aqui — foi exatamente essa cópia paralela
     -- que derivou da migration e quebrou a suíte.
 
+    -- Log de auditoria de compliance (compliance-audit-log.ts). Faltava no fixture,
+    -- de modo que registrarChamadaAPI gravava no vazio e o relatório saía sempre zerado.
+    CREATE TABLE IF NOT EXISTS auditoria_log (
+      id INTEGER PRIMARY KEY,
+      timestamp TEXT,
+      usuario_id INTEGER,
+      usuario_nome TEXT,
+      ip_origem TEXT,
+      modulo_chamador TEXT,
+      tipo_operacao TEXT,
+      entidade_afetada TEXT,
+      id_entidade INTEGER,
+      descricao_alteracao TEXT,
+      valor_anterior TEXT,
+      valor_novo TEXT,
+      hash_sha256 TEXT,
+      hash_anterior TEXT,
+      status TEXT,
+      mensagem_erro TEXT,
+      tempo_processamento_ms INTEGER,
+      retencao_ate TEXT,
+      assinado INTEGER DEFAULT 0,
+      assinatura_digital TEXT,
+      criado_em TEXT
+    );
+
+    -- Pagamentos PIX (open banking). Faltava no fixture, e como
+    -- initiarPagamentoPIX engole o erro do INSERT num catch, a falha passava calada:
+    -- a função devolvia o pagamento como iniciado sem ter gravado nada.
+    -- FIXME: esse catch silencioso merece revisão — iniciar pagamento e não registrar
+    -- não deveria ser indistinguível de sucesso.
+    CREATE TABLE IF NOT EXISTS pagamentos_pix (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      txid TEXT UNIQUE,
+      chave_pix TEXT,
+      valor REAL,
+      beneficiario TEXT,
+      descricao TEXT,
+      data_solicitacao TEXT,
+      data_confirmacao TEXT,
+      status TEXT DEFAULT 'solicitado',
+      criado_em TEXT
+    );
+
     -- MÓDULO PAGAMENTOS-LEDGER (PHASE 4-7)
     -- payment_id em inglês, e não pagamento_id, porque é assim que
     -- pagamentos-ledger-integration.ts grava e lê (4 ocorrências, nenhuma em

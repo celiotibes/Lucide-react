@@ -170,7 +170,14 @@ export function parseCSV(linhas: string[], hasHeader: boolean = true): ExtratoTr
     // Esperado: Data, Descrição, Tipo, Valor
     const data = campos[0];
     const descricao = campos[1];
-    const tipo = campos[2].toLowerCase() === 'debito' ? 'debito' : 'credito';
+    // Compara sem acento: o extrato traz "débito", e a checagem era contra "debito"
+    // puro, então nenhum débito casava e TODO lançamento virava crédito — saída de
+    // dinheiro entrava na conciliação como entrada.
+    const tipoNormalizado = campos[2]
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '');
+    const tipo = tipoNormalizado === 'debito' ? 'debito' : 'credito';
     const valor = parseFloat(campos[3]);
 
     if (!data || isNaN(valor)) continue;
