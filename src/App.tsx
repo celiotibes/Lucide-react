@@ -1,9 +1,14 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
+import { useToast } from "./ui/useToast";
 import { SeletorDensidade, SeletorTema } from "./ui/Preferencias";
+
+/** Aviso que precisa sobreviver a um window.location.reload() (hoje, só a confirmação
+ *  de importação de backup, que recarrega a página para reabrir o banco novo). */
+const CHAVE_AVISO_POS_RELOAD = "crmt:aviso-pos-reload";
 import { useDb } from "./db/useDb";
 import { exportarArquivo, importarArquivo } from "./db/connection";
 import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
@@ -75,6 +80,22 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
 
 function Conteudo() {
   const { db, versao, carregando, persistir, reiniciar } = useDb();
+  const { avisar } = useToast();
+
+  // A importação confirma o resultado depois de recarregar a página; este é o outro
+  // lado dessa entrega. Consome a mensagem numa leitura só, senão ela reapareceria
+  // a cada recarga seguinte.
+  useEffect(() => {
+    let pendente: string | null = null;
+    try {
+      pendente = sessionStorage.getItem(CHAVE_AVISO_POS_RELOAD);
+      if (pendente !== null) sessionStorage.removeItem(CHAVE_AVISO_POS_RELOAD);
+    } catch {
+      /* storage indisponível — nada a exibir */
+    }
+    if (pendente !== null) avisar("good", pendente);
+  }, [avisar]);
+
   const [aba, setAba] = useState<Aba>("dashboard");
   // Drill-down do Painel (clique numa barra da cascata do DRE ou numa célula do mapa de calor):
   // guarda o filtro e troca de aba pra Transações, que consome esse valor uma única vez ao
@@ -109,32 +130,54 @@ function Conteudo() {
 
   const carregarDemonstracao = useCallback(async () => {
     if (!db) return;
-    limparBanco(db);
-    const resultado = gerarDadosSimulados(db);
-    await persistir();
-    setMensagemSeed(
-      `Dados simulados carregados: ${resultado.imoveis} imóveis, ${resultado.contratos} contratos, ${resultado.transacoes} transações, ${resultado.caucoes} cauções.`,
-    );
-  }, [db, persistir]);
+    try {
+      limparBanco(db);
+      const resultado = gerarDadosSimulados(db);
+      await persistir();
+      // A contagem continua no aviso fixo, e não num toast: é detalhe que a pessoa
+      // volta a consultar enquanto confere a demonstração, e sumiria em 4 segundos.
+      setMensagemSeed(
+        `Dados simulados carregados: ${resultado.imoveis} imóveis, ${resultado.contratos} contratos, ${resultado.transacoes} transações, ${resultado.caucoes} cauções.`,
+      );
+    } catch (erro) {
+      // limparBanco já rodou: falhar aqui deixa o banco vazio ou pela metade, e sem
+      // aviso a pessoa só descobre ao ver o painel zerado.
+      setMensagemSeed(null);
+      avisar("critical", `Falha ao carregar a demonstração: ${erro instanceof Error ? erro.message : "erro desconhecido"}. Os dados anteriores foram apagados — importe um backup para recuperá-los.`);
+    }
+  }, [db, persistir, avisar]);
 
   const exportarBanco = useCallback(async () => {
     if (!db) return;
-    const blob = exportarArquivo(db);
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    const nomeArquivo = `contabilidade-${new Date().toISOString().slice(0, 10)}.sqlite`;
+    let nomeArquivo = "";
+    let baixou = false;
+    try {
+      const blob = exportarArquivo(db);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      nomeArquivo = `contabilidade-${new Date().toISOString().slice(0, 10)}.sqlite`;
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = nomeArquivo;
-    a.click();
-    URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nomeArquivo;
+      a.click();
+      URL.revokeObjectURL(url);
+      baixou = true;
 
-    const registro = await registrarBackup(bytes, nomeArquivo);
-    setUltimoRegistroBackup(registro);
-    setHashCopiado(false);
-    setBackupTick((t) => t + 1);
-  }, [db]);
+      const registro = await registrarBackup(bytes, nomeArquivo);
+      setUltimoRegistroBackup(registro);
+      setHashCopiado(false);
+      setBackupTick((t) => t + 1);
+      avisar("good", `Backup exportado: ${nomeArquivo}`);
+    } catch (erro) {
+      const motivo = erro instanceof Error ? erro.message : "erro desconhecido";
+      // O download acontece antes de registrarBackup. Se só o registro falhou, o
+      // arquivo baixado é válido — dizer "falha ao exportar" aqui faria a pessoa
+      // descartar um backup bom. O que se perde é a marcação de "backup em dia".
+      if (baixou) avisar("warning", `${nomeArquivo} foi baixado e é válido, mas não foi possível registrá-lo (${motivo}) — guarde o arquivo; o aviso de backup continuará marcando pendência.`);
+      else avisar("critical", `Falha ao exportar o backup: ${motivo}. Nenhum arquivo foi gerado.`);
+    }
+  }, [db, avisar]);
 
   const copiarHash = useCallback(async () => {
     if (!ultimoRegistroBackup) return;
@@ -153,12 +196,23 @@ function Conteudo() {
       try {
         const bytes = new Uint8Array(await arquivo.arrayBuffer());
         await importarArquivo(bytes);
+        // O sucesso só se manifesta como um reload, que é indistinguível de nada ter
+        // acontecido. A confirmação atravessa o reload por sessionStorage e é exibida
+        // do outro lado; se o armazenamento falhar, perde-se o aviso, não a importação.
+        try {
+          sessionStorage.setItem(CHAVE_AVISO_POS_RELOAD, `Backup "${arquivo.name}" importado. Os dados anteriores foram substituídos.`);
+        } catch {
+          /* aba anônima ou storage bloqueado — segue sem a confirmação */
+        }
         window.location.reload();
       } catch (erro) {
-        alert(erro instanceof Error ? erro.message : "Falha ao importar o arquivo — verifique se é um backup .sqlite válido deste sistema.");
+        // Trocado por toast em vez de alert(): a importação falhou, então os dados
+        // atuais seguem intactos e não há por que travar a tela. Toast crítico não
+        // some sozinho, então o motivo fica até ser lido.
+        avisar("critical", erro instanceof Error ? erro.message : "Falha ao importar o arquivo — verifique se é um backup .sqlite válido deste sistema.");
       }
     },
-    [],
+    [avisar],
   );
 
   if (carregando || !db) {
