@@ -41,7 +41,10 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
     );
 
     if (apt?.values?.[0]) {
-      const aptId = apt.values[0][0];
+      // id é INTEGER PRIMARY KEY (schema.sql) — sempre number, mas db.exec() devolve
+      // SqlValue (que também admite Uint8Array), daí a asserção para bater com o
+      // parâmetro (string | number | null)[] que executar() espera.
+      const aptId = apt.values[0][0] as number;
 
       // Adicionar atividades ao apontamento de hoje
       executar(
@@ -86,7 +89,7 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
     );
 
     if (apt?.values?.[0]) {
-      const aptId = apt.values[0][0];
+      const aptId = apt.values[0][0] as number; // id é INTEGER PRIMARY KEY (schema.sql)
 
       executar(
         db,
@@ -124,7 +127,7 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
     );
 
     if (apt?.values?.[0]) {
-      const aptId = apt.values[0][0];
+      const aptId = apt.values[0][0] as number; // id é INTEGER PRIMARY KEY (schema.sql)
 
       executar(
         db,
@@ -162,7 +165,7 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
     );
 
     if (apt?.values?.[0]) {
-      const aptId = apt.values[0][0];
+      const aptId = apt.values[0][0] as number; // id é INTEGER PRIMARY KEY (schema.sql)
 
       executar(
         db,
