@@ -495,12 +495,17 @@ describe("Relatórios Apontamento e Advocacia", () => {
       }
     });
 
-    it("valor_despesas_realizadas deve ser <= valor_estimado", () => {
+    it("estouro de orçamento é sinalizado, não impedido", () => {
+      // Este teste antes exigia valor_despesas_realizadas <= valor_total_estimado, o que
+      // não é invariante nenhum: gastar mais que o estimado é possível, e denunciar isso
+      // é justamente a razão de o relatório existir (o tipo dos alertas já previa
+      // "acima_orcamento"). O que deve valer é: se estourou, tem alerta; se não, não tem.
       const relatorio = relatorioProcessosAtivos(db, entidade_id, periodo_id);
+      const estourou = relatorio.valor_despesas_realizadas > relatorio.valor_total_estimado;
+      const alerta = relatorio.alertas.find((a) => a.tipo === "acima_orcamento");
 
-      expect(relatorio.valor_despesas_realizadas).toBeLessThanOrEqual(
-        relatorio.valor_total_estimado
-      );
+      expect(Boolean(alerta)).toBe(estourou);
+      if (alerta) expect(alerta.quantidade).toBeGreaterThan(0);
     });
   });
 

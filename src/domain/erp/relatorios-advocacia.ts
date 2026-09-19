@@ -98,6 +98,10 @@ export interface ProcessosAtivos {
     {
       quantidade: number;
       valor_envolvido: number;
+      /** Percentual aplicado sobre valor_envolvido para chegar a
+       *  provisao_recomendada. Vai no relatório porque sem ele a provisão é um
+       *  número sem memória de cálculo — quem revisa não consegue conferir. */
+      aliquota_provisao: number;
       provisao_recomendada: number;
     }
   >;
@@ -350,33 +354,38 @@ export function relatorioProcessosAtivos(
     {
       quantidade: number;
       valor_envolvido: number;
+      aliquota_provisao: number;
       provisao_recomendada: number;
     }
   > = {};
 
   processos.forEach((p) => {
     const riscoKey = p.risco_potencial || "desconhecido";
+    // Risco não classificado provisiona como o mais conservador: deixar em 0 trataria
+    // "ninguém avaliou ainda" como "não há risco", que é a leitura errada.
+    const aliquota =
+      riscoPorcentual[riscoKey as keyof typeof riscoPorcentual] ?? riscoPorcentual.crítico;
     if (!porRisco[riscoKey]) {
       porRisco[riscoKey] = {
         quantidade: 0,
         valor_envolvido: 0,
+        aliquota_provisao: aliquota,
         provisao_recomendada: 0,
       };
     }
     porRisco[riscoKey].quantidade += 1;
     porRisco[riscoKey].valor_envolvido += p.valor_causa;
-    const aliquota =
-      riscoPorcentual[riscoKey as keyof typeof riscoPorcentual] || 0;
-    porRisco[riscoKey].provisao_recomendada +=
-      p.valor_causa * aliquota;
+    porRisco[riscoKey].provisao_recomendada += p.valor_causa * aliquota;
   });
 
   // Alertas
   const alertas = [];
-  const processosAltoRisco = Object.values(porRisco)
-    .filter((r) => r.quantidade > 0)
-    .map((r) => r.quantidade)
-    .reduce((a, b) => a + b, 0);
+  // Só 'alto' e 'crítico' entram aqui. Antes somava a quantidade de TODOS os baldes de
+  // risco, inclusive 'baixo', e alertava "processos com risco alto ou crítico" para uma
+  // carteira inteiramente de risco baixo — o alerta disparava sempre e não dizia nada.
+  const processosAltoRisco = Object.entries(porRisco)
+    .filter(([risco]) => risco === "alto" || risco === "crítico")
+    .reduce((soma, [, r]) => soma + r.quantidade, 0);
 
   if (processosAltoRisco > 0) {
     alertas.push({
@@ -395,6 +404,19 @@ export function relatorioProcessosAtivos(
     (sum, v) => sum + v,
     0
   );
+
+  // O tipo já previa "acima_orcamento" na lista de alertas, mas nada o emitia: gastar
+  // mais que o estimado passava silenciosamente, que é justamente o que este relatório
+  // deveria denunciar.
+  if (totalRealizado > totalEstimado) {
+    alertas.push({
+      tipo: "acima_orcamento",
+      quantidade: processos.filter(
+        (p) => (despesasPorProcesso[p.id] || 0) > p.estimativa_despesa
+      ).length,
+      descricao: `Despesas realizadas (${totalRealizado}) excedem o estimado (${totalEstimado})`,
+    });
+  }
 
   const processosDetalhados = processos.map((p) => ({
     id: p.id,
