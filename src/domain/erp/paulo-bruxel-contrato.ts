@@ -74,25 +74,119 @@ export interface HistoricoIpca {
 
 /**
  * Inicializa os parâmetros do contrato para um mês específico
+ * ⚠️ VERSÃO NOVO: Deve ser chamada com dados do banco de dados
+ *
+ * Esta função constróit um ParametrosContrato a partir de dados estruturados,
+ * permitindo auditoria completa de mudanças de valores.
+ *
+ * Se dadosDb não for fornecido, usa valores hardcoded (fallback para testes).
  */
-export function inicializarParametros(mesReferencia: string): ParametrosContrato {
-  // Parâmetros base de julho de 2026 com IPCA de 4.64%
+export function inicializarParametros(
+  mesReferencia: string,
+  dadosDb?: {
+    diaria_base: number;
+    hora_adicional: number;
+    deslocamento_km: number;
+    combustivel_litro: number;
+    combustivel_ajuste_mercado: number;
+    comunicacao_mensal: number;
+    ipca_percentual: number;
+    taxa_hora_extra?: number;
+    taxa_fim_semana_feriado?: number;
+  }
+): ParametrosContrato {
+  // Se dados não fornecidos, usar fallback
+  const dadosValidados = dadosDb || obterParametrosFallback(mesReferencia);
+
+  // Validar entrada
+  validarParametros(dadosValidados);
+
+  return {
+    mes_referencia: mesReferencia,
+    diaria_base: dadosValidados.diaria_base,
+    hora_adicional: dadosValidados.hora_adicional,
+    deslocamento_km: dadosValidados.deslocamento_km,
+    combustivel_litro: dadosValidados.combustivel_litro,
+    combustivel_ajuste_mercado: dadosValidados.combustivel_ajuste_mercado,
+    comunicacao_mensal: dadosValidados.comunicacao_mensal,
+    base_obrigatoria_dias: 8,
+    base_obrigatoria_valor: Math.round(dadosValidados.diaria_base * 8 * 100) / 100,
+    ipca_percentual: dadosValidados.ipca_percentual,
+    taxa_hora_extra: dadosValidados.taxa_hora_extra ?? 0.1,
+    taxa_fim_semana_feriado: dadosValidados.taxa_fim_semana_feriado ?? 0.15,
+  };
+}
+
+/**
+ * Validar valores dos parâmetros para evitar valores inválidos
+ */
+function validarParametros(dados: any): void {
+  const erros: string[] = [];
+
+  if (typeof dados.diaria_base !== 'number' || dados.diaria_base <= 0) {
+    erros.push('diaria_base deve ser número positivo');
+  }
+  if (typeof dados.hora_adicional !== 'number' || dados.hora_adicional <= 0) {
+    erros.push('hora_adicional deve ser número positivo');
+  }
+  if (typeof dados.deslocamento_km !== 'number' || dados.deslocamento_km <= 0) {
+    erros.push('deslocamento_km deve ser número positivo');
+  }
+  if (typeof dados.combustivel_litro !== 'number' || dados.combustivel_litro <= 0) {
+    erros.push('combustivel_litro deve ser número positivo');
+  }
+  if (typeof dados.combustivel_ajuste_mercado !== 'number' || dados.combustivel_ajuste_mercado <= 0) {
+    erros.push('combustivel_ajuste_mercado deve ser número positivo');
+  }
+  if (typeof dados.comunicacao_mensal !== 'number' || dados.comunicacao_mensal < 0) {
+    erros.push('comunicacao_mensal deve ser número não-negativo');
+  }
+  if (typeof dados.ipca_percentual !== 'number' || dados.ipca_percentual < 0) {
+    erros.push('ipca_percentual não pode ser negativo');
+  }
+  if (dados.taxa_hora_extra && (typeof dados.taxa_hora_extra !== 'number' || dados.taxa_hora_extra < 0)) {
+    erros.push('taxa_hora_extra deve ser número não-negativo');
+  }
+  if (dados.taxa_fim_semana_feriado && (typeof dados.taxa_fim_semana_feriado !== 'number' || dados.taxa_fim_semana_feriado < 0)) {
+    erros.push('taxa_fim_semana_feriado deve ser número não-negativo');
+  }
+
+  // Verificar se valores são absurdamente altos (proteção contra erro de digitação)
+  if (dados.diaria_base > 10000) {
+    erros.push('diaria_base parece muito alta (> R$ 10.000)');
+  }
+  if (dados.combustivel_litro > 500) {
+    erros.push('combustivel_litro parece muito alto (> R$ 500)');
+  }
+
+  if (erros.length > 0) {
+    throw new Error(`Parâmetros inválidos:\n- ${erros.join('\n- ')}`);
+  }
+}
+
+/**
+ * Retorna parâmetros hardcoded para um mês específico
+ * Usado como fallback quando dados não estão disponíveis no banco de dados
+ */
+function obterParametrosFallback(mesReferencia: string) {
   const parametrosBase = {
     "2026-07": {
       diaria_base: 121.63,
       hora_adicional: 14.53,
       deslocamento_km: 7.5,
-      combustivel_litro: 7.0, // Referência julho 2025
+      combustivel_litro: 7.0,
       comunicacao_mensal: 244.1,
       ipca_percentual: 4.64,
+      combustivel_ajuste_mercado: 1.2,
     },
     "2026-08": {
-      diaria_base: 127.24, // Reajuste IPCA de 4.64%
-      hora_adicional: 15.2, // Reajuste IPCA de 4.64%
-      deslocamento_km: 7.84, // Reajuste IPCA de 4.64%
-      combustivel_litro: 8.4, // Referência julho 2025 com ajuste de +20% = 7.0 * 1.2
-      comunicacao_mensal: 255.42, // Reajuste IPCA de 4.64%
+      diaria_base: 127.24,
+      hora_adicional: 15.2,
+      deslocamento_km: 7.84,
+      combustivel_litro: 8.4,
+      comunicacao_mensal: 255.42,
       ipca_percentual: 4.64,
+      combustivel_ajuste_mercado: 1.2,
     },
   };
 
@@ -101,20 +195,17 @@ export function inicializarParametros(mesReferencia: string): ParametrosContrato
     throw new Error(`Parâmetros não definidos para ${mesReferencia}`);
   }
 
-  return {
-    mes_referencia: mesReferencia,
-    diaria_base: params.diaria_base,
-    hora_adicional: params.hora_adicional,
-    deslocamento_km: params.deslocamento_km,
-    combustivel_litro: params.combustivel_litro,
-    combustivel_ajuste_mercado: 1.2, // +20%
-    comunicacao_mensal: params.comunicacao_mensal,
-    base_obrigatoria_dias: 8,
-    base_obrigatoria_valor: Math.round(params.diaria_base * 8 * 100) / 100,
-    ipca_percentual: params.ipca_percentual,
-    taxa_hora_extra: 0.1, // +10%
-    taxa_fim_semana_feriado: 0.15, // +15%
-  };
+  return params;
+}
+
+/**
+ * ⚠️ DESCONTINUADO: Manter apenas para testes
+ * Versão fallback com parâmetros hardcoded
+ * @deprecated Use inicializarParametros() sem o segundo parâmetro
+ */
+export function inicializarParametrosFallback(mesReferencia: string): ParametrosContrato {
+  const params = obterParametrosFallback(mesReferencia);
+  return inicializarParametros(mesReferencia, params);
 }
 
 /**
