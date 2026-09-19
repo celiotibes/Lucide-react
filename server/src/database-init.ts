@@ -98,22 +98,36 @@ function runMigrations(db: Database.Database): void {
 
     const migrationSQL = fs.readFileSync(migrationPath, "utf-8");
 
-    // Split by semicolon and execute each statement
-    const statements = migrationSQL
-      .split(";")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith("--"));
+    // Try executing the full migration script first
+    try {
+      db.exec(migrationSQL);
+      console.log("[Database] Migration script executed successfully");
+    } catch (error) {
+      // If that fails, try splitting and executing one by one
+      // This helps identify and skip problematic statements
+      const statements = migrationSQL
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0 && !s.startsWith("--") && !s.startsWith("/*"));
 
-    statements.forEach((statement) => {
-      try {
-        db.exec(statement);
-      } catch (erro) {
-        console.error("[Database] Migration error:", erro, "Statement:", statement);
-        throw erro;
+      let executedCount = 0;
+      for (const statement of statements) {
+        try {
+          db.exec(statement);
+          executedCount++;
+        } catch (stmtError) {
+          // Ignore "already exists" errors (idempotent migrations)
+          if (stmtError instanceof Error && stmtError.message.includes("already exists")) {
+            executedCount++;
+          } else {
+            console.error("[Database] Failed to execute:", statement.substring(0, 80));
+            throw stmtError;
+          }
+        }
       }
-    });
 
-    console.log("[Database] Executed", statements.length, "migration statements");
+      console.log("[Database] Executed", executedCount, "migration statements");
+    }
   } catch (erro) {
     throw new Error(
       `Migration failed: ${erro instanceof Error ? erro.message : String(erro)}`
