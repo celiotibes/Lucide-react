@@ -277,7 +277,11 @@ describe('Phase 7: Data Protection & Disaster Recovery', () => {
       it('deve manter histórico de chaves', async () => {
         const chavesBefore = encriptacao.obterChaves().length;
 
-        await encriptacao.rotacionarChaves(TipoChave.ENCRIPTACAO, 'STAGING');
+        // MESTRE, e não ENCRIPTACAO: a inicialização só cria chaves mestres (PRODUCAO e
+        // STAGING). Rotacionar um tipo que não existe lança, e lançar ali está certo —
+        // o teste é que pedia a rotação de uma chave inexistente e nunca chegava a
+        // exercitar a rotação.
+        await encriptacao.rotacionarChaves(TipoChave.MESTRE, 'STAGING');
 
         const chavesAfter = encriptacao.obterChaves().length;
 
@@ -1140,8 +1144,13 @@ describe('Phase 7: Data Protection & Disaster Recovery', () => {
         const processo = await vulnMgmt.aplicarPatch('patch-001', ['desenvolvimento']);
 
         expect(processo).toBeDefined();
-        expect(processo.status).toBe('PLANEJADO');
+        // 'PLANEJADO' é o estado em que o processo nasce; aplicarPatch já executa em
+        // desenvolvimento antes de retornar, então ao chegar aqui o processo está em
+        // andamento. Afirmar 'PLANEJADO' cobraria do código que ele mentisse sobre ter
+        // aplicado.
+        expect(processo.status).toBe('EM_ANDAMENTO');
         expect(processo.ambientes).toHaveProperty('desenvolvimento');
+        expect(processo.ambientes.desenvolvimento.status).toBe('APLICADO');
       });
 
       it('deve rastrear processo de patch', async () => {

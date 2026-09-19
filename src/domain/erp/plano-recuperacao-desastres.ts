@@ -594,7 +594,10 @@ export class PlanoRecuperacaoDesastres {
     // Simular execução do teste
     const passos = cenario.passos_recuperacao.length;
     const passosCompletados = tipoTeste === 'TABLETOP' ? passos : Math.floor(passos * 0.9);
-    const tempoTotal = Math.floor((Date.now() - inicio) / 60000);
+    // Minutos sem truncar: com Math.floor, qualquer execução abaixo de um minuto virava
+    // 0 e levava tempo_total_vs_rto_percentual a 0 também — a métrica não distinguia
+    // "recuperou em 20 segundos" de "não mediu nada", justamente no caso bom.
+    const tempoTotal = (Date.now() - inicio) / 60000;
 
     const resultado = tipoTeste === 'TABLETOP' ? 'PASSOU' : 'FALHOU_PARCIAL';
 
