@@ -282,6 +282,10 @@ describe("Integração Imovel Gestao-Ledger", () => {
 
   describe("registrarReceitaAluguelNoLedger - Renda de Aluguel", () => {
     it("deve registrar receita de aluguel com lançamento duplo", () => {
+      // O caixa não parte de zero: o fixture abre o período com saldo e movimentos. O
+      // que o lançamento garante é a variação, não o valor absoluto.
+      const caixaAntes = obterSaldoConta(db, periodo_id, 1101);
+      const capitalAntes = obterSaldoConta(db, periodo_id, 4101);
       const resultado = registrarReceitaAluguelNoLedger(
         db,
         1,
@@ -300,13 +304,14 @@ describe("Integração Imovel Gestao-Ledger", () => {
       expect(resultado?.lancamento_id).toBeGreaterThan(0);
 
       // Verificar débito em Caixa (1.1.01)
-      const saldoDebito = obterSaldoConta(db, periodo_id, 1101);
-      expect(saldoDebito).toBe(3000);
+      expect(obterSaldoConta(db, periodo_id, 1101)).toBe(caixaAntes + 3000);
 
-      // Verificar crédito em Receita de Aluguel (4.1.01) — saldo na direção natural da
-      // conta credora, portanto positivo (ver comentário análogo acima).
-      const saldoCredito = obterSaldoConta(db, periodo_id, 4101);
-      expect(saldoCredito).toBe(3000);
+      // Crédito de receita. ATENÇÃO: imovel-gestao lança receita de aluguel em 4.1.01,
+      // que neste plano de contas é Capital Social — grupo 4 é patrimônio líquido e
+      // receita é grupo 5 (5.1.01 Aluguel). É a mesma colisão de plano já documentada
+      // em test-setup.ts, e resolvê-la é mudança de modelagem. Por ora a conta já tem
+      // saldo do fixture, então o que se verifica é a variação.
+      expect(obterSaldoConta(db, periodo_id, 4101)).toBe(capitalAntes + 3000);
     });
 
     it("deve evitar duplicação de receita de aluguel", () => {
@@ -350,6 +355,7 @@ describe("Integração Imovel Gestao-Ledger", () => {
 
   describe("registrarArrecadacaoTaxaNoLedger - Arrecadação de Taxa", () => {
     it("deve registrar arrecadação de taxa condominial", () => {
+      const caixaAntes = obterSaldoConta(db, periodo_id, 1101);
       const resultado = registrarArrecadacaoTaxaNoLedger(
         db,
         1,
@@ -367,8 +373,7 @@ describe("Integração Imovel Gestao-Ledger", () => {
       expect(resultado?.lancamento_id).toBeGreaterThan(0);
 
       // Verificar débito em Caixa (1.1.01)
-      const saldoDebito = obterSaldoConta(db, periodo_id, 1101);
-      expect(saldoDebito).toBe(500);
+      expect(obterSaldoConta(db, periodo_id, 1101)).toBe(caixaAntes + 500);
 
       // Verificar crédito em Contas a Pagar (3.1.02)
       const saldoCredito = obterSaldoConta(db, periodo_id, 3102);
@@ -403,9 +408,16 @@ describe("Integração Imovel Gestao-Ledger", () => {
       // Obter saldos
       const saldos = obterSaldoImoveisParaLedger(db, periodo_id, imovel_id);
 
-      expect(saldos).toHaveLength(2);
-      expect(saldos[0].imovel_id).toBe(imovel_id);
-      expect(saldos[0].total_debito).toBeGreaterThan(0);
+      // A função agrupa por (imóvel, tipo de despesa), não por despesa lançada: as duas
+      // despesas acima rendem 'condominio' e 'energia', mais a perna de crédito em
+      // Contas a Pagar, que cai em 'outro' por não estar no CASE. Contar linhas
+      // esperando 2 confundia "duas despesas" com "dois grupos".
+      expect(saldos.every((s) => s.imovel_id === imovel_id)).toBe(true);
+
+      const porTipo = new Map(saldos.map((s) => [s.tipo_despesa, s]));
+      expect(porTipo.get("condominio")?.total_debito).toBe(800);
+      expect(porTipo.get("energia")?.total_debito).toBe(300);
+      expect(porTipo.get("outro")?.total_credito).toBe(1100);
     });
 
     it("deve retornar saldos para todos os imóveis", () => {
@@ -631,10 +643,17 @@ describe("Integração Imovel Gestao-Ledger", () => {
       );
 
       expect(relatorio).not.toBeNull();
-      expect(relatorio?.total_imoveis).toBe(2);
+      // total_imoveis conta todos os imóveis da entidade, inclusive os que o fixture
+      // semeia e os sem movimento no período — não só os dois que este teste usou.
+      // O que o teste tem a verificar é que os seus dois aparecem consolidados.
+      const porImovel = new Map(relatorio!.saldos_por_imovel.map((s) => [s.imovel_id, s]));
+      expect(porImovel.has(imovel_id)).toBe(true);
+      expect(porImovel.has(imovel2_id)).toBe(true);
+      expect(porImovel.get(imovel_id)?.receitas_aluguel).toBe(2500);
+      expect(porImovel.get(imovel2_id)?.receitas_aluguel).toBe(2000);
+
       expect(relatorio?.total_despesas).toBe(1100); // 800 + 300
       expect(relatorio?.total_receitas).toBe(4500); // 2500 + 2000
-      expect(relatorio?.saldos_por_imovel).toHaveLength(2);
 
       // Verificar saldos individuais
       const saldos = relatorio?.saldos_por_imovel || [];
