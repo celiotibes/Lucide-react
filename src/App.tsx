@@ -183,12 +183,17 @@ function Conteudo() {
     if (!ultimoRegistroBackup) return;
     try {
       await navigator.clipboard.writeText(ultimoRegistroBackup.hashSha256);
+      // O sucesso não vira toast: o próprio botão passa a "copiado", que é retorno no
+      // lugar exato para onde a pessoa está olhando. Um toast aqui seria redundante.
       setHashCopiado(true);
     } catch {
-      // clipboard indisponível (permissão negada, contexto não seguro) — o hash continua
-      // visível na tela para cópia manual, só o botão de atalho não funciona.
+      // O hash continua na tela para cópia manual, mas o silêncio era o problema: quem
+      // clica e desvia o olhar assume que copiou, cola outra coisa no laudo e só
+      // descobre quando a prova de integridade não bate.
+      setHashCopiado(false);
+      avisar("warning", "Não foi possível copiar pela área de transferência (o navegador pode ter bloqueado o acesso). Selecione o hash na tela e copie manualmente antes de guardar o backup.");
     }
-  }, [ultimoRegistroBackup]);
+  }, [ultimoRegistroBackup, avisar]);
 
   const importarBanco = useCallback(
     async (arquivo: File) => {
