@@ -494,6 +494,17 @@ export function registrarRetificacao(
         ]
       );
 
+      // Sem o original não há o que reverter. Antes o código seguia em frente e montava
+      // um reverso com débito e crédito indefinidos, que morria lá na frente com
+      // "Lançamento deve ter débito ou crédito" — mensagem que aponta para o lugar
+      // errado e esconde a causa (valor_anterior que não casa com nenhum lançamento).
+      if (!original) {
+        return {
+          sucesso: false,
+          mensagem: `Erro ao registrar retificação: nenhum lançamento de R$${retificacao.valor_anterior.toFixed(2)} encontrado na conta ${retificacao.conta_id} do período ${retificacao.periodo_id} para reverter`,
+        };
+      }
+
       // PASSO 1a: Criar lançamento reverso (inverte débito ↔ crédito)
       const lancamento_reverso: LancamentoContabil = {
         entidade_id: retificacao.entidade_id,
@@ -501,8 +512,8 @@ export function registrarRetificacao(
         conta_id: retificacao.conta_id,
         data_lancamento: retificacao.data_lancamento,
         // Inverter: se original era débito, reverso é crédito
-        valor_debito: original?.valor_credito || undefined,
-        valor_credito: original?.valor_debito || undefined,
+        valor_debito: original.valor_credito || undefined,
+        valor_credito: original.valor_debito || undefined,
         descricao: `RETIFICAÇÃO REVERSO: ${retificacao.motivo_retificacao}`,
         origem_modulo: retificacao.origem_modulo,
         origem_id: retificacao.retificacao_id || retificacao.apontamento_id || 0,

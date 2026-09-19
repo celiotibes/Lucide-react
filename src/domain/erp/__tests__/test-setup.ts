@@ -464,12 +464,17 @@ export async function prepararBancoTeste() {
     );
 
     -- MÓDULO RETIFICAÇÃO (PHASE 4-7)
+    -- Espelha server/migrations/002_retificacao_ledger_mapping.sql, que é o schema que
+    -- ledger.ts grava (retificacao_id, ledger_entry_reverso_id, ledger_entry_novo_id).
+    -- O fixture tinha inventado ledger_entry_original_id/_retificacao_id, e o INSERT do
+    -- código falhava — a retificação era abortada e o teste via só a mensagem de erro.
     CREATE TABLE IF NOT EXISTS retificacao_ledger_mapping (
       id INTEGER PRIMARY KEY,
-      ledger_entry_original_id INTEGER,
-      ledger_entry_retificacao_id INTEGER,
-      motivo TEXT,
-      criado_em TEXT
+      retificacao_id INTEGER NOT NULL,
+      ledger_entry_reverso_id INTEGER NOT NULL,
+      ledger_entry_novo_id INTEGER NOT NULL,
+      criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (retificacao_id, ledger_entry_reverso_id, ledger_entry_novo_id)
     );
 
     -- MÓDULO APONTAMENTOS (PHASE 4-7)
@@ -762,6 +767,27 @@ export async function prepararBancoTeste() {
      FROM contas_plano_contas WHERE codigo = '1.1.01'`,
     [entidade_id, periodo_id]
   );
+
+  // Contrapartidas. Os lançamentos acima eram de perna única: receita creditada sem
+  // débito, despesa debitada sem crédito, caixa aberto sem origem. O período ficava
+  // 5.200 fora de balanço e, como encerrarPeriodo recusa período desbalanceado (e faz
+  // bem), nenhum teste de fechamento conseguia chegar ao que queria verificar.
+  const contrapartidas: [string, string, string, number, string][] = [
+    // [código, descrição, coluna, valor, referência]
+    ["1.1.01", "Recebimento aluguel - janeiro", "valor_debito", 15000, "TEST001C"],
+    ["1.1.01", "Recebimento rateios - janeiro", "valor_debito", 3000, "TEST002C"],
+    ["1.1.01", "Pagamento condomínio - janeiro", "valor_credito", 2000, "TEST003C"],
+    ["1.1.01", "Pagamento manutenção - janeiro", "valor_credito", 800, "TEST004C"],
+    ["4.1.01", "Integralização - caixa inicial", "valor_credito", 10000, "TEST005C"],
+  ];
+  contrapartidas.forEach(([codigo, descricao, coluna, valor, referencia], i) => {
+    db.run(
+      `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, ${coluna}, data_lancamento, origem_modulo, origem_id, referencia_documento)
+       SELECT ?, ?, id, ?, ?, '2026-01-15', 'manual', ?, ?
+       FROM contas_plano_contas WHERE codigo = ?`,
+      [entidade_id, periodo_id, descricao, valor, 100 + i, referencia, codigo]
+    );
+  });
 
   // Ativo imóvel
   db.run(

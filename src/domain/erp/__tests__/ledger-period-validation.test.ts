@@ -153,6 +153,7 @@ describe("Retificação com Mecanismo de Reversão", () => {
   let entidade_id: number;
   let periodo_id: number;
   let conta_id: number;
+  let contaCaixaId: number;
 
   beforeEach(async () => {
     const setup = await prepararBancoTeste();
@@ -165,6 +166,11 @@ describe("Retificação com Mecanismo de Reversão", () => {
       `SELECT id FROM contas_plano_contas WHERE codigo = '5.1.01' LIMIT 1`
     );
     conta_id = contas[0]?.values[0]?.[0];
+    // Contrapartida para os lançamentos deste bloco ficarem em partida dobrada.
+    const caixa = db.exec(
+      `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
+    );
+    contaCaixaId = caixa[0]?.values[0]?.[0];
   });
 
   it("deve registrar retificação com reversão do valor anterior", () => {
@@ -271,7 +277,10 @@ describe("Retificação com Mecanismo de Reversão", () => {
       return;
     }
 
-    // Registrar lançamento
+    // Lançamento em partida dobrada. Antes só o débito de 100 era registrado, o que
+    // desbalanceava o período; encerrarPeriodo então se recusava a fechar (e faz bem), o
+    // período seguia aberto e a retificação passava — o teste falhava acusando falta de
+    // bloqueio onde o que faltava era o fechamento.
     registrarLancamentoContabil(db, {
       entidade_id,
       periodo_id,
@@ -283,12 +292,22 @@ describe("Retificação com Mecanismo de Reversão", () => {
       origem_id: 3,
       referencia_documento: "TEST-003",
     });
+    registrarLancamentoContabil(db, {
+      entidade_id,
+      periodo_id,
+      conta_id: contaCaixaId,
+      data_lancamento: "2026-01-10",
+      valor_credito: 100,
+      descricao: "Contrapartida do lançamento de teste",
+      origem_modulo: "manual",
+      origem_id: 3,
+      referencia_documento: "TEST-003C",
+    });
 
-    // Fechar período
-    const balancete_ok = validarBalanceamento(db, periodo_id);
-    if (balancete_ok.balanceado) {
-      encerrarPeriodo(db, periodo_id, 1, "Teste");
-    }
+    // Fechar período. A precondição é verificada, não presumida: se o fechamento não
+    // acontecer, o que vem depois não testa bloqueio nenhum.
+    expect(validarBalanceamento(db, periodo_id).balanceado).toBe(true);
+    expect(encerrarPeriodo(db, periodo_id, 1, "Teste").sucesso).toBe(true);
 
     // Tentar retificação em período fechado
     const resultado = registrarRetificacao(db, {
@@ -314,6 +333,21 @@ describe("Retificação com Mecanismo de Reversão", () => {
       console.log("Conta não encontrado, pulando teste");
       return;
     }
+
+    // Retificar pressupõe algo a retificar: sem o lançamento de 500,50 no período, não
+    // há o que reverter e a operação falha legitimamente. O teste antes não o criava e
+    // só verificava a mensagem de erro que voltava, sem exercitar a retificação.
+    registrarLancamentoContabil(db, {
+      entidade_id,
+      periodo_id,
+      conta_id,
+      data_lancamento: "2026-01-09",
+      valor_debito: 500.5,
+      descricao: "Lançamento a ser retificado",
+      origem_modulo: "manual",
+      origem_id: 4,
+      referencia_documento: "ORIG-103",
+    });
 
     const resultado = registrarRetificacao(db, {
       retificacao_id: 103,
