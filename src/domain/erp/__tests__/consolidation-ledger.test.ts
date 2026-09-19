@@ -240,13 +240,16 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
 
         expect(estornado).toBe(true);
 
-        // Verify reversal entry was created
-        const reversal = db.exec(
-          `SELECT COUNT(*) as count FROM ledger_entries
-           WHERE estornado_por_id = ? AND descricao LIKE 'ESTORNO%'`,
+        // O estorno cria o lançamento reverso e grava o id dele em estornado_por_id do
+        // ORIGINAL ("estornado por"). O teste antes procurava o reverso carregando
+        // estornado_por_id = original, que é a direção contrária do vínculo.
+        const vinculo = db.exec(
+          `SELECT e.descricao FROM ledger_entries o
+           JOIN ledger_entries e ON e.id = o.estornado_por_id
+           WHERE o.id = ?`,
           [lancamento_id]
         );
-        expect(reversal[0]?.values[0]?.[0]).toBeGreaterThan(0);
+        expect(vinculo[0]?.values[0]?.[0]).toMatch(/^ESTORNO: /);
       }
     });
 

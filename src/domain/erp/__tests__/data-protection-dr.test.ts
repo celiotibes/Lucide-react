@@ -477,7 +477,10 @@ describe('Phase 7: Data Protection & Disaster Recovery', () => {
     });
 
     describe('Sincronização', () => {
-      it('deve sincronizar replicas', async () => {
+      // simularSincronizacao dorme de 1 a 3 segundos reais por réplica, em série, e são
+      // quatro réplicas: o pior caso passa de 12s, contra os 5s de timeout padrão. O
+      // teste falhava de forma intermitente por isso, não por defeito na sincronização.
+      it('deve sincronizar replicas', { timeout: 20000 }, async () => {
         const resultado = await replicacao.sincronizarReplicas();
 
         expect(resultado).toHaveProperty('replicas_sincronizadas');

@@ -446,7 +446,10 @@ export function obterSaldoHabilidades(
   entidade_id: number,
   periodo_id: number
 ): { total_investimento: number; por_tipo: Array<{ tipo: string; valor: number }> } {
-  const [total] = consultar<{ total_valor: number }>(
+  // Sem desestruturar: consultar devolve o array, e `const [total] = ...` pegava a
+  // primeira linha; o `total?.[0]?.total_valor` abaixo então indexava um objeto com
+  // [0] e dava undefined, zerando o investimento total em toda chamada.
+  const total = consultar<{ total_valor: number }>(
     db,
     `SELECT
       SUM(sle.valor) as total_valor

@@ -376,16 +376,8 @@ export function estornarLancamento(
 
   if (!original) return false;
 
-  // Marcar original como estornado
-  executar(
-    db,
-    `UPDATE ledger_entries
-     SET estornado_por_id = ?, motivo_estorno = ?
-     WHERE id = ?`,
-    [lancamento_id, motivo_estorno, lancamento_id],
-  );
-
-  // Criar lançamento reverso (débito ↔ crédito invertido)
+  // Criar lançamento reverso primeiro (débito ↔ crédito invertido): o id dele é o que
+  // o original precisa guardar para a trilha de auditoria ligar um ao outro.
   executar(
     db,
     `INSERT INTO ledger_entries (
@@ -402,6 +394,22 @@ export function estornarLancamento(
       ?, datetime('now')
      FROM ledger_entries WHERE id = ?`,
     [estornado_por, lancamento_id],
+  );
+
+  const [reverso] = consultar<{ id: number }>(
+    db,
+    "SELECT last_insert_rowid() as id",
+  );
+
+  // Marcar original como estornado, apontando para o lançamento que o estornou.
+  // Antes gravava estornado_por_id = lancamento_id na própria linha do original: o
+  // lançamento apontava para si mesmo, e a trilha nunca chegava ao estorno.
+  executar(
+    db,
+    `UPDATE ledger_entries
+     SET estornado_por_id = ?, motivo_estorno = ?
+     WHERE id = ?`,
+    [reverso.id, motivo_estorno, lancamento_id],
   );
 
   return true;

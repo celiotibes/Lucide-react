@@ -594,10 +594,14 @@ export class PlanoRecuperacaoDesastres {
     // Simular execução do teste
     const passos = cenario.passos_recuperacao.length;
     const passosCompletados = tipoTeste === 'TABLETOP' ? passos : Math.floor(passos * 0.9);
-    // Minutos sem truncar: com Math.floor, qualquer execução abaixo de um minuto virava
-    // 0 e levava tempo_total_vs_rto_percentual a 0 também — a métrica não distinguia
-    // "recuperou em 20 segundos" de "não mediu nada", justamente no caso bom.
-    const tempoTotal = (Date.now() - inicio) / 60000;
+    // Duração simulada = soma do tempo estimado dos passos efetivamente completados.
+    // Antes era o relógio de parede entre duas atribuições síncronas: a função não
+    // executa recuperação nenhuma, então media sempre ~0ms, e o percentual sobre o RTO
+    // saía zero. Comparar um teste de DRP com o RTO exige o tempo dos passos, que é o
+    // que o cenário descreve em tempo_estimado_minutos.
+    const tempoTotal = cenario.passos_recuperacao
+      .slice(0, passosCompletados)
+      .reduce((soma, passo) => soma + passo.tempo_estimado_minutos, 0);
 
     const resultado = tipoTeste === 'TABLETOP' ? 'PASSOU' : 'FALHOU_PARCIAL';
 
