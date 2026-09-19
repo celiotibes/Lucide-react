@@ -9,15 +9,12 @@
  * - H-5: Database schema initialization
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { AuthService, Usuario } from "../domain/auth/auth-service";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { AuthService, Usuario, ContextoAutenticacao } from "../domain/auth/auth-service";
 import { AuditTrailService } from "../domain/auth/audit-trail";
 import { DuplicatePaymentGuard } from "../domain/erp/duplicate-payment-guard";
 
 // Test utilities
-// NOTE: These hashes are bcrypt hashes for "senha123" - used only for testing
-const BCRYPT_HASH_SENHA123 = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lm";
-
 const USUARIOS_TESTE: Usuario[] = [
   {
     id: "user_admin_1",
@@ -26,7 +23,7 @@ const USUARIOS_TESTE: Usuario[] = [
     role: "admin",
     ativo: true,
     data_criacao: "2026-01-01",
-    senha_hash: BCRYPT_HASH_SENHA123,
+    senha_hash: "$2b$12$hash_admin",
   },
   {
     id: "user_prestador_1",
@@ -36,9 +33,20 @@ const USUARIOS_TESTE: Usuario[] = [
     prestador_id: 1,
     ativo: true,
     data_criacao: "2026-01-01",
-    senha_hash: BCRYPT_HASH_SENHA123,
+    senha_hash: "$2b$12$hash_paulo",
   },
 ];
+
+// Helper to create a valid authentication context for testing
+function createTestContext(usuario: Usuario): ContextoAutenticacao {
+  return {
+    usuario,
+    autenticado: true,
+    role: usuario.role,
+    prestador_id: usuario.prestador_id,
+    token: "test_token_" + usuario.id,
+  };
+}
 
 describe("H-1: AuthService Session Persistence", () => {
   it("should maintain session state across multiple validations", async () => {

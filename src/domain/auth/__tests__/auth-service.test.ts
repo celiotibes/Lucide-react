@@ -2,49 +2,57 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { AuthService, Usuario } from "../auth-service";
 import { AuditTrailService } from "../audit-trail";
 import { PermissionGuard } from "../permission-guard";
+import bcryptjs from "bcryptjs";
 
 describe("Authentication & Authorization (P1.4)", () => {
   let authService: AuthService;
   let auditService: AuditTrailService;
   let guard: PermissionGuard;
+  let usuarios_teste: Usuario[];
 
-  const usuarios_teste: Usuario[] = [
-    {
-      id: "user_admin_1",
-      nome: "Admin User",
-      email: "admin@example.com",
-      role: "admin",
-      ativo: true,
-      data_criacao: "2026-01-01",
-    },
-    {
-      id: "user_gestor_1",
-      nome: "Gestor User",
-      email: "gestor@example.com",
-      role: "gestor",
-      ativo: true,
-      data_criacao: "2026-01-01",
-    },
-    {
-      id: "user_prestador_1",
-      nome: "Paulo Bruxel",
-      email: "paulo@example.com",
-      role: "prestador",
-      prestador_id: 1,
-      ativo: true,
-      data_criacao: "2026-01-01",
-    },
-  ];
-
-  beforeEach(() => {
+  beforeEach(async () => {
     authService = new AuthService();
     auditService = new AuditTrailService();
     guard = new PermissionGuard(authService, auditService);
+
+    // C-1: Generate bcrypt hashes for test users
+    const senhaHash = await AuthService.gerarHashSenha("senha123");
+
+    usuarios_teste = [
+      {
+        id: "user_admin_1",
+        nome: "Admin User",
+        email: "admin@example.com",
+        role: "admin",
+        ativo: true,
+        data_criacao: "2026-01-01",
+        senha_hash: senhaHash,
+      },
+      {
+        id: "user_gestor_1",
+        nome: "Gestor User",
+        email: "gestor@example.com",
+        role: "gestor",
+        ativo: true,
+        data_criacao: "2026-01-01",
+        senha_hash: senhaHash,
+      },
+      {
+        id: "user_prestador_1",
+        nome: "Paulo Bruxel",
+        email: "paulo@example.com",
+        role: "prestador",
+        prestador_id: 1,
+        ativo: true,
+        data_criacao: "2026-01-01",
+        senha_hash: senhaHash,
+      },
+    ];
   });
 
   describe("Authentication", () => {
-    it("autentica usuário com email e senha válidos", () => {
-      const resultado = authService.autenticar(
+    it("autentica usuário com email e senha válidos", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -55,8 +63,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(resultado.erro).toBeUndefined();
     });
 
-    it("rejeita email inválido", () => {
-      const resultado = authService.autenticar(
+    it("rejeita email inválido", async () => {
+      const resultado = await authService.autenticar(
         "invalido@example.com",
         "senha123",
         usuarios_teste
@@ -66,8 +74,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(resultado.erro).toContain("Email ou senha");
     });
 
-    it("rejeita senha vazia", () => {
-      const resultado = authService.autenticar(
+    it("rejeita senha vazia", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "",
         usuarios_teste
@@ -77,16 +85,16 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(resultado.erro).toContain("Email ou senha");
     });
 
-    it("protege contra brute force após 5 tentativas", () => {
+    it("protege contra brute force após 5 tentativas", async () => {
       const email = "admin@example.com";
 
       // 5 tentativas falhadas
       for (let i = 0; i < 5; i++) {
-        authService.autenticar(email, "senha_errada", usuarios_teste);
+        await authService.autenticar(email, "senha_errada", usuarios_teste);
       }
 
       // 6ª tentativa com senha correta também falha
-      const resultado = authService.autenticar(
+      const resultado = await authService.autenticar(
         email,
         "senha123",
         usuarios_teste
@@ -96,8 +104,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(resultado.erro).toContain("Muitas tentativas");
     });
 
-    it("valida token de sessão após autenticação", () => {
-      const resultado = authService.autenticar(
+    it("C-2: Valida token JWT após autenticação", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -112,8 +120,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(contexto?.autenticado).toBe(true);
     });
 
-    it("invalida token após logout", () => {
-      const resultado = authService.autenticar(
+    it("C-2: Invalida token JWT após logout", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -125,11 +133,22 @@ describe("Authentication & Authorization (P1.4)", () => {
       const contexto = authService.validarToken(token);
       expect(contexto).toBeNull();
     });
+
+    it("C-1: Rejeita senha incorreta mesmo com bcrypt", async () => {
+      const resultado = await authService.autenticar(
+        "admin@example.com",
+        "senha_incorreta",
+        usuarios_teste
+      );
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.erro).toContain("Email ou senha");
+    });
   });
 
   describe("Authorization - Permissões por Role", () => {
-    it("admin tem acesso a todas as operações", () => {
-      const resultado = authService.autenticar(
+    it("admin tem acesso a todas as operações", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -143,8 +162,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(authService.temPermissao(contexto!, "usuario", "criar")).toBe(true);
     });
 
-    it("gestor pode ler e aprovar mas não criar contratos", () => {
-      const resultado = authService.autenticar(
+    it("gestor pode ler e aprovar mas não criar contratos", async () => {
+      const resultado = await authService.autenticar(
         "gestor@example.com",
         "senha123",
         usuarios_teste
@@ -158,8 +177,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(authService.temPermissao(contexto!, "usuario", "criar")).toBe(false);
     });
 
-    it("prestador pode criar apontamentos mas não aprovar pagamentos", () => {
-      const resultado = authService.autenticar(
+    it("prestador pode criar apontamentos mas não aprovar pagamentos", async () => {
+      const resultado = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
@@ -175,8 +194,8 @@ describe("Authentication & Authorization (P1.4)", () => {
   });
 
   describe("Data Access Control", () => {
-    it("prestador só acessa seus próprios dados", () => {
-      const resultado = authService.autenticar(
+    it("prestador só acessa seus próprios dados", async () => {
+      const resultado = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
@@ -191,8 +210,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(authService.podeLerPrestador(contexto!, 2)).toBe(false);
     });
 
-    it("gestor acessa dados de qualquer prestador", () => {
-      const resultado = authService.autenticar(
+    it("gestor acessa dados de qualquer prestador", async () => {
+      const resultado = await authService.autenticar(
         "gestor@example.com",
         "senha123",
         usuarios_teste
@@ -204,8 +223,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(authService.podeLerPrestador(contexto!, 2)).toBe(true);
     });
 
-    it("admin acessa dados de qualquer prestador", () => {
-      const resultado = authService.autenticar(
+    it("admin acessa dados de qualquer prestador", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -217,8 +236,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(authService.podeLerPrestador(contexto!, 99)).toBe(true);
     });
 
-    it("prestador não pode modificar apontamentos de outro", () => {
-      const resultado = authService.autenticar(
+    it("prestador não pode modificar apontamentos de outro", async () => {
+      const resultado = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
@@ -235,22 +254,22 @@ describe("Authentication & Authorization (P1.4)", () => {
   });
 
   describe("Approval Permissions", () => {
-    it("apenas gestor e admin podem aprovar", () => {
-      const admin_result = authService.autenticar(
+    it("apenas gestor e admin podem aprovar", async () => {
+      const admin_result = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
       );
       const admin_ctx = authService.validarToken(admin_result.token!);
 
-      const gestor_result = authService.autenticar(
+      const gestor_result = await authService.autenticar(
         "gestor@example.com",
         "senha123",
         usuarios_teste
       );
       const gestor_ctx = authService.validarToken(gestor_result.token!);
 
-      const paulo_result = authService.autenticar(
+      const paulo_result = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
@@ -264,8 +283,8 @@ describe("Authentication & Authorization (P1.4)", () => {
   });
 
   describe("Audit Trail Integration", () => {
-    it("registra acesso negado quando sem permissão", () => {
-      const resultado = authService.autenticar(
+    it("registra acesso negado quando sem permissão", async () => {
+      const resultado = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
@@ -281,8 +300,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(registros[registros.length - 1].usuario_id).toBe("user_prestador_1");
     });
 
-    it("registra ações bem-sucedidas com auditoria", () => {
-      const resultado = authService.autenticar(
+    it("registra ações bem-sucedidas com auditoria", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -307,8 +326,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(registros[registros.length - 1].tipo_acao).toBe("criar_apontamento");
     });
 
-    it("calcula estatísticas de auditoria", () => {
-      const resultado = authService.autenticar(
+    it("calcula estatísticas de auditoria", async () => {
+      const resultado = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -346,8 +365,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(resultado.motivo).toContain("autenticado");
     });
 
-    it("permite operação com permissão adequada", () => {
-      const auth_result = authService.autenticar(
+    it("permite operação com permissão adequada", async () => {
+      const auth_result = await authService.autenticar(
         "admin@example.com",
         "senha123",
         usuarios_teste
@@ -364,8 +383,8 @@ describe("Authentication & Authorization (P1.4)", () => {
       expect(resultado.permitido).toBe(true);
     });
 
-    it("valida acesso a prestador específico", () => {
-      const resultado = authService.autenticar(
+    it("valida acesso a prestador específico", async () => {
+      const resultado = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
