@@ -20,19 +20,18 @@ function aplicarMigrations(db: Database): void {
     .sort(); // prefixo de data no nome define a ordem
   for (const arquivo of arquivos) {
     const sql = readFileSync(join(DIR_MIGRATIONS, arquivo), "utf8");
-    // PRAGMA é configuração de conexão, não de migration de módulo: em produção quem
-    // liga foreign_keys é o schema.sql. Deixar o PRAGMA daqui valer ligaria a
-    // integridade referencial no meio do fixture, e os dados de seed atuais não a
-    // satisfazem — são 22 testes que passariam a falhar por dados, não por schema.
-    // FIXME: semear os dados que faltam e passar a rodar com foreign_keys = ON, que é
-    // o que a produção faz; hoje o fixture é mais permissivo que o app real.
-    db.run(sql.replace(/^\s*PRAGMA[^;]*;/gim, ""));
+    db.run(sql);
   }
 }
 
 export async function prepararBancoTeste() {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
+  // Integridade referencial ligada, como o schema.sql da produção faz. O fixture rodava
+  // sem ela e por isso era mais permissivo que o app real: aceitava lançamento em conta
+  // inexistente (que obterSaldoConta trata como devedora por omissão, invertendo o sinal
+  // do saldo) e log de sincronização apontando para movimento que não existe.
+  db.run("PRAGMA foreign_keys = ON;");
 
   // Criar esquema básico
   db.run(`
@@ -938,6 +937,25 @@ export async function prepararBancoTeste() {
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [1, entidade_id, "conta_corrente_pessoal", "Conta pessoal Banco X", 500, "2020-01-01", "ativa"]
   );
+
+  // Movimentos pessoais que os testes de integração referenciam por id. Sem eles, o
+  // FOREIGN KEY de contas_pessoais_sincronizacao_log → movimentos_pessoais falha, e o
+  // fixture só não acusava porque rodava com foreign_keys desligada — mais permissivo
+  // que a produção, que liga a integridade referencial no schema.sql.
+  // Conta técnica separada: os movimentos abaixo existem só para satisfazer a chave
+  // estrangeira, e prendê-los à conta 1 alteraria o saldo que outros testes verificam.
+  db.run(
+    `INSERT INTO contas_pessoais (id, entidade_id, tipo_conta, descricao, saldo_inicial, data_abertura, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [99, entidade_id, "conta_corrente_pessoal", "Conta técnica (apenas para FK de movimentos)", 0, "2020-01-01", "ativa"]
+  );
+  for (const idMovimento of [1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 30, 40, 41, 50, 51, 52, 60, 61, 62, 63, 70, 71, 72, 80, 81, 82]) {
+    db.run(
+      `INSERT INTO movimentos_pessoais (id, conta_pessoal_id, entidade_id, periodo_id, data_movimento, descricao, tipo_movimento, valor, criado_em)
+       VALUES (?, 99, ?, ?, '2026-01-10', 'Movimento de teste', 'deposito', 100, '2026-01-10')`,
+      [idMovimento, entidade_id, periodo_id]
+    );
+  }
 
   // ===== DADOS DE TESTE: MÓDULO GESTÃO DE IMÓVEIS =====
   // Inserir documento de imóvel (Escritura)

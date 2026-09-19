@@ -58,6 +58,7 @@ export const PLANO_DE_CONTAS_ERP = [
   { id: 5211, codigo: "5.2.11", descricao: "Limpeza", grupo: "despesa", natureza: "debito" },
   { id: 5214, codigo: "5.2.14", descricao: "Outras despesas com imóveis", grupo: "despesa", natureza: "debito" },
   { id: 5301, codigo: "5.3.01", descricao: "Depreciação", grupo: "despesa", natureza: "debito" },
+  { id: 5401, codigo: "5.4.01", descricao: "Impostos e contribuições", grupo: "despesa", natureza: "debito" },
 
   // Despesa — operação, advocacia e provisões
   { id: 6101, codigo: "6.1.01", descricao: "Despesa com aluguel", grupo: "despesa", natureza: "debito" },

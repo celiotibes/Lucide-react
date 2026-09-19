@@ -414,13 +414,18 @@ describe('PHASE 4: External Systems Integration', () => {
 
     it('deve registrar imposto no ledger', () => {
       const imposto = fisco.calcularIRPJ(50000, 'lucro_real');
+      // Contas reais do plano (5.4.01 impostos, 1.1.01 caixa). Antes passava 1 e 1 —
+      // id que não existe em contas_plano_contas. Com a integridade referencial ligada
+      // isso passa a falhar, que é o ponto: lançamento em conta inexistente não deve
+      // ser aceito em silêncio, e obterSaldoConta trataria a conta como devedora por
+      // omissão, invertendo o sinal do saldo.
       const resultado = fisco.registrarImpostoNoLedger(
         db,
         entidade_id,
         periodo_id,
         imposto,
-        1,
-        1
+        5401,
+        1101
       );
 
       expect(resultado).toBeGreaterThan(0);
@@ -691,7 +696,7 @@ describe('PHASE 4: External Systems Integration', () => {
         periodo_id,
         {
           data_lancamento: '2026-01-15',
-          conta_id: 1,
+          conta_id: 1101, // Caixa; antes era 1, id inexistente no plano de contas
           descricao: 'Teste API',
           valor_debito: 100,
         }
