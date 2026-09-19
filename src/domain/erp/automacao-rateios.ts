@@ -32,7 +32,8 @@ function obterImoveisParaRateio(
        FROM imoveis i
        INNER JOIN contratos_locacao c ON i.id = c.imovel_id
        WHERE i.uso_pessoal = 0 AND i.financiado = 0
-         AND c.status IN ('ativo', 'pendente')`
+         -- contrato vigente: contratos_locacao não tem status; data_fim nulo = em vigor
+         AND (c.data_fim IS NULL OR c.data_fim >= DATE('now'))`
     : `SELECT id, fracao_ideal, area_m2
        FROM imoveis
        WHERE uso_pessoal = 0 AND financiado = 0`;
@@ -280,7 +281,8 @@ export function automatizarRateioPorDocumento(
     const [contrato] = consultar<{ id: number }>(
       db,
       `SELECT id FROM contratos_locacao
-       WHERE imovel_id = ? AND status IN ('ativo', 'pendente')
+       -- contrato vigente: contratos_locacao não tem status; data_fim nulo = em vigor
+       WHERE imovel_id = ? AND (data_fim IS NULL OR data_fim >= DATE('now'))
        LIMIT 1`,
       [rateio.imovel_id],
     );
