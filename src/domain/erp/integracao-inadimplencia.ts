@@ -263,7 +263,9 @@ export function relatorioInadimplenciaDetalhado(
 ): InadimplenciaCalculada[] {
   const contratos = consultar<{ id: number }>(
     db,
-    `SELECT id FROM contratos_locacao WHERE status IN ('ativo', 'pendente')`,
+    `SELECT id FROM contratos_locacao
+     -- contrato vigente: não há coluna status; data_fim nulo = em vigor
+     WHERE data_fim IS NULL OR data_fim >= DATE('now')`,
     [],
   );
 

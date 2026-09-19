@@ -399,7 +399,8 @@ export function reconciliarContratosImovel(
     `SELECT DISTINCT c.id
      FROM contratos_locacao c
      LEFT JOIN sincronizacoes_contratos_imovel s ON c.id = s.contrato_id
-     WHERE c.status IN ('ativo', 'pendente')
+     -- contrato vigente: contratos_locacao não tem status; data_fim nulo = em vigor
+     WHERE c.data_fim IS NULL OR c.data_fim >= DATE('now')
        AND (s.id IS NULL OR s.status = 'erro')
      ORDER BY c.criado_em ASC`,
     []
