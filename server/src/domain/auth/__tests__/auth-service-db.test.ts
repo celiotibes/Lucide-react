@@ -39,20 +39,19 @@ function createTestDatabase(): Database.Database {
 
   const schema = fs.readFileSync(schemaPath, "utf-8");
 
-  // Execute schema - use db.exec() to execute the full script
-  try {
-    db.exec(schema);
-  } catch (e) {
-    // If exec fails, try splitting and executing statements one by one
-    const statements = schema
-      .split(";")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith("--"));
+  // Execute schema - split and execute statements one by one
+  // This avoids issues with "already exists" errors from CREATE IF NOT EXISTS
+  const statements = schema
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !s.startsWith("--"));
 
-    for (const statement of statements) {
-      try {
-        db.exec(statement);
-      } catch (err) {
+  for (const statement of statements) {
+    try {
+      db.exec(statement);
+    } catch (err) {
+      // Ignore "already exists" errors (from CREATE TABLE/INDEX IF NOT EXISTS)
+      if (!(err instanceof Error && err.message.includes("already exists"))) {
         console.error("Failed to execute statement:", statement.substring(0, 100));
         throw err;
       }
