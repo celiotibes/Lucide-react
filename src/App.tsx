@@ -5,10 +5,6 @@ import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
 import { useToast } from "./ui/useToast";
 import { SeletorDensidade, SeletorTema } from "./ui/Preferencias";
-
-/** Aviso que precisa sobreviver a um window.location.reload() (hoje, só a confirmação
- *  de importação de backup, que recarrega a página para reabrir o banco novo). */
-const CHAVE_AVISO_POS_RELOAD = "crmt:aviso-pos-reload";
 import { useDb } from "./db/useDb";
 import { exportarArquivo, importarArquivo } from "./db/connection";
 import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
@@ -16,6 +12,10 @@ import { registrarBackup, calcularStatusBackup, type RegistroBackup } from "./do
 import { gerarPainelPendencias } from "./domain/auditoria/painelPendencias";
 import { Dashboard } from "./components/Dashboard";
 import type { FiltroTransacoesInicial } from "./components/TransacoesView";
+
+/** Aviso que precisa sobreviver a um window.location.reload() (hoje, só a confirmação
+ *  de importação de backup, que recarrega a página para reabrir o banco novo). */
+const CHAVE_AVISO_POS_RELOAD = "crmt:aviso-pos-reload";
 
 // Só uma aba renderiza por vez ({aba === "x" && <X/>}) — carregar as 16 telas que não são o
 // Painel (a aba inicial) de forma preguiçosa evita que o bundle de abertura inclua código que
@@ -117,6 +117,33 @@ function Conteudo() {
   const [hashCopiado, setHashCopiado] = useState(false);
   const [backupTick, setBackupTick] = useState(0);
   const inputImportarRef = useRef<HTMLInputElement>(null);
+  const temporizadorHash = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const limparTemporizadorHash = useCallback(() => {
+    if (temporizadorHash.current === null) return;
+    clearTimeout(temporizadorHash.current);
+    temporizadorHash.current = null;
+  }, []);
+
+  /** Volta o rótulo do botão para "copiar hash" depois de 2s. Sem isso o botão ficava
+   *  em "copiado" para sempre, e uma segunda cópia — para um segundo documento, por
+   *  exemplo — não dava sinal nenhum de ter funcionado. */
+  const marcarHashCopiado = useCallback(() => {
+    limparTemporizadorHash(); // senão o timer do clique anterior derrubaria este cedo
+    setHashCopiado(true);
+    temporizadorHash.current = setTimeout(() => {
+      temporizadorHash.current = null;
+      setHashCopiado(false);
+    }, 2000);
+  }, [limparTemporizadorHash]);
+
+  /** Desfaz a marca de imediato, cancelando um retorno já agendado. */
+  const desmarcarHashCopiado = useCallback(() => {
+    limparTemporizadorHash();
+    setHashCopiado(false);
+  }, [limparTemporizadorHash]);
+
+  useEffect(() => limparTemporizadorHash, [limparTemporizadorHash]);
 
   // Recalculado a cada persistência real (versao muda) e a cada backup exportado
   // (backupTick muda) — os dois únicos eventos que afetam o status.
@@ -166,7 +193,9 @@ function Conteudo() {
 
       const registro = await registrarBackup(bytes, nomeArquivo);
       setUltimoRegistroBackup(registro);
-      setHashCopiado(false);
+      // Cancela também um retorno de rótulo agendado: o hash é outro, e a marca de
+      // "copiado" do backup anterior não vale para ele.
+      desmarcarHashCopiado();
       setBackupTick((t) => t + 1);
       avisar("good", `Backup exportado: ${nomeArquivo}`);
     } catch (erro) {
@@ -177,7 +206,7 @@ function Conteudo() {
       if (baixou) avisar("warning", `${nomeArquivo} foi baixado e é válido, mas não foi possível registrá-lo (${motivo}) — guarde o arquivo; o aviso de backup continuará marcando pendência.`);
       else avisar("critical", `Falha ao exportar o backup: ${motivo}. Nenhum arquivo foi gerado.`);
     }
-  }, [db, avisar]);
+  }, [db, avisar, desmarcarHashCopiado]);
 
   const copiarHash = useCallback(async () => {
     if (!ultimoRegistroBackup) return;
@@ -185,15 +214,15 @@ function Conteudo() {
       await navigator.clipboard.writeText(ultimoRegistroBackup.hashSha256);
       // O sucesso não vira toast: o próprio botão passa a "copiado", que é retorno no
       // lugar exato para onde a pessoa está olhando. Um toast aqui seria redundante.
-      setHashCopiado(true);
+      marcarHashCopiado();
     } catch {
       // O hash continua na tela para cópia manual, mas o silêncio era o problema: quem
       // clica e desvia o olhar assume que copiou, cola outra coisa no laudo e só
       // descobre quando a prova de integridade não bate.
-      setHashCopiado(false);
+      desmarcarHashCopiado();
       avisar("warning", "Não foi possível copiar pela área de transferência (o navegador pode ter bloqueado o acesso). Selecione o hash na tela e copie manualmente antes de guardar o backup.");
     }
-  }, [ultimoRegistroBackup, avisar]);
+  }, [ultimoRegistroBackup, avisar, marcarHashCopiado, desmarcarHashCopiado]);
 
   const importarBanco = useCallback(
     async (arquivo: File) => {
