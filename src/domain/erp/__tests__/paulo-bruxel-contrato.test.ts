@@ -391,4 +391,89 @@ describe("Paulo Bruxel Contract Module", () => {
       expect(componentes.comunicacao).toBe(244.1); // R$ 244,10
     });
   });
+
+  describe("Edge Cases - Casos Extremos", () => {
+    let parametros: ParametrosContrato;
+
+    beforeEach(() => {
+      parametros = inicializarParametros("2026-07");
+    });
+
+    it("processa horas fracionárias (0.5 de hora)", () => {
+      const resultado = calcularDiaria(parametros, "dia_util", 8.5);
+
+      expect(resultado.valor_total).toBeGreaterThan(parametros.diaria_base);
+      expect(resultado.horas_extras).toBeGreaterThan(0);
+    });
+
+    it("processa dia com 24 horas (limite máximo)", () => {
+      const resultado = calcularDiaria(parametros, "dia_util", 24);
+
+      expect(resultado.valor_total).toBeGreaterThan(0);
+      expect(resultado.horas_extras).toBeGreaterThan(0);
+      expect(isFinite(resultado.valor_total)).toBe(true);
+    });
+
+    it("processa dia com zero horas (ainda recebe diária base se apontado)", () => {
+      const resultado = calcularDiaria(parametros, "dia_util", 0);
+
+      // Se o dia foi apontado, ele recebe a diária base mesmo que tenha 0 horas
+      // Válido quando alguém se desloca mas não trabalha por motivo de força maior
+      expect(resultado.valor_total).toBe(parametros.diaria_base);
+      expect(resultado.diaria_pura).toBe(parametros.diaria_base);
+    });
+
+    it("processa deslocamento de zero km", () => {
+      const resultado = calcularDeslocamento(parametros, 0);
+
+      expect(resultado.valor_total).toBe(0);
+    });
+
+    it("processa combustível com zero litros", () => {
+      const resultado = calcularCombustivel(parametros, 0);
+
+      expect(resultado.valor_total).toBe(0);
+    });
+
+    it("processa feriado com horas extras significativas", () => {
+      const resultado = calcularDiaria(parametros, "feriado", 12);
+
+      // Feriado tem 15% de adicional + horas extras
+      expect(resultado.adicional_fim_semana).toBeGreaterThan(0);
+      expect(resultado.horas_extras).toBeGreaterThan(0);
+    });
+
+    it("processa reembolsos muito altos sem overflow", () => {
+      const registros: RegistroAcesso[] = [
+        { data: "2026-07-01", tipo_dia: "dia_util", horas_trabalhadas: 8, km_percorridos: 0 }
+      ];
+
+      const componentes = processarMes(parametros, registros, 50000, 50000);
+
+      expect(isFinite(componentes.total)).toBe(true);
+      expect(componentes.reembolso_cartao).toBe(50000);
+      expect(componentes.reembolso_pix).toBe(50000);
+    });
+
+    it("processa 31 dias do mês com trabalho todos os dias", () => {
+      const registros: RegistroAcesso[] = Array.from({ length: 31 }, (_, i) => ({
+        data: `2026-07-${String(i + 1).padStart(2, "0")}`,
+        tipo_dia: "dia_util",
+        horas_trabalhadas: 8,
+        km_percorridos: 0
+      }));
+
+      const componentes = processarMes(parametros, registros, 0, 0);
+
+      expect(componentes.total).toBeGreaterThan(0);
+      expect(isFinite(componentes.total)).toBe(true);
+    });
+
+    it("valida deslocamento com mais de 500 km", () => {
+      const resultado = calcularDeslocamento(parametros, 1000);
+
+      expect(resultado.valor_total).toBe(7500); // 1000 * 7.50
+      expect(isFinite(resultado.valor_total)).toBe(true);
+    });
+  });
 });
