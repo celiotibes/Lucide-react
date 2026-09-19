@@ -6,8 +6,13 @@ import { parseTabelasDoSchema, garantirColunasAtualizadas, reconstruirLedgerEntr
 describe("parseTabelasDoSchema — contra o schema.sql real", () => {
   const tabelas = parseTabelasDoSchema(schemaSql);
 
-  it("encontra todas as 45 tabelas do schema", () => {
-    expect(tabelas.size).toBe(45);
+  it("encontra todas as 48 tabelas do schema", () => {
+    expect(tabelas.size).toBe(48);
+    // As três últimas a entrar: cofre de evidências, triagem de importação e a trilha
+    // de auditoria persistente.
+    for (const nova of ["lotes_importacao", "importacao_linhas", "auditoria_log"]) {
+      expect(tabelas.has(nova)).toBe(true);
+    }
   });
 
   it("imoveis: extrai co_titular_nome corretamente apesar do comentário multilinha com parêntese desbalanceado numa única linha (achado de auditoria anterior)", () => {
