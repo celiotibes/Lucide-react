@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
+import { garantirPlanoDeContasErp } from "../planoDeContasErp";
 import type { Database } from "sql.js";
 
 const DIR_MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), "..", "__migrations__");
@@ -686,13 +687,17 @@ export async function prepararBancoTeste() {
   );
 
   // Criar plano de contas básico
+  // Plano autoritativo do ERP (planoDeContasErp.ts) primeiro: é a fonte única, e é
+  // contra ele que os módulos referenciam conta por número. O bloco abaixo só acrescenta
+  // contas extras de teste, e NÃO pode redefinir nenhum código dele — foi assim que
+  // surgiram as duas colisões (faixa 5 como receita, 4.1.01 como Capital Social).
+  garantirPlanoDeContasErp(db, entidade_id);
+
   const contasPadrao = [
     // Ativo
     ["1.1.01", "Caixa", "ativo", "debito"],
     ["1.1.02", "Conta Bancária", "ativo", "debito"],
     ["1.1.03", "Aplicações Financeiras", "ativo", "debito"],
-    ["2.1.01", "Imóvel", "ativo", "debito"],
-    ["2.1.02", "Equipamentos", "ativo", "debito"],
 
     // Passivo
     ["3.1.01", "Fornecedores", "passivo", "credito"],
@@ -700,15 +705,8 @@ export async function prepararBancoTeste() {
     ["3.2.01", "Empréstimos de Longo Prazo", "passivo", "credito"],
 
     // Patrimônio Líquido
-    ["4.1.01", "Capital Social", "patrimonio_liquido", "credito"],
-    ["4.1.02", "Lucros Acumulados", "patrimonio_liquido", "credito"],
 
     // Receitas
-    ["5.1.01", "Aluguel", "receita", "credito"],
-    ["5.1.02", "Reajustes", "receita", "credito"],
-    ["5.1.03", "Rateios", "receita", "credito"],
-    ["5.2.01", "Juros Recebidos", "receita", "credito"],
-    ["5.3.01", "Outras Receitas", "receita", "credito"],
 
     // Despesas
     ["6.1.01", "Condomínio", "despesa", "debito"],
@@ -749,10 +747,7 @@ export async function prepararBancoTeste() {
   // Mapeamento de códigos para IDs esperados pela lógica de negócios
   const codigoParaId: Record<string, number> = {
     "1.1.01": 1101, "1.1.02": 1102, "1.1.03": 1103,
-    "2.1.01": 2101, "2.1.02": 2102,
     "3.1.01": 3101, "3.1.02": 3102, "3.2.01": 3201,
-    "4.1.01": 4101, "4.1.02": 4102,
-    "5.1.01": 5101, "5.1.02": 5102, "5.1.03": 5103, "5.2.01": 5201, "5.3.01": 5301,
     "6.1.01": 6101, "6.1.02": 6102, "6.1.03": 6103, "6.1.04": 6104, "6.1.05": 6105, "6.1.06": 6106, "6.1.07": 6107,
     "6.2.01": 6201,
     "6.3.01": 6301, "6.3.02": 6302, "6.3.03": 6303, "6.3.04": 6304,
@@ -778,8 +773,11 @@ export async function prepararBancoTeste() {
     // mapa viraria falha intermitente em vez de erro claro.
     const id = codigoParaId[codigo];
     if (id === undefined) throw new Error(`Conta ${codigo} não tem id fixo em codigoParaId — acrescente antes de semeá-la`);
+    // INSERT OR IGNORE: o plano autoritativo do ERP já foi semeado acima e é quem manda.
+    // Este bloco só acrescenta contas extras de teste; se um código já existe lá, a
+    // definição de lá prevalece, em vez de o fixture redefini-la com outro significado.
     db.run(
-      `INSERT INTO contas_plano_contas (id, entidade_id, codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO contas_plano_contas (id, entidade_id, codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?, ?, ?)`,
       [id, entidade_id, codigo, desc, grupo, natureza]
     );
   }
@@ -789,7 +787,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Aluguel - janeiro', 15000, '2026-01-01', 'manual', 1, 'TEST001'
-     FROM contas_plano_contas WHERE codigo = '5.1.01'`,
+     FROM contas_plano_contas WHERE codigo = '4.1.01'`,
     [entidade_id, periodo_id]
   );
 
@@ -797,7 +795,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Rateios - janeiro', 3000, '2026-01-05', 'manual', 2, 'TEST002'
-     FROM contas_plano_contas WHERE codigo = '5.1.03'`,
+     FROM contas_plano_contas WHERE codigo = '4.1.02'`,
     [entidade_id, periodo_id]
   );
 
@@ -805,7 +803,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Condomínio - janeiro', 2000, '2026-01-10', 'manual', 3, 'TEST003'
-     FROM contas_plano_contas WHERE codigo = '6.1.01'`,
+     FROM contas_plano_contas WHERE codigo = '5.2.10'`,
     [entidade_id, periodo_id]
   );
 
@@ -813,7 +811,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Manutenção - janeiro', 800, '2026-01-15', 'manual', 4, 'TEST004'
-     FROM contas_plano_contas WHERE codigo = '6.1.05'`,
+     FROM contas_plano_contas WHERE codigo = '5.2.05'`,
     [entidade_id, periodo_id]
   );
 
