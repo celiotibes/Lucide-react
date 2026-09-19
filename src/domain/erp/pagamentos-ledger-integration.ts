@@ -305,7 +305,7 @@ export function sincronizarPagamentosParaLedger(
 ): { processados: number; sucessos: number; falhas: number } {
   try {
     // Obter pagamentos confirmados sem ledger_entry_id
-    const [pagamentos] = consultar<{
+    const pagamentos = consultar<{
       id: string;
       valor: number;
       tipo_pagamento: string;

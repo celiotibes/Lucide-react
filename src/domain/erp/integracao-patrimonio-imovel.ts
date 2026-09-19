@@ -362,7 +362,7 @@ export function processarDepreciacoesPendentes(
   erros: number;
 } {
   // Obter todos os imóveis em operação
-  const [imoveis] = consultar<{ id: number }>(
+  const imoveis = consultar<{ id: number }>(
     db,
     `SELECT DISTINCT c.imovel_id as id
      FROM ciclo_vida_imovel_contabil c

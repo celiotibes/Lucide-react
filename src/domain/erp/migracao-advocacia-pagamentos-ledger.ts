@@ -110,7 +110,7 @@ function adicionarColunasATabelas(
 ): void {
   try {
     // Verificar e adicionar colunas em despesas_legais
-    const [colunas_despesas] = consultar<{ name: string }>(
+    const colunas_despesas = consultar<{ name: string }>(
       db,
       `PRAGMA table_info(despesas_legais)`
     );
@@ -146,7 +146,7 @@ function adicionarColunasATabelas(
     }
 
     // Verificar e adicionar colunas em pagamentos
-    const [colunas_pagamentos] = consultar<{ name: string }>(
+    const colunas_pagamentos = consultar<{ name: string }>(
       db,
       `PRAGMA table_info(pagamentos)`
     );
@@ -327,7 +327,7 @@ export function verificarStatusMigracao(
 
   try {
     // Verificar tabelas
-    const [tabelas] = consultar<{ name: string }>(
+    const tabelas = consultar<{ name: string }>(
       db,
       `SELECT name FROM sqlite_master WHERE type='table' AND (name='sincronizacoes_advocacia_ledger' OR name='sincronizacoes_pagamentos_ledger')`
     );
@@ -336,13 +336,13 @@ export function verificarStatusMigracao(
     detalhes.push(`Tabelas de sincronização: ${tabelasExistem ? "OK" : "FALTANDO"}`);
 
     // Verificar colunas
-    const [colD] = consultar<{ name: string }>(
+    const colD = consultar<{ name: string }>(
       db,
       `PRAGMA table_info(despesas_legais)`
     );
     const colunasD = colD.map((c) => c.name);
 
-    const [colP] = consultar<{ name: string }>(
+    const colP = consultar<{ name: string }>(
       db,
       `PRAGMA table_info(pagamentos)`
     );

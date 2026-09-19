@@ -328,7 +328,7 @@ export function registrarProvisoesProcessos(
 ): { processados: number; sucessos: number; falhas: number } {
   try {
     // 1. Obter processos com risco > baixo e sem provisão registrada neste período
-    const [processos] = consultar<{
+    const processos = consultar<{
       id: number;
       valor_causa: number;
       risco_potencial: "baixo" | "médio" | "alto" | "crítico";
@@ -471,7 +471,7 @@ export function sincronizarDespesasAdvocaciaParaLedger(
 ): { processados: number; sucessos: number; falhas: number } {
   try {
     // Obter despesas legais sem ledger_entry_id
-    const [despesas] = consultar<{
+    const despesas = consultar<{
       id: number;
       processo_id: number;
       data_lancamento: string;

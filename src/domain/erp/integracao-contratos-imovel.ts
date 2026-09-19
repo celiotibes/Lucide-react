@@ -394,7 +394,7 @@ export function reconciliarContratosImovel(
   erros: number;
 } {
   // Obter contratos com sincronização pendente ou com erro
-  const [contratosPendentes] = consultar<{ id: number }>(
+  const contratosPendentes = consultar<{ id: number }>(
     db,
     `SELECT DISTINCT c.id
      FROM contratos_locacao c

@@ -340,7 +340,7 @@ export function sincronizarSkillsParaLedger(
   periodoId: number,
   limiteEntries: number = 100
 ): { processados: number; sucessos: number; falhas: number } {
-  const [skillsEntries] = consultar<{
+  const skillsEntries = consultar<{
     id: number;
     skillos_ref_id: string;
     lucide_tabela: string;
