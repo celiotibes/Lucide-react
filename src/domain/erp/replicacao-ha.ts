@@ -418,7 +418,9 @@ export class GerenciadorReplicacaoHA {
 
           status.status = StatusReplica.SAUDAVEL;
           status.linhas_pendentes = 0;
-          syncronizadas++;
+          // BUG real: estava "syncronizadas" (nome inexistente) — o contador de
+          // replicas_sincronizadas nunca era incrementado, sempre retornava 0.
+          sincronizadas++;
 
           lagMaximo = Math.max(lagMaximo, status.replicacao_lag_ms);
         }

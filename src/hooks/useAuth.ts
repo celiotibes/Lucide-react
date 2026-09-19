@@ -42,7 +42,10 @@ export function useAuth(authService: AuthService, auditService: AuditTrailServic
       setErro(null);
 
       try {
-        const resultado = authService.autenticar(email, senha, usuarios);
+        // BUG real: faltava o await. authService.autenticar é async (auth-service.ts);
+        // sem await, `resultado` era a própria Promise, então `resultado.sucesso` era
+        // sempre undefined e todo login era tratado como falha (!resultado.sucesso).
+        const resultado = await authService.autenticar(email, senha, usuarios);
 
         if (!resultado.sucesso) {
           setErro(resultado.erro || "Falha ao autenticar");

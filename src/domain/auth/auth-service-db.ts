@@ -155,6 +155,9 @@ export class AuthServiceDB {
         prestador_id: sessao.prestador_id,
         ativo: sessao.ativo,
         data_criacao: "", // Não necessário para validação
+        // A query acima nem seleciona senha_hash (por design: validar sessão não precisa
+        // do hash) — string vazia só para satisfazer o tipo Usuario, nunca lida/comparada.
+        senha_hash: "",
       };
 
       return {

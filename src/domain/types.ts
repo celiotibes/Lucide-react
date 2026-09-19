@@ -332,6 +332,15 @@ export type StatusMovimentacao = "pendente" | "aprovado" | "descontado" | "rejei
 export type StatusFechamento = "aberto" | "fechado" | "aprovado" | "pago";
 export type StatusEmprestimo = "ativo" | "pago" | "cancelado";
 
+// Faltava exportado — PortalPrestador.tsx importava este tipo daqui, mas só existia
+// (duplicado, local) em PrestadoresForm.tsx. Espelha a tabela `prestadores` do schema.sql.
+export interface Prestador {
+  id: number;
+  nome: string;
+  cpf_cnpj?: string;
+  servico: string;
+}
+
 export interface ApontamentoDiario {
   id: number;
   prestador_id: number;

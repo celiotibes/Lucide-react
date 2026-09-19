@@ -357,7 +357,10 @@ export function listarLancamentosAPI(
       WHERE le.periodo_id = ?
     `;
 
-    const params = [periodo_id];
+    // Array mistura number (periodo_id, conta_id, limite) e string (datas) — sem a
+    // anotação, TS infere number[] a partir do primeiro elemento e rejeita os pushes
+    // de string abaixo.
+    const params: (string | number)[] = [periodo_id];
 
     if (data_inicio) {
       query += ` AND le.data_lancamento >= ?`;
