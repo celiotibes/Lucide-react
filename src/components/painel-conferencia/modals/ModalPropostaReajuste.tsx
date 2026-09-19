@@ -1,17 +1,10 @@
 import { useState } from "react";
-import { ReajusteIPCA, RubricaReajuste } from "@/domain/apontamentos";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useDb } from "../../../db/useDb";
+import { aprovarReajusteIPCA, rejeitarReajusteIPCA } from "../data/painelConferenciaRepo";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Button, Input } from "../ui";
+import { ReajusteIPCA, RubricaReajuste } from "../../../domain/apontamentos";
 import { AlertCircle } from "lucide-react";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
 
 interface ModalPropostaReajusteProps {
   isOpen: boolean;
@@ -28,6 +21,7 @@ const ModalPropostaReajuste: React.FC<ModalPropostaReajusteProps> = ({
   onConfirm,
   usuarioId,
 }) => {
+  const { db, persistir } = useDb();
   const [rubricas, setRubricas] = useState<RubricaReajuste[]>(
     reajusteIPCA?.rubricas_reajustadas || []
   );
@@ -49,33 +43,16 @@ const ModalPropostaReajuste: React.FC<ModalPropostaReajusteProps> = ({
     setConfirmando(true);
     setErro("");
     try {
-      const endpoint = reajusteIPCA.status === "proposta_gerada"
-        ? `/api/reajuste-ipca/${reajusteIPCA.id}/aprovar`
-        : "/api/reajuste-ipca/aprovar";
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          reajuste_id: reajusteIPCA.id,
-          rubricas_ajustadas: rubricas,
-        }),
-      });
-
-      if (response.ok) {
-        onConfirm();
-        onClose();
-      } else {
-        const data = await response.json();
-        setErro(data.erro || "Erro ao aprovar reajuste");
-      }
+      // Antes: POST /api/reajuste-ipca/.../aprovar — rota inexistente. O servidor em
+      // server/ só tem Pluggy e health, e o banco contábil vive no navegador.
+      if (!db) throw new Error("Banco de dados indisponível");
+      aprovarReajusteIPCA(db, rubricas);
+      await persistir();
+      onConfirm();
+      onClose();
     } catch (error) {
       console.error("Erro ao aprovar:", error);
-      setErro("Erro ao aprovar reajuste");
+      setErro(error instanceof Error ? error.message : "Erro ao aprovar reajuste");
     } finally {
       setConfirmando(false);
     }
@@ -85,32 +62,14 @@ const ModalPropostaReajuste: React.FC<ModalPropostaReajusteProps> = ({
     setConfirmando(true);
     setErro("");
     try {
-      const endpoint = reajusteIPCA.status === "proposta_gerada"
-        ? `/api/reajuste-ipca/${reajusteIPCA.id}/rejeitar`
-        : "/api/reajuste-ipca/rejeitar";
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          reajuste_id: reajusteIPCA.id,
-        }),
-      });
-
-      if (response.ok) {
-        onConfirm();
-        onClose();
-      } else {
-        const data = await response.json();
-        setErro(data.erro || "Erro ao rejeitar reajuste");
-      }
+      if (!db) throw new Error("Banco de dados indisponível");
+      rejeitarReajusteIPCA(db);
+      await persistir();
+      onConfirm();
+      onClose();
     } catch (error) {
       console.error("Erro ao rejeitar:", error);
-      setErro("Erro ao rejeitar reajuste");
+      setErro(error instanceof Error ? error.message : "Erro ao rejeitar reajuste");
     } finally {
       setConfirmando(false);
     }

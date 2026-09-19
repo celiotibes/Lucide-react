@@ -5,11 +5,29 @@
 
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
-import crypto from "crypto";
 import {
   assegurarPeriodoAberto,
   obterDescricaoPeriodo,
 } from "./ledger-period-validation";
+
+/** SHA-256 pela Web Crypto API — a mesma que src/domain/backupIntegridade.ts usa.
+ *
+ * Aqui havia `import crypto from "crypto"`, o módulo NATIVO DO NODE. Este app roda
+ * inteiramente no navegador (sql.js em WASM, sem backend), e o Vite externaliza esse
+ * import: `crypto.createHash` estoura em tempo de execução no cliente. Os testes nunca
+ * pegaram porque o Vitest roda em Node, onde o módulo existe de verdade — o defeito só
+ * apareceria no primeiro fechamento de período feito por um usuário.
+ *
+ * Por isso encerrarPeriodo() é assíncrona: crypto.subtle.digest não tem versão síncrona,
+ * e não vale trocar por um hash caseiro num campo que serve justamente para detectar
+ * manipulação do balancete depois do fechamento. */
+async function sha256Hex(texto: string): Promise<string> {
+  const bytes = new TextEncoder().encode(texto);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 export interface LancamentoContabil {
   entidade_id: number;
@@ -212,12 +230,12 @@ export function validarBalanceamento(
 }
 
 /** Encerrar um período contábil (período fechado, não pode ser alterado) */
-export function encerrarPeriodo(
+export async function encerrarPeriodo(
   db: Database,
   periodo_id: number,
   encerrado_por: number,
   motivo: string,
-): { sucesso: boolean; mensagem: string } {
+): Promise<{ sucesso: boolean; mensagem: string }> {
   // 1. Validar que o período está aberto
   const [periodo] = consultar<{ status: string }>(
     db,
@@ -247,10 +265,7 @@ export function encerrarPeriodo(
 
   // 4. Hash dos saldos (para detectar manipulação pós-fechamento)
   const snapshot = JSON.stringify(balancete_completo.saldos);
-  const hash_snapshot = crypto
-    .createHash("sha256")
-    .update(snapshot)
-    .digest("hex");
+  const hash_snapshot = await sha256Hex(snapshot);
 
   // 5. Registrar no histórico de encerramentos
   executar(

@@ -1,23 +1,8 @@
 import { useState } from "react";
-import { Apontamento } from "@/domain/apontamentos";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useDb } from "../../../db/useDb";
+import { retificarApontamento } from "../data/painelConferenciaRepo";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui";
+import { Apontamento } from "../../../domain/apontamentos";
 import { AlertCircle } from "lucide-react";
 import MemoriaCalculoDetalhada from "./MemoriaCalculoDetalhada";
 
@@ -36,6 +21,7 @@ const ModalRetificacao: React.FC<ModalRetificacaoProps> = ({
   onConfirm,
   usuarioId,
 }) => {
+  const { db, persistir } = useDb();
   const [campoAlterado, setCampoAlterado] = useState<string>("");
   const [valorAnterior, setValorAnterior] = useState<string>("");
   const [novoValor, setNovoValor] = useState<string>("");
@@ -107,32 +93,23 @@ const ModalRetificacao: React.FC<ModalRetificacaoProps> = ({
 
     setConfirmando(true);
     try {
-      const response = await fetch(`/api/apontamentos/${apontamento?.id}/retificar`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          campo_alterado: campoAlterado,
-          valor_anterior: valorAnterior,
-          novo_valor: novoValor,
-          motivo,
-          data_retificacao: new Date().toISOString().split("T")[0],
-        }),
-      });
-
-      if (response.ok) {
-        onConfirm();
-        onClose();
-      } else {
-        const data = await response.json();
-        setErro(data.erro || "Erro ao confirmar retificação");
-      }
+      // Antes: PUT /api/apontamentos/:id/retificar — rota inexistente. O banco contábil
+      // inteiro mora no navegador (sql.js + IndexedDB); o servidor nunca o enxergou.
+      if (!db || !apontamento) throw new Error("Banco de dados indisponível");
+      retificarApontamento(
+        db,
+        apontamento.id,
+        campoAlterado as "entrada" | "saida" | "intervalo",
+        valorAnterior,
+        novoValor,
+        motivo,
+      );
+      await persistir();
+      onConfirm();
+      onClose();
     } catch (error) {
       console.error("Erro ao confirmar retificação:", error);
-      setErro("Erro ao confirmar retificação");
+      setErro(error instanceof Error ? error.message : "Erro ao confirmar retificação");
     } finally {
       setConfirmando(false);
     }

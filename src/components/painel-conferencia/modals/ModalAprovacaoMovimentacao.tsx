@@ -1,18 +1,10 @@
 import { useState } from "react";
-import { Movimentacao, TipoMovimentacao } from "@/domain/apontamentos";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useDb } from "../../../db/useDb";
+import { aprovarMovimentacao } from "../data/painelConferenciaRepo";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Button, Input, Label } from "../ui";
+import { Movimentacao, TipoMovimentacao } from "../../../domain/apontamentos";
 import { AlertCircle } from "lucide-react";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
 
 interface ModalAprovacaoMovimentacaoProps {
   isOpen: boolean;
@@ -29,6 +21,7 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
   onConfirm,
   usuarioId,
 }) => {
+  const { db, persistir } = useDb();
   const [semanaDesconto, setSemanaDesconto] = useState<string>(
     movimentacao?.semana_desconto || ""
   );
@@ -58,34 +51,18 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
 
     setConfirmando(true);
     try {
-      const response = await fetch(
-        `/api/movimentacoes/${movimentacao?.id}/aprovar`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": process.env.REACT_APP_API_KEY || "",
-          },
-          body: JSON.stringify({
-            usuario_id: usuarioId,
-            semana_desconto: semanaDesconto,
-            parcelas: isEmprestimo ? parcelas : 1,
-            juros_percentual: isEmprestimo ? juros : 0,
-            valor_parcela: calcularValorParcela(),
-          }),
-        }
-      );
-
-      if (response.ok) {
-        onConfirm();
-        onClose();
-      } else {
-        const data = await response.json();
-        setErro(data.erro || "Erro ao aprovar movimentação");
-      }
+      // Antes isto chamava PUT /api/movimentacoes/:id/aprovar — rota que nunca existiu:
+      // o servidor em server/ só tem Pluggy e health, e o banco contábil inteiro mora no
+      // navegador (sql.js + IndexedDB), fora do alcance dele. Aprovar gravava nada e a
+      // tela dizia que tinha dado certo.
+      if (!db || !movimentacao) throw new Error("Banco de dados indisponível");
+      aprovarMovimentacao(db, movimentacao.id, semanaDesconto);
+      await persistir();
+      onConfirm();
+      onClose();
     } catch (error) {
       console.error("Erro ao aprovar:", error);
-      setErro("Erro ao aprovar movimentação");
+      setErro(error instanceof Error ? error.message : "Erro ao aprovar movimentação");
     } finally {
       setConfirmando(false);
     }
