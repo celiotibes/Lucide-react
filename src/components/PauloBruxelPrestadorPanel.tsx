@@ -9,6 +9,7 @@ import {
 } from "../domain/erp/paulo-bruxel-contrato";
 import { ContextoAutenticacao, AuthService } from "../domain/auth/auth-service";
 import { AuditTrailService } from "../domain/auth/audit-trail";
+import { DuplicatePaymentGuard } from "../domain/erp/duplicate-payment-guard";
 
 interface DiaTrabalho {
   id: string;
@@ -76,6 +77,9 @@ export function PauloBruxelPrestadorPanel({
   const [componentes, setComponentes] = useState<ComponentesPagamento | null>(null);
   const [errosValidacao, setErrosValidacao] = useState<string[]>([]);
   const [avisosValidacao, setAvisosValidacao] = useState<string[]>([]);
+  const [sucessoMensagem, setSucessoMensagem] = useState<string | null>(null);
+  // H-4 FIX: Initialize DuplicatePaymentGuard once for payment validation
+  const [paymentGuard] = useState(() => new DuplicatePaymentGuard());
 
   // Carregar parâmetros quando mês muda
   useEffect(() => {
@@ -176,24 +180,97 @@ export function PauloBruxelPrestadorPanel({
   };
 
   const handleSubmit = () => {
+    // H-4 FIX: Implement full payment submission workflow
+    setSucessoMensagem(null);
+    setErrosValidacao([]);
+
+    // 1. Verify auth system is configured
     if (!contexto || !authService || !auditService) {
       setErrosValidacao(["Sistema de autenticação não configurado"]);
       return;
     }
 
-    // Check authorization - prestador pode enviar seus apontamentos, gestor/admin podem enviar de qualquer um
-    const podeSubmeter =
-      authService.temPermissao(contexto, "prestador_apontamento", "criar");
+    // 2. Verify user is authenticated
+    if (!contexto.autenticado || !contexto.usuario) {
+      setErrosValidacao(["Usuário não autenticado"]);
+      return;
+    }
+
+    // 3. Check authorization - prestador pode enviar seus apontamentos, gestor/admin podem enviar de qualquer um
+    const podeSubmeter = authService.temPermissao(
+      contexto,
+      "prestador_apontamento",
+      "criar"
+    );
 
     if (!podeSubmeter) {
+      // Log denied access
+      auditService.registrarAcao(
+        contexto,
+        "criar_apontamento",
+        "prestador_apontamento",
+        `apon_${mesReferencia}`,
+        {
+          descricao: `Tentativa de submissão de apontamento sem permissão`,
+          resultado: "negado",
+          prestador_id: contexto.usuario?.prestador_id,
+        }
+      );
+      setErrosValidacao(["Você não tem permissão para enviar apontamentos"]);
+      return;
+    }
+
+    // 4. Verify there are days to submit
+    const registrosFiltrados = diasTrabalho.filter((d) => d.ativo);
+    if (!componentes || registrosFiltrados.length === 0) {
+      setErrosValidacao(["Nenhum dia de trabalho marcado para envio"]);
+      return;
+    }
+
+    // 5. Get prestador_id for duplicate checking
+    const prestadorId = contexto.usuario?.prestador_id;
+    if (!prestadorId) {
+      setErrosValidacao(["Prestador não identificado"]);
+      return;
+    }
+
+    // 6. Check for duplicate payment submission
+    const duplicacaoCheck = paymentGuard.verificarDuplicacao(
+      contexto,
+      prestadorId,
+      mesReferencia
+    );
+
+    if (duplicacaoCheck.duplicado) {
+      // Log duplicate detection
+      auditService.registrarAcao(
+        contexto,
+        "criar_apontamento",
+        "prestador_apontamento",
+        `apon_${mesReferencia}`,
+        {
+          descricao: `Tentativa de submissão duplicada - ${duplicacaoCheck.motivo}`,
+          resultado: "falha",
+          motivo_falha: duplicacaoCheck.motivo,
+          prestador_id: prestadorId,
+        }
+      );
       setErrosValidacao([
-        "Você não tem permissão para enviar apontamentos",
+        `Pagamento já existe: ${duplicacaoCheck.motivo}`,
       ]);
       return;
     }
 
-    // Log audit trail for submission
-    const registrosFiltrados = diasTrabalho.filter((d) => d.ativo);
+    // 7. Register payment in payment guard
+    const pagamentoRegistrado = paymentGuard.registrarPagamento(
+      contexto,
+      prestadorId,
+      mesReferencia,
+      componentes.total,
+      "pendente"
+    );
+
+    // 8. Log successful submission to audit trail
     auditService.registrarAcao(
       contexto,
       "criar_apontamento",
@@ -204,17 +281,40 @@ export function PauloBruxelPrestadorPanel({
         valores_novos: {
           mes_referencia: mesReferencia,
           dias_trabalhados: registrosFiltrados.length,
-          horas_totais: registrosFiltrados.reduce((sum, d) => sum + d.horas_trabalhadas, 0),
-          total_pagar: componentes?.total || 0,
+          horas_totais: registrosFiltrados.reduce(
+            (sum, d) => sum + d.horas_trabalhadas,
+            0
+          ),
+          total_pagar: componentes.total,
+          pagamento_id: pagamentoRegistrado.prestador_id,
         },
         resultado: "sucesso",
-        prestador_id: contexto.usuario?.prestador_id,
+        prestador_id: prestadorId,
       }
     );
 
-    alert(
-      `Apontamento enviado com sucesso!\nTotal a pagar: R$ ${componentes?.total.toFixed(2)}`
+    // 9. Show success message and reset form
+    setSucessoMensagem(
+      `Apontamento enviado com sucesso! Total a pagar: R$ ${componentes.total.toFixed(2)}`
     );
+
+    // Clear form after successful submission
+    setTimeout(() => {
+      setDiasTrabalho([
+        {
+          id: "1",
+          data: mesReferencia + "-01",
+          tipo_dia: "dia_util",
+          horas_trabalhadas: 0,
+          km_percorridos: 0,
+          descricao: "",
+          ativo: false,
+        },
+      ]);
+      setReembolsoCartao(0);
+      setReembolsoPix(0);
+      setSucessoMensagem(null);
+    }, 3000);
   };
 
   const handleClear = () => {
@@ -313,6 +413,14 @@ export function PauloBruxelPrestadorPanel({
             </div>
           </div>
         </div>
+
+        {/* Success Message */}
+        {sucessoMensagem && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="font-semibold text-green-800 mb-2">✓ Sucesso</h3>
+            <p className="text-green-700 text-sm">{sucessoMensagem}</p>
+          </div>
+        )}
 
         {/* Erros e Avisos */}
         {errosValidacao.length > 0 && (

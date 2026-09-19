@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../hooks/useAuth";
 import { AuthService, Usuario } from "../domain/auth/auth-service";
 import { AuditTrailService } from "../domain/auth/audit-trail";
+import { AuthProvider, useAuthContext } from "../context/AuthContext";
 import { LoginForm } from "./LoginForm";
 import { PauloBruxelPrestadorPanel } from "./PauloBruxelPrestadorPanel";
 
@@ -34,68 +34,18 @@ const USUARIOS_TESTE: Usuario[] = [
   },
 ];
 
-export function AuthenticatedApp() {
-  const authService = new AuthService();
-  const auditService = new AuditTrailService();
-  const [token, setToken] = useState<string | null>(null);
-
-  // Restore token from localStorage on mount
-  useEffect(() => {
-    const savedToken = localStorage.getItem("auth_token");
-    if (savedToken) {
-      const contexto = authService.validarToken(savedToken);
-      if (contexto) {
-        setToken(savedToken);
-      } else {
-        localStorage.removeItem("auth_token");
-      }
-    }
-  }, []);
-
-  const handleLoginSuccess = (newToken: string) => {
-    setToken(newToken);
-    localStorage.setItem("auth_token", newToken);
-  };
-
-  const handleLogout = () => {
-    if (token) {
-      const contexto = authService.validarToken(token);
-      if (contexto) {
-        auditService.registrarAcao(contexto, "logout", "usuario", contexto.usuario?.id || "", {
-          descricao: `${contexto.usuario?.nome} realizou logout`,
-          resultado: "sucesso",
-        });
-      }
-      authService.logout(token);
-    }
-    setToken(null);
-    localStorage.removeItem("auth_token");
-  };
-
-  if (!token) {
-    return (
-      <div className="min-h-screen bg-gray-100">
-        <LoginForm
-          onLoginSuccess={handleLoginSuccess}
-          usuarios={USUARIOS_TESTE}
-          authService={authService}
-          auditService={auditService}
-        />
-      </div>
-    );
-  }
-
-  const contexto = authService.validarToken(token);
-  if (!contexto) {
-    handleLogout();
-    return null;
-  }
+/**
+ * H-2 FIX: Inner component that uses auth context
+ * This consolidates to use single useAuthContext pattern
+ */
+function AuthenticatedAppContent() {
+  const { contexto, usuario, autenticado, logout, authService, auditService } = useAuthContext();
 
   // Check if user has access to the application
   const temAcesso =
-    contexto.usuario?.role === "admin" ||
-    contexto.usuario?.role === "gestor" ||
-    contexto.usuario?.role === "prestador";
+    usuario?.role === "admin" ||
+    usuario?.role === "gestor" ||
+    usuario?.role === "prestador";
 
   if (!temAcesso) {
     return (
@@ -106,7 +56,7 @@ export function AuthenticatedApp() {
             Seu perfil não tem permissão para acessar este sistema.
           </p>
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Voltar
@@ -126,11 +76,11 @@ export function AuthenticatedApp() {
               Prestação de Serviços
             </h1>
             <p className="text-sm text-gray-600">
-              Olá, {contexto.usuario?.nome} ({contexto.usuario?.role})
+              Olá, {usuario?.nome} ({usuario?.role})
             </p>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
           >
             Sair
@@ -147,5 +97,42 @@ export function AuthenticatedApp() {
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * AuthenticatedApp - Outer component that manages services and auth state
+ * H-1 FIX: Create services once with useState to persist across renders
+ * H-2 FIX: Use AuthProvider + useAuthContext pattern for single auth implementation
+ */
+export function AuthenticatedApp() {
+  // H-1 FIX: Create AuthService and AuditTrailService once with useState to persist across renders
+  // This prevents session loss on re-renders
+  const [authService] = useState(() => new AuthService());
+  const [auditService] = useState(() => new AuditTrailService());
+  const [showLogin, setShowLogin] = useState(true);
+
+  const handleLoginSuccess = () => {
+    setShowLogin(false);
+  };
+
+  if (showLogin) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <LoginForm
+          onLoginSuccess={handleLoginSuccess}
+          usuarios={USUARIOS_TESTE}
+          authService={authService}
+          auditService={auditService}
+        />
+      </div>
+    );
+  }
+
+  // Wrap content with AuthProvider to provide context to all components
+  return (
+    <AuthProvider authService={authService} auditService={auditService}>
+      <AuthenticatedAppContent />
+    </AuthProvider>
   );
 }
