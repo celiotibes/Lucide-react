@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { AuthService, Usuario } from "../auth-service";
 import { AuditTrailService } from "../audit-trail";
 import { PermissionGuard } from "../permission-guard";
@@ -10,33 +10,44 @@ describe("Authentication & Authorization Integration (P1.4+P1.5)", () => {
   let guard: PermissionGuard;
   let paymentGuard: DuplicatePaymentGuard;
 
-  const usuarios_teste: Usuario[] = [
-    {
-      id: "user_admin_1",
-      nome: "Admin User",
-      email: "admin@example.com",
-      role: "admin",
-      ativo: true,
-      data_criacao: "2026-01-01",
-    },
-    {
-      id: "user_gestor_1",
-      nome: "Gestor User",
-      email: "gestor@example.com",
-      role: "gestor",
-      ativo: true,
-      data_criacao: "2026-01-01",
-    },
-    {
-      id: "user_prestador_1",
-      nome: "Paulo Bruxel",
-      email: "paulo@example.com",
-      role: "prestador",
-      prestador_id: 1,
-      ativo: true,
-      data_criacao: "2026-01-01",
-    },
-  ];
+  let usuarios_teste: Usuario[];
+
+  // O hash sai de gerarHashSenha em vez de ser uma constante colada aqui: assim o
+  // teste continua válido se o custo do bcrypt mudar, e falha de verdade se a
+  // validação de senha parar de conferir o hash.
+  beforeAll(async () => {
+    const senhaHash = await AuthService.gerarHashSenha("senha123");
+    usuarios_teste = [
+      {
+        id: "user_admin_1",
+        nome: "Admin User",
+        email: "admin@example.com",
+        role: "admin",
+        senha_hash: senhaHash,
+        ativo: true,
+        data_criacao: "2026-01-01",
+      },
+      {
+        id: "user_gestor_1",
+        nome: "Gestor User",
+        email: "gestor@example.com",
+        role: "gestor",
+        senha_hash: senhaHash,
+        ativo: true,
+        data_criacao: "2026-01-01",
+      },
+      {
+        id: "user_prestador_1",
+        nome: "Paulo Bruxel",
+        email: "paulo@example.com",
+        role: "prestador",
+        prestador_id: 1,
+        senha_hash: senhaHash,
+        ativo: true,
+        data_criacao: "2026-01-01",
+      },
+    ];
+  });
 
   beforeEach(() => {
     authService = new AuthService();
@@ -46,9 +57,9 @@ describe("Authentication & Authorization Integration (P1.4+P1.5)", () => {
   });
 
   describe("Fluxo Completo: Autenticação → Submissão → Aprovação", () => {
-    it("prestador faz login, submete apontamento, gestor aprova", () => {
+    it("prestador faz login, submete apontamento, gestor aprova", async () => {
       // 1. Prestador faz login
-      const loginResult = authService.autenticar(
+      const loginResult = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
@@ -122,7 +133,7 @@ describe("Authentication & Authorization Integration (P1.4+P1.5)", () => {
       expect(verificacaoDuplicacao2.duplicado).toBe(true);
 
       // 6. Gestor faz login
-      const gestorLogin = authService.autenticar(
+      const gestorLogin = await authService.autenticar(
         "gestor@example.com",
         "senha123",
         usuarios_teste
@@ -151,7 +162,8 @@ describe("Authentication & Authorization Integration (P1.4+P1.5)", () => {
       expect(temPermissaoAprovar).toBe(true);
 
       // 8. Gestor aprova pagamento
-      paymentGuard.atualizarStatus(1, "2026-08", "aprovado");
+      const aprovacao = paymentGuard.atualizarStatus(gestorContext!, 1, "2026-08", "aprovado");
+      expect(aprovacao.sucesso).toBe(true);
 
       auditService.registrarAcao(
         gestorContext!,
@@ -176,8 +188,8 @@ describe("Authentication & Authorization Integration (P1.4+P1.5)", () => {
       expect(pagantoAudits.length).toBeGreaterThan(0);
     });
 
-    it("prestador não pode acessar dados de outro prestador", () => {
-      const loginResult = authService.autenticar(
+    it("prestador não pode acessar dados de outro prestador", async () => {
+      const loginResult = await authService.autenticar(
         "paulo@example.com",
         "senha123",
         usuarios_teste
@@ -202,22 +214,28 @@ describe("Authentication & Authorization Integration (P1.4+P1.5)", () => {
         role: "prestador",
         prestador_id: 1,
       };
+      // Quem rejeita é o gestor, não o prestador: mudar status exige admin/gestor.
+      const contextoGestor: any = {
+        usuario: usuarios_teste[1],
+        autenticado: true,
+        role: "gestor",
+      };
 
       // 1. Submissão inicial
       const verif1 = paymentGuard.verificarDuplicacao(contexto, 1, "2026-08");
       expect(verif1.duplicado).toBe(false);
 
-      paymentGuard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      expect(paymentGuard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente").sucesso).toBe(true);
 
       // 2. Rejeição
-      paymentGuard.atualizarStatus(1, "2026-08", "rejeitado");
+      expect(paymentGuard.atualizarStatus(contextoGestor, 1, "2026-08", "rejeitado").sucesso).toBe(true);
 
       // 3. Resubmissão permitida
       const verif2 = paymentGuard.verificarDuplicacao(contexto, 1, "2026-08");
       expect(verif2.duplicado).toBe(false);
       expect(verif2.pagamentoAnterior?.status).toBe("rejeitado");
 
-      paymentGuard.registrarPagamento(contexto, 1, "2026-08", 5100, "pendente");
+      expect(paymentGuard.registrarPagamento(contexto, 1, "2026-08", 5100, "pendente").sucesso).toBe(true);
 
       // 4. Segunda submissão bloqueada (novamente pendente)
       const verif3 = paymentGuard.verificarDuplicacao(contexto, 1, "2026-08");

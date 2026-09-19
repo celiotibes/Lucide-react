@@ -5,13 +5,20 @@ import { AuthProvider, useAuthContext } from "../context/AuthContext";
 import { LoginForm } from "./LoginForm";
 import { PauloBruxelPrestadorPanel } from "./PauloBruxelPrestadorPanel";
 
-// Test users
+/** Hash bcrypt de "senha123", a senha dos usuários de demonstração abaixo.
+ *
+ * Só serve para a demo rodar sem banco: são contas fictícias com senha pública e o
+ * hash não protege nada. Ao ligar o app no banco (server/), estes três usuários saem
+ * daqui e passam a vir da tabela `usuarios`, cada um com o próprio hash. */
+const HASH_SENHA_DEMO = "$2b$10$O0j8qURLycbShr0aas9ko.XmNIN45tR6IIgRWSXAX86tifqWNk80S";
+
 const USUARIOS_TESTE: Usuario[] = [
   {
     id: "user_admin_1",
     nome: "Admin User",
     email: "admin@example.com",
     role: "admin",
+    senha_hash: HASH_SENHA_DEMO,
     ativo: true,
     data_criacao: "2026-01-01",
   },
@@ -20,6 +27,7 @@ const USUARIOS_TESTE: Usuario[] = [
     nome: "Gestor User",
     email: "gestor@example.com",
     role: "gestor",
+    senha_hash: HASH_SENHA_DEMO,
     ativo: true,
     data_criacao: "2026-01-01",
   },
@@ -29,6 +37,7 @@ const USUARIOS_TESTE: Usuario[] = [
     email: "paulo@example.com",
     role: "prestador",
     prestador_id: 1,
+    senha_hash: HASH_SENHA_DEMO,
     ativo: true,
     data_criacao: "2026-01-01",
   },
