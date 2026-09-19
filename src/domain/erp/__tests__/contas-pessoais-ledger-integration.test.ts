@@ -180,9 +180,11 @@ describe("Integração Contas Pessoais-Ledger", () => {
         referencia_documento: "DEP-003",
       });
 
-      // Verificar saldo crédito em aportes (3.1.01)
+      // Verificar saldo crédito em aportes (3.1.01). O saldo vem na direção natural
+      // da conta (ledger.ts:124), então crédito em conta credora é positivo — a
+      // premissa de que "contas de crédito são negativas" não é a desta função.
       const saldoAportes = obterSaldoConta(db, periodo_id, 3101);
-      expect(saldoAportes).toBe(-2000); // Contas de crédito são negativas
+      expect(saldoAportes).toBe(2000);
     });
 
     it("deve registrar múltiplos depósitos acumulando saldos", () => {
@@ -247,9 +249,10 @@ describe("Integração Contas Pessoais-Ledger", () => {
         referencia_documento: "SAQ-002",
       });
 
-      // Débito em 3.1.01 (aportes)
+      // Débito em 3.1.01 (aportes): 3.1.01 é conta credora, então debitá-la afasta o
+      // saldo da direção natural e o resultado fica negativo. O saque reduz o aporte.
       const saldoAportes = obterSaldoConta(db, periodo_id, 3101);
-      expect(saldoAportes).toBeGreaterThanOrEqual(500);
+      expect(saldoAportes).toBeLessThanOrEqual(-500);
 
       // Crédito em 1.1.05 (pessoal) reduz o saldo
       const saldoPessoal = obterSaldoConta(db, periodo_id, 1105);
