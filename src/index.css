@@ -31,12 +31,25 @@
   --viz-serious: #ec835a;
   --viz-critical: #d03b3b;
 
+  /* Tinta do texto das .pill. Existe separada dos --viz-* porque aquelas cores são
+     calibradas para preencher área de gráfico, e como texto de 11,5px sobre o fundo
+     translúcido da própria pill ficavam entre 1,8:1 e 3,8:1 — abaixo dos 4,5:1 que a
+     WCAG AA pede para texto normal. Estes valores foram medidos contra o fundo real
+     que o navegador pinta, em cada tema; ao mexer, remeça. */
+  --pill-good-ink: #09790d;
+  --pill-warning-ink: #965f00;
+  --pill-critical-ink: #b92d2d;
+
   color-scheme: light dark;
   font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* Tema escuro. Vale por preferência do SO (a menos que o usuário tenha escolhido claro
+   explicitamente) e por escolha manual via data-theme no <html> — o seletor de tema grava
+   a escolha e ela ganha do SO. Os dois blocos repetem os tokens porque CSS não deixa
+   compartilhar um corpo de declarações entre seletores; ao mexer em um, mexa no outro. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0e1512;
     --surface: #161f19;
     --surface-2: #1d2921;
@@ -60,7 +73,49 @@
     --viz-receita: #3987e5;
     --viz-despesa: #e66767;
     --viz-resultado: #008300;
+
+    --pill-good-ink: #47d14c;
+    --pill-warning-ink: #f4a825;
+    --pill-critical-ink: #e56969;
   }
+}
+
+/* Mantém controles nativos (scrollbar, date picker, caret) no mesmo tema da escolha manual. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1512;
+  --surface: #161f19;
+  --surface-2: #1d2921;
+  --ink: #e6ebe4;
+  --ink-soft: #aebbb2;
+  --accent: #7fc79e;
+  --accent-soft: #1e2e24;
+  --gold: #e0b274;
+  --gold-soft: #2b2418;
+  --warn: #e08770;
+  --warn-soft: #2e1e1a;
+  --line: rgba(230, 235, 228, 0.16);
+  --line-soft: rgba(230, 235, 228, 0.09);
+
+  --viz-surface: #1a1a19;
+  --viz-text-primary: #ffffff;
+  --viz-text-secondary: #c3c2b7;
+  --viz-muted: #898781;
+  --viz-grid: #2c2c2a;
+  --viz-baseline: #383835;
+  --viz-receita: #3987e5;
+  --viz-despesa: #e66767;
+  --viz-resultado: #008300;
+
+  --pill-good-ink: #47d14c;
+  --pill-warning-ink: #f4a825;
+  --pill-critical-ink: #e56969;
 }
 
 * {
