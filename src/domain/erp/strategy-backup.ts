@@ -6,6 +6,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import crypto from "crypto";
 
 export enum TipoBackup {
   COMPLETO = 'COMPLETO',
@@ -576,9 +577,14 @@ export class EstrategiaBackup {
    * Gera checksum SHA256 simulado
    */
   private gerarChecksum(): string {
-    return Buffer.from(
-      Math.random().toString() + Date.now().toString()
-    ).toString('hex').substring(0, 64);
+    // SHA-256 de verdade. Antes era o hex da string "Math.random()+Date.now()" cortado
+    // em 64, e como essa string varia de tamanho o resultado saía com 62 ou 64
+    // caracteres — um campo chamado checksum_sha256 que não era sha256 nem tinha
+    // tamanho fixo, portanto inútil para conferir integridade.
+    return crypto
+      .createHash("sha256")
+      .update(`${Math.random()}|${Date.now()}`)
+      .digest("hex");
   }
 
   /**
