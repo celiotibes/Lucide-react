@@ -264,7 +264,7 @@ export function processarVistoriasPendentes(
   erros: number;
 } {
   // Obter vistorias concluídas mas ainda não provisionadas
-  const [vistoriasPendentes] = consultar<{ id: number }>(
+  const vistoriasPendentes = consultar<{ id: number }>(
     db,
     `SELECT DISTINCT v.id
      FROM vistorias v
