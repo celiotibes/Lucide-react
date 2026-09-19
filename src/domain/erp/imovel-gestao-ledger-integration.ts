@@ -873,6 +873,11 @@ export function gerarRelatorioImoveisParaLedger(
          FROM ledger_entries le
          WHERE le.periodo_id = ? AND le.origem_modulo = 'imovel-gestao'
            AND le.origem_id = ?
+           -- Só contas de despesa/imobilizado. Sem este filtro, a consulta somava
+           -- qualquer débito do módulo, e a entrada de caixa da receita de aluguel
+           -- (débito em 1.1.01) entrava como despesa pelo ramo 'outro' do CASE: o
+           -- relatório reportava receita como despesa.
+           AND le.conta_id IN (5210, 5207, 5206, 5212, 5213, 5205, 1205)
          GROUP BY tipo_despesa
          ORDER BY tipo_despesa`,
         [periodoId, imovel.id]
@@ -885,7 +890,7 @@ export function gerarRelatorioImoveisParaLedger(
       }));
 
       // Obter receitas de aluguel
-      const [receitasData] = consultar<{ valor_total: number }>(
+      const receitasData = consultar<{ valor_total: number }>(
         db,
         `SELECT SUM(COALESCE(le.valor_credito, 0)) as valor_total
          FROM ledger_entries le
@@ -897,7 +902,7 @@ export function gerarRelatorioImoveisParaLedger(
       const receitas_aluguel = receitasData[0]?.valor_total || 0;
 
       // Obter arrecadações
-      const [arrecadadoesData] = consultar<{ valor_total: number }>(
+      const arrecadadoesData = consultar<{ valor_total: number }>(
         db,
         `SELECT SUM(COALESCE(le.valor_debito, 0)) as valor_total
          FROM ledger_entries le
