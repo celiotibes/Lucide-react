@@ -5,7 +5,35 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import * as crypto from 'crypto';
+
+// BUG REAL corrigido (achado ao integrar este módulo, até então órfão, ao Painel de
+// Auditoria): `import * as crypto from 'crypto'` é o módulo nativo do Node — não existe
+// no navegador. Este código roda no cliente (sql.js em WASM, sem backend), então ao ser
+// finalmente chamado por uma tela de verdade, o bundler (Vite) externaliza o import e a
+// primeira chamada a `crypto.createHash(...)` estoura em runtime: "Module 'crypto' has
+// been externalized for browser compatibility". `npx vite build` confirma o aviso de
+// externalização; os testes deste módulo nunca pegam o problema porque rodam sob Vitest
+// em Node, onde o `crypto` do Node existe de verdade.
+// A correção usa a Web Crypto API (`crypto.subtle`, global do navegador — e também do
+// Node 19+, então os testes continuam passando), o mesmo mecanismo já usado em
+// `src/domain/backupIntegridade.ts` para o hash do arquivo de backup real do app. Isso
+// obriga `gerarHash`/`gerarAssinatura`/`validarAssinatura`/`calcularMerkleRoot` a virar
+// assíncronas — todos os chamadores já são métodos `async`, então o único ponto afetado
+// fora deles é o bloco de gênesis, criado no construtor (síncrono): em vez de chamar
+// gerarHash ali, usa-se o hash SHA-256 de 'GENESIS' e de '' pré-calculado (são sempre a
+// mesma string de entrada, logo sempre o mesmo hash — não há nada para recalcular).
+async function sha256Hex(conteudo: string): Promise<string> {
+  const bytes = new TextEncoder().encode(conteudo);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/** SHA-256 de 'GENESIS', pré-calculado (ver nota acima). */
+const HASH_GENESIS = '901131d838b17aac0f7885b81e03cbdc9f5157a00343d30ab22083685ed1416a';
+/** SHA-256 da string vazia, pré-calculado. */
+const HASH_VAZIO = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 export enum TipoOperacao {
   LEITURA = 'LEITURA',
@@ -131,9 +159,9 @@ export class GerenciadorAuditLoggingImutavel {
       numero_bloco: 0,
       timestamp: new Date(),
       registros_quantidade: 0,
-      hash_bloco: this.gerarHash('GENESIS'),
+      hash_bloco: HASH_GENESIS,
       hash_bloco_anterior: '0x0000',
-      merkle_root: this.gerarHash(''),
+      merkle_root: HASH_VAZIO,
       nonce: 0,
       verificado: true,
       data_verificacao: new Date()
@@ -182,8 +210,8 @@ export class GerenciadorAuditLoggingImutavel {
       motivo
     });
 
-    const hashRegistro = this.gerarHash(conteudoRegistro + hashAnterior);
-    const assinatura = this.gerarAssinatura(hashRegistro);
+    const hashRegistro = await this.gerarHash(conteudoRegistro + hashAnterior);
+    const assinatura = await this.gerarAssinatura(hashRegistro);
 
     const registro: RegistroAudit = {
       id: uuidv4(),
@@ -234,10 +262,10 @@ export class GerenciadorAuditLoggingImutavel {
 
     // Calcular Merkle root dos registros do bloco
     const registrosDoBloco = this.registros.slice(-bloco.registros_quantidade);
-    bloco.merkle_root = this.calcularMerkleRoot(registrosDoBloco);
+    bloco.merkle_root = await this.calcularMerkleRoot(registrosDoBloco);
 
     // Proof of Work simulado
-    bloco.hash_bloco = this.gerarHash(
+    bloco.hash_bloco = await this.gerarHash(
       JSON.stringify({
         numero: bloco.numero_bloco,
         timestamp: bloco.timestamp,
@@ -263,7 +291,7 @@ export class GerenciadorAuditLoggingImutavel {
       registros_quantidade: 0,
       hash_bloco: '0x' + '0'.repeat(64),
       hash_bloco_anterior: blocoAnterior?.hash_bloco || '0x0000',
-      merkle_root: this.gerarHash(''),
+      merkle_root: HASH_VAZIO,
       nonce: 0,
       verificado: false,
       data_verificacao: null
@@ -295,7 +323,7 @@ export class GerenciadorAuditLoggingImutavel {
       }
 
       // Verificar assinatura digital
-      const assinaturaValida = this.validarAssinatura(registro.hash_registro, registro.assinatura_digital || '');
+      const assinaturaValida = await this.validarAssinatura(registro.hash_registro, registro.assinatura_digital || '');
       if (!assinaturaValida) {
         registrosCorrompidos++;
         if (!primeiroErroSequencia) primeiroErroSequencia = i;
@@ -394,8 +422,8 @@ export class GerenciadorAuditLoggingImutavel {
     const registrosFiltrados = await this.consultarAudit(filtros || {});
 
     const conteudo = JSON.stringify(registrosFiltrados, null, 2);
-    const checksum = this.gerarHash(conteudo);
-    const assinatura = this.gerarAssinatura(checksum);
+    const checksum = await this.gerarHash(conteudo);
+    const assinatura = await this.gerarAssinatura(checksum);
 
     // Simular upload para armazenamento seguro
     const arquivoUrl = `s3://erp-audit-logs/exports/audit-${new Date().toISOString()}.json.gpg`;
@@ -541,49 +569,44 @@ export class GerenciadorAuditLoggingImutavel {
   }
 
   /**
-   * Gera hash SHA256
+   * Gera hash SHA256 (Web Crypto API — ver nota no topo do arquivo sobre por que não é
+   * o módulo `crypto` do Node)
    */
-  private gerarHash(conteudo: string): string {
-    return crypto
-      .createHash('sha256')
-      .update(conteudo)
-      .digest('hex');
+  private async gerarHash(conteudo: string): Promise<string> {
+    return sha256Hex(conteudo);
   }
 
   /**
    * Gera assinatura digital simulada
    */
-  private gerarAssinatura(hash: string): string {
-    return crypto
-      .createHash('sha256')
-      .update(hash + 'PRIVATE_KEY')
-      .digest('hex');
+  private async gerarAssinatura(hash: string): Promise<string> {
+    return sha256Hex(hash + 'PRIVATE_KEY');
   }
 
   /**
    * Valida assinatura digital
    */
-  private validarAssinatura(hash: string, assinatura: string): boolean {
-    const assinaturaEsperada = this.gerarAssinatura(hash);
+  private async validarAssinatura(hash: string, assinatura: string): Promise<boolean> {
+    const assinaturaEsperada = await this.gerarAssinatura(hash);
     return assinatura === assinaturaEsperada;
   }
 
   /**
    * Calcula Merkle root
    */
-  private calcularMerkleRoot(registros: RegistroAudit[]): string {
-    if (registros.length === 0) return this.gerarHash('');
+  private async calcularMerkleRoot(registros: RegistroAudit[]): Promise<string> {
+    if (registros.length === 0) return HASH_VAZIO;
 
-    const hashes = registros.map(r => r.hash_registro);
+    let hashes = registros.map(r => r.hash_registro);
 
     while (hashes.length > 1) {
       const novasHashes: string[] = [];
       for (let i = 0; i < hashes.length; i += 2) {
         const hash1 = hashes[i];
         const hash2 = hashes[i + 1] || hashes[i];
-        novasHashes.push(this.gerarHash(hash1 + hash2));
+        novasHashes.push(await this.gerarHash(hash1 + hash2));
       }
-      hashes.splice(0, hashes.length, ...novasHashes);
+      hashes = novasHashes;
     }
 
     return hashes[0];

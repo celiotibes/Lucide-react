@@ -41,11 +41,11 @@ describe("Validação de Período Fechado", () => {
       expect(validacao.erro).toBeDefined();
     });
 
-    it("deve retornar aberto=false para período fechado", () => {
+    it("deve retornar aberto=false para período fechado", async () => {
       // Primeiro fechar o período
       const balancete_ok = validarBalanceamento(db, periodo_id);
       if (balancete_ok.balanceado) {
-        encerrarPeriodo(db, periodo_id, 1, "Teste");
+        await encerrarPeriodo(db, periodo_id, 1, "Teste");
       }
 
       const validacao = validarPeriodoAberto(db, periodo_id);
@@ -62,11 +62,11 @@ describe("Validação de Período Fechado", () => {
       }).not.toThrow();
     });
 
-    it("deve lançar PeriodoFechadoError para período fechado", () => {
+    it("deve lançar PeriodoFechadoError para período fechado", async () => {
       // Fechar período
       const balancete_ok = validarBalanceamento(db, periodo_id);
       if (balancete_ok.balanceado) {
-        encerrarPeriodo(db, periodo_id, 1, "Teste");
+        await encerrarPeriodo(db, periodo_id, 1, "Teste");
       }
 
       expect(() => {
@@ -83,11 +83,11 @@ describe("Validação de Período Fechado", () => {
       expect(descricao).toMatch(/ABERTO|FECHADO/); // Deve conter status
     });
 
-    it("deve incluir [FECHADO] quando período está fechado", () => {
+    it("deve incluir [FECHADO] quando período está fechado", async () => {
       // Fechar período
       const balancete_ok = validarBalanceamento(db, periodo_id);
       if (balancete_ok.balanceado) {
-        encerrarPeriodo(db, periodo_id, 1, "Teste");
+        await encerrarPeriodo(db, periodo_id, 1, "Teste");
       }
 
       const descricao = obterDescricaoPeriodo(db, periodo_id);
@@ -118,7 +118,7 @@ describe("Validação de Período Fechado", () => {
       }
     });
 
-    it("deve bloquear registro em período fechado", () => {
+    it("deve bloquear registro em período fechado", async () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
       const conta_id = contas[0]?.values[0]?.[0];
 
@@ -126,7 +126,7 @@ describe("Validação de Período Fechado", () => {
         // Fechar período
         const balancete_ok = validarBalanceamento(db, periodo_id);
         if (balancete_ok.balanceado) {
-          encerrarPeriodo(db, periodo_id, 1, "Teste");
+          await encerrarPeriodo(db, periodo_id, 1, "Teste");
         }
 
         // Tentar registrar em período fechado
@@ -271,7 +271,7 @@ describe("Retificação com Mecanismo de Reversão", () => {
     }
   });
 
-  it("deve bloquear retificação em período fechado", () => {
+  it("deve bloquear retificação em período fechado", async () => {
     if (!conta_id) {
       console.log("Conta não encontrada, pulando teste");
       return;
@@ -307,7 +307,7 @@ describe("Retificação com Mecanismo de Reversão", () => {
     // Fechar período. A precondição é verificada, não presumida: se o fechamento não
     // acontecer, o que vem depois não testa bloqueio nenhum.
     expect(validarBalanceamento(db, periodo_id).balanceado).toBe(true);
-    expect(encerrarPeriodo(db, periodo_id, 1, "Teste").sucesso).toBe(true);
+    expect((await encerrarPeriodo(db, periodo_id, 1, "Teste")).sucesso).toBe(true);
 
     // Tentar retificação em período fechado
     const resultado = registrarRetificacao(db, {

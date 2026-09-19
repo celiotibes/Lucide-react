@@ -6,7 +6,22 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import crypto from "crypto";
+
+// BUG REAL corrigido (mesmo problema de audit-logging-imutavel.ts, achado ao integrar
+// este módulo — até então órfão — ao Painel de Auditoria): `import crypto from "crypto"`
+// é o módulo nativo do Node, inexistente no navegador onde este código de fato roda
+// (sql.js em WASM, sem backend). `npx vite build` confirma que o import é externalizado
+// para o bundle do cliente; a primeira chamada a `crypto.createHash(...)` nesse bundle
+// estoura em runtime. Troca pela Web Crypto API (`crypto.subtle`, global do navegador e
+// do Node 19+ — os testes deste módulo continuam passando), o mesmo mecanismo já usado em
+// `src/domain/backupIntegridade.ts` para o hash do backup real do app.
+async function sha256Hex(conteudo: string): Promise<string> {
+  const bytes = new TextEncoder().encode(conteudo);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 export enum TipoBackup {
   COMPLETO = 'COMPLETO',
@@ -225,7 +240,7 @@ export class EstrategiaBackup {
       // Simular coleta de dados
       const tamanhoOriginal = Math.floor(Math.random() * 10000000) + 1000000; // 1MB a 10GB
       const tamanhoComprimido = Math.floor(tamanhoOriginal * 0.3); // 70% de compressão
-      const checksum = this.gerarChecksum();
+      const checksum = await this.gerarChecksum();
       const linhasProcessadas = Math.floor(Math.random() * 1000000) + 100000;
 
       // Simular dados de sincronização de blocos
@@ -345,7 +360,7 @@ export class EstrategiaBackup {
 
     try {
       // Simular verificação de integridade
-      const checksumCalculado = this.gerarChecksum();
+      const checksumCalculado = await this.gerarChecksum();
       const integro = checksumCalculado === backup.checksum_sha256 || Math.random() > 0.05; // 95% sucesso
 
       if (integro) {
@@ -576,15 +591,12 @@ export class EstrategiaBackup {
   /**
    * Gera checksum SHA256 simulado
    */
-  private gerarChecksum(): string {
+  private async gerarChecksum(): Promise<string> {
     // SHA-256 de verdade. Antes era o hex da string "Math.random()+Date.now()" cortado
     // em 64, e como essa string varia de tamanho o resultado saía com 62 ou 64
     // caracteres — um campo chamado checksum_sha256 que não era sha256 nem tinha
     // tamanho fixo, portanto inútil para conferir integridade.
-    return crypto
-      .createHash("sha256")
-      .update(`${Math.random()}|${Date.now()}`)
-      .digest("hex");
+    return sha256Hex(`${Math.random()}|${Date.now()}`);
   }
 
   /**

@@ -47,11 +47,13 @@ const SincronizacaoIntegridadeView = lazy(() => import("./components/Sincronizac
 const BudgetVarianceView = lazy(() => import("./components/BudgetVarianceView").then((m) => ({ default: m.BudgetVarianceView })));
 const CashForecastView = lazy(() => import("./components/CashForecastView").then((m) => ({ default: m.CashForecastView })));
 const ECDExportView = lazy(() => import("./components/ECDExportView").then((m) => ({ default: m.ECDExportView })));
+const PainelAuditoria = lazy(() => import("./ui/PainelAuditoria").then((m) => ({ default: m.PainelAuditoria })));
+const PainelConferencia = lazy(() => import("./components/painel-conferencia/PainelConferencia"));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
-  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd";
+  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -75,7 +77,9 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "indices", rotulo: "Índices econômicos", icone: LineChart },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
+  { id: "conferencia", rotulo: "Conferência de apontamentos", icone: ClipboardList },
   { id: "auditoria", rotulo: "Auditoria forense", icone: ShieldAlert },
+  { id: "trilha", rotulo: "Trilha de auditoria e backup", icone: ShieldAlert },
   { id: "laudo", rotulo: "Laudo pericial", icone: FileText },
   { id: "sincronizacao", rotulo: "Sincronização", icone: RefreshCw },
 ];
@@ -407,7 +411,9 @@ function Conteudo() {
             {aba === "indices" && <IndicesEconomicosView />}
             {aba === "renda" && <RendaTributavelView />}
             {aba === "razao" && <LivroRazaoView />}
+            {aba === "conferencia" && <PainelConferencia />}
             {aba === "auditoria" && <AuditoriaView aoDrillDown={aoDrillDownTransacoes} />}
+            {aba === "trilha" && <PainelAuditoria />}
             {aba === "laudo" && <LaudoView />}
             {aba === "sincronizacao" && <SincronizacaoView />}
           </Suspense>
