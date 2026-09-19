@@ -73,7 +73,8 @@ describe("Duplicate Payment Protection (P1.5)", () => {
       };
 
       // Primeira submissão
-      guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      const res1 = guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      expect(res1.sucesso).toBe(true);
 
       // Tentativa de segunda submissão
       const resultado = guard.verificarDuplicacao(contexto, 1, "2026-08");
@@ -90,8 +91,18 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         prestador_id: 1,
       };
 
-      // Primeira submissão aprovada
-      guard.registrarPagamento(contexto, 1, "2026-08", 5000, "aprovado");
+      // Primeira submissão com status pendente (prestador só pode submeter pendente)
+      const res1 = guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      expect(res1.sucesso).toBe(true);
+
+      // Admin aprova
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
+      const resUpdate = guard.atualizarStatus(contextoAdmin, 1, "2026-08", "aprovado");
+      expect(resUpdate.sucesso).toBe(true);
 
       // Tentativa de segunda submissão
       const resultado = guard.verificarDuplicacao(contexto, 1, "2026-08");
@@ -108,8 +119,18 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         prestador_id: 1,
       };
 
-      // Primeira submissão rejeitada
-      guard.registrarPagamento(contexto, 1, "2026-08", 5000, "rejeitado");
+      // Primeira submissão pendente
+      const res1 = guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      expect(res1.sucesso).toBe(true);
+
+      // Admin rejeita
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
+      const resUpdate = guard.atualizarStatus(contextoAdmin, 1, "2026-08", "rejeitado");
+      expect(resUpdate.sucesso).toBe(true);
 
       // Tentativa de resubmissão após rejeição
       const resultado = guard.verificarDuplicacao(contexto, 1, "2026-08");
@@ -128,7 +149,8 @@ describe("Duplicate Payment Protection (P1.5)", () => {
       };
 
       // Submissão agosto
-      guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      const res1 = guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      expect(res1.sucesso).toBe(true);
 
       // Submissão setembro (mesmo prestador, mês diferente)
       const resultado = guard.verificarDuplicacao(contexto, 1, "2026-09");
@@ -345,9 +367,18 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         prestador_id: 1,
       };
 
-      guard.registrarPagamento(contexto, 1, "2026-08", 5000);
-      guard.registrarPagamento(contexto, 1, "2026-09", 5200);
-      guard.registrarPagamento(contexto, 2, "2026-08", 4000);
+      const res1 = guard.registrarPagamento(contexto, 1, "2026-08", 5000);
+      expect(res1.sucesso).toBe(true);
+      const res2 = guard.registrarPagamento(contexto, 1, "2026-09", 5200);
+      expect(res2.sucesso).toBe(true);
+
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
+      const res3 = guard.registrarPagamento(contextoAdmin, 2, "2026-08", 4000);
+      expect(res3.sucesso).toBe(true);
 
       const historico = guard.obterHistoricoPrestador(1);
 
@@ -364,9 +395,20 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         prestador_id: 1,
       };
 
-      guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
-      guard.registrarPagamento(contexto, 1, "2026-09", 5200, "aprovado");
-      guard.registrarPagamento(contexto, 2, "2026-08", 4000, "pendente");
+      const res1 = guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      expect(res1.sucesso).toBe(true);
+
+      // To set status as "aprovado", need admin context
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
+      const res2 = guard.registrarPagamento(contextoAdmin, 1, "2026-09", 5200, "aprovado");
+      expect(res2.sucesso).toBe(true);
+
+      const res3 = guard.registrarPagamento(contextoAdmin, 2, "2026-08", 4000, "pendente");
+      expect(res3.sucesso).toBe(true);
 
       const pendentes = guard.obterPendentes();
 
@@ -403,27 +445,37 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         prestador_id: 1,
       };
 
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
+
       // 1. Submissão inicial
       let verif = guard.verificarDuplicacao(contexto, 1, "2026-08");
       expect(verif.duplicado).toBe(false);
 
-      guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      const res1 = guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+      expect(res1.sucesso).toBe(true);
 
       // 2. Não permite segunda submissão (ainda pendente)
       verif = guard.verificarDuplicacao(contexto, 1, "2026-08");
       expect(verif.duplicado).toBe(true);
 
       // 3. Admin rejeita
-      guard.atualizarStatus(1, "2026-08", "rejeitado");
+      const resReject = guard.atualizarStatus(contextoAdmin, 1, "2026-08", "rejeitado");
+      expect(resReject.sucesso).toBe(true);
 
       // 4. Agora permite resubmissão
       verif = guard.verificarDuplicacao(contexto, 1, "2026-08");
       expect(verif.duplicado).toBe(false);
 
-      guard.registrarPagamento(contexto, 1, "2026-08", 5100, "pendente");
+      const res2 = guard.registrarPagamento(contexto, 1, "2026-08", 5100, "pendente");
+      expect(res2.sucesso).toBe(true);
 
       // 5. Admin aprova
-      guard.atualizarStatus(1, "2026-08", "aprovado");
+      const resApprove = guard.atualizarStatus(contextoAdmin, 1, "2026-08", "aprovado");
+      expect(resApprove.sucesso).toBe(true);
 
       // 6. Não permite mais resubmissão (aprovado)
       verif = guard.verificarDuplicacao(contexto, 1, "2026-08");
