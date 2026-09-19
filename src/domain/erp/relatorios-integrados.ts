@@ -160,6 +160,13 @@ export function gerarRelatorioAuditoriaParModulo(
   }));
 }
 
+/* Os códigos de conta deste módulo seguem planoDeContasErp.ts, a fonte única.
+ * Até esta mudança ele lia receita em 5.1.0x e despesa em 6.1.0x, enquanto
+ * imovel-gestao-ledger-integration.ts lançava receita em 4.1.01 e despesa em 5.2.xx no
+ * MESMO razão. O resultado é que uma despesa de condomínio lançada por um módulo ficava
+ * invisível para a DRE do outro, e a receita de aluguel não aparecia em relatório
+ * nenhum — os dois escreviam e liam a mesma tabela com planos incompatíveis.
+ */
 export function gerarDRE(
   db: Database,
   entidade_id: number,
@@ -190,24 +197,24 @@ export function gerarDRE(
   };
 
   // Receitas: contas 5.x.xx
-  const receitasAluguel = getCredito("5.1.01");
-  const receitasReajustes = getCredito("5.1.02");
-  const receitasRateios = getCredito("5.1.03");
-  const receitasJuros = getCredito("5.2.01");
-  const outrasReceitas = getCredito("5.3.01");
+  const receitasAluguel = getCredito("4.1.01");
+  const receitasReajustes = getCredito("4.1.02");
+  const receitasRateios = getCredito("4.1.03");
+  const receitasJuros = getCredito("4.2.01");
+  const outrasReceitas = getCredito("4.3.01");
 
   const totalReceitas =
     receitasAluguel + receitasReajustes + receitasRateios + receitasJuros + outrasReceitas;
 
   // Custos e Despesas: contas 6.x.xx
-  const condominio = getDebito("6.1.01");
-  const aguaEsgoto = getDebito("6.1.02");
-  const eletricidade = getDebito("6.1.03");
-  const internet = getDebito("6.1.04");
-  const manutencao = getDebito("6.1.05");
-  const limpeza = getDebito("6.1.06");
-  const seguros = getDebito("6.1.07");
-  const depreciacao = getDebito("6.2.01");
+  const condominio = getDebito("5.2.10");
+  const aguaEsgoto = getDebito("5.2.07");
+  const eletricidade = getDebito("5.2.06");
+  const internet = getDebito("5.2.12");
+  const manutencao = getDebito("5.2.05");
+  const limpeza = getDebito("5.2.11");
+  const seguros = getDebito("5.2.13");
+  const depreciacao = getDebito("5.3.01");
 
   const totalCustos =
     condominio + aguaEsgoto + eletricidade + internet + manutencao + limpeza + seguros + depreciacao;
@@ -217,8 +224,8 @@ export function gerarDRE(
   // Juros e Multas
   const despesaJurosFinanciamento = getDebito("6.3.01");
   const despesaJurosMora = getDebito("6.3.02");
-  const receitaJurosJuros = getCredito("5.2.01");
-  const receitaMulta = getCredito("5.3.01");
+  const receitaJurosJuros = getCredito("4.2.01");
+  const receitaMulta = getCredito("4.3.01");
 
   // Provisões
   const provisaoDevedora = getDebito("6.4.01");
@@ -576,24 +583,24 @@ export function gerarDREComFiltro(
   };
 
   // Receitas: contas 5.x.xx
-  const receitasAluguel = getCredito("5.1.01");
-  const receitasReajustes = getCredito("5.1.02");
-  const receitasRateios = getCredito("5.1.03");
-  const receitasJuros = getCredito("5.2.01");
-  const outrasReceitas = getCredito("5.3.01");
+  const receitasAluguel = getCredito("4.1.01");
+  const receitasReajustes = getCredito("4.1.02");
+  const receitasRateios = getCredito("4.1.03");
+  const receitasJuros = getCredito("4.2.01");
+  const outrasReceitas = getCredito("4.3.01");
 
   const totalReceitas =
     receitasAluguel + receitasReajustes + receitasRateios + receitasJuros + outrasReceitas;
 
   // Custos e Despesas: contas 6.x.xx
-  const condominio = getDebito("6.1.01");
-  const aguaEsgoto = getDebito("6.1.02");
-  const eletricidade = getDebito("6.1.03");
-  const internet = getDebito("6.1.04");
-  const manutencao = getDebito("6.1.05");
-  const limpeza = getDebito("6.1.06");
-  const seguros = getDebito("6.1.07");
-  const depreciacao = getDebito("6.2.01");
+  const condominio = getDebito("5.2.10");
+  const aguaEsgoto = getDebito("5.2.07");
+  const eletricidade = getDebito("5.2.06");
+  const internet = getDebito("5.2.12");
+  const manutencao = getDebito("5.2.05");
+  const limpeza = getDebito("5.2.11");
+  const seguros = getDebito("5.2.13");
+  const depreciacao = getDebito("5.3.01");
 
   const totalCustos =
     condominio + aguaEsgoto + eletricidade + internet + manutencao + limpeza + seguros + depreciacao;
@@ -603,8 +610,8 @@ export function gerarDREComFiltro(
   // Juros e Multas
   const despesaJurosFinanciamento = getDebito("6.3.01");
   const despesaJurosMora = getDebito("6.3.02");
-  const receitaJurosJuros = getCredito("5.2.01");
-  const receitaMulta = getCredito("5.3.01");
+  const receitaJurosJuros = getCredito("4.2.01");
+  const receitaMulta = getCredito("4.3.01");
 
   // Provisões
   const provisaoDevedora = getDebito("6.4.01");
@@ -837,7 +844,7 @@ export function gerarFluxoCaixaComFiltro(
   const sai = getFluxoDeCaixa(["1.1.01", "1.1.02", "1.1.03"], "credito");
 
   // Investimento: Aquisição de Imóvel (2.1.01)
-  const aquisicoes = getFluxoDeCaixa(["2.1.01"], "debito");
+  const aquisicoes = getFluxoDeCaixa(["1.2.05"], "debito"); // imóveis: ativo imobilizado
 
   // Financiamento: Empréstimos (3.2.01)
   const emprestimos = getFluxoDeCaixa(["3.2.01"], "credito");

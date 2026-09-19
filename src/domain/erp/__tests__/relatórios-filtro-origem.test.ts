@@ -43,7 +43,10 @@ describe("Relatórios com Filtro de Origem de Módulo", () => {
     // do plano de contas padrão do fixture. Este bloco antes as inseria de novo, o que
     // esbarrava no UNIQUE (entidade_id, codigo), e lia o id de um `executar(...).lastID`
     // que nunca existiu — executar() devolve void. Buscar o id é o idioma do código.
-    conta_receita_id = idDaConta("5.1.01");
+    // 4.1.01 é a conta de receita de aluguel no plano do ERP (planoDeContasErp.ts).
+    // Antes era 5.1.01, que o fixture definia como receita enquanto os módulos tratam a
+    // faixa 5 como despesa — uma das duas colisões de plano que foram resolvidas.
+    conta_receita_id = idDaConta("4.1.01");
     conta_despesa_id = idDaConta("6.1.01");
     conta_caixa_id = idDaConta("1.1.01");
   });

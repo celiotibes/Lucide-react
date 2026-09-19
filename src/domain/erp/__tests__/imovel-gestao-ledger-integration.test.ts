@@ -90,6 +90,11 @@ describe("Integração Imovel Gestao-Ledger", () => {
 
   describe("registrarDespesaImovelNoLedger - Despesa Condominial", () => {
     it("deve registrar despesa condominial com lançamento contábil duplo", () => {
+      // O fixture já semeia condomínio e manutenção nestas contas (agora que o plano é
+      // único, elas são as mesmas que o módulo usa), então o que o lançamento garante é
+      // a variação, não o saldo absoluto.
+      const condominioAntes = obterSaldoConta(db, periodo_id, 5210);
+      const aPagarAntes = obterSaldoConta(db, periodo_id, 3102);
       const resultado = registrarDespesaImovelNoLedger(
         db,
         1,
@@ -109,14 +114,12 @@ describe("Integração Imovel Gestao-Ledger", () => {
       expect(resultado?.sincronizacao_id).toBeGreaterThan(0);
 
       // Verificar débito em conta de despesa (5.2.10)
-      const saldoDebito = obterSaldoConta(db, periodo_id, 5210);
-      expect(saldoDebito).toBe(800);
+      expect(obterSaldoConta(db, periodo_id, 5210)).toBe(condominioAntes + 800);
 
       // Verificar crédito em contas a pagar (3.1.02). obterSaldoConta devolve o saldo na
       // direção natural da conta (ledger.ts:124): numa conta credora, crédito vira
       // positivo. Negativo ali significaria saldo invertido, que não é o caso aqui.
-      const saldoCredito = obterSaldoConta(db, periodo_id, 3102);
-      expect(saldoCredito).toBe(800);
+      expect(obterSaldoConta(db, periodo_id, 3102)).toBe(aPagarAntes + 800);
     });
 
     it("deve evitar duplicação de despesa condominial", () => {
@@ -140,6 +143,7 @@ describe("Integração Imovel Gestao-Ledger", () => {
 
   describe("registrarDespesaImovelNoLedger - Despesa de Manutenção", () => {
     it("deve registrar despesa de manutenção", () => {
+      const manutencaoAntes = obterSaldoConta(db, periodo_id, 5205);
       const resultado = registrarDespesaImovelNoLedger(
         db,
         2,
@@ -158,8 +162,7 @@ describe("Integração Imovel Gestao-Ledger", () => {
       expect(resultado?.lancamento_id).toBeGreaterThan(0);
 
       // Verificar débito em conta de manutenção (5.2.05)
-      const saldoDebito = obterSaldoConta(db, periodo_id, 5205);
-      expect(saldoDebito).toBe(2500);
+      expect(obterSaldoConta(db, periodo_id, 5205)).toBe(manutencaoAntes + 2500);
 
       // Verificar crédito em contas a pagar (3.1.02)
       const saldoCredito = obterSaldoConta(db, periodo_id, 3102);
@@ -707,7 +710,11 @@ describe("Integração Imovel Gestao-Ledger", () => {
         { tipo: "reforma", conta: 1205 },
       ];
 
+      // Variação, não saldo absoluto: condomínio e manutenção já têm lançamento do
+      // fixture nestas mesmas contas desde que o plano passou a ser único.
       tiposDespesa.forEach((item, index) => {
+        const antes = obterSaldoConta(db, periodo_id, item.conta);
+
         registrarDespesaImovelNoLedger(
           db,
           index + 10,
@@ -722,8 +729,7 @@ describe("Integração Imovel Gestao-Ledger", () => {
           }
         );
 
-        const saldo = obterSaldoConta(db, periodo_id, item.conta);
-        expect(saldo).toBe(100);
+        expect(obterSaldoConta(db, periodo_id, item.conta)).toBe(antes + 100);
       });
     });
   });
