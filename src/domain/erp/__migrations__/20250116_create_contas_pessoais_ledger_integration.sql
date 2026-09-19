@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS contas_pessoais_ledger_mapping (
     data_efetiva_fim        TEXT,
 
     -- Auditoria
-    criado_em               TEXT NOT NULL DEFAULT datetime('now'),
+    criado_em               TEXT NOT NULL DEFAULT (datetime('now')),
     atualizado_em           TEXT,
     criado_por              INTEGER,
 
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS contas_pessoais_sincronizacao_log (
     tentativas              INTEGER DEFAULT 1,
 
     -- Rastreamento
-    criado_em               TEXT NOT NULL DEFAULT datetime('now'),
+    criado_em               TEXT NOT NULL DEFAULT (datetime('now')),
     processado_em           TEXT,
     criado_por              INTEGER,
 

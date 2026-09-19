@@ -23,7 +23,7 @@ import {
   gerarFluxoCaixa,
 } from "../relatorios-integrados";
 import { prepararBancoTeste } from "./test-setup";
-import { executar } from "../../../db/connection";
+import { consultar, executar } from "../../../db/connection";
 
 describe("Relatórios com Filtro de Origem de Módulo", () => {
   let db: any;
@@ -39,34 +39,29 @@ describe("Relatórios com Filtro de Origem de Módulo", () => {
     entidade_id = setup.entidade_id;
     periodo_id = setup.periodo_id;
 
-    // Setup: criar contas de teste para os módulos
-    // Conta de Receita (5.1.01 - Aluguel)
-    const receitaResult = executar(
-      db,
-      `INSERT INTO contas_plano_contas (entidade_id, codigo, descricao, grupo, natureza, analisavel, ativo)
-       VALUES (?, '5.1.01', 'Receita de Aluguel', 'receita', 'credito', 1, 1)`,
-      [entidade_id],
-    );
-    conta_receita_id = receitaResult.lastID;
-
-    // Conta de Despesa (6.1.01 - Condomínio)
-    const despesaResult = executar(
-      db,
-      `INSERT INTO contas_plano_contas (entidade_id, codigo, descricao, grupo, natureza, analisavel, ativo)
-       VALUES (?, '6.1.01', 'Despesa Condomínio', 'despesa', 'debito', 1, 1)`,
-      [entidade_id],
-    );
-    conta_despesa_id = despesaResult.lastID;
-
-    // Conta de Caixa (1.1.01 - Caixa)
-    const caixaResult = executar(
-      db,
-      `INSERT INTO contas_plano_contas (entidade_id, codigo, descricao, grupo, natureza, analisavel, ativo)
-       VALUES (?, '1.1.01', 'Caixa', 'ativo', 'debito', 1, 1)`,
-      [entidade_id],
-    );
-    conta_caixa_id = caixaResult.lastID;
+    // As contas usadas aqui (5.1.01 Aluguel, 6.1.01 Condomínio, 1.1.01 Caixa) já vêm
+    // do plano de contas padrão do fixture. Este bloco antes as inseria de novo, o que
+    // esbarrava no UNIQUE (entidade_id, codigo), e lia o id de um `executar(...).lastID`
+    // que nunca existiu — executar() devolve void. Buscar o id é o idioma do código.
+    conta_receita_id = idDaConta("5.1.01");
+    conta_despesa_id = idDaConta("6.1.01");
+    conta_caixa_id = idDaConta("1.1.01");
   });
+
+  /** Módulos que de fato têm lançamento no período — inclui os semeados pelo fixture. */
+  function modulosPresentes(): string[] {
+    return consultar<{ origem_modulo: string }>(
+      db,
+      `SELECT DISTINCT origem_modulo FROM ledger_entries WHERE entidade_id = ? AND periodo_id = ? AND origem_modulo IS NOT NULL`,
+      [entidade_id, periodo_id],
+    ).map((l) => l.origem_modulo);
+  }
+
+  function idDaConta(codigo: string): number {
+    const linhas = consultar<{ id: number }>(db, `SELECT id FROM contas_plano_contas WHERE entidade_id = ? AND codigo = ?`, [entidade_id, codigo]);
+    if (linhas.length === 0) throw new Error(`Conta ${codigo} não existe no plano de contas do fixture`);
+    return linhas[0].id;
+  }
 
   describe("obterLancamentosParModulo", () => {
     it("deve retornar array vazio quando nenhum lançamento existe para um módulo", () => {
@@ -678,12 +673,16 @@ describe("Relatórios com Filtro de Origem de Módulo", () => {
         ],
       );
 
+      // A soma tem de cobrir TODOS os módulos presentes, não só os dois inseridos aqui:
+      // o fixture já traz lançamentos de origem "manual", que entram na DRE sem filtro.
+      // Somar só contratos+rateio comparava 1500 com o total real de 19500 e falhava sem
+      // que houvesse nada errado com a consolidação.
       const dreTotal = gerarDRE(db, entidade_id, periodo_id);
-      const dreContratos = gerarDREComFiltro(db, entidade_id, periodo_id, ["contratos"]);
-      const dreRateio = gerarDREComFiltro(db, entidade_id, periodo_id, ["rateio"]);
-
-      const somaParciais = dreContratos.receitas.total_receitas + dreRateio.receitas.total_receitas;
-      expect(dreTotal.receitas.total_receitas).toBe(somaParciais);
+      const somaParciais = modulosPresentes().reduce(
+        (soma, modulo) => soma + gerarDREComFiltro(db, entidade_id, periodo_id, [modulo]).receitas.total_receitas,
+        0,
+      );
+      expect(somaParciais).toBe(dreTotal.receitas.total_receitas);
     });
 
     it("Balanço: soma de filtros deve igualar total", () => {
@@ -771,17 +770,13 @@ describe("Relatórios com Filtro de Origem de Módulo", () => {
         ],
       );
 
+      // Mesma correção da DRE acima: o invariante só vale somando todos os módulos.
       const fluxoTotal = gerarFluxoCaixa(db, entidade_id, periodo_id);
-      const fluxoContratos = gerarFluxoCaixaComFiltro(db, entidade_id, periodo_id, [
-        "contratos",
-      ]);
-      const fluxoImovel = gerarFluxoCaixaComFiltro(db, entidade_id, periodo_id, [
-        "imovel-gestao",
-      ]);
-
-      const somaParciais =
-        fluxoContratos.operacional.entradas + fluxoImovel.operacional.entradas;
-      expect(fluxoTotal.operacional.entradas).toBe(somaParciais);
+      const somaParciais = modulosPresentes().reduce(
+        (soma, modulo) => soma + gerarFluxoCaixaComFiltro(db, entidade_id, periodo_id, [modulo]).operacional.entradas,
+        0,
+      );
+      expect(somaParciais).toBe(fluxoTotal.operacional.entradas);
     });
   });
 
