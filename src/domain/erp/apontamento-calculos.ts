@@ -389,7 +389,7 @@ export function calcularAirbnb(
     estava_em_jornada,
     es_sabado: dia_semana === 6,
     es_domingo_feriado: dia_semana === 0 || domingo_feriado,
-    eh_dentro_comercial: ehDentroComercial(horario_inicio, horario_fim),
+    eh_dentro_comercial: ehDentroComercial(horario_inicio, horario_fim) && !(dia_semana === 0 || domingo_feriado),
     valor_base_aplicado: 0,
     percentual_adicional: 0,
     passos_calculo: [],
@@ -402,8 +402,12 @@ export function calcularAirbnb(
   let rubrica = "";
   let proporcional = false;
 
-  // Passo 1: Determinar se está dentro do comercial
-  const dentro_comercial = ehDentroComercial(horario_inicio, horario_fim);
+  // Passo 1: Determinar se está dentro do comercial. Domingo e feriado nunca estão:
+  // "horário comercial" pressupõe dia de expediente. Antes a checagem olhava só o
+  // relógio (09h–18h), então a tarifa de domingo/feriado da tabela abaixo era
+  // inalcançável para qualquer serviço diurno de domingo — existia e nunca se aplicava.
+  const dentro_comercial =
+    ehDentroComercial(horario_inicio, horario_fim) && !memoria.es_domingo_feriado;
 
   // Passo 2: Mapear valores base conforme tipo de atividade e período
   if (tipo_atividade === "limpeza") {
