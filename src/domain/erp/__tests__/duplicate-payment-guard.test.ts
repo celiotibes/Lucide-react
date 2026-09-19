@@ -38,6 +38,18 @@ describe("Duplicate Payment Protection (P1.5)", () => {
   });
 
   describe("Verificação de Duplicação", () => {
+    it("C-3: Bloqueia contexto não autenticado (fail-closed)", () => {
+      const contexto: ContextoAutenticacao = {
+        usuario: null,
+        autenticado: false,
+      };
+
+      const resultado = guard.verificarDuplicacao(contexto, 1, "2026-08");
+
+      expect(resultado.duplicado).toBe(true);
+      expect(resultado.motivo).toContain("Não autenticado");
+    });
+
     it("permite primeira submissão", () => {
       const contexto: ContextoAutenticacao = {
         usuario: usuarios_teste.paulo,
@@ -173,13 +185,14 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         prestador_id: 1,
       };
 
-      const pagamento = guard.registrarPagamento(contexto, 1, "2026-08", 5000);
+      const resultado = guard.registrarPagamento(contexto, 1, "2026-08", 5000);
 
-      expect(pagamento.status).toBe("pendente");
-      expect(pagamento.prestador_id).toBe(1);
-      expect(pagamento.mes_referencia).toBe("2026-08");
-      expect(pagamento.total_pagar).toBe(5000);
-      expect(pagamento.usuario_id).toBe("user_prestador_1");
+      expect(resultado.sucesso).toBe(true);
+      expect(resultado.pagamento?.status).toBe("pendente");
+      expect(resultado.pagamento?.prestador_id).toBe(1);
+      expect(resultado.pagamento?.mes_referencia).toBe("2026-08");
+      expect(resultado.pagamento?.total_pagar).toBe(5000);
+      expect(resultado.pagamento?.usuario_id).toBe("user_prestador_1");
     });
 
     it("registra pagamento com status customizado", () => {
@@ -189,7 +202,7 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         role: "admin",
       };
 
-      const pagamento = guard.registrarPagamento(
+      const resultado = guard.registrarPagamento(
         contexto,
         1,
         "2026-08",
@@ -197,7 +210,48 @@ describe("Duplicate Payment Protection (P1.5)", () => {
         "aprovado"
       );
 
-      expect(pagamento.status).toBe("aprovado");
+      expect(resultado.sucesso).toBe(true);
+      expect(resultado.pagamento?.status).toBe("aprovado");
+    });
+
+    it("C-4: Bloqueia contexto não autenticado", () => {
+      const contexto: ContextoAutenticacao = {
+        usuario: null,
+        autenticado: false,
+      };
+
+      const resultado = guard.registrarPagamento(contexto, 1, "2026-08", 5000);
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.erro).toContain("não autenticado");
+    });
+
+    it("C-4: Bloqueia prestador tentando registrar com status aprovado", () => {
+      const contexto: ContextoAutenticacao = {
+        usuario: usuarios_teste.paulo,
+        autenticado: true,
+        role: "prestador",
+        prestador_id: 1,
+      };
+
+      const resultado = guard.registrarPagamento(contexto, 1, "2026-08", 5000, "aprovado");
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.erro).toContain("status pendente");
+    });
+
+    it("C-4: Bloqueia prestador tentando registrar para outro prestador", () => {
+      const contexto: ContextoAutenticacao = {
+        usuario: usuarios_teste.paulo,
+        autenticado: true,
+        role: "prestador",
+        prestador_id: 1,
+      };
+
+      const resultado = guard.registrarPagamento(contexto, 2, "2026-08", 5000, "pendente");
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.erro).toContain("outro prestador");
     });
   });
 
@@ -212,9 +266,15 @@ describe("Duplicate Payment Protection (P1.5)", () => {
 
       guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
 
-      const resultado = guard.atualizarStatus(1, "2026-08", "aprovado");
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
 
-      expect(resultado).toBe(true);
+      const resultado = guard.atualizarStatus(contextoAdmin, 1, "2026-08", "aprovado");
+
+      expect(resultado.sucesso).toBe(true);
 
       // Verificar que status foi atualizado
       const verificacao = guard.verificarDuplicacao(contexto, 1, "2026-08");
@@ -231,19 +291,48 @@ describe("Duplicate Payment Protection (P1.5)", () => {
 
       guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
 
-      const resultado = guard.atualizarStatus(1, "2026-08", "rejeitado");
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
 
-      expect(resultado).toBe(true);
+      const resultado = guard.atualizarStatus(contextoAdmin, 1, "2026-08", "rejeitado");
+
+      expect(resultado.sucesso).toBe(true);
 
       // Verificar que permite resubmissão após rejeição
       const verificacao = guard.verificarDuplicacao(contexto, 1, "2026-08");
       expect(verificacao.duplicado).toBe(false);
     });
 
-    it("retorna false se pagamento não existe", () => {
-      const resultado = guard.atualizarStatus(1, "2026-08", "aprovado");
+    it("retorna erro se pagamento não existe", () => {
+      const contextoAdmin: ContextoAutenticacao = {
+        usuario: usuarios_teste.admin,
+        autenticado: true,
+        role: "admin",
+      };
 
-      expect(resultado).toBe(false);
+      const resultado = guard.atualizarStatus(contextoAdmin, 1, "2026-08", "aprovado");
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.erro).toContain("não encontrado");
+    });
+
+    it("C-4: Bloqueia prestador tentando atualizar status", () => {
+      const contexto: ContextoAutenticacao = {
+        usuario: usuarios_teste.paulo,
+        autenticado: true,
+        role: "prestador",
+        prestador_id: 1,
+      };
+
+      guard.registrarPagamento(contexto, 1, "2026-08", 5000, "pendente");
+
+      const resultado = guard.atualizarStatus(contexto, 1, "2026-08", "aprovado");
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.erro).toContain("não autorizado");
     });
   });
 

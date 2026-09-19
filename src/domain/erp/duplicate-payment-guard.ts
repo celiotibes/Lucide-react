@@ -2,6 +2,10 @@
  * Duplicate Payment Protection Service
  * Prevents submitting payment for the same prestador + month combination twice
  *
+ * Security Features:
+ * - C-3: Fails securely when unauthenticated (returns duplicado: true)
+ * - C-4: Checks authorization before mutations
+ *
  * Phase 1: In-memory tracking with session-level cache
  * Phase 2: Database UNIQUE constraint on (prestador_id, mes_referencia, status)
  */
@@ -19,6 +23,8 @@ export interface PagamentoSubmetido {
 
 /**
  * Service to prevent duplicate payment submissions
+ * C-3: Fails securely on missing authentication
+ * C-4: Checks authorization on mutations
  */
 export class DuplicatePaymentGuard {
   private pagamentosSubmetidos: PagamentoSubmetido[] = [];
@@ -27,16 +33,22 @@ export class DuplicatePaymentGuard {
   /**
    * Verifica se há pagamento pendente/aprovado para este prestador + mês
    * Rejeições podem ser resubmetidas
+   * C-3: Returns duplicado: true if context is invalid (fail-closed)
    */
   verificarDuplicacao(
     contexto: ContextoAutenticacao,
     prestador_id: number,
     mes_referencia: string
-  ): { duplicado: boolean; pagamentoAnterior?: PagamentoSubmetido; motivo?: string } {
+  ): {
+    duplicado: boolean;
+    pagamentoAnterior?: PagamentoSubmetido;
+    motivo?: string;
+  } {
+    // C-3: Check authentication FIRST - fail closed
     if (!contexto.autenticado || !contexto.usuario) {
       return {
-        duplicado: false,
-        motivo: "Usuário não autenticado",
+        duplicado: true,
+        motivo: "Não autenticado - acesso negado",
       };
     }
 
@@ -77,6 +89,7 @@ export class DuplicatePaymentGuard {
 
   /**
    * Registra um novo pagamento submetido
+   * C-4: Verifica autorização antes de registrar
    */
   registrarPagamento(
     contexto: ContextoAutenticacao,
@@ -84,12 +97,52 @@ export class DuplicatePaymentGuard {
     mes_referencia: string,
     total_pagar: number,
     status: "pendente" | "aprovado" | "rejeitado" = "pendente"
-  ): PagamentoSubmetido {
+  ): {
+    sucesso: boolean;
+    pagamento?: PagamentoSubmetido;
+    erro?: string;
+  } {
+    // C-4: Check authentication first
+    if (!contexto.autenticado || !contexto.usuario) {
+      return {
+        sucesso: false,
+        erro: "Usuário não autenticado",
+      };
+    }
+
+    // C-4: Check authorization
+    if (contexto.usuario.role === "prestador") {
+      // Prestador can only submit for themselves with "pendente" status
+      if (contexto.usuario.prestador_id !== prestador_id) {
+        return {
+          sucesso: false,
+          erro: "Prestador não autorizado a submeter para outro prestador",
+        };
+      }
+      if (status !== "pendente") {
+        return {
+          sucesso: false,
+          erro: "Prestador só pode submeter pagamentos com status pendente",
+        };
+      }
+    } else if (
+      contexto.usuario.role === "gestor" ||
+      contexto.usuario.role === "admin"
+    ) {
+      // Gestor/Admin can create payments with any status
+      // Allowed
+    } else {
+      return {
+        sucesso: false,
+        erro: "Usuário não autorizado a registrar pagamentos",
+      };
+    }
+
     const pagamento: PagamentoSubmetido = {
       prestador_id,
       mes_referencia,
       data_submissao: new Date().toISOString(),
-      usuario_id: contexto.usuario?.id || "sistema",
+      usuario_id: contexto.usuario.id,
       total_pagar,
       status,
     };
@@ -99,26 +152,50 @@ export class DuplicatePaymentGuard {
     const chave = this.gerarChave(prestador_id, mes_referencia);
     this.indicePrestadorMes.set(chave, pagamento);
 
-    return pagamento;
+    return { sucesso: true, pagamento };
   }
 
   /**
    * Atualiza status de um pagamento (aprova ou rejeita)
+   * C-4: Verifica autorização antes de atualizar
    */
   atualizarStatus(
+    contexto: ContextoAutenticacao,
     prestador_id: number,
     mes_referencia: string,
     novoStatus: "pendente" | "aprovado" | "rejeitado"
-  ): boolean {
+  ): { sucesso: boolean; erro?: string } {
+    // C-4: Check authentication
+    if (!contexto.autenticado || !contexto.usuario) {
+      return {
+        sucesso: false,
+        erro: "Usuário não autenticado",
+      };
+    }
+
+    // Only admin and gestor can update payment status
+    if (
+      contexto.usuario.role !== "admin" &&
+      contexto.usuario.role !== "gestor"
+    ) {
+      return {
+        sucesso: false,
+        erro: "Usuário não autorizado a atualizar status de pagamentos",
+      };
+    }
+
     const chave = this.gerarChave(prestador_id, mes_referencia);
     const pagamento = this.indicePrestadorMes.get(chave);
 
     if (!pagamento) {
-      return false;
+      return {
+        sucesso: false,
+        erro: "Pagamento não encontrado",
+      };
     }
 
     pagamento.status = novoStatus;
-    return true;
+    return { sucesso: true };
   }
 
   /**
