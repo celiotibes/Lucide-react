@@ -431,10 +431,16 @@ export function relatorioRetornoImagem(
     // Receitas de aluguel
     const [receitaData] = consultar<{ total: number }>(
       db,
-      `SELECT COALESCE(SUM(valor_aluguel), 0) as total
+      // contratos_locacao guarda vigência (data_inicio/data_fim), não vencimento —
+       // data_vencimento não existe nem aqui nem no schema de produção. O recorte certo
+       // para "aluguel do período" é o contrato vigente na janela; data_fim nulo é
+       // contrato em vigor (ver schema.sql).
+       `SELECT COALESCE(SUM(valor_aluguel), 0) as total
        FROM contratos_locacao
-       WHERE imovel_id = ? AND data_vencimento BETWEEN ? AND ?`,
-      [imovel.id, data_inicio, data_fim],
+       WHERE imovel_id = ?
+         AND data_inicio <= ?
+         AND (data_fim IS NULL OR data_fim >= ?)`,
+      [imovel.id, data_fim, data_inicio],
     );
 
     // Despesas do período
@@ -512,10 +518,16 @@ export function relatorioComparativoPropriedades(
     // Receita
     const [receitaData] = consultar<{ total: number }>(
       db,
-      `SELECT COALESCE(SUM(valor_aluguel), 0) as total
+      // contratos_locacao guarda vigência (data_inicio/data_fim), não vencimento —
+       // data_vencimento não existe nem aqui nem no schema de produção. O recorte certo
+       // para "aluguel do período" é o contrato vigente na janela; data_fim nulo é
+       // contrato em vigor (ver schema.sql).
+       `SELECT COALESCE(SUM(valor_aluguel), 0) as total
        FROM contratos_locacao
-       WHERE imovel_id = ? AND data_vencimento BETWEEN ? AND ?`,
-      [imovel.id, data_inicio, data_fim],
+       WHERE imovel_id = ?
+         AND data_inicio <= ?
+         AND (data_fim IS NULL OR data_fim >= ?)`,
+      [imovel.id, data_fim, data_inicio],
     );
 
     // Despesas
@@ -709,10 +721,16 @@ export function relatorioFluxoCaixaPropriedades(
     // Entradas de aluguel
     const [entradasAluguelData] = consultar<{ total: number }>(
       db,
-      `SELECT COALESCE(SUM(valor_aluguel), 0) as total
+      // contratos_locacao guarda vigência (data_inicio/data_fim), não vencimento —
+       // data_vencimento não existe nem aqui nem no schema de produção. O recorte certo
+       // para "aluguel do período" é o contrato vigente na janela; data_fim nulo é
+       // contrato em vigor (ver schema.sql).
+       `SELECT COALESCE(SUM(valor_aluguel), 0) as total
        FROM contratos_locacao
-       WHERE imovel_id = ? AND data_vencimento BETWEEN ? AND ?`,
-      [imovel.id, data_inicio, data_fim],
+       WHERE imovel_id = ?
+         AND data_inicio <= ?
+         AND (data_fim IS NULL OR data_fim >= ?)`,
+      [imovel.id, data_fim, data_inicio],
     );
 
     // Outras entradas
@@ -807,10 +825,16 @@ export function relatorioProvisioneFuturas(
     // Receita média mensal para cálculo de percentual
     const [receitaData] = consultar<{ total: number }>(
       db,
-      `SELECT COALESCE(SUM(valor_aluguel), 0) as total
+      // contratos_locacao guarda vigência (data_inicio/data_fim), não vencimento —
+       // data_vencimento não existe nem aqui nem no schema de produção. O recorte certo
+       // para "aluguel do período" é o contrato vigente na janela; data_fim nulo é
+       // contrato em vigor (ver schema.sql).
+       `SELECT COALESCE(SUM(valor_aluguel), 0) as total
        FROM contratos_locacao
-       WHERE imovel_id = ? AND data_vencimento BETWEEN ? AND ?`,
-      [imovel.id, data_inicio, data_fim],
+       WHERE imovel_id = ?
+         AND data_inicio <= ?
+         AND (data_fim IS NULL OR data_fim >= ?)`,
+      [imovel.id, data_fim, data_inicio],
     );
 
     const receita_media = receitaData?.total || 0;

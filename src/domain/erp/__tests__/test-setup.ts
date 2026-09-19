@@ -215,6 +215,7 @@ export async function prepararBancoTeste() {
       data_abertura TEXT,
       status TEXT DEFAULT 'ativa',
       observacoes TEXT,
+      criado_em TEXT,
       FOREIGN KEY (entidade_id) REFERENCES entidades(id)
     );
 
@@ -228,6 +229,7 @@ export async function prepararBancoTeste() {
       tipo_movimento TEXT,
       valor REAL NOT NULL,
       categoria TEXT,
+      referencia_documento TEXT,
       observacoes TEXT,
       criado_em TEXT,
       FOREIGN KEY (conta_pessoal_id) REFERENCES contas_pessoais(id),
@@ -393,6 +395,10 @@ export async function prepararBancoTeste() {
       data_conclusao TEXT,
       tentativas INTEGER DEFAULT 0,
       ultimo_erro TEXT,
+      -- Guarda de idempotência: preenchido quando o pagamento já virou lançamento
+      -- contábil, e conferido antes de lançar de novo (pagamentos-ledger-integration.ts
+      -- linhas 270 e 418). Sem a coluna o guard nem chegava a ser avaliado.
+      ledger_entry_id INTEGER,
       reconciliacao_status TEXT DEFAULT 'nao_reconciliado',
       reconciliado_em TEXT
     );
@@ -428,11 +434,19 @@ export async function prepararBancoTeste() {
     -- que derivou da migration e quebrou a suíte.
 
     -- MÓDULO PAGAMENTOS-LEDGER (PHASE 4-7)
+    -- payment_id em inglês, e não pagamento_id, porque é assim que
+    -- pagamentos-ledger-integration.ts grava e lê (4 ocorrências, nenhuma em
+    -- português). Sem schema de produção para esta tabela, o código é o contrato.
     CREATE TABLE IF NOT EXISTS sincronizacoes_pagamentos_ledger (
       id INTEGER PRIMARY KEY,
-      pagamento_id TEXT,
+      payment_id TEXT,
       ledger_entry_id INTEGER,
+      tipo_pagamento TEXT,
+      valor REAL,
       status TEXT DEFAULT 'sucesso',
+      hash_provenance TEXT,
+      mensagem_erro TEXT,
+      tentativas INTEGER DEFAULT 1,
       criado_em TEXT
     );
 
@@ -648,6 +662,26 @@ export async function prepararBancoTeste() {
     ["6.3.03", "Despesa com Perícia", "despesa", "debito"],
     ["6.3.04", "Outras Despesas com Processos Legais", "despesa", "debito"],
     ["6.4.01", "Provisão para Processos Legais", "despesa", "debito"],
+
+    // Contas que os módulos do ERP referenciam por id fixo (MAPEAMENTO_*_LEDGER,
+    // CONTA_CAIXA e afins) e que faltavam no plano. Sem elas, o lançamento ia para uma
+    // conta inexistente e obterSaldoConta caía no default "debito" — passivo baixado
+    // aparecia com o sinal trocado, sem nada acusar o erro.
+    // ATENÇÃO: os módulos usam 5.2.xx como DESPESA, enquanto este plano usa a faixa 5
+    // como RECEITA (5.1.01 Aluguel). A colisão é do código de produção; aqui as contas
+    // entram com a natureza que o uso exige, senão os saldos saem invertidos.
+    ["1.1.05", "Contas Correntes Pessoais", "ativo", "debito"],
+    ["1.2.05", "Imóveis (Ativo Imobilizado)", "ativo", "debito"],
+    ["3.1.05", "Remuneração a Pagar", "passivo", "credito"],
+    ["5.1.05", "Aluguel (despesa alocada)", "despesa", "debito"],
+    ["5.2.05", "Despesa com Manutenção", "despesa", "debito"],
+    ["5.2.06", "Despesa com Energia", "despesa", "debito"],
+    ["5.2.07", "Despesa com Água", "despesa", "debito"],
+    ["5.2.10", "Despesa com Condomínio", "despesa", "debito"],
+    ["5.2.12", "Despesa com Internet/Telecomunicações", "despesa", "debito"],
+    ["5.2.13", "Despesa com Seguros", "despesa", "debito"],
+    ["5.2.14", "Outras Despesas com Imóveis", "despesa", "debito"],
+    ["6.2.02", "Despesas com Utilidades", "despesa", "debito"],
   ];
 
   // Mapeamento de códigos para IDs esperados pela lógica de negócios
@@ -661,6 +695,18 @@ export async function prepararBancoTeste() {
     "6.2.01": 6201,
     "6.3.01": 6301, "6.3.02": 6302, "6.3.03": 6303, "6.3.04": 6304,
     "6.4.01": 6401,
+    "1.1.05": 1105,
+    "1.2.05": 1205,
+    "3.1.05": 3105,
+    "5.1.05": 5105,
+    "5.2.05": 5205,
+    "5.2.06": 5206,
+    "5.2.07": 5207,
+    "5.2.10": 5210,
+    "5.2.12": 5212,
+    "5.2.13": 5213,
+    "5.2.14": 5214,
+    "6.2.02": 6202,
   };
 
   for (const [codigo, desc, grupo, natureza] of contasPadrao) {

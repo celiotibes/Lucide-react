@@ -38,6 +38,8 @@ describe("Integração Pagamentos-Ledger", () => {
       expect(criacaoOk).toBe(true);
       expect(payment_id).toBeDefined();
 
+      const caixaAntes = obterSaldoConta(db, periodo_id, 1101);
+
       // 2. Registrar lançamento contábil
       const resultado = registrarLancamentoPagamento(
         db,
@@ -59,12 +61,14 @@ describe("Integração Pagamentos-Ledger", () => {
       expect(resultado).not.toBeNull();
       expect(resultado?.lancamento_id).toBeGreaterThan(0);
 
-      // 4. Verificar saldos
+      // 4. Verificar saldos. O caixa não fica negativo: o fixture abre o período com
+      // saldo de 10.000, e um pagamento de 3.000 deixa 7.000. O que o lançamento tem de
+      // garantir é que a saída reduziu o caixa exatamente pelo valor pago.
       const saldoDebito = obterSaldoConta(db, periodo_id, 3102); // Contas a Pagar
-      expect(saldoDebito).toBeLessThan(0); // Conta de crédito reduzida
+      expect(saldoDebito).toBeLessThan(0); // passivo baixado pelo débito
 
-      const saldoCredito = obterSaldoConta(db, periodo_id, 1101); // Caixa
-      expect(saldoCredito).toBeLessThan(0); // Caixa reduzido
+      const saldoCaixa = obterSaldoConta(db, periodo_id, 1101);
+      expect(saldoCaixa).toBe(caixaAntes - 3000);
     });
 
     it("deve registrar pagamento de remuneração corretamente", () => {
