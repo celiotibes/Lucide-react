@@ -1,4 +1,33 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
+import type { Database } from "sql.js";
+
+const DIR_MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), "..", "__migrations__");
+
+/** Aplica os .sql de __migrations__ no banco de teste.
+ *
+ * As tabelas desses módulos NÃO são recriadas à mão no bloco de schema acima, de
+ * propósito: quando existiam as duas versões, a cópia do teste derivou da migration
+ * (ganhou ledger_entry_id, perdeu movimento_pessoal_id/tipo_sincronizacao) e passou a
+ * divergir do que o código de produção grava. Lendo o arquivo real, o teste passa a
+ * falhar quando o schema muda de verdade, que é o ponto. */
+function aplicarMigrations(db: Database): void {
+  const arquivos = readdirSync(DIR_MIGRATIONS)
+    .filter((n) => n.endsWith(".sql"))
+    .sort(); // prefixo de data no nome define a ordem
+  for (const arquivo of arquivos) {
+    const sql = readFileSync(join(DIR_MIGRATIONS, arquivo), "utf8");
+    // PRAGMA é configuração de conexão, não de migration de módulo: em produção quem
+    // liga foreign_keys é o schema.sql. Deixar o PRAGMA daqui valer ligaria a
+    // integridade referencial no meio do fixture, e os dados de seed atuais não a
+    // satisfazem — são 22 testes que passariam a falhar por dados, não por schema.
+    // FIXME: semear os dados que faltam e passar a rodar com foreign_keys = ON, que é
+    // o que a produção faz; hoje o fixture é mais permissivo que o app real.
+    db.run(sql.replace(/^\s*PRAGMA[^;]*;/gim, ""));
+  }
+}
 
 export async function prepararBancoTeste() {
   const SQL = await initSqlJs();
@@ -33,7 +62,11 @@ export async function prepararBancoTeste() {
       natureza TEXT NOT NULL,
       analisavel INTEGER DEFAULT 1,
       ativo INTEGER DEFAULT 1,
-      UNIQUE(codigo)
+      -- Produção (contabilidade-reconstituicao/schema.sql) é UNIQUE (entidade_id,
+      -- codigo): o mesmo código de conta existe em entidades diferentes. O fixture
+      -- restringia só por codigo, o que é mais apertado que o app real e fazia
+      -- qualquer teste com duas entidades esbarrar em UNIQUE constraint.
+      UNIQUE(entidade_id, codigo)
     );
 
     CREATE TABLE IF NOT EXISTS ledger_entries (
@@ -94,6 +127,7 @@ export async function prepararBancoTeste() {
       uso_pessoal INTEGER DEFAULT 0,
       financiado INTEGER DEFAULT 0,
       valor_aquisicao REAL DEFAULT 0,
+      criado_em TEXT,
       FOREIGN KEY (entidade_id) REFERENCES entidades(id)
     );
 
@@ -389,28 +423,9 @@ export async function prepararBancoTeste() {
       tentativas INTEGER DEFAULT 1
     );
 
-    -- MÓDULO CONTAS PESSOAIS-LEDGER (PHASE 4-7)
-    CREATE TABLE IF NOT EXISTS contas_pessoais_ledger_mapping (
-      id INTEGER PRIMARY KEY,
-      conta_pessoal_id INTEGER NOT NULL,
-      movimento_pessoal_id INTEGER,
-      conta_id INTEGER NOT NULL,
-      tipo_mapeamento TEXT,
-      criado_em TEXT,
-      FOREIGN KEY (conta_pessoal_id) REFERENCES contas_pessoais(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS contas_pessoais_sincronizacao_log (
-      id INTEGER PRIMARY KEY,
-      conta_pessoal_id INTEGER NOT NULL,
-      movimento_id INTEGER,
-      ledger_entry_id INTEGER NOT NULL,
-      processado_em TEXT,
-      status TEXT DEFAULT 'sucesso',
-      hash_provenance TEXT,
-      criado_em TEXT,
-      FOREIGN KEY (conta_pessoal_id) REFERENCES contas_pessoais(id)
-    );
+    -- MÓDULO CONTAS PESSOAIS-LEDGER: as tabelas vêm de __migrations__, carregadas
+    -- ao final desta função. Não recrie aqui — foi exatamente essa cópia paralela
+    -- que derivou da migration e quebrou a suíte.
 
     -- MÓDULO PAGAMENTOS-LEDGER (PHASE 4-7)
     CREATE TABLE IF NOT EXISTS sincronizacoes_pagamentos_ledger (
@@ -483,6 +498,8 @@ export async function prepararBancoTeste() {
     );
   `);
 
+  aplicarMigrations(db);
+
   // Inserir dados de teste
   const entidade_id = 1;
   const periodo_id = 1;
@@ -552,7 +569,12 @@ export async function prepararBancoTeste() {
   };
 
   for (const [codigo, desc, grupo, natureza] of contasPadrao) {
-    const id = codigoParaId[codigo] || Math.random() * 10000; // Fallback if not mapped
+    // Id fixo e derivado do código: os testes referenciam contas por esse número
+    // (obterSaldoConta(db, periodo, 3102)). O fallback anterior era Math.random()*10000,
+    // que produzia id float e diferente a cada execução — uma conta nova esquecida no
+    // mapa viraria falha intermitente em vez de erro claro.
+    const id = codigoParaId[codigo];
+    if (id === undefined) throw new Error(`Conta ${codigo} não tem id fixo em codigoParaId — acrescente antes de semeá-la`);
     db.run(
       `INSERT INTO contas_plano_contas (id, entidade_id, codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?, ?, ?)`,
       [id, entidade_id, codigo, desc, grupo, natureza]

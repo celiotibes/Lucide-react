@@ -112,9 +112,11 @@ describe("Integração Imovel Gestao-Ledger", () => {
       const saldoDebito = obterSaldoConta(db, periodo_id, 5210);
       expect(saldoDebito).toBe(800);
 
-      // Verificar crédito em contas a pagar (3.1.02)
+      // Verificar crédito em contas a pagar (3.1.02). obterSaldoConta devolve o saldo na
+      // direção natural da conta (ledger.ts:124): numa conta credora, crédito vira
+      // positivo. Negativo ali significaria saldo invertido, que não é o caso aqui.
       const saldoCredito = obterSaldoConta(db, periodo_id, 3102);
-      expect(saldoCredito).toBe(-800);
+      expect(saldoCredito).toBe(800);
     });
 
     it("deve evitar duplicação de despesa condominial", () => {
@@ -161,7 +163,8 @@ describe("Integração Imovel Gestao-Ledger", () => {
 
       // Verificar crédito em contas a pagar (3.1.02)
       const saldoCredito = obterSaldoConta(db, periodo_id, 3102);
-      expect(saldoCredito).toBeLessThan(0);
+      // Positivo: saldo na direção natural da conta credora (ver ledger.ts:124).
+      expect(saldoCredito).toBeGreaterThan(0);
     });
   });
 
@@ -190,7 +193,8 @@ describe("Integração Imovel Gestao-Ledger", () => {
 
       // Verificar crédito em contas a pagar (3.1.02)
       const saldoCredito = obterSaldoConta(db, periodo_id, 3102);
-      expect(saldoCredito).toBeLessThan(0);
+      // Positivo: saldo na direção natural da conta credora (ver ledger.ts:124).
+      expect(saldoCredito).toBeGreaterThan(0);
     });
   });
 
@@ -299,9 +303,10 @@ describe("Integração Imovel Gestao-Ledger", () => {
       const saldoDebito = obterSaldoConta(db, periodo_id, 1101);
       expect(saldoDebito).toBe(3000);
 
-      // Verificar crédito em Receita de Aluguel (4.1.01)
+      // Verificar crédito em Receita de Aluguel (4.1.01) — saldo na direção natural da
+      // conta credora, portanto positivo (ver comentário análogo acima).
       const saldoCredito = obterSaldoConta(db, periodo_id, 4101);
-      expect(saldoCredito).toBe(-3000);
+      expect(saldoCredito).toBe(3000);
     });
 
     it("deve evitar duplicação de receita de aluguel", () => {
@@ -367,7 +372,8 @@ describe("Integração Imovel Gestao-Ledger", () => {
 
       // Verificar crédito em Contas a Pagar (3.1.02)
       const saldoCredito = obterSaldoConta(db, periodo_id, 3102);
-      expect(saldoCredito).toBeLessThan(0);
+      // Positivo: saldo na direção natural da conta credora (ver ledger.ts:124).
+      expect(saldoCredito).toBeGreaterThan(0);
     });
   });
 
