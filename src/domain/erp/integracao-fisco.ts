@@ -104,7 +104,12 @@ const ALIQUOTAS_POR_UF: Record<string, Record<string, number>> = {
  */
 export function calcularIRPJ(
   lucro_operacional: number,
-  regime: 'lucro_real' | 'lucro_presumido',
+  // TaxCalculationParams.regimeimposto (único chamador) também admite
+  // 'simples_nacional' — o parâmetro estava mais estreito que o tipo de quem chama.
+  // Sem cláusula para esse regime, aliquota/base_calculo ficam 0 (IRPJ não é apurado
+  // separadamente no Simples Nacional, que usa DAS unificado) — comportamento
+  // inalterado, só deixou de ser um erro de tipo silenciado à força.
+  regime: 'lucro_real' | 'lucro_presumido' | 'simples_nacional',
   receita_bruta?: number
 ): ImpostoCalculado {
   let aliquota = 0;

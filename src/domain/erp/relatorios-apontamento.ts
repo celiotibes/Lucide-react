@@ -631,7 +631,9 @@ export function relatorioReembolsos(
     tipo_despesa: string;
     valor_solicitado: number;
     valor_aprovado: number;
-    status: string;
+    // Estava tipado como `string` genérico, mais largo que o union de Reembolsos.linhas —
+    // a coluna `status` só assume estes 3 valores (ver CHECK/uso em toda a tabela reembolsos).
+    status: "pendente" | "aprovado" | "rejeitado";
     justificativa?: string;
     observacoes?: string;
     prestador_nome: string;

@@ -272,3 +272,33 @@ export function provaDaTransacao(db: Database, transacao_id: number): ProvaDaTra
     )[0] ?? null
   );
 }
+
+/** Mesma prova de `provaDaTransacao`, para muitas transações de uma vez.
+ *
+ * A tela de transações lista até centenas de lançamentos por página. Chamar
+ * `provaDaTransacao` uma vez por linha renderizada faria uma consulta SQL por linha — aqui
+ * é uma única consulta com `IN (...)`, devolvida como Map para busca O(1) no render.
+ *
+ * Uma transação sem linha de importação ligada (dado de demonstração gerado por código,
+ * lançamento manual, ou importada antes de o cofre existir) simplesmente não aparece no
+ * Map — ausência de chave é a resposta "sem prova", não um erro a tratar. */
+export function provasDasTransacoes(
+  db: Database,
+  transacao_ids: number[],
+): Map<number, ProvaDaTransacao> {
+  const mapa = new Map<number, ProvaDaTransacao>();
+  if (transacao_ids.length === 0) return mapa;
+
+  const placeholders = transacao_ids.map(() => "?").join(",");
+  const linhas = consultar<ProvaDaTransacao>(
+    db,
+    `SELECT l.transacao_id, lo.arquivo_nome, lo.arquivo_hash_sha256,
+            l.linha_numero, lo.importado_em, l.decidido_em, l.decidido_por
+     FROM importacao_linhas l
+     JOIN lotes_importacao lo ON lo.id = l.lote_id
+     WHERE l.transacao_id IN (${placeholders})`,
+    transacao_ids,
+  );
+  for (const linha of linhas) mapa.set(linha.transacao_id, linha);
+  return mapa;
+}

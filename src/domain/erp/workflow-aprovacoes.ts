@@ -76,7 +76,9 @@ export interface RegraRoteamento {
 export interface EventoFluxo {
   id: string;
   fluxo_id: string;
-  tipo: 'created' | 'submitted' | 'approved' | 'rejected' | 'escalated' | 'recalled' | 'paused' | 'resumed';
+  // 'completed' faltava aqui: verificarConclusaoFluxo() já registra esse evento em
+  // runtime (workflow concluído com sucesso), o union só não refletia essa variante.
+  tipo: 'created' | 'submitted' | 'approved' | 'rejected' | 'escalated' | 'recalled' | 'paused' | 'resumed' | 'completed';
   usuario_id: string;
   timestamp: string;
   mensagem?: string;

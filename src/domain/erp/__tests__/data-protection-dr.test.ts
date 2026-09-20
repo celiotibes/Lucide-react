@@ -9,9 +9,9 @@ import { GerenciadorEncriptacao, TipoCriptografia, StatusChave, TipoChave } from
 import { GerenciadorReplicacaoHA, StatusReplica, TipoReplica } from '../replicacao-ha';
 import { PlanoRecuperacaoDesastres, TipoDesastre, SeveridadeDesastre } from '../plano-recuperacao-desastres';
 import { GerenciadorAuditLoggingImutavel, TipoOperacao, NivelSensibilidade } from '../audit-logging-imutavel';
-import { GerenciadorVulnerabilidades, SeveridadeVulnerabilidade } from '../gerenciamento-vulnerabilidades';
+import { GerenciadorVulnerabilidades, SeveridadeVulnerabilidade, TipoVarredura } from '../gerenciamento-vulnerabilidades';
 import { GerenciadorComplianceLGPD, TipoDireito } from '../compliance-lgpd';
-import { GerenciadorMonitoramentoCompliance, TipoCompliance, StatusCompliance } from '../monitoramento-compliance';
+import { GerenciadorMonitoramentoCompliance, TipoCompliance, StatusCompliance, type ControleCompliance } from '../monitoramento-compliance';
 
 describe('Phase 7: Data Protection & Disaster Recovery', () => {
   // ============ 7a: BACKUP STRATEGY ============
@@ -1083,7 +1083,7 @@ describe('Phase 7: Data Protection & Disaster Recovery', () => {
       it('deve executar varredura de segurança', async () => {
         const varredura = await vulnMgmt.executarScan(
           'Varredura completa',
-          'AUTOMATICA',
+          TipoVarredura.AUTOMATICA,
           ['/api', '/web', '/admin']
         );
 
@@ -1096,7 +1096,7 @@ describe('Phase 7: Data Protection & Disaster Recovery', () => {
       it('deve categorizar vulnerabilidades por severidade', async () => {
         const varredura = await vulnMgmt.executarScan(
           'Teste',
-          'AUTOMATICA',
+          TipoVarredura.AUTOMATICA,
           ['/api']
         );
 
@@ -1106,8 +1106,8 @@ describe('Phase 7: Data Protection & Disaster Recovery', () => {
       });
 
       it('deve obter histórico de varreduras', async () => {
-        await vulnMgmt.executarScan('Teste 1', 'AUTOMATICA', ['/api']);
-        await vulnMgmt.executarScan('Teste 2', 'MANUAL', ['/web']);
+        await vulnMgmt.executarScan('Teste 1', TipoVarredura.AUTOMATICA, ['/api']);
+        await vulnMgmt.executarScan('Teste 2', TipoVarredura.MANUAL, ['/web']);
 
         const historico = vulnMgmt.obterHistoricoVarreduras();
 
@@ -1558,7 +1558,12 @@ describe('Phase 7: Data Protection & Disaster Recovery', () => {
 
     describe('Coleta de Evidências', () => {
       it('deve coletar evidências de compliance', async () => {
-        const controles = Array.from(
+        // `controles` é privado — sem getter público que devolva todos (só
+        // obterControlesNaoConformes()), então o teste acessa via `as any` e o
+        // Array.from resultante virava unknown[] (sem tipo inferível de `any`
+        // genérico); anotando o array como ControleCompliance[] evita precisar de
+        // `as any` de novo lá embaixo só para ler `.id`.
+        const controles: ControleCompliance[] = Array.from(
           (compliance as any).controles.values()
         );
 

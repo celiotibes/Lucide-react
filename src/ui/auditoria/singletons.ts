@@ -2,20 +2,33 @@
  * Instâncias únicas dos módulos de auditoria/continuidade (Fase 7), compartilhadas por
  * todo o Painel de Auditoria.
  *
- * Os três módulos abaixo (`audit-logging-imutavel`, `strategy-backup`,
- * `plano-recuperacao-desastres`) guardam o próprio estado em memória — arrays e Maps
- * dentro da instância da classe, não no banco sql.js. Isso é uma limitação real, não um
- * detalhe de implementação escondido: o histórico deles some ao recarregar a página ou
- * fechar a aba. Por isso cada tela que os usa precisa reaproveitar a MESMA instância
- * entre re-renders (senão cada montagem do componente começaria do zero), o que este
- * módulo garante ao criar os objetos uma única vez, no escopo do módulo.
+ * Atualização: a tabela `auditoria_log` passou a existir em
+ * `contabilidade-reconstituicao/schema.sql`, e `gerenciadorAuditoria`
+ * (`GerenciadorAuditLoggingImutavel`) agora persiste nela de verdade — ver
+ * `definirBanco`/`hidratarDeBanco`/`validarIntegridadeDoBanco` em `audit-logging-imutavel.ts`
+ * e o relatório da tarefa. `PainelAuditoria.tsx` liga essa instância ao `db` real (via
+ * `useDb()`) assim que monta; a trilha de eventos e a verificação de integridade da cadeia
+ * sobrevivem a um F5 a partir daí.
  *
- * `compliance-audit-log.ts` (a variante que grava na tabela `auditoria_log` do sql.js)
- * fica de fora deste arquivo de propósito: essa tabela não existe em
- * `contabilidade-reconstituicao/schema.sql`, então chamar aquelas funções contra o banco
- * real do app resultaria em "no such table" (as funções engolem o erro e devolvem zero
- * registros, o que seria mais enganoso do que simplesmente não oferecer a tela ainda).
- * Ver o relatório da tarefa para o detalhe.
+ * `estrategiaBackup` (`strategy-backup.ts`) e `planoRecuperacaoDesastres`
+ * (`plano-recuperacao-desastres.ts`) CONTINUAM só em memória — nenhuma das duas grava no
+ * banco sql.js, e nada nesta tarefa mudou isso. O histórico de backups/testes de DRP
+ * mostrado no Painel ainda some ao recarregar a página ou fechar a aba.
+ *
+ * `compliance-audit-log.ts` (a outra variante que também grava em `auditoria_log`, com
+ * seu próprio conjunto de colunas) continua fora deste arquivo e sem uso por nenhuma tela:
+ * é um módulo síncrono e ainda tem o bug do `crypto` do Node (import proibido no
+ * navegador). Corrigi-lo para Web Crypto exigiria torná-lo assíncrono, o que quebraria o
+ * teste síncrono que hoje o exercita (`__tests__/integracao-externa-completa.test.ts`).
+ * Por isso a persistência da trilha foi dada a `GerenciadorAuditLoggingImutavel` (já
+ * assíncrono, já corrigido para Web Crypto, e já é o motor que esta tela usa) escrevendo
+ * direto na mesma tabela com sua própria série de colunas → hash, sem depender de
+ * `compliance-audit-log.ts`. Ver o relatório da tarefa para o detalhe completo.
+ *
+ * Por causa disso, cada tela que usa estes módulos precisa reaproveitar a MESMA instância
+ * entre re-renders (senão cada montagem do componente começaria do zero e, no caso da
+ * trilha, re-hidrataria do banco a cada vez), o que este módulo garante ao criar os
+ * objetos uma única vez, no escopo do módulo.
  */
 
 import { GerenciadorAuditLoggingImutavel } from "../../domain/erp/audit-logging-imutavel";
