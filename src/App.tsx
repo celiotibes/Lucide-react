@@ -50,12 +50,13 @@ const ECDExportView = lazy(() => import("./components/ECDExportView").then((m) =
 const PainelAuditoria = lazy(() => import("./ui/PainelAuditoria").then((m) => ({ default: m.PainelAuditoria })));
 const TriagemImportacao = lazy(() => import("./ui/TriagemImportacao").then((m) => ({ default: m.TriagemImportacao })));
 const FechamentoPeriodo = lazy(() => import("./ui/FechamentoPeriodo").then((m) => ({ default: m.FechamentoPeriodo })));
+const Conciliacao = lazy(() => import("./ui/Conciliacao").then((m) => ({ default: m.Conciliacao })));
 const PainelConferencia = lazy(() => import("./components/painel-conferencia/PainelConferencia"));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
-  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento";
+  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -79,6 +80,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "ecd", rotulo: "Exportação ECD (Fiscal)", icone: Download },
   { id: "indices", rotulo: "Índices econômicos", icone: LineChart },
   { id: "renda", rotulo: "Renda tributável", icone: Receipt },
+  { id: "conciliacao", rotulo: "Conciliação bancária", icone: Scale },
   { id: "razao", rotulo: "Livro razão", icone: BookOpenCheck },
   { id: "fechamento", rotulo: "Fechamento de período", icone: BookOpenCheck },
   { id: "conferencia", rotulo: "Conferência de apontamentos", icone: ClipboardList },
@@ -415,6 +417,7 @@ function Conteudo() {
             {aba === "ecd" && <ECDExportView />}
             {aba === "indices" && <IndicesEconomicosView />}
             {aba === "renda" && <RendaTributavelView />}
+            {aba === "conciliacao" && <Conciliacao />}
             {aba === "razao" && <LivroRazaoView />}
             {aba === "fechamento" && <FechamentoPeriodo />}
             {aba === "conferencia" && <PainelConferencia />}
