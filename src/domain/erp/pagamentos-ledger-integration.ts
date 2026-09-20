@@ -547,7 +547,10 @@ export function gerarRelatorioSincronizacaoPagamentos(
     [new Date().toISOString()]
   );
 
-  const [ultimos30] = consultar<SincronizacaoPagamentoLedger>(
+  // BUG real: destructuring `[ultimos30]` pegava só a primeira linha da consulta (que
+  // devolve até 50), não a lista inteira — ultimos_30_dias virava um objeto solto em
+  // vez do array declarado no tipo de retorno.
+  const ultimos30 = consultar<SincronizacaoPagamentoLedger>(
     db,
     `SELECT * FROM sincronizacoes_pagamentos_ledger
      WHERE criado_em >= datetime(?, '-30 days')

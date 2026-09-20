@@ -489,7 +489,10 @@ export function gerarRelatorioProvisionoesPendentes(
     []
   );
 
-  const [vistoriasCriticas] = consultar<{
+  // BUG real: destructuring `[vistoriasCriticas]` pegava só a primeira linha da
+  // consulta (que devolve até 10, uma por vistoria crítica), não a lista inteira —
+  // vistorias_criticas virava um objeto solto em vez do array esperado pelo retorno.
+  const vistoriasCriticas = consultar<{
     vistoria_id: number;
     imovel_id: number;
     valor_danos: number;

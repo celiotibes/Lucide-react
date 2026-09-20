@@ -168,7 +168,23 @@ function validarParametros(dados: any): void {
  * Retorna parâmetros hardcoded para um mês específico
  * Usado como fallback quando dados não estão disponíveis no banco de dados
  */
-function obterParametrosFallback(mesReferencia: string) {
+// Anotação explícita (em vez de inferida do objeto literal): sem `taxa_hora_extra` e
+// `taxa_fim_semana_feriado` aqui — mesmo como opcionais — o tipo do retorno não batia
+// estruturalmente com o parâmetro `dadosDb` de inicializarParametros() (que os declara
+// opcionais), e o acesso a `dadosValidados.taxa_hora_extra` era rejeitado no ramo do
+// fallback. Os valores continuam ausentes (undefined) e o `?? 0.1`/`?? 0.15` no chamador
+// segue cobrindo o default — nenhum comportamento muda.
+function obterParametrosFallback(mesReferencia: string): {
+  diaria_base: number;
+  hora_adicional: number;
+  deslocamento_km: number;
+  combustivel_litro: number;
+  comunicacao_mensal: number;
+  ipca_percentual: number;
+  combustivel_ajuste_mercado: number;
+  taxa_hora_extra?: number;
+  taxa_fim_semana_feriado?: number;
+} {
   const parametrosBase = {
     "2026-07": {
       diaria_base: 121.63,

@@ -265,6 +265,11 @@ describe("Integração Pagamentos-Ledger", () => {
       );
 
       expect(relatorio.valor_total_sincronizado).toBeGreaterThanOrEqual(0);
+      // BUG real: `const [ultimos30] = consultar(...)` pegava só a primeira linha da
+      // consulta, não a lista inteira — com os 2 pagamentos sincronizados acima,
+      // ultimos_30_dias virava um único objeto solto em vez do array de 2 registros.
+      expect(Array.isArray(relatorio.ultimos_30_dias)).toBe(true);
+      expect(relatorio.ultimos_30_dias.length).toBe(2);
     });
   });
 });
