@@ -72,6 +72,19 @@ class RegistroProveniencia {
     return this.registros;
   }
 
+  /** O roteador (roteador.ts) registra a chamada assim que o provedor responde, mas não
+   * conhece o campo `confianca` — esse é um conceito da classificação de documento
+   * (classificarComIA.ts), que só existe depois de parsear o JSON da resposta. Este método
+   * deixa o chamador completar o registro já criado, em vez de duplicar a lógica de
+   * registro em cada lugar que chama a IA — é o que garante que "confiança" nunca fica de
+   * fora do registro quando ela existe (requisito: toda chamada registra provedor, modelo,
+   * quando, custo e confiança). */
+  atualizarConfianca(id: string, confianca: ConfiancaClassificacao | undefined): void {
+    if (!confianca) return;
+    const registro = this.registros.find((r) => r.id === id);
+    if (registro) registro.confianca = confianca;
+  }
+
   custoAcumuladoUsd(): number {
     return this.registros.reduce((soma, r) => soma + (r.custoEstimadoUsd ?? 0), 0);
   }

@@ -1,26 +1,31 @@
 import type { TipoDocumento } from "../types";
+import { chamarComRoteamento, type AvaliacaoQualidadeTexto } from "../ia/roteador";
+import { registroProveniencia } from "../ia/proveniencia";
 
 export interface ResultadoClassificacaoIA {
   tipo?: TipoDocumento;
   nomeContraparte?: string;
   confianca?: "alta" | "media" | "baixa";
   explicacao?: string;
+  /** Proveniência da chamada que produziu este resultado — provedor, modelo e quando,
+   * para responder "qual regra classificou este valor" com algo verificável em vez de
+   * "a IA achou". Ausente quando nenhuma chamada de IA foi feita (heurística bastou). */
+  provedor?: string;
+  modelo?: string;
 }
 
-/**
- * Classifica um documento usando Claude API quando a heurística não consegue extrair tipo/fornecedor.
- * Enviado para classificação: máximo 1000 caracteres do texto do documento (minimiza dados sensíveis).
- * Nunca envia: CPF/CNPJ em separado, nomes completos além do necessário, saldos, transações.
- * Retorna {tipo?, nomeContraparte?, confianca?, explicacao?} — undefined = sem sinal claro.
- * Sempre requer revisão manual do usuário antes de salvar.
- */
-export async function classificarDocumentoComIA(
-  textoExtraido: string,
-  apiKey?: string,
-): Promise<ResultadoClassificacaoIA> {
-  const textoLimitado = textoExtraido.slice(0, 1000);
+const TIPOS_VALIDOS: TipoDocumento[] = [
+  "boleto",
+  "contrato",
+  "recibo",
+  "fatura",
+  "nota_fiscal",
+  "pedido_comercial",
+  "outro",
+];
 
-  const prompt = `Você é um especialista em classificação de documentos fiscais brasileiros.
+function montarPrompt(textoLimitado: string): string {
+  return `Você é um especialista em classificação de documentos fiscais brasileiros.
 Analize o seguinte texto de documento e extraia APENAS se houver sinais claros:
 - Tipo do documento: deve ser um de: boleto, contrato, recibo, fatura, nota_fiscal, pedido_comercial, outro
 - Nome da contraparte (empresa ou pessoa que emitiu/recebe o documento)
@@ -41,83 +46,91 @@ IMPORTANTE:
 
 Texto do documento:
 ${textoLimitado}`;
+}
+
+/**
+ * Classifica um documento usando o roteador multi-provedor de IA (src/domain/ia/) quando a
+ * heurística determinística não consegue extrair tipo/fornecedor.
+ *
+ * Princípios preservados (não relaxar ao mexer aqui):
+ * - Enviado para classificação: máximo 1000 caracteres do texto do documento (minimiza dados
+ *   sensíveis expostos a terceiro).
+ * - Nunca envia: CPF/CNPJ em separado, nomes completos além do necessário, saldos,
+ *   transações — só o texto bruto (já truncado) do próprio documento.
+ * - Sempre requer revisão manual do usuário antes de salvar (ver extrairCampos.ts e a
+ *   triagem de importação — nenhum resultado daqui vira dado definitivo sozinho).
+ *
+ * `avaliacaoQualidade`, quando informada, decide se o roteador escalona direto para um
+ * provedor pago (texto de OCR ruim) ou tenta primeiro o caminho barato (Ollama local) — ver
+ * src/domain/ia/roteador.ts e qualidadeOcr.ts para o critério.
+ */
+export async function classificarDocumentoComIA(
+  textoExtraido: string,
+  apiKeyLegado?: string,
+  avaliacaoQualidade?: AvaliacaoQualidadeTexto,
+): Promise<ResultadoClassificacaoIA> {
+  const textoLimitado = textoExtraido.slice(0, 1000);
+  const prompt = montarPrompt(textoLimitado);
 
   try {
-    // Tenta usar backend endpoint se disponível
-    const endpoint = import.meta.env.VITE_CLASIFICACAO_BACKEND || "";
-    if (endpoint) {
-      const response = await fetch(endpoint, {
+    // Compat: backend de classificação específico já suportado antes deste roteador existir
+    // (contrato documentado em .env.example — recebe {texto}, devolve o resultado já
+    // classificado). Preservado tal como estava: quem já tinha isso configurado continua
+    // funcionando sem migrar para a tela de configuração de IA. É INDEPENDENTE do
+    // `enderecoBackend` genérico do roteador (src/domain/ia/config.ts), que serve os 4
+    // provedores com um contrato prompt-in/texto-out — este aqui é só para Anthropic/
+    // classificação de documento, e continua tendo prioridade quando configurado.
+    const endpointLegado = import.meta.env.VITE_CLASIFICACAO_BACKEND || "";
+    if (endpointLegado) {
+      const resposta = await fetch(endpointLegado, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texto: textoLimitado }),
       });
-
-      if (!response.ok) throw new Error(`Backend retornou ${response.status}`);
-      const resultado = (await response.json()) as ResultadoClassificacaoIA;
-      return resultado;
+      if (!resposta.ok) throw new Error(`Backend de classificação retornou ${resposta.status}`);
+      return (await resposta.json()) as ResultadoClassificacaoIA;
     }
 
-    // Fallback: tenta usar API key local (apenas desenvolvimento/demo)
-    const chave = apiKey || import.meta.env.VITE_ANTHROPIC_API_KEY || "";
-    if (!chave) {
-      console.warn("IA: sem backend nem API key configurada. Retornando resultado vazio.");
-      return {};
-    }
+    const resultado = await chamarComRoteamento(
+      prompt,
+      { avaliacaoQualidade },
+      // `apiKeyLegado`, quando passado pelo chamador (compat com assinatura anterior),
+      // injeta a chave só no provedor Anthropic — mantém quem já usava esta função com uma
+      // chave direta funcionando sem precisar migrar para a tela de configuração.
+      apiKeyLegado
+        ? {
+            config: {
+              preferido: "anthropic",
+              ordemRodizio: ["anthropic"],
+              provedores: {
+                anthropic: { ativo: true, modelo: "claude-haiku-4-5", apiKey: apiKeyLegado },
+                openai: { ativo: false, modelo: "" },
+                google: { ativo: false, modelo: "" },
+                ollama: { ativo: false, modelo: "" },
+              },
+            },
+          }
+        : {},
+    );
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": chave,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-3-5-haiku-20241022",
-        max_tokens: 256,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("IA API erro:", response.status, err);
-      return {};
-    }
-
-    const data = (await response.json()) as {
-      content: Array<{ type: string; text: string }>;
-    };
-    const texto = data.content[0]?.text || "{}";
-
-    // Parse JSON response
-    const match = texto.match(/\{[\s\S]*\}/);
+    const match = resultado.texto.match(/\{[\s\S]*\}/);
     if (!match) return {};
 
-    const resultado = JSON.parse(match[0]) as ResultadoClassificacaoIA;
-
-    // Valida tipo se presente
-    if (
-      resultado.tipo &&
-      ![
-        "boleto",
-        "contrato",
-        "recibo",
-        "fatura",
-        "nota_fiscal",
-        "pedido_comercial",
-        "outro",
-      ].includes(resultado.tipo)
-    ) {
-      resultado.tipo = undefined;
+    const parseado = JSON.parse(match[0]) as ResultadoClassificacaoIA;
+    if (parseado.tipo && !TIPOS_VALIDOS.includes(parseado.tipo)) {
+      parseado.tipo = undefined;
     }
-
-    return resultado;
+    // O roteador registrou a chamada (provedor, modelo, quando, tokens/custo) antes de saber
+    // o resultado — só agora, com o JSON parseado, sabemos a confiança que o próprio modelo
+    // reportou. Completa o mesmo registro em vez de criar um novo, para "qual regra
+    // classificou este valor" apontar para uma única linha de proveniência por chamada.
+    registroProveniencia.atualizarConfianca(resultado.registro.id, parseado.confianca);
+    return { ...parseado, provedor: resultado.provedor, modelo: resultado.modelo };
   } catch (erro) {
+    // Nunca deixa a UI travada por falha de IA: heurística determinística já rodou antes de
+    // chegar aqui (ver extrairCampos.ts), então a ausência de sinal de IA só significa que o
+    // formulário fica com menos campos pré-preenchidos — não impede o usuário de preencher
+    // à mão e revisar, que é sempre exigido antes de salvar.
     console.error("classificarDocumentoComIA erro:", erro);
     return {};
   }

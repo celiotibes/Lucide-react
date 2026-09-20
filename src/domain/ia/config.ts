@@ -9,14 +9,17 @@
  * `VITE_ANTHROPIC_API_KEY` dessa forma: funciona para demonstração local, mas expor a chave
  * de produção assim equivale a publicá-la.
  *
- * O CAMINHO CORRETO, que este módulo prioriza: `enderecoBackend` (mesma ideia que já existia
- * como `VITE_CLASIFICACAO_BACKEND` em classificarComIA.ts, generalizada para os 4
- * provedores). Quando configurado, toda chamada a provedor pago passa por
- * `POST {enderecoBackend}` com `{ provedor, modelo, prompt }` no corpo — um backend próprio
- * (fora do escopo desta tarefa: pertenceria a server/**, que esta tarefa não pode tocar)
- * guarda as chaves reais do lado do servidor e nunca as envia ao navegador. É esse backend
- * que deveria usar os SDKs oficiais de cada provedor com a chave em variável de ambiente
- * server-side (sem prefixo VITE_).
+ * O CAMINHO CORRETO, que este módulo prioriza: `enderecoBackend` — a mesma ideia que já
+ * existia como `VITE_CLASIFICACAO_BACKEND` em classificarComIA.ts (preservada intacta, ver
+ * aquele arquivo), generalizada aqui para os 4 provedores e para qualquer prompt, não só
+ * classificação de documento. Quando configurado, toda chamada a provedor PAGO (Ollama
+ * continua direto — já é local) passa por `POST {enderecoBackend}` com corpo
+ * `{ provedor, modelo, prompt }` e espera de volta `{ texto, tokensEntrada?, tokensSaida? }`
+ * (ver roteador.ts, `chamarProvedorOuBackend`). Este é um contrato que este módulo DEFINE —
+ * não existe, dentro desta tarefa, um backend de referência que o implemente (pertenceria a
+ * server/**, fora do escopo e das permissões de arquivo desta tarefa); é o backend real que
+ * deveria guardar as chaves e usar os SDKs oficiais de cada provedor, com a chave em
+ * variável de ambiente server-side (sem prefixo VITE_), nunca enviando-a ao navegador.
  *
  * QUANDO NÃO HÁ BACKEND CONFIGURADO: o roteador cai para chamar o provedor diretamente do
  * navegador, usando a chave que a pessoa digitou na tela de configuração (ConfiguracaoIA.tsx)
@@ -112,7 +115,6 @@ export function obterChaveEfetiva(config: ConfiguracaoIA, provedor: IdProvedorIA
   if (provedor === "anthropic") {
     // Compat com o comportamento anterior a este módulo (classificarComIA.ts). INSEGURO:
     // ver aviso no topo do arquivo — a chave fica embutida no JavaScript público do build.
-    // eslint-disable-next-line no-restricted-syntax
     const legado = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
       ?.VITE_ANTHROPIC_API_KEY;
     if (legado) return legado;
