@@ -823,8 +823,8 @@ describe('PHASE 4: External Systems Integration', () => {
 
   // ============= COMPLIANCE AUDIT LOG TESTS (4g) =============
   describe('4g: Compliance Audit Log', () => {
-    it('deve registrar chamada API no audit log', () => {
-      const registro = auditLog.registrarChamadaAPI(
+    it('deve registrar chamada API no audit log', async () => {
+      const registro = await auditLog.registrarChamadaAPI(
         db,
         {
           timestamp: '2026-01-15T10:00:00',
@@ -847,8 +847,8 @@ describe('PHASE 4: External Systems Integration', () => {
       expect(registro.assinatura_digital).toBeDefined();
     });
 
-    it('deve verificar integridade do audit log', () => {
-      const verificacao = auditLog.verificarIntegridade(
+    it('deve verificar integridade do audit log', async () => {
+      const verificacao = await auditLog.verificarIntegridade(
         db,
         '2026-01-01',
         '2026-01-31'
@@ -990,7 +990,7 @@ describe('PHASE 4: External Systems Integration', () => {
 
   // ============= INTEGRATION TESTS =============
   describe('Integration Scenarios', () => {
-    it('deve executar fluxo completo de pagamento e reconciliação', () => {
+    it('deve executar fluxo completo de pagamento e reconciliação', async () => {
       // 1. Processar pagamento
       const config: gatewayPagamento.ConfiguracaoGateway = {
         tipo_gateway: 'stripe',
@@ -1015,7 +1015,7 @@ describe('PHASE 4: External Systems Integration', () => {
       );
 
       // 2. Registrar no audit log
-      auditLog.registrarChamadaAPI(
+      await auditLog.registrarChamadaAPI(
         db,
         {
           // Dentro da janela consultada no passo 3: com new Date() o registro caía no
@@ -1045,7 +1045,7 @@ describe('PHASE 4: External Systems Integration', () => {
       expect(relatorioAudit.total_registros).toBeGreaterThan(0);
     });
 
-    it('deve executar fluxo de sincronização com ledger e auditoria', () => {
+    it('deve executar fluxo de sincronização com ledger e auditoria', async () => {
       // 1. Sincronizar com ERP
       const configErp: nuvemErp.ConfiguracaoERP = {
         tipo_erp: 'SAP',
@@ -1058,7 +1058,7 @@ describe('PHASE 4: External Systems Integration', () => {
 
       // 2. Registrar no audit log
       if (sinc.status === 'sucesso') {
-        auditLog.registrarChamadaAPI(
+        await auditLog.registrarChamadaAPI(
           db,
           {
             timestamp: new Date().toISOString(),

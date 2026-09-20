@@ -23,7 +23,6 @@ import { join } from "node:path";
 const DIVIDA_CONHECIDA = new Set([
   "src/domain/erp/advocacia-ledger-integration.ts",
   "src/domain/erp/api-gateway.ts",
-  "src/domain/erp/compliance-audit-log.ts",
   "src/domain/erp/contas-pessoais-ledger-integration.ts",
   "src/domain/erp/encriptacao.ts",
   "src/domain/erp/imovel-gestao-ledger-integration.ts",
@@ -68,6 +67,7 @@ describe("nenhum módulo de produção novo pode importar o crypto do Node", () 
       "src/domain/erp/ledger.ts",
       "src/domain/erp/audit-logging-imutavel.ts",
       "src/domain/erp/strategy-backup.ts",
+      "src/domain/erp/compliance-audit-log.ts",
       "src/domain/backupIntegridade.ts",
     ]) {
       expect(`${modulo}: ${IMPORTA_CRYPTO_DO_NODE.test(readFileSync(modulo, "utf8"))}`).toBe(
