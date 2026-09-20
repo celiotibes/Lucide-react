@@ -1,6 +1,7 @@
+import type { Database } from "sql.js";
 import type { TipoDocumento } from "../types";
 import { chamarComRoteamento, type AvaliacaoQualidadeTexto } from "../ia/roteador";
-import { registroProveniencia } from "../ia/proveniencia";
+import { atualizarConfiancaChamada } from "../ia/proveniencia";
 
 export interface ResultadoClassificacaoIA {
   tipo?: TipoDocumento;
@@ -12,6 +13,11 @@ export interface ResultadoClassificacaoIA {
    * "a IA achou". Ausente quando nenhuma chamada de IA foi feita (heurística bastou). */
   provedor?: string;
   modelo?: string;
+  /** Id da linha em `ia_chamadas` (ou `ia-<n>` em memória, sem `db`) que produziu este
+   * resultado — quem cria o registro definitivo de documento pode passar isto a
+   * `vincularChamadaADocumento` (ver src/domain/ia/proveniencia.ts) para poder chegar do
+   * documento até a chamada exata que o classificou. Ausente junto com `provedor`/`modelo`. */
+  chamadaId?: string;
 }
 
 const TIPOS_VALIDOS: TipoDocumento[] = [
@@ -63,11 +69,17 @@ ${textoLimitado}`;
  * `avaliacaoQualidade`, quando informada, decide se o roteador escalona direto para um
  * provedor pago (texto de OCR ruim) ou tenta primeiro o caminho barato (Ollama local) — ver
  * src/domain/ia/roteador.ts e qualidadeOcr.ts para o critério.
+ *
+ * `db`, quando informado, é repassado ao roteador para persistir a proveniência desta
+ * chamada em `ia_chamadas` (sobrevive a F5) em vez de só em memória — ver
+ * src/domain/ia/proveniencia.ts. Opcional e por último de propósito: quem já chamava esta
+ * função sem `db` continua funcionando exatamente como antes.
  */
 export async function classificarDocumentoComIA(
   textoExtraido: string,
   apiKeyLegado?: string,
   avaliacaoQualidade?: AvaliacaoQualidadeTexto,
+  db?: Database,
 ): Promise<ResultadoClassificacaoIA> {
   const textoLimitado = textoExtraido.slice(0, 1000);
   const prompt = montarPrompt(textoLimitado);
@@ -99,6 +111,7 @@ export async function classificarDocumentoComIA(
       // chave direta funcionando sem precisar migrar para a tela de configuração.
       apiKeyLegado
         ? {
+            db,
             config: {
               preferido: "anthropic",
               ordemRodizio: ["anthropic"],
@@ -110,7 +123,7 @@ export async function classificarDocumentoComIA(
               },
             },
           }
-        : {},
+        : { db },
     );
 
     const match = resultado.texto.match(/\{[\s\S]*\}/);
@@ -124,8 +137,13 @@ export async function classificarDocumentoComIA(
     // o resultado — só agora, com o JSON parseado, sabemos a confiança que o próprio modelo
     // reportou. Completa o mesmo registro em vez de criar um novo, para "qual regra
     // classificou este valor" apontar para uma única linha de proveniência por chamada.
-    registroProveniencia.atualizarConfianca(resultado.registro.id, parseado.confianca);
-    return { ...parseado, provedor: resultado.provedor, modelo: resultado.modelo };
+    atualizarConfiancaChamada(resultado.registro.id, parseado.confianca, db);
+    return {
+      ...parseado,
+      provedor: resultado.provedor,
+      modelo: resultado.modelo,
+      chamadaId: resultado.registro.id,
+    };
   } catch (erro) {
     // Nunca deixa a UI travada por falha de IA: heurística determinística já rodou antes de
     // chegar aqui (ver extrairCampos.ts), então a ausência de sinal de IA só significa que o

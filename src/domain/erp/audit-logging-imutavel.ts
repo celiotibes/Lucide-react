@@ -6,6 +6,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import type { Database } from 'sql.js';
+import { consultar, executar } from '../../db/connection';
 
 // BUG REAL corrigido (achado ao integrar este módulo, até então órfão, ao Painel de
 // Auditoria): `import * as crypto from 'crypto'` é o módulo nativo do Node — não existe
@@ -279,7 +280,29 @@ export class GerenciadorAuditLoggingImutavel {
    * do operador, mesmo com histórico real salvo no arquivo .sqlite. */
   private hidratarDeBanco(db: Database): void {
     try {
-      const resultado = db.exec(
+      // consultar() devolve as linhas como objetos nomeados pelas colunas do SELECT — ao
+      // contrário de db.exec(), que devolvia [{columns, values}] com cada linha um array
+      // POSICIONAL (daí o `as any[]` e o destructuring por ordem que havia aqui). A troca
+      // para destructuring por NOME elimina a dependência da ordem exata das colunas no
+      // SELECT: uma reordenação futura da lista de colunas não desalinha mais os campos
+      // silenciosamente.
+      const linhas = consultar<{
+        timestamp: string;
+        usuario_nome: string;
+        ip_origem: string;
+        tipo_operacao: string;
+        entidade_afetada: string;
+        descricao_alteracao: string;
+        valor_anterior: string | null;
+        valor_novo: string | null;
+        hash_sha256: string;
+        hash_anterior: string;
+        status: string;
+        mensagem_erro: string | null;
+        assinatura_digital: string | null;
+        criado_em: string;
+      }>(
+        db,
         `SELECT timestamp, usuario_nome, ip_origem, tipo_operacao, entidade_afetada,
                 descricao_alteracao, valor_anterior, valor_novo, hash_sha256, hash_anterior,
                 status, mensagem_erro, assinatura_digital, criado_em
@@ -289,13 +312,12 @@ export class GerenciadorAuditLoggingImutavel {
         [MODULO_LOCAL],
       );
 
-      const linhas = resultado[0]?.values ?? [];
       this.registros = linhas.map((linha, indice) => {
-        const [
-          timestamp, usuarioNomeArmazenado, ip_origem, tipo_operacao, entidade_afetada,
-          descricaoArmazenada, valor_anterior, valor_novo, hash_sha256, hash_anterior,
+        const {
+          timestamp, usuario_nome: usuarioNomeArmazenado, ip_origem, tipo_operacao, entidade_afetada,
+          descricao_alteracao: descricaoArmazenada, valor_anterior, valor_novo, hash_sha256, hash_anterior,
           status, mensagem_erro, assinatura_digital, criado_em,
-        ] = linha as any[];
+        } = linha;
 
         const [usuario_id, usuario_email] = separarUsuario(String(usuarioNomeArmazenado ?? ''));
         const [entidade_id, entidade_descricao] = separarEntidadeId(String(descricaoArmazenada ?? ''));
@@ -349,7 +371,8 @@ export class GerenciadorAuditLoggingImutavel {
     const dataRetencao = new Date(registro.createdAt);
     dataRetencao.setFullYear(dataRetencao.getFullYear() + 7);
 
-    db.run(
+    executar(
+      db,
       `INSERT INTO auditoria_log (
         timestamp, usuario_id, usuario_nome, ip_origem, modulo_chamador, tipo_operacao,
         entidade_afetada, id_entidade, descricao_alteracao, valor_anterior, valor_novo,
@@ -631,7 +654,28 @@ export class GerenciadorAuditLoggingImutavel {
     let registrosCorrompidos = 0;
     let primeiroErroSequencia: number | undefined;
 
-    const resultado = db.exec(
+    // Mesma troca de forma do resultado que em hidratarDeBanco(): consultar() devolve
+    // objetos nomeados pela coluna, não mais o array posicional [{columns, values}] de
+    // db.exec() que o destructuring por ordem abaixo (agora por nome) dependia.
+    const linhas = consultar<{
+      id: number;
+      timestamp: string;
+      usuario_nome: string;
+      ip_origem: string;
+      modulo_chamador: string;
+      tipo_operacao: string;
+      entidade_afetada: string;
+      id_entidade: number | null;
+      descricao_alteracao: string;
+      valor_anterior: string | null;
+      valor_novo: string | null;
+      hash_sha256: string;
+      hash_anterior: string;
+      status: string;
+      mensagem_erro: string | null;
+      assinatura_digital: string | null;
+    }>(
+      db,
       `SELECT id, timestamp, usuario_nome, ip_origem, modulo_chamador, tipo_operacao,
               entidade_afetada, id_entidade, descricao_alteracao, valor_anterior, valor_novo,
               hash_sha256, hash_anterior, status, mensagem_erro, assinatura_digital
@@ -641,15 +685,15 @@ export class GerenciadorAuditLoggingImutavel {
       [MODULO_LOCAL],
     );
 
-    const linhas = resultado[0]?.values ?? [];
     let hashAnteriorEsperado = this.blocos.get(0)?.hash_bloco || '0x0000';
 
     for (let indice = 0; indice < linhas.length; indice++) {
-      const [
+      const {
         id, timestamp, usuario_nome, ip_origem, modulo_chamador, tipo_operacao,
         entidade_afetada, id_entidade, descricao_alteracao, valor_anterior, valor_novo,
-        hashGravado, hashAnteriorGravado, status, mensagem_erro, assinatura,
-      ] = linhas[indice] as any[];
+        hash_sha256: hashGravado, hash_anterior: hashAnteriorGravado, status, mensagem_erro,
+        assinatura_digital: assinatura,
+      } = linhas[indice];
 
       let registroOk = true;
       const hashAnteriorGravadoStr = String(hashAnteriorGravado ?? '');

@@ -20,9 +20,10 @@
  * — sem isso, "rodízio" seria só um nome bonito para "sempre o preferido, com fallback".
  */
 
+import type { Database } from "sql.js";
 import { avaliarQualidadeTexto, type AvaliacaoQualidadeTexto } from "./qualidadeOcr";
 import { carregarConfiguracaoIA, obterChaveEfetiva, type ConfiguracaoIA } from "./config";
-import { estimarCustoUsd, registroProveniencia, type RegistroChamadaIA } from "./proveniencia";
+import { estimarCustoUsd, registrarChamada, type RegistroChamadaIA } from "./proveniencia";
 import { PROVEDORES_IA } from "./provedores";
 import type { DefinicaoProvedorIA, IdProvedorIA, RespostaProvedorIA } from "./tipos";
 
@@ -41,6 +42,11 @@ export interface OpcoesRoteador {
   /** Injeção de provedores para teste — nunca deve ser usada fora de teste, é o que permite
    * mockar `chamar()` sem tocar `fetch` global. */
   provedores?: Partial<Record<IdProvedorIA, DefinicaoProvedorIA>>;
+  /** Quando informado, cada tentativa (sucesso ou falha) é gravada em `ia_chamadas` e
+   * sobrevive a um F5 — ver src/domain/ia/proveniencia.ts. Ausente (contexto sem banco, ex:
+   * um teste isolado do roteador) faz o registro cair para memória do processo, exatamente
+   * o comportamento de antes desta tabela existir. */
+  db?: Database;
 }
 
 export interface ResultadoRoteamentoIA {
@@ -138,24 +144,32 @@ export async function chamarComRoteamento(
         baseUrl: config.provedores.ollama.baseUrl,
         maxTokens: opcoes.maxTokens,
       });
-      const registro = registroProveniencia.registrar({
-        provedor: "ollama",
-        modelo,
-        tokensEntrada: resp.tokensEntrada,
-        tokensSaida: resp.tokensSaida,
-        motivo: "caminho_barato_local",
-        sucesso: true,
-      });
+      const registro = registrarChamada(
+        {
+          provedor: "ollama",
+          modelo,
+          tokensEntrada: resp.tokensEntrada,
+          tokensSaida: resp.tokensSaida,
+          motivo: "caminho_barato_local",
+          sucesso: true,
+          promptTexto: prompt,
+        },
+        opcoes.db,
+      );
       return { texto: resp.texto, provedor: "ollama", modelo, registro };
     } catch (erro) {
       const msg = mensagemErro(erro);
-      registroProveniencia.registrar({
-        provedor: "ollama",
-        modelo,
-        motivo: "caminho_barato_local",
-        sucesso: false,
-        erro: msg,
-      });
+      registrarChamada(
+        {
+          provedor: "ollama",
+          modelo,
+          motivo: "caminho_barato_local",
+          sucesso: false,
+          erro: msg,
+          promptTexto: prompt,
+        },
+        opcoes.db,
+      );
       tentativas.push(`ollama: ${msg}`);
       // Segue para os pagos — isto é fallback por falha (Ollama pode estar desligado), não
       // escalonamento por qualidade.
@@ -187,19 +201,26 @@ export async function chamarComRoteamento(
     try {
       const resp = await chamarProvedorOuBackend(def, id, prompt, modelo, config, opcoes.maxTokens);
       const custoEstimadoUsd = estimarCustoUsd(id, resp.tokensEntrada, resp.tokensSaida);
-      const registro = registroProveniencia.registrar({
-        provedor: id,
-        modelo,
-        tokensEntrada: resp.tokensEntrada,
-        tokensSaida: resp.tokensSaida,
-        custoEstimadoUsd,
-        motivo,
-        sucesso: true,
-      });
+      const registro = registrarChamada(
+        {
+          provedor: id,
+          modelo,
+          tokensEntrada: resp.tokensEntrada,
+          tokensSaida: resp.tokensSaida,
+          custoEstimadoUsd,
+          motivo,
+          sucesso: true,
+          promptTexto: prompt,
+        },
+        opcoes.db,
+      );
       return { texto: resp.texto, provedor: id, modelo, registro };
     } catch (erro) {
       const msg = mensagemErro(erro);
-      registroProveniencia.registrar({ provedor: id, modelo, motivo, sucesso: false, erro: msg });
+      registrarChamada(
+        { provedor: id, modelo, motivo, sucesso: false, erro: msg, promptTexto: prompt },
+        opcoes.db,
+      );
       tentativas.push(`${id}: ${msg}`);
     }
   }

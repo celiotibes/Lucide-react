@@ -3,16 +3,34 @@
  * "a IA achou": "o modelo claude-haiku-4-5, em 2026-09-20 14:03, com confiança média,
  * escalado por OCR ruim".
  *
- * LIMITAÇÃO CONHECIDA (ver relatório): isto vive só em memória do processo atual. O lugar
- * certo para persistir seria uma tabela própria (algo como `ia_chamadas`, com as mesmas
- * colunas de RegistroChamadaIA) em contabilidade-reconstituicao/schema.sql, gravada via
- * src/db/**. Esta tarefa não pode alterar nem schema.sql nem src/db/** (ver regras de posse
- * de arquivo), então o histórico abaixo é perdido ao recarregar a página — a tela de
- * configuração (ConfiguracaoIA.tsx) mostra exatamente essa limitação para quem for usá-la.
- * A estrutura de RegistroChamadaIA foi desenhada para ser gravável linha a linha assim que
- * essa tabela existir, sem precisar mudar o formato. */
+ * PERSISTÊNCIA: grava em `ia_chamadas` (contabilidade-reconstituicao/schema.sql) quando um
+ * `Database` é passado; sem ele, cai para o histórico em memória de sempre (perdido ao
+ * recarregar a página). O roteador (roteador.ts) pode ser chamado de contexto sem `db` — por
+ * isso as duas funções principais (`registrarChamada`, `atualizarConfiancaChamada`) aceitam
+ * `db` como último argumento OPCIONAL: quem não passa continua funcionando exatamente como
+ * antes, quem passa ganha um registro que sobrevive a F5. `chamadaId` no valor de retorno é
+ * sempre uma string — o id numérico da linha (`ia_chamadas.id`) quando persistido, ou
+ * `ia-<n>` quando só em memória.
+ *
+ * LIGAÇÃO DO VALOR ATÉ A CHAMADA: `ia_chamadas.documento_id`/`transacao_id` (nulos até serem
+ * preenchidos) são o que permite, partindo de um documento ou transação classificado por IA,
+ * chegar até a chamada exata que o produziu — ver `vincularChamadaADocumento`,
+ * `vincularChamadaATransacao`, `chamadaDoDocumento` e `chamadaDaTransacao` abaixo. A chamada é
+ * registrada assim que o provedor responde, antes de o chamador saber se o resultado vira um
+ * documento/transação definitivo (ou é descartado na revisão manual) — por isso o vínculo é
+ * sempre um UPDATE posterior, feito por quem cria o registro definitivo, nunca parte do
+ * INSERT inicial.
+ */
 
+import type { Database } from "sql.js";
+import { consultar, executar } from "../../db/connection";
 import type { ConfiancaClassificacao, IdProvedorIA } from "./tipos";
+
+/** Prompt gravado é sempre truncado a este tamanho antes de ir para o banco — cinto e
+ * suspensório: o próprio chamador (classificarComIA.ts) já limita a 1000 caracteres o texto
+ * de documento enviado ao provedor, mas este módulo é genérico (roteador.ts não sabe do que
+ * se trata o prompt) e não deveria confiar cegamente em todo chamador presente e futuro. */
+const LIMITE_PROMPT_TEXTO_GRAVADO = 4000;
 
 export interface RegistroChamadaIA {
   id: string;
@@ -30,6 +48,17 @@ export interface RegistroChamadaIA {
   motivo: string;
   sucesso: boolean;
   erro?: string;
+  /** Texto efetivamente enviado ao provedor (prompt completo, já truncado pelo chamador) —
+   * é o que torna "como reproduzir o cálculo" respondível de verdade: sem a entrada exata,
+   * nem o provedor original repete a mesma resposta. Ausente para chamadas registradas antes
+   * desta coluna existir. */
+  promptTexto?: string;
+  /** Id do documento (tabela `documentos`) que este resultado ajudou a produzir, quando
+   * aplicável — ver `vincularChamadaADocumento`. */
+  documentoId?: number;
+  /** Id da transação (tabela `transacoes`) que este resultado ajudou a categorizar, quando
+   * aplicável — ver `vincularChamadaATransacao`. */
+  transacaoId?: number;
 }
 
 // Preço aproximado por 1 milhão de tokens (entrada, saída), em USD, usado só para a
@@ -55,10 +84,15 @@ export function estimarCustoUsd(
 
 let proximoId = 1;
 
+/** Dados de uma nova chamada, tal como o roteador os produz — sem id nem `quando` (o
+ * registro decide isso), mas já podendo trazer o prompt e, quando já souber, o vínculo com
+ * documento/transação. */
+export type DadosNovaChamada = Omit<RegistroChamadaIA, "id" | "quando"> & { quando?: string };
+
 class RegistroProveniencia {
   private registros: RegistroChamadaIA[] = [];
 
-  registrar(dados: Omit<RegistroChamadaIA, "id" | "quando"> & { quando?: string }): RegistroChamadaIA {
+  registrar(dados: DadosNovaChamada): RegistroChamadaIA {
     const registro: RegistroChamadaIA = {
       id: `ia-${proximoId++}`,
       quando: dados.quando ?? new Date().toISOString(),
@@ -94,6 +128,191 @@ class RegistroProveniencia {
   }
 }
 
-/** Instância única do processo — a mesma tanto para o roteador registrar quanto para a tela
- * de configuração ler. Ver limitação de persistência no comentário do arquivo. */
+/** Instância única do processo — o fallback em memória usado sempre que nenhum `db` é
+ * passado às funções abaixo. Mantida por compatibilidade: código que já lia
+ * `registroProveniencia.listar()` diretamente (testes existentes, por exemplo) continua
+ * funcionando sem mudança. */
 export const registroProveniencia = new RegistroProveniencia();
+
+interface LinhaIaChamada {
+  id: number;
+  provedor: IdProvedorIA;
+  modelo: string;
+  quando: string;
+  tokens_entrada: number | null;
+  tokens_saida: number | null;
+  custo_estimado_usd: number | null;
+  confianca: ConfiancaClassificacao | null;
+  motivo: string;
+  sucesso: number;
+  erro: string | null;
+  prompt_texto: string | null;
+  documento_id: number | null;
+  transacao_id: number | null;
+}
+
+function linhaParaRegistro(l: LinhaIaChamada): RegistroChamadaIA {
+  return {
+    id: String(l.id),
+    provedor: l.provedor,
+    modelo: l.modelo,
+    quando: l.quando,
+    tokensEntrada: l.tokens_entrada ?? undefined,
+    tokensSaida: l.tokens_saida ?? undefined,
+    custoEstimadoUsd: l.custo_estimado_usd ?? undefined,
+    confianca: l.confianca ?? undefined,
+    motivo: l.motivo,
+    sucesso: !!l.sucesso,
+    erro: l.erro ?? undefined,
+    promptTexto: l.prompt_texto ?? undefined,
+    documentoId: l.documento_id ?? undefined,
+    transacaoId: l.transacao_id ?? undefined,
+  };
+}
+
+function registrarChamadaNoBanco(db: Database, dados: DadosNovaChamada): RegistroChamadaIA {
+  const quando = dados.quando ?? new Date().toISOString();
+  const promptTexto = dados.promptTexto?.slice(0, LIMITE_PROMPT_TEXTO_GRAVADO);
+  executar(
+    db,
+    `INSERT INTO ia_chamadas
+       (provedor, modelo, quando, tokens_entrada, tokens_saida, custo_estimado_usd, confianca,
+        motivo, sucesso, erro, prompt_texto, documento_id, transacao_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      dados.provedor,
+      dados.modelo,
+      quando,
+      dados.tokensEntrada ?? null,
+      dados.tokensSaida ?? null,
+      dados.custoEstimadoUsd ?? null,
+      dados.confianca ?? null,
+      dados.motivo,
+      dados.sucesso ? 1 : 0,
+      dados.erro ?? null,
+      promptTexto ?? null,
+      dados.documentoId ?? null,
+      dados.transacaoId ?? null,
+    ],
+  );
+  const id = consultar<{ id: number }>(db, "SELECT last_insert_rowid() as id")[0].id;
+  return {
+    id: String(id),
+    provedor: dados.provedor,
+    modelo: dados.modelo,
+    quando,
+    tokensEntrada: dados.tokensEntrada,
+    tokensSaida: dados.tokensSaida,
+    custoEstimadoUsd: dados.custoEstimadoUsd,
+    confianca: dados.confianca,
+    motivo: dados.motivo,
+    sucesso: dados.sucesso,
+    erro: dados.erro,
+    promptTexto,
+    documentoId: dados.documentoId,
+    transacaoId: dados.transacaoId,
+  };
+}
+
+/** Registra uma chamada de IA — em `ia_chamadas` quando `db` é informado, em memória (perdido
+ * ao recarregar) caso contrário. É a função que roteador.ts chama a cada tentativa de
+ * provedor, sucesso ou falha. */
+export function registrarChamada(dados: DadosNovaChamada, db?: Database): RegistroChamadaIA {
+  if (db) return registrarChamadaNoBanco(db, dados);
+  return registroProveniencia.registrar(dados);
+}
+
+/** Completa a confiança de um registro já criado (ver o comentário de
+ * `RegistroProveniencia.atualizarConfianca`), no banco ou em memória conforme onde o
+ * registro original foi gravado. `db` precisa ser o mesmo passado a `registrarChamada` para
+ * este `id` — passar um sem o outro simplesmente não encontra a linha (UPDATE afeta 0 linhas)
+ * e não lança erro, mesma tolerância do caminho em memória (que também ignora id inexistente). */
+export function atualizarConfiancaChamada(
+  id: string,
+  confianca: ConfiancaClassificacao | undefined,
+  db?: Database,
+): void {
+  if (!confianca) return;
+  if (db) {
+    executar(db, "UPDATE ia_chamadas SET confianca = ? WHERE id = ?", [confianca, id]);
+    return;
+  }
+  registroProveniencia.atualizarConfianca(id, confianca);
+}
+
+/** Histórico de chamadas — do banco (mais recentes primeiro) quando `db` é informado, da
+ * memória do processo (ordem de inserção) caso contrário. `limite` só se aplica ao caminho
+ * de banco; o caminho em memória sempre devolve tudo (é o mesmo comportamento de sempre de
+ * `registroProveniencia.listar()`). */
+export function listarChamadas(db?: Database, limite = 500): readonly RegistroChamadaIA[] {
+  if (db) {
+    return consultar<LinhaIaChamada>(
+      db,
+      "SELECT * FROM ia_chamadas ORDER BY quando DESC, id DESC LIMIT ?",
+      [limite],
+    ).map(linhaParaRegistro);
+  }
+  return registroProveniencia.listar();
+}
+
+/** Soma de `custo_estimado_usd` — do banco quando `db` é informado, da memória caso
+ * contrário. Chamadas sem custo estimado (Ollama, ou falha antes de saber tokens) não
+ * contribuem, mesmo comportamento nos dois caminhos. */
+export function custoAcumuladoChamadas(db?: Database): number {
+  if (db) {
+    const linha = consultar<{ soma: number | null }>(
+      db,
+      "SELECT SUM(custo_estimado_usd) AS soma FROM ia_chamadas",
+    )[0];
+    return linha?.soma ?? 0;
+  }
+  return registroProveniencia.custoAcumuladoUsd();
+}
+
+/** Apaga o histórico — só faz sentido para o caminho em memória (limpar uma sessão de
+ * testes/demonstração). O histórico em banco é dado de proveniência permanente: não existe
+ * (de propósito) uma função equivalente para apagá-lo em massa — apagar prova de auditoria
+ * em lote não é uma operação que este módulo oferece. */
+export function limparHistoricoEmMemoria(): void {
+  registroProveniencia.limpar();
+}
+
+/** Liga uma chamada já registrada ao documento que ela ajudou a produzir — é o que permite
+ * chegar de `documentos.id` até "qual chamada de IA classificou este documento". Chamado
+ * DEPOIS de o documento existir (a chamada acontece antes: o roteador responde primeiro, o
+ * documento só é criado se/quando o usuário confirma na revisão manual). `chamadaId` vazio
+ * ou não numérico (ex: id "ia-3" de um registro em memória, que não tem linha no banco para
+ * ligar) é ignorado silenciosamente — não há o que vincular no banco. */
+export function vincularChamadaADocumento(db: Database, chamadaId: string, documentoId: number): void {
+  if (!/^\d+$/.test(chamadaId)) return;
+  executar(db, "UPDATE ia_chamadas SET documento_id = ? WHERE id = ?", [documentoId, chamadaId]);
+}
+
+/** Mesma ideia de `vincularChamadaADocumento`, para uma transação categorizada por IA (ver
+ * `transacoes.categorizado_por = 'ia'`). */
+export function vincularChamadaATransacao(db: Database, chamadaId: string, transacaoId: number): void {
+  if (!/^\d+$/.test(chamadaId)) return;
+  executar(db, "UPDATE ia_chamadas SET transacao_id = ? WHERE id = ?", [transacaoId, chamadaId]);
+}
+
+/** A chamada de IA que produziu um documento, se houver — responde "qual regra classificou
+ * este valor" partindo do documento. `null` quando o documento não foi classificado por IA
+ * (heurística determinística bastou) ou quando o vínculo nunca foi gravado. */
+export function chamadaDoDocumento(db: Database, documentoId: number): RegistroChamadaIA | null {
+  const linha = consultar<LinhaIaChamada>(
+    db,
+    "SELECT * FROM ia_chamadas WHERE documento_id = ? ORDER BY id DESC LIMIT 1",
+    [documentoId],
+  )[0];
+  return linha ? linhaParaRegistro(linha) : null;
+}
+
+/** Mesma ideia de `chamadaDoDocumento`, para uma transação. */
+export function chamadaDaTransacao(db: Database, transacaoId: number): RegistroChamadaIA | null {
+  const linha = consultar<LinhaIaChamada>(
+    db,
+    "SELECT * FROM ia_chamadas WHERE transacao_id = ? ORDER BY id DESC LIMIT 1",
+    [transacaoId],
+  )[0];
+  return linha ? linhaParaRegistro(linha) : null;
+}

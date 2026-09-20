@@ -972,3 +972,57 @@ CREATE TABLE IF NOT EXISTS conciliacoes_itens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_conciliacoes_itens_conciliacao ON conciliacoes_itens(conciliacao_id);
+
+-- ============================================================================
+-- PROVENIÊNCIA DE CHAMADAS DE IA (src/domain/ia/)
+--
+-- O roteador multi-provedor de IA (roteador.ts) sempre soube registrar provedor,
+-- modelo, quando, tokens, custo estimado, confiança e o motivo do escalonamento/rodízio
+-- que levou a ESTE provedor a ser chamado nesta posição — mas só em memória do processo
+-- (ver src/domain/ia/proveniencia.ts): recarregar a página (F5) apagava tudo. O critério
+-- de sucesso do produto é responder, para qualquer valor, "de onde veio, qual regra o
+-- classificou, o que mudou, qual documento prova e como reproduzir o cálculo" — "a IA
+-- achou" não é resposta; "o modelo X, em tal data, com confiança média, a partir deste
+-- texto" é, e só é verificável se sobrevive a um F5. Esta tabela é o destino dessa
+-- persistência.
+--
+-- `prompt_texto` é o texto efetivamente enviado ao provedor (já truncado pelo chamador —
+-- ver o limite de 1000 caracteres em classificarComIA.ts — e sem CPF/CNPJ isolado, saldo
+-- ou dado além do próprio texto do documento) — sem ele, "como reproduzir o cálculo" não
+-- é respondível de verdade: nem o provedor original repete a mesma resposta sem saber
+-- qual foi a entrada. Fica limitado a 4000 caracteres na gravação (ver proveniencia.ts)
+-- como cinto e suspensório, já que o próprio chamador nunca deveria mandar mais que isso.
+--
+-- `documento_id`/`transacao_id` ligam esta chamada ao valor que ela ajudou a produzir —
+-- é o que permite, partindo de um valor em `documentos` ou `transacoes`, chegar até a
+-- linha exata de IA que o classificou (ver proveniencia.ts: vincularChamadaADocumento,
+-- vincularChamadaATransacao, chamadaDoDocumento, chamadaDaTransacao). Nenhum dos dois é
+-- NOT NULL nem preenchido no INSERT: a chamada é registrada no momento em que o roteador
+-- recebe a resposta do provedor, antes de o chamador saber se vai virar um documento ou
+-- uma transação (ou se o resultado será descartado na revisão manual) — por isso o
+-- vínculo é um UPDATE posterior, feito por quem cria o registro definitivo. Sem FOREIGN
+-- KEY: não há CASCADE aqui de propósito — apagar um documento/transação não deve apagar
+-- a prova de qual chamada de IA existiu, só deixar o vínculo pendente de outra explicação.
+CREATE TABLE IF NOT EXISTS ia_chamadas (
+    id                  INTEGER PRIMARY KEY,
+    provedor            TEXT NOT NULL CHECK (provedor IN ('anthropic', 'openai', 'google', 'ollama')),
+    modelo              TEXT NOT NULL,
+    quando              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tokens_entrada      INTEGER,
+    tokens_saida        INTEGER,
+    custo_estimado_usd  REAL,
+    confianca           TEXT CHECK (confianca IN ('alta', 'media', 'baixa')),
+    -- Nunca vazio — é a resposta a "por que a IA foi chamada": "preferido", "rodizio",
+    -- "fallback_apos_falha:<provedor-anterior>", "caminho_barato_local" ou
+    -- "escalonado_por_qualidade_baixa: <motivos>" (ver roteador.ts).
+    motivo              TEXT NOT NULL,
+    sucesso             INTEGER NOT NULL CHECK (sucesso IN (0, 1)),
+    erro                TEXT,
+    prompt_texto        TEXT,
+    documento_id        INTEGER,
+    transacao_id        INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_ia_chamadas_quando ON ia_chamadas(quando);
+CREATE INDEX IF NOT EXISTS idx_ia_chamadas_documento ON ia_chamadas(documento_id);
+CREATE INDEX IF NOT EXISTS idx_ia_chamadas_transacao ON ia_chamadas(transacao_id);

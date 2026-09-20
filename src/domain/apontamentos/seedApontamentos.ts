@@ -1,5 +1,5 @@
 import type { Database } from "sql.js";
-import { executar } from "../../db/connection";
+import { consultar, executar } from "../../db/connection";
 
 /**
  * Popula o banco com dados de exemplo para testar o Portal do Prestador
@@ -35,16 +35,18 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
       [hoje, agora, agora]
     );
 
-    const [apt] = db.exec(
+    // consultar() já devolve as linhas como objetos ({id: number}[]), ao contrário de
+    // db.exec() (que devolvia [{columns, values}] posicional — daí o `linhas[0]?.id` no
+    // lugar do antigo `apt.values[0][0]`). id é INTEGER PRIMARY KEY (schema.sql), então
+    // sempre number quando a linha existe.
+    const linhas = consultar<{ id: number }>(
+      db,
       "SELECT id FROM apontamentos_diarios WHERE prestador_id = 1 AND data = ? ORDER BY id DESC LIMIT 1",
-      [hoje]
+      [hoje],
     );
 
-    if (apt?.values?.[0]) {
-      // id é INTEGER PRIMARY KEY (schema.sql) — sempre number, mas db.exec() devolve
-      // SqlValue (que também admite Uint8Array), daí a asserção para bater com o
-      // parâmetro (string | number | null)[] que executar() espera.
-      const aptId = apt.values[0][0] as number;
+    if (linhas[0]) {
+      const aptId = linhas[0].id;
 
       // Adicionar atividades ao apontamento de hoje
       executar(
@@ -83,13 +85,15 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
       [ontem, agora, agora]
     );
 
-    const [apt] = db.exec(
+    // Ver comentário equivalente acima sobre a forma do resultado de consultar() vs db.exec().
+    const linhas = consultar<{ id: number }>(
+      db,
       "SELECT id FROM apontamentos_diarios WHERE prestador_id = 1 AND data = ? ORDER BY id DESC LIMIT 1",
-      [ontem]
+      [ontem],
     );
 
-    if (apt?.values?.[0]) {
-      const aptId = apt.values[0][0] as number; // id é INTEGER PRIMARY KEY (schema.sql)
+    if (linhas[0]) {
+      const aptId = linhas[0].id; // id é INTEGER PRIMARY KEY (schema.sql)
 
       executar(
         db,
@@ -121,13 +125,15 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
       [anteontem, agora, agora]
     );
 
-    const [apt] = db.exec(
+    // Ver comentário equivalente acima sobre a forma do resultado de consultar() vs db.exec().
+    const linhas = consultar<{ id: number }>(
+      db,
       "SELECT id FROM apontamentos_diarios WHERE prestador_id = 1 AND data = ? ORDER BY id DESC LIMIT 1",
-      [anteontem]
+      [anteontem],
     );
 
-    if (apt?.values?.[0]) {
-      const aptId = apt.values[0][0] as number; // id é INTEGER PRIMARY KEY (schema.sql)
+    if (linhas[0]) {
+      const aptId = linhas[0].id; // id é INTEGER PRIMARY KEY (schema.sql)
 
       executar(
         db,
@@ -159,13 +165,15 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
       [hoje, agora, agora]
     );
 
-    const [apt] = db.exec(
+    // Ver comentário equivalente acima sobre a forma do resultado de consultar() vs db.exec().
+    const linhas = consultar<{ id: number }>(
+      db,
       "SELECT id FROM apontamentos_diarios WHERE prestador_id = 2 AND data = ? ORDER BY id DESC LIMIT 1",
-      [hoje]
+      [hoje],
     );
 
-    if (apt?.values?.[0]) {
-      const aptId = apt.values[0][0] as number; // id é INTEGER PRIMARY KEY (schema.sql)
+    if (linhas[0]) {
+      const aptId = linhas[0].id; // id é INTEGER PRIMARY KEY (schema.sql)
 
       executar(
         db,
