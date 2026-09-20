@@ -51,12 +51,13 @@ const PainelAuditoria = lazy(() => import("./ui/PainelAuditoria").then((m) => ({
 const TriagemImportacao = lazy(() => import("./ui/TriagemImportacao").then((m) => ({ default: m.TriagemImportacao })));
 const FechamentoPeriodo = lazy(() => import("./ui/FechamentoPeriodo").then((m) => ({ default: m.FechamentoPeriodo })));
 const Conciliacao = lazy(() => import("./ui/Conciliacao").then((m) => ({ default: m.Conciliacao })));
+const ConfiguracaoIA = lazy(() => import("./ui/ConfiguracaoIA").then((m) => ({ default: m.ConfiguracaoIA })));
 const PainelConferencia = lazy(() => import("./components/painel-conferencia/PainelConferencia"));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
-  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao";
+  | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -88,6 +89,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "trilha", rotulo: "Trilha de auditoria e backup", icone: ShieldAlert },
   { id: "laudo", rotulo: "Laudo pericial", icone: FileText },
   { id: "sincronizacao", rotulo: "Sincronização", icone: RefreshCw },
+  { id: "ia", rotulo: "Configuração de IA", icone: RefreshCw },
 ];
 
 function Conteudo() {
@@ -425,6 +427,7 @@ function Conteudo() {
             {aba === "trilha" && <PainelAuditoria />}
             {aba === "laudo" && <LaudoView />}
             {aba === "sincronizacao" && <SincronizacaoView />}
+            {aba === "ia" && <ConfiguracaoIA />}
           </Suspense>
         </div>
       </main>
