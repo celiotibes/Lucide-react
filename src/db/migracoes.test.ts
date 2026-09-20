@@ -6,11 +6,11 @@ import { parseTabelasDoSchema, garantirColunasAtualizadas, reconstruirLedgerEntr
 describe("parseTabelasDoSchema — contra o schema.sql real", () => {
   const tabelas = parseTabelasDoSchema(schemaSql);
 
-  it("encontra todas as 51 tabelas do schema", () => {
-    expect(tabelas.size).toBe(51);
-    // As três últimas a entrar: conciliação bancária (saldo informado pelo extrato,
-    // registro da conciliação e a decomposição da diferença).
-    for (const nova of ["extrato_saldos_informados", "conciliacoes_bancarias", "conciliacoes_itens"]) {
+  it("encontra todas as 52 tabelas do schema", () => {
+    expect(tabelas.size).toBe(52);
+    // A mais nova a entrar: persistência da proveniência de chamadas de IA (ver
+    // src/domain/ia/proveniencia.ts) — antes só vivia em memória do processo.
+    for (const nova of ["extrato_saldos_informados", "conciliacoes_bancarias", "conciliacoes_itens", "ia_chamadas"]) {
       expect(tabelas.has(nova)).toBe(true);
     }
   });

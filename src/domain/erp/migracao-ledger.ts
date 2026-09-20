@@ -106,105 +106,133 @@ export function migrarTransacoesParaLedger(
   let migradas = 0;
   let ja_migradas = 0;
   let sem_classificacao = 0;
+  let transacoes: TransacaoOrigem[] = [];
 
-  const transacoes = consultar<TransacaoOrigem>(
-    db,
-    `SELECT id, data, valor, descricao_original, plano_conta_codigo
-     FROM transacoes
-     ORDER BY data ASC, id ASC`,
-    [],
-  );
-
-  // Uma consulta só, em vez de um SELECT por transação dentro do laço.
-  const ja_no_razao = new Set(
-    consultar<{ origem_id: number }>(
+  // BEGIN explícito: o laço abaixo abre um SAVEPOINT por transação (RELEASE/ROLLBACK TO
+  // em caso de falha na segunda perna — ver comentário mais abaixo). SAVEPOINT sem uma
+  // transação já aberta funciona em SQLite (que abre uma implicitamente sozinho), mas o
+  // PostgreSQL recusa com "SAVEPOINT can only be used in transaction blocks" — BUG REAL
+  // encontrado nesta função, só visível ao portar para Postgres/Supabase, porque em
+  // SQLite o efeito é indistinguível de estar correto. `executar`/`consultar` (API
+  // parametrizada) não cobrem controle de transação — por isso BEGIN/COMMIT/SAVEPOINT
+  // aqui usam a API do sql.js diretamente, como a própria connection.ts faz.
+  db.run("BEGIN");
+  try {
+    transacoes = consultar<TransacaoOrigem>(
       db,
-      "SELECT DISTINCT origem_id FROM ledger_entries WHERE origem_modulo = 'transacoes'",
+      `SELECT id, data, valor, descricao_original, plano_conta_codigo
+       FROM transacoes
+       ORDER BY data ASC, id ASC`,
       [],
-    ).map((linha) => linha.origem_id),
-  );
+    );
 
-  const periodos = new Map<string, { id: number; status: string } | null>();
+    // Uma consulta só, em vez de um SELECT por transação dentro do laço.
+    const ja_no_razao = new Set(
+      consultar<{ origem_id: number }>(
+        db,
+        "SELECT DISTINCT origem_id FROM ledger_entries WHERE origem_modulo = 'transacoes'",
+        [],
+      ).map((linha) => linha.origem_id),
+    );
 
-  for (const txn of transacoes) {
-    if (ja_no_razao.has(txn.id)) {
-      ja_migradas++;
-      continue;
-    }
+    const periodos = new Map<string, { id: number; status: string } | null>();
 
-    try {
-      const valor = Number(txn.valor);
-      if (!Number.isFinite(valor) || valor === 0) {
-        throw new Error("Valor ausente ou zero — não há partida a registrar");
+    for (const txn of transacoes) {
+      if (ja_no_razao.has(txn.id)) {
+        ja_migradas++;
+        continue;
       }
 
-      // A data manda na competência. Formato do schema é DATE 'AAAA-MM-DD'; qualquer
-      // outra coisa é erro da transação, não motivo para chutar o mês corrente.
-      const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(txn.data ?? "");
-      if (!partes) {
-        throw new Error(`Data inválida ou ausente ("${txn.data ?? ""}") — competência indeterminável`);
-      }
-      const ano = Number(partes[1]);
-      const mes = Number(partes[2]);
-
-      const periodo = resolverPeriodo(db, entidade_id, ano, mes, periodos);
-      if (!periodo) {
-        throw new Error(`Não foi possível abrir o período contábil ${mes}/${ano}`);
-      }
-      if (periodo.status !== "aberto") {
-        throw new Error(
-          `Período ${String(mes).padStart(2, "0")}/${ano} está fechado — lançar exigiria reabrir o período ou registrar um ajuste no período corrente`,
-        );
-      }
-
-      const { conta_id: conta_contrapartida, classificada } = contaContrapartida(
-        txn.plano_conta_codigo,
-      );
-
-      const montante = Math.abs(valor);
-      const entrada = valor > 0;
-      const comum = {
-        entidade_id,
-        periodo_id: periodo.id,
-        data_lancamento: txn.data as string,
-        descricao: txn.descricao_original,
-        origem_modulo: "transacoes" as const,
-        origem_id: txn.id,
-        referencia_documento: `TXN-${txn.id}`,
-      };
-
-      // SAVEPOINT por transação: se a segunda perna falhar, a primeira não pode ficar
-      // sozinha no razão — uma perna órfã desbalanceia o período inteiro e impede o
-      // fechamento, que é exatamente o defeito que esta reescrita veio consertar.
-      db.run(`SAVEPOINT txn_${txn.id}`);
       try {
-        registrarLancamentoContabil(db, {
-          ...comum,
-          conta_id: CONTA_CAIXA_ERP,
-          valor_debito: entrada ? montante : undefined,
-          valor_credito: entrada ? undefined : montante,
-        });
-        registrarLancamentoContabil(db, {
-          ...comum,
-          conta_id: conta_contrapartida,
-          valor_debito: entrada ? undefined : montante,
-          valor_credito: entrada ? montante : undefined,
-        });
-        db.run(`RELEASE txn_${txn.id}`);
-      } catch (erro) {
-        db.run(`ROLLBACK TO txn_${txn.id}`);
-        db.run(`RELEASE txn_${txn.id}`);
-        throw erro;
-      }
+        const valor = Number(txn.valor);
+        if (!Number.isFinite(valor) || valor === 0) {
+          throw new Error("Valor ausente ou zero — não há partida a registrar");
+        }
 
-      migradas++;
-      if (!classificada) sem_classificacao++;
-    } catch (erro) {
-      erros.push({
-        transacao_id: txn.id,
-        erro: erro instanceof Error ? erro.message : String(erro),
-      });
+        // A data manda na competência. Formato do schema é DATE 'AAAA-MM-DD'; qualquer
+        // outra coisa é erro da transação, não motivo para chutar o mês corrente.
+        const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(txn.data ?? "");
+        if (!partes) {
+          throw new Error(`Data inválida ou ausente ("${txn.data ?? ""}") — competência indeterminável`);
+        }
+        const ano = Number(partes[1]);
+        const mes = Number(partes[2]);
+
+        const periodo = resolverPeriodo(db, entidade_id, ano, mes, periodos);
+        if (!periodo) {
+          throw new Error(`Não foi possível abrir o período contábil ${mes}/${ano}`);
+        }
+        if (periodo.status !== "aberto") {
+          throw new Error(
+            `Período ${String(mes).padStart(2, "0")}/${ano} está fechado — lançar exigiria reabrir o período ou registrar um ajuste no período corrente`,
+          );
+        }
+
+        const { conta_id: conta_contrapartida, classificada } = contaContrapartida(
+          txn.plano_conta_codigo,
+        );
+
+        const montante = Math.abs(valor);
+        const entrada = valor > 0;
+        const comum = {
+          entidade_id,
+          periodo_id: periodo.id,
+          data_lancamento: txn.data as string,
+          descricao: txn.descricao_original,
+          origem_modulo: "transacoes" as const,
+          origem_id: txn.id,
+          referencia_documento: `TXN-${txn.id}`,
+        };
+
+        // SAVEPOINT por transação: se a segunda perna falhar, a primeira não pode ficar
+        // sozinha no razão — uma perna órfã desbalanceia o período inteiro e impede o
+        // fechamento, que é exatamente o defeito que esta reescrita veio consertar. Agora
+        // aninha dentro do BEGIN de cima (nunca é o savepoint mais externo).
+        db.run(`SAVEPOINT txn_${txn.id}`);
+        try {
+          registrarLancamentoContabil(db, {
+            ...comum,
+            conta_id: CONTA_CAIXA_ERP,
+            valor_debito: entrada ? montante : undefined,
+            valor_credito: entrada ? undefined : montante,
+          });
+          registrarLancamentoContabil(db, {
+            ...comum,
+            conta_id: conta_contrapartida,
+            valor_debito: entrada ? undefined : montante,
+            valor_credito: entrada ? montante : undefined,
+          });
+          db.run(`RELEASE txn_${txn.id}`);
+        } catch (erro) {
+          db.run(`ROLLBACK TO txn_${txn.id}`);
+          db.run(`RELEASE txn_${txn.id}`);
+          throw erro;
+        }
+
+        migradas++;
+        if (!classificada) sem_classificacao++;
+      } catch (erro) {
+        // Erro de UMA transação (validação, ou a própria SAVEPOINT acima já desfeita) —
+        // registrado em `erros` e a migração segue para a próxima. Não escapa até o
+        // BEGIN/COMMIT externo, que por isso sempre chega ao COMMIT abaixo.
+        erros.push({
+          transacao_id: txn.id,
+          erro: erro instanceof Error ? erro.message : String(erro),
+        });
+      }
     }
+
+    db.run("COMMIT");
+  } catch (erro) {
+    // Só chega aqui por falha ANTES do laço (ex.: o SELECT de transações) ou alguma
+    // exceção que escapou do try por-transação acima — nos dois casos, nada do que este
+    // BEGIN abriu deve ficar meio aplicado.
+    try {
+      db.run("ROLLBACK");
+    } catch {
+      /* já fora de transação */
+    }
+    throw erro;
   }
 
   return {
