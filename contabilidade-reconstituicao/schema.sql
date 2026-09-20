@@ -885,3 +885,90 @@ CREATE TABLE IF NOT EXISTS auditoria_log (
 
 CREATE INDEX IF NOT EXISTS idx_auditoria_log_entidade ON auditoria_log(entidade_afetada, id_entidade);
 CREATE INDEX IF NOT EXISTS idx_auditoria_log_timestamp ON auditoria_log(timestamp);
+
+-- ============================================================================
+-- CONCILIAÇÃO BANCÁRIA
+--
+-- `transacoes` (o extrato importado) e `ledger_entries` (o razão, via
+-- migracao-ledger.ts) são povoados automaticamente, mas nada até aqui comparava o
+-- resultado com o saldo real do banco numa data, nem apontava o que explica a
+-- diferença quando os números não batem — requisito central de um núcleo contábil.
+--
+-- Duas tabelas novas, propositalmente separadas:
+--   - extrato_saldos_informados: o FATO que o sistema não tem como deduzir sozinho —
+--     o saldo que o extrato bancário real mostrava numa data. É digitado pela pessoa,
+--     a partir do próprio extrato/aplicativo do banco, e existe independente de uma
+--     conciliação já ter sido rodada (pode ser cadastrado antes, revisitado depois).
+--   - conciliacoes_bancarias + conciliacoes_itens: o REGISTRO de cada apuração feita
+--     — os três saldos comparados, as diferenças e a decomposição delas — para que uma
+--     conciliação já feita continue auditável depois, sem precisar refazer o cálculo.
+--
+-- src/domain/conciliacao/conciliacao.ts é quem lê e grava estas tabelas.
+-- ============================================================================
+
+-- Saldo informado pelo extrato bancário real, numa data, para uma conta. Histórico por
+-- data (não só "o saldo mais recente"): uma mesma conta pode ser conciliada em cortes
+-- diferentes (fechamento mensal, por exemplo), e cada data guarda o que o extrato de
+-- verdade mostrava naquele dia — não um valor recalculado a posteriori.
+CREATE TABLE IF NOT EXISTS extrato_saldos_informados (
+    id              INTEGER PRIMARY KEY,
+    conta_id        INTEGER NOT NULL REFERENCES contas_bancarias(id),
+    data            DATE NOT NULL,
+    saldo           REAL NOT NULL,
+    informado_em    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    informado_por   TEXT,
+    observacoes     TEXT,
+    -- Reinformar o saldo da mesma conta na mesma data corrige o valor anterior em vez de
+    -- acumular duplicata — é sempre "o que o extrato mostrava nesta data", um fato só.
+    UNIQUE (conta_id, data)
+);
+
+-- Cada conciliação feita: os três saldos comparados (extrato informado, transações
+-- acumuladas no app, e a parcela do razão atribuível a esta conta — ver o comentário em
+-- conciliacao.ts sobre por que "atribuível", já que o caixa do razão, CONTA_CAIXA_ERP em
+-- mapeamentoPlanoApp.ts, é uma única conta compartilhada por todas as contas bancárias
+-- cadastradas) e as diferenças apuradas entre eles. `realizada_por` é texto livre, no
+-- mesmo padrão de `decidido_por` em importacao_linhas — não há autenticação de usuário
+-- neste sistema.
+CREATE TABLE IF NOT EXISTS conciliacoes_bancarias (
+    id                              INTEGER PRIMARY KEY,
+    conta_id                        INTEGER NOT NULL REFERENCES contas_bancarias(id),
+    data_corte                      DATE NOT NULL,
+    saldo_extrato                   REAL NOT NULL,
+    saldo_transacoes                REAL NOT NULL,
+    saldo_razao                     REAL NOT NULL,
+    diferenca_extrato_transacoes    REAL NOT NULL,  -- saldo_extrato - saldo_transacoes
+    diferenca_transacoes_razao      REAL NOT NULL,  -- saldo_transacoes - saldo_razao
+    diferenca_extrato_razao         REAL NOT NULL,  -- saldo_extrato - saldo_razao (diferença total)
+    fechada_sem_diferenca           INTEGER NOT NULL DEFAULT 0 CHECK (fechada_sem_diferenca IN (0, 1)),
+    realizada_em                    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    realizada_por                   TEXT,
+    observacoes                     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_conciliacoes_bancarias_conta ON conciliacoes_bancarias(conta_id, data_corte);
+
+-- Decomposição da diferença de uma conciliação: cada linha é um FATOR que explica parte
+-- (ou a totalidade) do descasamento entre os três saldos — nunca só o número da
+-- diferença sem dizer o que a compõe. `referencias_json` guarda os ids das linhas de
+-- origem (transacoes, importacao_linhas ou ledger_entries, conforme o tipo) para a tela
+-- poder abrir a lista por trás do item; é só para consulta, não FOREIGN KEY, porque o
+-- tipo de origem muda conforme `tipo` e os ids podem deixar de existir com o tempo.
+CREATE TABLE IF NOT EXISTS conciliacoes_itens (
+    id                  INTEGER PRIMARY KEY,
+    conciliacao_id      INTEGER NOT NULL REFERENCES conciliacoes_bancarias(id),
+    tipo                TEXT NOT NULL CHECK (tipo IN (
+        'nao_lancada_no_razao',      -- transação da conta, dentro do corte, sem perna correspondente no razão
+        'triagem_pendente',          -- linha de importação ainda sem decisão (pendente/duplicata provável/malformada)
+        'classificacao_pendente',    -- já está no razão, mas contra a conta transitória 1.9.99 (não afeta o total)
+        'lancamento_orfao_no_razao', -- lançamento de caixa no razão sem transação de origem encontrada (system-wide)
+        'residual_nao_identificado'  -- sobra depois dos itens acima — existe para nunca esconder diferença sem explicação
+    )),
+    descricao           TEXT NOT NULL,
+    quantidade          INTEGER NOT NULL DEFAULT 0,
+    valor               REAL NOT NULL DEFAULT 0,
+    afeta_diferenca     INTEGER NOT NULL DEFAULT 1 CHECK (afeta_diferenca IN (0, 1)),
+    referencias_json     TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE INDEX IF NOT EXISTS idx_conciliacoes_itens_conciliacao ON conciliacoes_itens(conciliacao_id);

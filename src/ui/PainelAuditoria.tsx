@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useToast } from "./useToast";
 import { KpiTile } from "../components/KpiTile";
+import { useDb } from "../db/useDb";
 import {
   gerenciadorAuditoria,
   estrategiaBackup,
@@ -75,27 +76,27 @@ function hashCurto(hash: string): string {
  * chamados por nenhuma outra tela do app:
  *
  * - `audit-logging-imutavel.ts` — log de auditoria encadeado por hash (trilha +
- *   verificação de integridade da cadeia).
+ *   verificação de integridade da cadeia). GRAVA na tabela `auditoria_log` do banco
+ *   .sqlite do app (via `gerenciadorAuditoria.definirBanco(db)`, logo abaixo) — a trilha e
+ *   a verificação de integridade sobrevivem a um F5 ou a fechar a aba.
  * - `strategy-backup.ts` — execução de backup com checksum SHA-256 real e políticas de
- *   retenção.
+ *   retenção. Continua só em memória: não sobrevive a um reload.
  * - `plano-recuperacao-desastres.ts` — cenários de disaster recovery (RTO/RPO), testes e
- *   métricas de cobertura.
+ *   métricas de cobertura. Também só em memória: não sobrevive a um reload.
  *
- * Aviso importante e deliberado: os três módulos acima guardam o próprio histórico em
- * memória (não no banco sql.js do app), então esse histórico não sobrevive a um reload da
- * página — ver `src/ui/auditoria/singletons.ts`. E o backup executado aqui é o da
- * "estratégia de backup" (motor de política/retenção/checksum), não o export real do
- * banco sql.js — esse já existe e fica no cabeçalho do app (botão "Fazer backup"),
- * gravando o hash de verdade do arquivo que foi baixado. As duas coisas são
- * complementares: uma prova o arquivo que saiu do navegador, a outra demonstra o motor de
- * agendamento/retenção/checksum descrito em `strategy-backup.ts`.
+ * E o backup executado aqui é o da "estratégia de backup" (motor de política/retenção/
+ * checksum), não o export real do banco sql.js — esse já existe e fica no cabeçalho do
+ * app (botão "Fazer backup"), gravando o hash de verdade do arquivo que foi baixado. As
+ * duas coisas são complementares: uma prova o arquivo que saiu do navegador, a outra
+ * demonstra o motor de agendamento/retenção/checksum descrito em `strategy-backup.ts`.
  *
- * `compliance-audit-log.ts` (a variante que grava a auditoria na tabela `auditoria_log`
- * do sql.js) não é usada aqui: essa tabela não existe em
- * `contabilidade-reconstituicao/schema.sql` — ver o relatório da tarefa.
+ * `compliance-audit-log.ts` (a outra variante que também grava em `auditoria_log`, com seu
+ * próprio conjunto de colunas) não é usada aqui — continua sem uso por nenhuma tela. Ver
+ * `src/ui/auditoria/singletons.ts` e o relatório da tarefa para o porquê.
  */
 export function PainelAuditoria() {
   const { avisar } = useToast();
+  const { db, persistir } = useDb();
 
   const [tick, setTick] = useState(0);
   const forcarAtualizacao = useCallback(() => setTick((t) => t + 1), []);
@@ -104,6 +105,17 @@ export function PainelAuditoria() {
   const [verificando, setVerificando] = useState(false);
   const [executandoBackup, setExecutandoBackup] = useState(false);
   const [testandoDrpId, setTestandoDrpId] = useState<string | null>(null);
+
+  // Liga o gerenciador de auditoria ao banco real assim que ele estiver disponível (o App
+  // só renderiza esta tela depois que `db` deixa de ser null, ver App.tsx). A partir daqui
+  // todo `registrarAudit` grava também em `auditoria_log`, e a primeira chamada hidrata
+  // `gerenciadorAuditoria` com o que já estava persistido de sessões anteriores — é o que
+  // faz "Registros na trilha" e a tabela abaixo não começarem vazios depois de um F5.
+  useEffect(() => {
+    gerenciadorAuditoria.definirBanco(db);
+    forcarAtualizacao();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
 
   // StrictMode roda todo efeito duas vezes em desenvolvimento — sem essa trava, a
   // primeira visita ao painel registraria duas leituras idênticas na trilha.
@@ -124,14 +136,22 @@ export function PainelAuditoria() {
         "SUCESSO",
         "Visualização da trilha de auditoria pelo operador",
       )
-      .then(() => forcarAtualizacao());
-  }, [forcarAtualizacao]);
+      .then(async () => {
+        await persistir();
+        forcarAtualizacao();
+      })
+      .catch((erro) => {
+        avisar("critical", `Falha ao registrar a abertura do painel na trilha de auditoria: ${erro instanceof Error ? erro.message : "erro desconhecido"}`);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forcarAtualizacao, persistir]);
 
-  // Sem estado de banco aqui — os três módulos guardam o próprio histórico em objetos
-  // mutáveis fora do React (arrays/Maps dentro da instância da classe, ver
-  // singletons.ts), então não há como o React observar mudança neles sozinho. `tick` é o
-  // gatilho manual que os callers (registrar, verificar, executar backup, testar DRP)
-  // incrementam depois de cada ação, para reler o snapshot atual do módulo.
+  // Os três módulos guardam o próprio histórico em objetos mutáveis fora do React
+  // (arrays/Maps dentro da instância da classe, ver singletons.ts) — `gerenciadorAuditoria`
+  // agora espelha isso também em `auditoria_log` (ver o efeito de `definirBanco` acima),
+  // mas o React continua sem visibilidade direta sobre a mutação em si. `tick` é o gatilho
+  // manual que os callers (registrar, verificar, executar backup, testar DRP) incrementam
+  // depois de cada ação, para reler o snapshot atual do módulo.
   //
   // `consultarAudit` é assíncrona (a classe trata toda operação como potencialmente
   // I/O, mesmo hoje sendo só memória) — por isso é estado + efeito, e não useMemo como
@@ -179,6 +199,7 @@ export function PainelAuditoria() {
           ? "Cadeia íntegra: hash e assinatura de todos os registros conferem"
           : `Cadeia quebrada a partir do registro de índice ${resultado.primeiro_erro_sequencia}`,
       );
+      await persistir();
 
       if (resultado.integro) {
         avisar("good", `Cadeia íntegra: ${resultado.registros_verificados} registro(s) e ${resultado.blocos_verificados} bloco(s) conferidos, nenhuma corrupção.`);
@@ -191,7 +212,7 @@ export function PainelAuditoria() {
     } finally {
       setVerificando(false);
     }
-  }, [avisar, forcarAtualizacao]);
+  }, [avisar, forcarAtualizacao, persistir]);
 
   const executarBackup = useCallback(async () => {
     setExecutandoBackup(true);
@@ -215,6 +236,7 @@ export function PainelAuditoria() {
         undefined,
         { checksum_sha256: backup.checksum_sha256 },
       );
+      await persistir();
 
       avisar("good", `Backup concluído. Checksum SHA-256: ${backup.checksum_sha256}`);
       forcarAtualizacao();
@@ -223,7 +245,7 @@ export function PainelAuditoria() {
     } finally {
       setExecutandoBackup(false);
     }
-  }, [avisar, forcarAtualizacao]);
+  }, [avisar, forcarAtualizacao, persistir]);
 
   const testarCenarioDrp = useCallback(
     async (cenario: CenarioDesastre) => {
@@ -243,6 +265,7 @@ export function PainelAuditoria() {
           teste.resultado === "PASSOU" ? "SUCESSO" : "PARCIAL",
           `Teste de DRP acionado manualmente pelo operador (${teste.passos_completados}/${cenario.passos_recuperacao.length} passos)`,
         );
+        await persistir();
 
         avisar(
           teste.resultado === "PASSOU" ? "good" : "warning",
@@ -255,7 +278,7 @@ export function PainelAuditoria() {
         setTestandoDrpId(null);
       }
     },
-    [avisar, forcarAtualizacao],
+    [avisar, forcarAtualizacao, persistir],
   );
 
   return (
@@ -277,9 +300,12 @@ export function PainelAuditoria() {
       </div>
 
       <div className="aviso-caixa" style={{ marginTop: 0, marginBottom: 20 }}>
-        Os dados desta tela vivem na memória da aba aberta (não no arquivo .sqlite do app) — fechar ou recarregar a
-        página zera a trilha, os backups e os testes de DRP registrados aqui. O app não tem login por usuário na área
-        contábil, então todo evento é atribuído ao identificador fixo "{OPERADOR_LOCAL_ID}".
+        A trilha de auditoria abaixo (os eventos listados e a verificação de integridade da cadeia) é gravada na
+        tabela <code>auditoria_log</code> do arquivo .sqlite do app e sobrevive a fechar a aba ou recarregar a
+        página. Já os backups executados nesta tela (motor de política/checksum do <code>strategy-backup.ts</code>) e
+        os testes de DRP continuam vivendo só na memória desta aba — recarregar a página zera esse histórico
+        específico. O app não tem login por usuário na área contábil, então todo evento é atribuído ao identificador
+        fixo "{OPERADOR_LOCAL_ID}".
       </div>
 
       <div className="bento-grid">
@@ -364,7 +390,7 @@ export function PainelAuditoria() {
           qualquer alteração depois do fato é detectável pela verificação acima.
         </p>
         {registros.length === 0 ? (
-          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhum evento registrado ainda nesta sessão.</p>
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhum evento registrado ainda.</p>
         ) : (
           <div className="table-wrap" style={{ maxHeight: 360, overflowY: "auto" }}>
             <table className="data-table">

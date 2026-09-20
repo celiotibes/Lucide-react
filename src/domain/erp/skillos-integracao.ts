@@ -120,7 +120,11 @@ export interface ReconstrucaoContabil {
   sha256_fonte?: string;
   pagina_fonte?: number;
   locator_fonte?: string;
-  status: 'extracao' | 'normalizacao' | 'classificacao' | 'liquidacao' | 'rateio' | 'lancamento' | 'hold_review';
+  // Obrigatório na declaração, mas nenhuma função deste arquivo (validarRecontrucaoContabil,
+  // registrarRecontrucaoContabil) lê reconstrucao.status — provável estágio de um pipeline
+  // de triagem (cofre de evidências) que não se aplica a este fluxo. Opcional porque nada
+  // aqui o consome; todo caller válido nos testes o omitia.
+  status?: 'extracao' | 'normalizacao' | 'classificacao' | 'liquidacao' | 'rateio' | 'lancamento' | 'hold_review';
 }
 
 export function obterMapeamentoSkill(skill_skillos: string, tipo_evento: string): MapeamentoSkillsOrigem | undefined {

@@ -1,12 +1,14 @@
-import { Fragment, useMemo, useState } from "react";
-import { Wand2, Split, Scissors, Trash2, Download, Plus, X } from "lucide-react";
+import { Fragment, useMemo, useState, useCallback } from "react";
+import { Wand2, Split, Scissors, Trash2, Download, Plus, X, FileSearch, Fingerprint, Copy, Check, ShieldOff } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
+import { useToast } from "../ui/useToast";
 import type { ContaBancaria, Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
 import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, gerarXlsxConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
 import { criarTransacaoManual, excluirTransacao, dividirTransacao, type ParteDivisao } from "../domain/transacoes/transacaoManual";
+import { provasDasTransacoes } from "../domain/importacao/cofre";
 
 /** Filtro inicial vindo de outra tela (drill-down do Painel: clicar numa barra da cascata do
  * DRE ou numa célula do mapa de calor navega pra cá já filtrado pela categoria/mês/imóvel que
@@ -41,9 +43,25 @@ const ROTULO_CRITERIO: Record<CriterioRateio, string> = {
   por_unidade: "Igual entre unidades",
 };
 
+/** O que cada valor de `categorizado_por` significa — explica a pergunta "qual regra
+ * classificou este valor" por trás do pill que já existe na coluna Origem. */
+const ROTULO_CATEGORIZADO_POR: Record<string, string> = {
+  regra: "Classificado automaticamente por uma regra aprendida (padrão de texto salvo em 'Salvar como regra')",
+  ia: "Classificado por sugestão de IA",
+  manual: "Classificado manualmente, clicando na categoria desta transação",
+};
+
+function formatarDataHora(valor: string | null): string {
+  if (!valor) return "—";
+  return new Date(valor.replace(" ", "T") + "Z").toLocaleString("pt-BR");
+}
+
 export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransacoesInicial | null }) {
   const { db, versao, persistir } = useDb();
+  const { avisar } = useToast();
   const [somentePendentes, setSomentePendentes] = useState(false);
+  const [provenanciaAbertaId, setProvenanciaAbertaId] = useState<number | null>(null);
+  const [hashCopiado, setHashCopiado] = useState<string | null>(null);
   const [rateioAbertoId, setRateioAbertoId] = useState<number | null>(null);
   const [regraAbertaId, setRegraAbertaId] = useState<number | null>(null);
   const [padraoRegra, setPadraoRegra] = useState("");
@@ -120,6 +138,31 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const totalPendentes = useMemo(
     () => (db ? consultar<{ total: number }>(db, "SELECT COUNT(*) as total FROM transacoes WHERE plano_conta_codigo IS NULL")[0]?.total ?? 0 : 0),
     [db, versao],
+  );
+
+  // Procedência de cada transação da página atual, numa ÚNICA consulta (ver
+  // provasDasTransacoes em domain/importacao/cofre.ts) — não uma consulta por linha
+  // renderizada. A demonstração tem ~1100 transações; mesmo paginada em 300 (LIMIT da
+  // query acima), uma consulta por linha no render seria centenas de round-trips ao SQLite
+  // a cada nova versão do banco. Transação sem chave no Map (dado de demonstração,
+  // lançamento manual, ou importada antes do cofre existir) é tratada explicitamente na
+  // renderização — ver bloco "sem prova" abaixo.
+  const provas = useMemo(
+    () => (db ? provasDasTransacoes(db, transacoes.map((t) => t.id)) : new Map()),
+    [db, versao, transacoes],
+  );
+
+  const copiarHashProva = useCallback(
+    async (hash: string) => {
+      try {
+        await navigator.clipboard.writeText(hash);
+        setHashCopiado(hash);
+        setTimeout(() => setHashCopiado((atual) => (atual === hash ? null : atual)), 2000);
+      } catch {
+        avisar("warning", "O navegador bloqueou a cópia. Selecione o hash na tela e copie manualmente.");
+      }
+    },
+    [avisar],
   );
 
   async function categorizar(transacaoId: number, codigo: string) {
@@ -437,6 +480,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
               <th>Imóvel</th>
               <th>PF × Negócio</th>
               <th>Origem</th>
+              <th>Procedência</th>
               <th></th>
             </tr>
           </thead>
@@ -497,7 +541,32 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                         return <span className={`pill ${classe}`.trim()}>{classificacao}</span>;
                       })()}
                     </td>
-                    <td>{t.categorizado_por ? <span className="pill good">{t.categorizado_por}</span> : <span className="pill warning">pendente</span>}</td>
+                    <td>
+                      {t.categorizado_por ? (
+                        <span className="pill good" title={ROTULO_CATEGORIZADO_POR[t.categorizado_por] ?? undefined}>
+                          {t.categorizado_por}
+                        </span>
+                      ) : (
+                        <span className="pill warning">pendente</span>
+                      )}
+                    </td>
+                    <td>
+                      {(() => {
+                        const prova = provas.get(t.id);
+                        return (
+                          <button
+                            type="button"
+                            className={`pill ${prova ? "good" : "critical"}`}
+                            style={{ cursor: "pointer", border: "none", font: "inherit", display: "inline-flex", gap: 4, alignItems: "center" }}
+                            title={prova ? "Clique para ver de onde este valor veio e quem aprovou" : "Sem documento-fonte com hash registrado — clique para ver o motivo"}
+                            onClick={() => setProvenanciaAbertaId((atual) => (atual === t.id ? null : t.id))}
+                          >
+                            {prova ? <FileSearch size={12} /> : <ShieldOff size={12} />}
+                            {prova ? "com prova" : "sem prova"}
+                          </button>
+                        );
+                      })()}
+                    </td>
                     <td style={{ display: "flex", gap: 4 }}>
                       {t.plano_conta_codigo && (
                         <button className="btn" title="Salvar como regra" style={{ padding: "4px 7px" }} onClick={() => abrirSalvarRegra(t)}>
@@ -515,9 +584,68 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                       </button>
                     </td>
                   </tr>
+                  {provenanciaAbertaId === t.id && (() => {
+                    const prova = provas.get(t.id);
+                    return (
+                      <tr>
+                        <td colSpan={9} style={{ background: "var(--surface-2)" }}>
+                          <div style={{ padding: "10px 4px", fontSize: 13 }}>
+                            {prova ? (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                <div>
+                                  <strong>Arquivo de origem:</strong> {prova.arquivo_nome} · linha {prova.linha_numero} do arquivo
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  <Fingerprint size={13} style={{ flexShrink: 0, color: "var(--ink-soft)" }} />
+                                  <span>SHA-256 do arquivo:</span>
+                                  <code style={{ fontSize: 11.5, wordBreak: "break-all" }}>{prova.arquivo_hash_sha256}</code>
+                                  <button className="btn" style={{ padding: "2px 7px", fontSize: 11.5 }} onClick={() => copiarHashProva(prova.arquivo_hash_sha256)}>
+                                    {hashCopiado === prova.arquivo_hash_sha256 ? <><Check size={11} /> copiado</> : <><Copy size={11} /> copiar</>}
+                                  </button>
+                                </div>
+                                <div style={{ color: "var(--ink-soft)" }}>
+                                  Arquivo importado em {formatarDataHora(prova.importado_em)}
+                                </div>
+                                <div>
+                                  <strong>Aprovado por:</strong>{" "}
+                                  {prova.decidido_por ?? "—"} em {formatarDataHora(prova.decidido_em)}
+                                </div>
+                                {t.plano_conta_codigo && (
+                                  <div style={{ color: "var(--ink-soft)" }}>
+                                    <strong>Classificação:</strong> {t.plano_conta_codigo} · {planoContasPorCodigo.get(t.plano_conta_codigo)?.descricao ?? ""}
+                                    {t.categorizado_por && ` — ${ROTULO_CATEGORIZADO_POR[t.categorizado_por] ?? t.categorizado_por}`}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                <ShieldOff size={15} style={{ flexShrink: 0, marginTop: 2, color: "var(--viz-despesa)" }} />
+                                <p style={{ margin: 0 }}>
+                                  {t.documento_fonte ? (
+                                    <>
+                                      Nome de arquivo registrado no lançamento: <strong>{t.documento_fonte}</strong> — mas sem hash de
+                                      conteúdo nem número de linha: foi importado antes de o cofre de evidências existir, ou
+                                      associado por casamento de documento (que grava só o nome do arquivo). Nome sozinho não prova
+                                      nada — dois arquivos podem ter o mesmo nome, e um arquivo pode ser alterado sem trocar de nome.
+                                    </>
+                                  ) : (
+                                    <>
+                                      Sem documento-fonte registrado para este lançamento. É um lançamento manual, um dado de
+                                      demonstração gerado por código, ou foi importado antes de qualquer registro de origem existir
+                                      — não há arquivo para provar este valor.
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })()}
                   {regraAbertaId === t.id && (
                     <tr>
-                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={9} style={{ background: "var(--surface-2)" }}>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 4px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13 }}>Padrão (regex):</span>
                           <input value={padraoRegra} onChange={(e) => setPadraoRegra(e.target.value)} style={{ flex: 1, minWidth: 160, padding: "5px 8px" }} />
@@ -542,7 +670,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                   )}
                   {rateioAbertoId === t.id && (
                     <tr>
-                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={9} style={{ background: "var(--surface-2)" }}>
                         <div style={{ padding: "10px 4px" }}>
                           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
                             {imoveis.map((i) => (
@@ -600,7 +728,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                   )}
                   {divisaoAbertaId === t.id && (
                     <tr>
-                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={9} style={{ background: "var(--surface-2)" }}>
                         <div style={{ padding: "10px 4px" }}>
                           <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: "0 0 10px" }}>
                             Divide este lançamento (valor total {t.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em partes com
@@ -665,7 +793,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
             })}
             {transacoes.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                <td colSpan={9} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                   Nenhuma transação encontrada. Importe documentos ou carregue os dados de demonstração.
                 </td>
               </tr>

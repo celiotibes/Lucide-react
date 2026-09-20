@@ -395,7 +395,10 @@ describe("Apontamento do Prestador - Módulo Completo", () => {
       );
 
       expect(resultado.valor_base).toBe(63.0);
-      expect(resultado.eh_sabado).toBeUndefined(); // Não é proprietário do tipo
+      // AirbnbApontamento não declara eh_sabado (usa adicional_sab_dom_feriado em vez de
+      // um flag booleano) — `in` confirma a ausência sem precisar de "as any" para ler
+      // uma propriedade fora do tipo.
+      expect("eh_sabado" in resultado).toBe(false);
     });
 
     it("A011: Manutenção dentro = hora normal", () => {

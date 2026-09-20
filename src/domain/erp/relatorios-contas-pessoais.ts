@@ -263,7 +263,13 @@ export function relatorioMovimentosConta(
   const movimentosComSaldo: LinhaMovimento[] = movimentos.map((m) => {
     if (m.tipo_movimento === "entrada") {
       total_entradas += m.valor;
-      if (m.tipo_movimento === "transferencia") total_transferencias_entradas += m.valor;
+      // Código morto removido: dentro deste ramo, tipo_movimento já é "entrada" —
+      // "entrada" e "transferencia" são valores mutuamente exclusivos do mesmo campo
+      // (não uma combinação de flags), então esta comparação nunca podia ser
+      // verdadeira e total_transferencias_entradas nunca era incrementado aqui.
+      // Suspeita de bug de design mais profundo (não corrigido: mudaria o valor
+      // observável do relatório sem uma forma clara e verificável de saber a direção
+      // de uma "transferencia" a partir só do tipo_movimento) — ver relatório da tarefa.
       saldo_corrente += m.valor;
     } else {
       total_saidas += m.valor;

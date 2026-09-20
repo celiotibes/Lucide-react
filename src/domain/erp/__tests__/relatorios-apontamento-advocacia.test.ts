@@ -549,8 +549,11 @@ describe("Relatórios Apontamento e Advocacia", () => {
       const relatorio = relatorioDespesasLegais(db, entidade_id, periodo_id);
 
       for (let i = 1; i < relatorio.evolucao_mensal.length; i++) {
-        expect(relatorio.evolucao_mensal[i].mes).toGreaterThanOrEqual(
-          relatorio.evolucao_mensal[i - 1].mes
+        // Typo real: "toGreaterThanOrEqual" não existe no vitest (o certo é
+        // toBeGreaterThanOrEqual) — como o array de teste tinha 1 mês só, o loop nunca
+        // executava o corpo e o typo nunca era exercitado, por isso a suíte passava.
+        expect(relatorio.evolucao_mensal[i].mes >= relatorio.evolucao_mensal[i - 1].mes).toBe(
+          true
         );
       }
     });

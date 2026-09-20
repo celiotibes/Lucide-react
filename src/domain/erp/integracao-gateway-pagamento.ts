@@ -128,7 +128,11 @@ export function processarPagamento(
 export function handleChargebacks(
   db: any,
   pagamento_id: string,
-  chargeback: Omit<TratamentoChargeback, 'id'>
+  // Só omitia 'id', mas pagamento_id já chega como argumento posicional separado — o
+  // corpo da função nunca lê chargeback.pagamento_id (usa o parâmetro pagamento_id no
+  // INSERT abaixo), então exigi-lo de novo dentro do objeto era redundante e forçava
+  // todo chamador a duplicar o valor.
+  chargeback: Omit<TratamentoChargeback, 'id' | 'pagamento_id'>
 ): TratamentoChargeback {
   const id = Math.floor(Math.random() * 1000000);
 
@@ -165,6 +169,10 @@ export function handleChargebacks(
   return {
     ...chargeback,
     id,
+    // pagamento_id vem do parâmetro posicional (fonte única de verdade — é o mesmo
+    // valor usado no INSERT acima), não do objeto chargeback (que não carrega mais
+    // esse campo, ver Omit acima).
+    pagamento_id,
     status: 'recebido',
   };
 }
