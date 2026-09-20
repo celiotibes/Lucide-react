@@ -75,8 +75,11 @@ export function gerarProjecaoCaixa(
 
   const saldoInicial = saldoAtual?.total || 0;
 
-  // Calcular média histórica de entradas/saídas
-  const [dadosHistoricos] = consultar<{
+  // Calcular média histórica de entradas/saídas — GROUP BY p.mes devolve uma linha por mês
+  // (várias linhas), não uma linha só: `const [dadosHistoricos] = consultar(...)` pegava só
+  // a primeira e o `Array.isArray(dadosHistoricos)` abaixo dava sempre falso (era um objeto
+  // {mes, entradas, saidas}, não array) — a sazonalidade nunca era calculada, em silêncio.
+  const dadosHistoricos = consultar<{
     mes: number;
     entradas: number;
     saidas: number;
