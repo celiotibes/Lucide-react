@@ -236,5 +236,24 @@ describe("Integração Advocacia-Ledger", () => {
       expect(relatorio).toHaveProperty("erros");
       expect(Array.isArray(relatorio.ultimos_30_dias)).toBe(true);
     });
+
+    // BUG real: `const [ultimos30] = consultar(...)` pegava só a PRIMEIRA linha do
+    // resultado (a query devolve até 50), não o array inteiro — `ultimos_30_dias` saía
+    // como um único objeto solto em vez da lista. Com 0 ou 1 sincronização o teste acima
+    // não pega o defeito (undefined || [] ainda é array; e um objeto truthy escapava do
+    // toHaveProperty), por isso é preciso 2+ linhas para expor.
+    it("retorna todas as sincronizações recentes, não só a primeira linha", () => {
+      for (let i = 0; i < 3; i++) {
+        db.exec(
+          "INSERT INTO sincronizacoes_advocacia_ledger (tipo_registro, status, criado_em) VALUES (?, ?, datetime('now'))",
+          ["despesa_legal", "sucesso"]
+        );
+      }
+
+      const relatorio = gerarRelatorioSincronizacaoAdvocacia(db, entidade_id, periodo_id);
+
+      expect(Array.isArray(relatorio.ultimos_30_dias)).toBe(true);
+      expect(relatorio.ultimos_30_dias.length).toBe(3);
+    });
   });
 });

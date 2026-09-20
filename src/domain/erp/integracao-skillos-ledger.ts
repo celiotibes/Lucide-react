@@ -509,7 +509,10 @@ export function gerarRelatoriaSincronizacao(
     []
   );
 
-  const [ultimos30] = consultar<SincronizacaoSkillsLog>(
+  // BUG real: destructuring `[ultimos30]` pegava só a primeira linha da consulta (que
+  // devolve até 50), não a lista inteira — ultimos_30_dias virava um objeto solto em
+  // vez do array declarado no tipo de retorno.
+  const ultimos30 = consultar<SincronizacaoSkillsLog>(
     db,
     `SELECT * FROM sincronizacoes_skillos_ledger
      WHERE datetime(criado_em) >= datetime('now', '-30 days')

@@ -128,16 +128,25 @@ export function sincronizarReajusteContratoFromImovel(
       [contratoId, valorAnterior, valorNovo, motivo || null]
     );
 
-    // Contabilizar reajuste
-    contabilizarReajusteContrato(db, {
-      id: 0,
-      contrato_id: contratoId,
-      tipo: "reajuste",
-      data: new Date().toISOString().split("T")[0],
-      valor_anterior: valorAnterior,
-      valor_novo: valorNovo,
-      motivo: motivo,
-    });
+    // BUG real: faltavam entidadeId e periodoId (ambos já disponíveis no escopo desta
+    // função) — contabilizarReajusteContrato() os exige para gravar o lançamento
+    // contábil; sem eles, TS acusa "Expected 4 arguments, but got 2" e, se isso
+    // rodasse sem checagem de tipos, o lançamento sairia com entidade_id/periodo_id
+    // undefined.
+    contabilizarReajusteContrato(
+      db,
+      {
+        id: 0,
+        contrato_id: contratoId,
+        tipo: "reajuste",
+        data: new Date().toISOString().split("T")[0],
+        valor_anterior: valorAnterior,
+        valor_novo: valorNovo,
+        motivo: motivo,
+      },
+      entidadeId,
+      periodoId
+    );
 
     registrarSincronizacao(
       db,

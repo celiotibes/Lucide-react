@@ -386,7 +386,10 @@ export function calcularTarifaGateway(
 function enviarParaGateway(
   config: ConfiguracaoGateway,
   pagamento: ProcessamentoPagamento
-): { id_gateway: string; status: string } {
+// Assinatura tipava `status` como `string` genérico, mas só produz 'aprovado' ou
+// 'rejeitado' — o membro de status mais amplo que a única atribuidora (`resposta.status`)
+// exigia batesse com o literal union de ProcessamentoPagamento.status.
+): { id_gateway: string; status: 'aprovado' | 'rejeitado' } {
   // Em produção, faria chamada real à API do gateway
   const id = `${config.tipo_gateway}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   const status = Math.random() > 0.1 ? 'aprovado' : 'rejeitado';
@@ -400,7 +403,9 @@ function enviarParaGateway(
 function enviarReembolsoGateway(
   config: ConfiguracaoGateway,
   dados: { id_gateway: string; valor: number }
-): { status: string } {
+  // Idem enviarParaGateway: só produz 'concluido', que precisa bater com o literal
+  // union de ReembolsoProcessamento.status.
+): { status: 'concluido' } {
   // Em produção, faria chamada real à API do gateway
   return { status: 'concluido' };
 }

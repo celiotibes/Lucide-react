@@ -665,7 +665,10 @@ export function gerarRelatorioSincronizacaoAdvocacia(
     [new Date().toISOString()]
   );
 
-  const [ultimos30] = consultar<SincronizacaoAdvocaciaLedger>(
+  // BUG real: `const [ultimos30] = consultar(...)` pegava só a primeira linha do
+  // resultado (a query devolve até 50), não a lista inteira — ultimos_30_dias virava
+  // um único registro solto em vez do array declarado no tipo de retorno.
+  const ultimos30 = consultar<SincronizacaoAdvocaciaLedger>(
     db,
     `SELECT * FROM sincronizacoes_advocacia_ledger
      WHERE criado_em >= datetime(?, '-30 days')
