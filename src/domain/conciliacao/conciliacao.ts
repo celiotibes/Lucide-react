@@ -513,3 +513,44 @@ export function obterConciliacao(
     })),
   };
 }
+
+/** Resolve os ids guardados em `referencias_json` de um item já registrado para as linhas
+ * atuais (transação, linha de triagem ou lançamento do razão, conforme o tipo) — é o que
+ * permite abrir a lista por trás de um item de uma conciliação salva, e não só da
+ * apuração recém-calculada. Os dados podem ter mudado desde o registro (uma transação
+ * pode ter sido migrada ao razão depois, por exemplo); id que não existe mais some da
+ * lista em vez de quebrar a consulta. */
+export function resolverReferenciasItem(
+  db: Database,
+  tipo: TipoItemConciliacao,
+  ids: number[],
+): DetalheTransacao[] | DetalheTriagem[] | DetalheLancamentoOrfao[] {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  switch (tipo) {
+    case "nao_lancada_no_razao":
+    case "classificacao_pendente":
+      return consultar<DetalheTransacao>(
+        db,
+        `SELECT id, data, valor, descricao_original FROM transacoes WHERE id IN (${placeholders}) ORDER BY data`,
+        ids,
+      );
+    case "triagem_pendente":
+      return consultar<DetalheTriagem>(
+        db,
+        `SELECT l.id, l.lote_id, lo.arquivo_nome, l.linha_numero, l.data, l.valor, l.descricao_original, l.status
+         FROM importacao_linhas l JOIN lotes_importacao lo ON lo.id = l.lote_id
+         WHERE l.id IN (${placeholders}) ORDER BY l.linha_numero`,
+        ids,
+      );
+    case "lancamento_orfao_no_razao":
+      return consultar<DetalheLancamentoOrfao>(
+        db,
+        `SELECT id, data_lancamento, descricao, valor_debito, valor_credito, referencia_documento
+         FROM ledger_entries WHERE id IN (${placeholders}) ORDER BY data_lancamento`,
+        ids,
+      );
+    case "residual_nao_identificado":
+      return [];
+  }
+}
