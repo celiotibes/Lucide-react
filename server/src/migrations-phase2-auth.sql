@@ -126,9 +126,10 @@ CREATE TABLE IF NOT EXISTS pagamentos_apontamentos (
   motivo_rejeicao TEXT,
 
   -- Constraints
-  CONSTRAINT pagamento_unico_pendente
-    UNIQUE(prestador_id, mes_referencia, status)
-    WHERE status != 'rejeitado',
+  -- (a unicidade parcial "só um pendente/aprovado por mês" não pode ser uma
+  -- CONSTRAINT de tabela em SQLite — UNIQUE(...) WHERE só é aceito em
+  -- CREATE UNIQUE INDEX; o índice parcial equivalente vai logo abaixo,
+  -- junto com os demais índices desta tabela)
   CONSTRAINT data_aprovacao_requer_status
     CHECK(
       (status = 'aprovado' AND data_aprovacao IS NOT NULL) OR
@@ -155,6 +156,13 @@ CREATE INDEX idx_pagamentos_periodo ON pagamentos_apontamentos(
 CREATE INDEX idx_pagamentos_data_submissao ON pagamentos_apontamentos(
   data_submissao DESC
 );
+
+-- Índice único parcial: substitui a CONSTRAINT de tabela
+-- "pagamento_unico_pendente" (UNIQUE(...) WHERE ... não é válido como
+-- constraint de CREATE TABLE em SQLite, só em CREATE INDEX)
+CREATE UNIQUE INDEX idx_pagamento_unico_pendente
+  ON pagamentos_apontamentos(prestador_id, mes_referencia, status)
+  WHERE status != 'rejeitado';
 
 -- ============================================================
 -- 5. APONTAMENTOS_DIARIOS TABLE - Daily work entries
@@ -240,21 +248,31 @@ CREATE INDEX idx_prestadores_ativo ON prestadores(ativo);
 -- Hash of 'senha123' would go here in production
 -- For now, using a placeholder that will be replaced with bcrypt hash
 
-INSERT OR IGNORE INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
-VALUES
-  ('user_admin_1', 'Admin User', 'admin@example.com',
-   '$2b$12$placeholder_hash_admin', 'admin', true, '2026-01-01'),
-  ('user_gestor_1', 'Gestor User', 'gestor@example.com',
-   '$2b$12$placeholder_hash_gestor', 'gestor', true, '2026-01-01'),
-  ('user_prestador_1', 'Paulo Bruxel', 'paulo@example.com',
-   '$2b$12$placeholder_hash_paulo', 'prestador', true, '2026-01-01');
-
+-- Ordem importa: usuarios.prestador_id exige (via CHECK
+-- prestador_id_required_for_prestador) que todo usuário 'prestador' já
+-- nasça com prestador_id preenchido — não dá para inserir o usuário antes
+-- e "completar" depois com UPDATE, porque o INSERT com prestador_id NULL
+-- falharia a CHECK (e INSERT OR IGNORE engoliria essa falha em silêncio,
+-- deixando o usuário 'user_prestador_1' de fora e quebrando o INSERT
+-- seguinte em prestadores por violação de FOREIGN KEY). Por isso o
+-- prestador é criado primeiro (sem usuario_id, que é nullable), depois o
+-- usuário já referenciando esse prestador, e só então o prestador é
+-- ligado de volta ao usuário.
 INSERT OR IGNORE INTO prestadores (id, usuario_id, nome, email, ativo, data_criacao)
 VALUES
-  (1, 'user_prestador_1', 'Paulo Bruxel', 'paulo@example.com', true, '2026-01-01');
+  (1, NULL, 'Paulo Bruxel', 'paulo@example.com', true, '2026-01-01');
 
--- Update usuario prestador_id foreign key
-UPDATE usuarios SET prestador_id = 1 WHERE id = 'user_prestador_1';
+INSERT OR IGNORE INTO usuarios (id, nome, email, senha_hash, role, prestador_id, ativo, data_criacao)
+VALUES
+  ('user_admin_1', 'Admin User', 'admin@example.com',
+   '$2b$12$placeholder_hash_admin', 'admin', NULL, true, '2026-01-01'),
+  ('user_gestor_1', 'Gestor User', 'gestor@example.com',
+   '$2b$12$placeholder_hash_gestor', 'gestor', NULL, true, '2026-01-01'),
+  ('user_prestador_1', 'Paulo Bruxel', 'paulo@example.com',
+   '$2b$12$placeholder_hash_paulo', 'prestador', 1, true, '2026-01-01');
+
+-- Liga o prestador de volta ao usuário
+UPDATE prestadores SET usuario_id = 'user_prestador_1' WHERE id = 1;
 
 -- ============================================================
 -- Views for Common Queries
