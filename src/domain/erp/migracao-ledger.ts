@@ -52,9 +52,40 @@ export interface MigracaoStatus {
 interface TransacaoOrigem {
   id: number;
   data: string | null;
+  data_competencia: string | null;
   valor: number;
   descricao_original: string;
   plano_conta_codigo: string | null;
+}
+
+const MESES_PT: Record<string, number> = {
+  JANEIRO: 1, FEVEREIRO: 2, MARCO: 3, MARÇO: 3, ABRIL: 4, MAIO: 5, JUNHO: 6,
+  JULHO: 7, AGOSTO: 8, SETEMBRO: 9, OUTUBRO: 10, NOVEMBRO: 11, DEZEMBRO: 12,
+};
+
+/** Tenta extrair a competência (mês do fato gerador) da descrição crua do extrato, no
+ * padrão "REF <MÊS>/<ANO>" (ex.: "CONDOMINIO REF DEZEMBRO/2024"). Usado apenas como
+ * fallback quando `data_competencia` não foi preenchida manualmente na triagem — ver
+ * comentário no topo do arquivo e em __auditoria__/competencia-vs-caixa.test.ts. */
+function inferirCompetenciaDaDescricao(descricao: string): { ano: number; mes: number } | null {
+  const match = /REF\.?\s*([A-ZÇÃÕ]+)\s*\/\s*(\d{4})/i.exec(descricao);
+  if (!match) return null;
+  const mes = MESES_PT[match[1].toUpperCase()];
+  if (!mes) return null;
+  return { ano: Number(match[2]), mes };
+}
+
+/** Resolve a data de competência efetiva de uma transação: coluna explícita
+ * (`data_competencia`, preenchida na triagem) tem prioridade; na ausência dela, tenta
+ * inferir da descrição do extrato; por fim cai na data do extrato (regime de caixa). */
+function resolverCompetencia(txn: TransacaoOrigem): { ano: number; mes: number } | null {
+  if (txn.data_competencia) {
+    const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(txn.data_competencia);
+    if (partes) return { ano: Number(partes[1]), mes: Number(partes[2]) };
+  }
+  const inferida = inferirCompetenciaDaDescricao(txn.descricao_original);
+  if (inferida) return inferida;
+  return null;
 }
 
 /** Período contábil (entidade, ano, mês), criando-o aberto se ainda não existir.
@@ -120,7 +151,7 @@ export function migrarTransacoesParaLedger(
   try {
     transacoes = consultar<TransacaoOrigem>(
       db,
-      `SELECT id, data, valor, descricao_original, plano_conta_codigo
+      `SELECT id, data, data_competencia, valor, descricao_original, plano_conta_codigo
        FROM transacoes
        ORDER BY data ASC, id ASC`,
       [],
@@ -149,14 +180,27 @@ export function migrarTransacoesParaLedger(
           throw new Error("Valor ausente ou zero — não há partida a registrar");
         }
 
-        // A data manda na competência. Formato do schema é DATE 'AAAA-MM-DD'; qualquer
-        // outra coisa é erro da transação, não motivo para chutar o mês corrente.
-        const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(txn.data ?? "");
-        if (!partes) {
-          throw new Error(`Data inválida ou ausente ("${txn.data ?? ""}") — competência indeterminável`);
+        // A competência decide o PERÍODO CONTÁBIL do lançamento: `data_competencia`
+        // (preenchida na triagem) ou, na ausência dela, o padrão "REF <MÊS>/<ANO>" na
+        // descrição do extrato têm prioridade sobre a data do extrato — ver
+        // resolverCompetencia(). `data_lancamento` continua usando a data do EXTRATO
+        // (abaixo, em `comum`), para o fluxo de caixa em regime de caixa continuar correto.
+        const competencia = resolverCompetencia(txn);
+        let ano: number;
+        let mes: number;
+        if (competencia) {
+          ano = competencia.ano;
+          mes = competencia.mes;
+        } else {
+          // Formato do schema é DATE 'AAAA-MM-DD'; qualquer outra coisa é erro da
+          // transação, não motivo para chutar o mês corrente.
+          const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(txn.data ?? "");
+          if (!partes) {
+            throw new Error(`Data inválida ou ausente ("${txn.data ?? ""}") — competência indeterminável`);
+          }
+          ano = Number(partes[1]);
+          mes = Number(partes[2]);
         }
-        const ano = Number(partes[1]);
-        const mes = Number(partes[2]);
 
         const periodo = resolverPeriodo(db, entidade_id, ano, mes, periodos);
         if (!periodo) {

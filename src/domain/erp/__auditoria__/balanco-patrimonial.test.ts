@@ -47,7 +47,7 @@ import { gerarBalanco } from "../relatorios-integrados";
  * filtros de prefixo ao grupo real de cada conta, e incluir 3.3.01 no passivo.
  */
 describe("relatorios-integrados: gerarBalanco não acumula saldo e some com contas reais", () => {
-  it.fails("o caixa recebido em um período fechado deveria continuar no Ativo do período seguinte", async () => {
+  it("o caixa recebido em um período fechado deveria continuar no Ativo do período seguinte", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
 
@@ -76,7 +76,7 @@ describe("relatorios-integrados: gerarBalanco não acumula saldo e some com cont
     expect(balanco.ativo.total_ativo).toBeCloseTo(5000, 2);
   });
 
-  it.fails("depósito de caução (passivo, 3.3.01) deveria entrar no total do passivo", async () => {
+  it("depósito de caução (passivo, 3.3.01) deveria entrar no total do passivo", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 3, 'aberto')", [entidade_id!]);
@@ -98,7 +98,7 @@ describe("relatorios-integrados: gerarBalanco não acumula saldo e some com cont
     expect(balanco.passivo.total_passivo).toBeCloseTo(1200, 2);
   });
 
-  it.fails("capital social lançado (2.1.01, PL) deveria aparecer em patrimônio_liquido, não desaparecer do balanço", async () => {
+  it("capital social lançado (2.1.01, PL) deveria aparecer em patrimônio_liquido, não desaparecer do balanço", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 4, 'aberto')", [entidade_id!]);

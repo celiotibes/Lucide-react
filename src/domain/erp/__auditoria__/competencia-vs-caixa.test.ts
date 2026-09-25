@@ -34,7 +34,7 @@ import { gerarDRE } from "../relatorios-integrados";
  * correto em regime de caixa.
  */
 describe("migracao-ledger: não distingue competência (documento) de caixa (extrato)", () => {
-  it.fails("uma despesa de condomínio referente a dezembro, paga em janeiro, deveria poder ser reconhecida na competência de dezembro", async () => {
+  it("uma despesa de condomínio referente a dezembro, paga em janeiro, deveria poder ser reconhecida na competência de dezembro", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
 
