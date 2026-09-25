@@ -7,7 +7,6 @@ import {
   estornarLancamento,
   aprovarLancamentos,
 } from "../ledger";
-import { registrarTransacaoIntegrada } from "../core";
 import { prepararBancoTeste } from "./test-setup";
 
 /**
@@ -285,29 +284,6 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
         expect(entry?.[0]).toBe(1); // auditada
         expect(entry?.[1]).toBe(1); // auditado_por
       }
-    });
-  });
-
-  describe("Backward Compatibility", () => {
-    it("deprecated registrarTransacaoIntegrada() should still work", () => {
-      // Test that deprecated function logs warning but continues to work
-      const resultado = registrarTransacaoIntegrada(db, {
-        entidade_id,
-        periodo_id,
-        conta_id: 1,
-        data: "2026-09-16",
-        descricao: "Consolidation test: deprecated function",
-        valor: 500,
-        tipo: "debit",
-        origem_modulo: "transacoes",
-        origem_id: 2222,
-        referencia_documento: "CONS-TEST-008",
-        auditada: false,
-      });
-
-      // Function should still return a result (backward compatibility)
-      expect(resultado).toHaveProperty("id");
-      expect(resultado.id).toBeGreaterThan(0);
     });
   });
 
