@@ -28,7 +28,7 @@ import { verificarIntegridade } from "../sincronizacao-integridade";
  * como analytics-integradas.ts::calcularOcupacao já faz.
  */
 describe("sincronizacao-integridade: verificarIntegridade quebra em produção", () => {
-  it.fails("não deveria lançar 'no such column: status' — mas lança, contra o schema real", async () => {
+  it("não deveria lançar 'no such column: status' — mas lança, contra o schema real", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     expect(entidade_id).toBeDefined();
