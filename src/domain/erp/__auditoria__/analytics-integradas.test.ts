@@ -42,7 +42,7 @@ import {
  *     imóveis, não patrimônio líquido.
  */
 describe("analytics-integradas: contas fantasma nos indicadores", () => {
-  it.fails("calcularOcupacao deveria contar o aluguel recebido, mas usa uma conta inexistente (5.1.01)", async () => {
+  it("calcularOcupacao deveria contar o aluguel recebido, mas usa uma conta inexistente (5.1.01)", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(
@@ -90,7 +90,7 @@ describe("analytics-integradas: contas fantasma nos indicadores", () => {
     expect(ocupacao.receita_realizada).toBeCloseTo(1200, 2);
   });
 
-  it.fails("calcularComposicaoPatrimonio deveria descontar a depreciação lançada, mas usa a conta errada (2.2.01)", async () => {
+  it("calcularComposicaoPatrimonio deveria descontar a depreciação lançada, mas usa a conta errada (2.2.01)", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(
@@ -132,7 +132,7 @@ describe("analytics-integradas: contas fantasma nos indicadores", () => {
     expect(patrimonio.valor_liquido_imoveis).toBeCloseTo(300000 - 1000, 2);
   });
 
-  it.fails("roi_patrimonio deveria usar o valor investido em imóveis (1.2.05), não capital social/lucros (2.1.01/02)", async () => {
+  it("roi_patrimonio deveria usar o valor investido em imóveis (1.2.05), não capital social/lucros (2.1.01/02)", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(

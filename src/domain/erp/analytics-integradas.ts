@@ -55,7 +55,7 @@ export function calcularKPIRentabilidade(
            ELSE le.valor_credito END), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('2.1.01', '2.1.02')`,
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.2.05')`,
     [entidade_id, periodo_id],
   );
 
@@ -180,7 +180,7 @@ export function calcularOcupacao(db: Database): AnaliseOcupacao {
     `SELECT COALESCE(SUM(le.valor_credito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE cp.codigo = '5.1.01'`,
+     WHERE cp.codigo = '4.1.01'`,
     [],
   );
 
@@ -244,7 +244,7 @@ export function calcularComposicaoPatrimonio(
            ELSE le.valor_debito END), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE cp.codigo = '2.2.01'`,
+     WHERE cp.codigo = '5.3.01'`,
     [],
   );
 
