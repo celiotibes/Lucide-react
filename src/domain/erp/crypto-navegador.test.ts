@@ -21,13 +21,7 @@ import { join } from "node:path";
  * strategy-backup.ts ao ligar o Painel de Auditoria. Acrescentar um arquivo novo a esta
  * lista quase sempre é a decisão errada. */
 const DIVIDA_CONHECIDA = new Set([
-  "src/domain/erp/advocacia-ledger-integration.ts",
-  "src/domain/erp/api-gateway.ts",
-  "src/domain/erp/contas-pessoais-ledger-integration.ts",
-  "src/domain/erp/encriptacao.ts",
-  "src/domain/erp/imovel-gestao-ledger-integration.ts",
   "src/domain/erp/integracao-skillos-ledger.ts",
-  "src/domain/erp/pagamentos-ledger-integration.ts",
 ]);
 
 const IMPORTA_CRYPTO_DO_NODE = /^\s*import\s[^\n;]*\sfrom\s+["'](node:)?crypto["']/m;
