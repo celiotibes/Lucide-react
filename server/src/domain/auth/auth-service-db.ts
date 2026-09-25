@@ -109,7 +109,11 @@ export class AuthServiceDB {
       const insertSession = this.db.prepare(
         "INSERT INTO sessoes (token, usuario_id, data_expiracao, ativo) VALUES (?, ?, ?, ?)"
       );
-      insertSession.run(token, usuario.id, data_expiracao.toISOString(), true);
+      // better-sqlite3 só aceita number, string, bigint, buffer ou null como
+      // parâmetro vinculado — um boolean JS (true/false) lança
+      // "SQLite3 can only bind numbers, strings, bigints, buffers, and null".
+      // A coluna "ativo" é INTEGER/BOOLEAN por convenção SQLite (0/1).
+      insertSession.run(token, usuario.id, data_expiracao.toISOString(), 1);
 
       // Atualizar último login
       const updateLogin = this.db.prepare(

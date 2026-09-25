@@ -8,7 +8,12 @@
   --accent-soft: #dce9e0;
   --gold: #a97c3d;
   --gold-soft: #f1e4cd;
-  --warn: #b54a3a;
+  /* #a8402f, não #b54a3a: o tom original dava só 4,17:1 sobre --warn-soft dentro de
+     .aviso-caixa (medido no navegador), abaixo dos 4,5:1 exigidos para texto normal —
+     achado da verificação de contraste das telas novas. Escurecido até 4,85:1 sobre
+     --warn-soft; sobre --surface (.btn.danger e os demais usos de var(--warn), todos em
+     fundo claro) o contraste só aumenta, então nada mais piora. */
+  --warn: #a8402f;
   --warn-soft: #f5e1dc;
   --line: rgba(22, 33, 27, 0.16);
   --line-soft: rgba(22, 33, 27, 0.09);

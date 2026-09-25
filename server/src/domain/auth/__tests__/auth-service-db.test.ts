@@ -32,6 +32,9 @@ function createTestDatabase(): Database.Database {
   if (!fs.existsSync(schemaPath)) {
     schemaPath = path.join(process.cwd(), "server/src/migrations-phase2-auth.sql");
   }
+  if (!fs.existsSync(schemaPath)) {
+    schemaPath = path.join(process.cwd(), "src/migrations-phase2-auth.sql");
+  }
 
   if (!fs.existsSync(schemaPath)) {
     throw new Error(`Migration file not found at ${schemaPath}`);
@@ -39,24 +42,14 @@ function createTestDatabase(): Database.Database {
 
   const schema = fs.readFileSync(schemaPath, "utf-8");
 
-  // Execute schema - split and execute statements one by one
-  // This avoids issues with "already exists" errors from CREATE IF NOT EXISTS
-  const statements = schema
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith("--"));
-
-  for (const statement of statements) {
-    try {
-      db.exec(statement);
-    } catch (err) {
-      // Ignore "already exists" errors (from CREATE TABLE/INDEX IF NOT EXISTS)
-      if (!(err instanceof Error && err.message.includes("already exists"))) {
-        console.error("Failed to execute statement:", statement.substring(0, 100));
-        throw err;
-      }
-    }
-  }
+  // Executa o schema inteiro numa única chamada. better-sqlite3 já roda
+  // múltiplas statements separadas por ';' e entende comentários SQL
+  // (-- e /* */) nativamente — não precisamos (e não devemos) dividir o
+  // arquivo manualmente por ';' aqui: um split ingênuo agrupa cada bloco de
+  // comentário "-- ===..." com a statement seguinte (não há ';' entre eles),
+  // e um filtro que descarta blocos começados por "--" acaba descartando
+  // CREATE TABLE inteiras (era exatamente o caso da tabela "sessoes").
+  db.exec(schema);
 
   return db;
 }
