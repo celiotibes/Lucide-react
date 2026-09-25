@@ -221,8 +221,13 @@ export function marcarDuplicatasProvaveis(db: Database, lote_id: number): number
       alvo = consultar<{ id: number; descricao_original: string }>(
         db,
         `SELECT id, descricao_original FROM transacoes
-         WHERE conta_id = ? AND data = ? AND ABS(valor - ?) < 0.005 LIMIT 1`,
-        [conta_id, linha.data, linha.valor],
+         WHERE conta_id = ? AND data = ? AND ABS(valor - ?) < 0.005
+           AND id NOT IN (
+             SELECT duplicata_de_id FROM importacao_linhas
+             WHERE lote_id = ? AND duplicata_de_id IS NOT NULL
+           )
+         LIMIT 1`,
+        [conta_id, linha.data, linha.valor, lote_id],
       )[0];
       if (alvo) criterio = "mesma conta, mesma data e mesmo valor";
     }

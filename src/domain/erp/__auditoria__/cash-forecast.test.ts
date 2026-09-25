@@ -29,7 +29,7 @@ import { gerarProjecaoCaixa } from "../cash-forecast";
  * número negativo, isso é decisão de UI, não do cálculo interno que alimenta o próximo mês.
  */
 describe("cash-forecast: déficit projetado não se acumula entre os meses", () => {
-  it.fails("saldo_minimo_projetado deveria refletir o déficit acumulado de vários meses seguidos de saída maior que entrada", async () => {
+  it("saldo_minimo_projetado deveria refletir o déficit acumulado de vários meses seguidos de saída maior que entrada", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
 

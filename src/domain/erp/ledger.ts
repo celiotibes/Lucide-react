@@ -175,6 +175,15 @@ export function gerarBalancete(
     [periodo_id],
   );
 
+  const saldosAnteriores = consultar<{ conta_id: number; saldo_anterior: number }>(
+    db,
+    "SELECT conta_id, saldo_anterior FROM ledger_saldos_periodo WHERE periodo_id = ?",
+    [periodo_id],
+  );
+  const saldoAnteriorPorConta = new Map<number, number>(
+    saldosAnteriores.map((s) => [s.conta_id, s.saldo_anterior || 0]),
+  );
+
   let total_debito = 0;
   let total_credito = 0;
 
@@ -183,14 +192,15 @@ export function gerarBalancete(
     const credito = s.total_credito || 0;
     total_debito += debito;
     total_credito += credito;
+    const saldo_anterior = saldoAnteriorPorConta.get(s.id) || 0;
 
     return {
       conta_codigo: s.codigo,
       conta_descricao: s.descricao,
-      saldo_anterior: 0, // Implementar saldo_anterior de ledger_saldos_periodo
+      saldo_anterior,
       total_debito: debito,
       total_credito: credito,
-      saldo_final: debito - credito,
+      saldo_final: saldo_anterior + debito - credito,
     };
   });
 

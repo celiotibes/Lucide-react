@@ -56,7 +56,7 @@ describe("cofre: marcarDuplicatasProvaveis não distingue duas duplicatas legít
     );
   });
 
-  it.fails("as duas linhas reimportadas deveriam apontar cada uma para uma transação existente diferente", () => {
+  it("as duas linhas reimportadas deveriam apontar cada uma para uma transação existente diferente", () => {
     const linhas: LinhaBruta[] = [
       { data: "2024-03-10", valor: -15, descricaoOriginal: "DIARIA ESTACIONAMENTO" },
       { data: "2024-03-10", valor: -15, descricaoOriginal: "DIARIA ESTACIONAMENTO" },
