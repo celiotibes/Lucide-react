@@ -94,17 +94,22 @@ export function extrairCreateTable(schemaSql: string, tabela: string): string | 
 
 /** Reconstrói `ledger_entries` em bancos criados por versões anteriores do schema.
  *
- * Duas constraints da versão antiga inviabilizavam o razão e nenhuma delas é alcançável
- * por ALTER TABLE ADD COLUMN, a única migração que garantirColunasAtualizadas() sabe
- * fazer — em SQLite, mudar constraint exige reconstruir a tabela:
+ * Três defeitos das versões antigas, nenhum alcançável por ALTER TABLE ADD COLUMN — a
+ * única migração que garantirColunasAtualizadas() sabe fazer. Em SQLite, mudar constraint
+ * exige reconstruir a tabela:
  *
  *   1. `UNIQUE (origem_modulo, origem_id)` permitia UMA linha por documento de origem.
  *      Partida dobrada precisa de duas (débito numa conta, crédito na contrapartida), e
  *      a segunda batia na constraint. O ledger só podia nascer desbalanceado.
  *   2. O CHECK de `origem_modulo` listava 8 valores, enquanto o tipo LancamentoContabil
  *      usa 15. Sete módulos do ERP gravavam um valor que o banco real rejeitava.
+ *   3. A correção de (1) — `UNIQUE (origem_modulo, origem_id, conta_id)` como constraint
+ *      de tabela — quebrou todo estorno: a reversão copia a tripla inteira do original.
+ *      A versão atual não tem constraint de tabela nenhuma: tem a coluna `estorno_de_id`
+ *      e o índice parcial idx_ledger_origem_unica, que exclui reversões e originais já
+ *      revertidos. Esta função também é o caminho de quem já migrou para (1)→(2).
  *
- * É idempotente por detecção: se a definição salva já contém a chave nova, não faz nada.
+ * É idempotente por detecção: se a definição salva já contém a coluna nova, não faz nada.
  * Os índices caem junto com a tabela antiga; quem os recria é o db.run(schemaSql) que
  * migrarBancoExistente() roda logo depois (todo CREATE INDEX usa IF NOT EXISTS). */
 export function reconstruirLedgerEntries(db: Database, schemaSql: string): void {
@@ -120,10 +125,10 @@ export function reconstruirLedgerEntries(db: Database, schemaSql: string): void 
     return;
   }
 
-  // Assinatura da versão nova: a chave única passou a incluir conta_id.
-  const jaMigrado = /UNIQUE\s*\(\s*origem_modulo\s*,\s*origem_id\s*,\s*conta_id\s*\)/i.test(
-    definicaoAtual,
-  );
+  // Assinatura da versão atual: a coluna `estorno_de_id` existe e não há mais UNIQUE de
+  // tabela (a unicidade virou índice parcial). Detectar pela coluna, e não pela ausência
+  // do UNIQUE, evita que um schema futuro com outro UNIQUE qualquer force reconstrução.
+  const jaMigrado = /\bestorno_de_id\b/i.test(definicaoAtual);
   if (jaMigrado) return;
 
   const createNovo = extrairCreateTable(schemaSql, "ledger_entries");

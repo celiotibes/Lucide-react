@@ -112,6 +112,7 @@ beforeEach(async () => {
       auditado_em DATETIME,
       auditado_por INTEGER,
       estornado_por_id INTEGER,
+      estorno_de_id INTEGER,
       motivo_estorno TEXT
     )`
   );

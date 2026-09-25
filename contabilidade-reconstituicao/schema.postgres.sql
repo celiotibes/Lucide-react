@@ -636,7 +636,13 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
     estornado_por_id    integer REFERENCES ledger_entries(id) DEFERRABLE INITIALLY DEFERRED,
     motivo_estorno      text,
 
-    UNIQUE (origem_modulo, origem_id, conta_id),
+    -- Vínculo inverso do estorno: se esta linha é a reversão, qual lançamento ela reverte.
+    -- É o que distingue, no INSERT, reversão deliberada de reimportação duplicada — ver o
+    -- índice parcial idx_ledger_origem_unica abaixo.
+    estorno_de_id       integer REFERENCES ledger_entries(id) DEFERRABLE INITIALLY DEFERRED,
+
+    -- A unicidade da origem é o índice parcial idx_ledger_origem_unica, não uma constraint
+    -- de tabela: unicidade condicional só existe em CREATE UNIQUE INDEX.
     CHECK (
         (valor_debito IS NOT NULL AND valor_credito IS NULL) OR
         (valor_debito IS NULL AND valor_credito IS NOT NULL)
@@ -687,6 +693,14 @@ CREATE INDEX IF NOT EXISTS idx_ledger_periodo ON ledger_entries(periodo_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_conta ON ledger_entries(conta_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_data ON ledger_entries(data_lancamento);
 CREATE INDEX IF NOT EXISTS idx_ledger_origem ON ledger_entries(origem_modulo, origem_id);
+
+-- No máximo UMA perna VIVA por (documento de origem, conta) — ver o comentário longo em
+-- schema.sql. A constraint de tabela anterior, UNIQUE (origem_modulo, origem_id, conta_id),
+-- quebrava todo estorno: a reversão copia a tripla inteira do original. O índice indexa a
+-- mesma tripla, mas exclui a reversão e o original já revertido.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_origem_unica
+    ON ledger_entries(origem_modulo, origem_id, conta_id)
+    WHERE estorno_de_id IS NULL AND estornado_por_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_ledger_auditada ON ledger_entries(auditada);
 
 CREATE INDEX IF NOT EXISTS idx_saldos_periodo ON ledger_saldos_periodo(periodo_id);

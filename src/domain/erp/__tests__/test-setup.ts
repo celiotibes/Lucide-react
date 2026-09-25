@@ -85,6 +85,7 @@ export async function prepararBancoTeste() {
       criado_por INTEGER,
       criado_em TEXT,
       estornado_por_id INTEGER,
+      estorno_de_id INTEGER,
       motivo_estorno TEXT,
       auditada INTEGER DEFAULT 0,
       auditado_em TEXT,

@@ -1,5 +1,6 @@
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
+import { reclassificarTransacoesEmLote } from "../reclassificacao/reclassificarTransacao";
 
 export interface RegraSalva {
   id: number;
@@ -34,7 +35,16 @@ export function excluirRegra(db: Database, id: number): void {
 
 /** Aplica as regras salvas às transações ainda sem categoria. Retorna quantas
  * foram resolvidas — a mesma "memória de aprendizado" que os ERPs comerciais
- * (Domínio, Alterdata) usam para lançamentos repetitivos. */
+ * (Domínio, Alterdata) usam para lançamentos repetitivos.
+ *
+ * A classificação em si (plano_conta_codigo) passa por reclassificarTransacoesEmLote —
+ * nunca por UPDATE direto. Uma transação "sem categoria" aqui pode já estar no razão,
+ * lançada contra a conta transitória de classificação pendente (1.9.99, ver
+ * migracao-ledger.ts): sem passar pelo estorno, o razão continuaria mostrando pendente
+ * depois da regra já ter classificado a transação na tela. O lote inteiro é tudo-ou-nada
+ * (ver reclassificarTransacoesEmLote) — com centenas de transações candidatas, uma falha
+ * isolada (ex: transação apagada entre o SELECT acima e a aplicação) não deixa a base
+ * pela metade; a função devolve 0 e quem chamou decide se tenta de novo. */
 export function aplicarRegrasSalvas(db: Database): number {
   const regras = listarRegras(db);
   const pendentes = consultar<{ id: number; descricao_original: string; imovel_id: number | null }>(
@@ -47,7 +57,7 @@ export function aplicarRegrasSalvas(db: Database): number {
   // sobrescreveria um rateio manual já aplicado.
   const idsComRateio = new Set(consultar<{ transacao_id: number }>(db, "SELECT DISTINCT transacao_id FROM rateios").map((r) => r.transacao_id));
 
-  let resolvidas = 0;
+  const casamentos: Array<{ transacao_id: number; codigo: string; imovel_id: number | null }> = [];
   for (const transacao of pendentes) {
     for (const regra of regras) {
       let casa = false;
@@ -59,22 +69,33 @@ export function aplicarRegrasSalvas(db: Database): number {
       if (casa) {
         // Só aplica o imóvel da regra se a transação ainda não tiver um definido —
         // nunca sobrescreve uma atribuição manual ou rateio já existente.
-        if (regra.imovel_id !== null && transacao.imovel_id === null && !idsComRateio.has(transacao.id)) {
-          executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'regra', imovel_id = ? WHERE id = ?", [
-            regra.plano_conta_codigo,
-            regra.imovel_id,
-            transacao.id,
-          ]);
-        } else {
-          executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'regra' WHERE id = ?", [
-            regra.plano_conta_codigo,
-            transacao.id,
-          ]);
-        }
-        resolvidas++;
+        const aplicaImovel = regra.imovel_id !== null && transacao.imovel_id === null && !idsComRateio.has(transacao.id);
+        casamentos.push({
+          transacao_id: transacao.id,
+          codigo: regra.plano_conta_codigo,
+          imovel_id: aplicaImovel ? regra.imovel_id : null,
+        });
         break;
       }
     }
   }
-  return resolvidas;
+
+  if (casamentos.length === 0) return 0;
+
+  const resultado = reclassificarTransacoesEmLote(
+    db,
+    casamentos.map((c) => ({ transacao_id: c.transacao_id, novo_codigo: c.codigo })),
+    { categorizado_por: "regra", motivo: "Regra de categorização aprendida aplicada em lote" },
+  );
+  if (!resultado.sucesso) return 0; // nada foi persistido — o lote é tudo-ou-nada
+
+  // imovel_id não é uma conta do razão — não faz parte da correção por estorno acima,
+  // é só uma dimensão de transacoes. Aplicado à parte, só para quem tinha imóvel na regra.
+  for (const c of casamentos) {
+    if (c.imovel_id !== null) {
+      executar(db, "UPDATE transacoes SET imovel_id = ? WHERE id = ?", [c.imovel_id, c.transacao_id]);
+    }
+  }
+
+  return casamentos.length;
 }

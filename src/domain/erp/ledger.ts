@@ -398,7 +398,7 @@ export function estornarLancamento(
     `INSERT INTO ledger_entries (
       entidade_id, periodo_id, conta_id, data_lancamento,
       valor_debito, valor_credito, descricao, origem_modulo,
-      origem_id, referencia_documento, criado_por, criado_em
+      origem_id, referencia_documento, criado_por, criado_em, estorno_de_id
     ) SELECT
       entidade_id, periodo_id, conta_id, datetime('now'),
       valor_credito, valor_debito,
@@ -406,7 +406,8 @@ export function estornarLancamento(
       origem_modulo,
       origem_id,
       referencia_documento || '-EST',
-      ?, datetime('now')
+      ?, datetime('now'),
+      id
      FROM ledger_entries WHERE id = ?`,
     [estornado_por, lancamento_id],
   );
