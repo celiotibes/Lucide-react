@@ -20,9 +20,7 @@ import { join } from "node:path";
  * o que se fez com ledger.ts ao ligar o razão, e com audit-logging-imutavel.ts e
  * strategy-backup.ts ao ligar o Painel de Auditoria. Acrescentar um arquivo novo a esta
  * lista quase sempre é a decisão errada. */
-const DIVIDA_CONHECIDA = new Set([
-  "src/domain/erp/integracao-skillos-ledger.ts",
-]);
+const DIVIDA_CONHECIDA = new Set<string>([]);
 
 const IMPORTA_CRYPTO_DO_NODE = /^\s*import\s[^\n;]*\sfrom\s+["'](node:)?crypto["']/m;
 
