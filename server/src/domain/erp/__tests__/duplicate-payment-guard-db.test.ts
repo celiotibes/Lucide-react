@@ -27,11 +27,16 @@ function createTestDatabase(): Database.Database {
   db.pragma("foreign_keys = ON");
 
   // Read and run schema
-  let schemaPath = path.join(__dirname, "../../../../migrations-phase2-auth.sql");
+  // __dirname = server/src/domain/erp/__tests__ -> 3 níveis acima chega em server/src
+  let schemaPath = path.join(__dirname, "../../../migrations-phase2-auth.sql");
 
-  // Fallback: try from current working directory
+  // Fallback: try from current working directory (cwd pode ser a raiz do
+  // repo ou a pasta server/, dependendo de onde os testes são disparados)
   if (!fs.existsSync(schemaPath)) {
     schemaPath = path.join(process.cwd(), "server/src/migrations-phase2-auth.sql");
+  }
+  if (!fs.existsSync(schemaPath)) {
+    schemaPath = path.join(process.cwd(), "src/migrations-phase2-auth.sql");
   }
 
   if (!fs.existsSync(schemaPath)) {
@@ -40,25 +45,30 @@ function createTestDatabase(): Database.Database {
 
   const schema = fs.readFileSync(schemaPath, "utf-8");
 
-  // Execute schema - split and execute statements one by one
-  const statements = schema
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith("--"));
-
-  for (const statement of statements) {
-    try {
-      db.exec(statement);
-    } catch (err) {
-      // Ignore "already exists" errors
-      if (!(err instanceof Error && err.message.includes("already exists"))) {
-        console.error("Failed to execute statement:", statement.substring(0, 100));
-        throw err;
-      }
-    }
-  }
+  // Executa o schema inteiro numa única chamada. better-sqlite3 já roda
+  // múltiplas statements separadas por ';' e entende comentários SQL
+  // (-- e /* */) nativamente — não precisamos (e não devemos) dividir o
+  // arquivo manualmente por ';' aqui: um split ingênuo agrupa cada bloco de
+  // comentário "-- ===..." com a statement seguinte (não há ';' entre eles),
+  // e um filtro que descarta blocos começados por "--" acaba descartando
+  // CREATE TABLE inteiras (era exatamente o caso da tabela "sessoes").
+  db.exec(schema);
 
   return db;
+}
+
+/**
+ * registrarPagamento() sempre grava data_submissao = CURRENT_TIMESTAMP (a
+ * data real da submissão). Os testes de janela de período (obterPorPeriodo)
+ * não podem depender de "hoje" cair dentro do mês fixo do teste — isso
+ * quebraria sempre que o teste rodasse fora daquele mês. Esta função ajusta
+ * a data gravada para um valor determinístico após o registro.
+ */
+function fixarDataSubmissao(db: Database.Database, pagamentoId: string, dataISO: string): void {
+  db.prepare("UPDATE pagamentos_apontamentos SET data_submissao = ? WHERE id = ?").run(
+    dataISO,
+    pagamentoId
+  );
 }
 
 const testContexto: ContextoAutenticacao = {
@@ -215,13 +225,14 @@ describe("DuplicatePaymentGuardDB (Phase 2)", () => {
       // Second submission should fail
       expect(() => {
         guard.registrarPagamento(testContexto, 1, "2026-08", 6000, "pendente");
-      }).toThrow("já existe um pagamento pendente");
+      }).toThrow("Já existe um pagamento pendente");
     });
   });
 
   describe("Status Updates", () => {
     it("approves payment", () => {
-      guard.registrarPagamento(testContexto, 1, "2026-08", 5000, "pendente");
+      const pagamento = guard.registrarPagamento(testContexto, 1, "2026-08", 5000, "pendente");
+      fixarDataSubmissao(db, pagamento.id, "2026-08-15 12:00:00");
 
       const success = guard.atualizarStatus(1, "2026-08", "aprovado", "user_admin_1");
 
@@ -237,7 +248,8 @@ describe("DuplicatePaymentGuardDB (Phase 2)", () => {
     });
 
     it("rejects payment with reason", () => {
-      guard.registrarPagamento(testContexto, 1, "2026-08", 5000, "pendente");
+      const pagamento = guard.registrarPagamento(testContexto, 1, "2026-08", 5000, "pendente");
+      fixarDataSubmissao(db, pagamento.id, "2026-08-15 12:00:00");
 
       const success = guard.atualizarStatus(
         1,
@@ -261,10 +273,15 @@ describe("DuplicatePaymentGuardDB (Phase 2)", () => {
 
   describe("Payment History", () => {
     beforeEach(() => {
-      // Register multiple payments
-      guard.registrarPagamento(testContexto, 1, "2026-06", 4000, "aprovado");
-      guard.registrarPagamento(testContexto, 1, "2026-07", 5000, "pendente");
-      guard.registrarPagamento(testContexto, 1, "2026-08", 5500, "pendente");
+      // Register multiple payments, com data_submissao fixada em ordem
+      // cronológica (ver fixarDataSubmissao) para que "mais recente
+      // primeiro" e as janelas de período sejam determinísticas.
+      const p1 = guard.registrarPagamento(testContexto, 1, "2026-06", 4000, "aprovado");
+      fixarDataSubmissao(db, p1.id, "2026-06-15 12:00:00");
+      const p2 = guard.registrarPagamento(testContexto, 1, "2026-07", 5000, "pendente");
+      fixarDataSubmissao(db, p2.id, "2026-07-15 12:00:00");
+      const p3 = guard.registrarPagamento(testContexto, 1, "2026-08", 5500, "pendente");
+      fixarDataSubmissao(db, p3.id, "2026-08-15 12:00:00");
     });
 
     it("retrieves prestador history", () => {

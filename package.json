@@ -14,7 +14,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verificar-backup": "tsx scripts/verificar-backup.ts"
+    "verificar-backup": "tsx scripts/verificar-backup.ts",
+    "backup:enviar": "tsx scripts/backup/enviar-backup.ts",
+    "backup:verificar-remoto": "tsx scripts/backup/verificar-remoto.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

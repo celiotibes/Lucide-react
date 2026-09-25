@@ -303,7 +303,11 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <h2 className="section-title">Transações {totalPendentes > 0 && <span className="pill warning">{totalPendentes} pendente(s) de categorização</span>}</h2>
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        {/* flexWrap: "wrap" — sem ele esta fileira (checkbox + 3 botões de texto longo)
+            não cabe em 390px e, como o item não encolhe sozinho, empurra rolagem
+            horizontal na PÁGINA inteira (mesmo bug de .toolbar-actions sem flex-wrap,
+            aqui como estilo local em vez da classe compartilhada). */}
+        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
           <label
             style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5, opacity: pendentesIndisponivel ? 0.5 : 1 }}
             title={
@@ -397,18 +401,31 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
           </>
         ) : (
           <>
-            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+            {/* minWidth: 0 no <label> (item flex) + maxWidth no <select>: sem os dois, a
+                descrição mais longa do plano de contas vira a largura intrínseca do
+                <select> fechado (o navegador dimensiona pelo texto da maior <option>), que
+                não encolhe sozinha e empurra rolagem horizontal na página em 390px — mesmo
+                bug de fundo do .grid-2 sem min-width:0, aqui num <select> num flex row. */}
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, minWidth: 0 }}>
               Categoria:
-              <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+              <select
+                value={filtroCategoria}
+                onChange={(e) => setFiltroCategoria(e.target.value)}
+                style={{ maxWidth: 180 }}
+              >
                 <option value="">— todas —</option>
                 {planoContas.map((p) => (
                   <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>
                 ))}
               </select>
             </label>
-            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, minWidth: 0 }}>
               Imóvel:
-              <select value={filtroImovel} onChange={(e) => setFiltroImovel(e.target.value ? Number(e.target.value) : "")}>
+              <select
+                value={filtroImovel}
+                onChange={(e) => setFiltroImovel(e.target.value ? Number(e.target.value) : "")}
+                style={{ maxWidth: 160 }}
+              >
                 <option value="">— todos —</option>
                 {imoveis.map((i) => (
                   <option key={i.id} value={i.id}>{i.apelido}</option>

@@ -66,12 +66,20 @@ export class DuplicatePaymentGuardDB {
     try {
       // Check for existing non-rejected payment
       // The UNIQUE constraint in the database prevents pendente/aprovado duplicates
+      //
+      // Nota sobre "ORDER BY data_submissao DESC, rowid DESC" (aqui e nas
+      // demais queries deste arquivo): data_submissao vem de
+      // CURRENT_TIMESTAMP, que só tem resolução de 1 segundo. Vários
+      // registros inseridos dentro do mesmo segundo (comum em testes, e não
+      // impossível em produção sob carga) empatam nesse critério; sem um
+      // desempate por rowid (que cresce na ordem de inserção), a ordenação
+      // "mais recente primeiro" fica indefinida.
       const stmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
          WHERE prestador_id = ? AND mes_referencia = ? AND status != 'rejeitado'
-         ORDER BY data_submissao DESC
+         ORDER BY data_submissao DESC, rowid DESC
          LIMIT 1`
       );
 
@@ -89,11 +97,11 @@ export class DuplicatePaymentGuardDB {
 
       // Check if there's a rejected payment (to allow resubmission)
       const rejeitadoStmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
          WHERE prestador_id = ? AND mes_referencia = ? AND status = 'rejeitado'
-         ORDER BY data_submissao DESC
+         ORDER BY data_submissao DESC, rowid DESC
          LIMIT 1`
       );
 
@@ -125,7 +133,8 @@ export class DuplicatePaymentGuardDB {
     prestador_id: number,
     mes_referencia: string,
     total_pagar: number,
-    status: "pendente" | "aprovado" | "rejeitado" = "pendente"
+    status: "pendente" | "aprovado" | "rejeitado" = "pendente",
+    motivo_rejeicao?: string
   ): PagamentoSubmetido {
     if (!contexto.autenticado || !contexto.usuario) {
       throw new Error("Usuário não autenticado");
@@ -138,9 +147,20 @@ export class DuplicatePaymentGuardDB {
 
       const stmt = this.db.prepare(
         `INSERT INTO pagamentos_apontamentos
-         (id, prestador_id, mes_referencia, total_pagar, status, usuario_submissao_id, data_submissao)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+         (id, prestador_id, mes_referencia, total_pagar, status, usuario_submissao_id, data_submissao, data_aprovacao, motivo_rejeicao)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)`
       );
+
+      // Duas CHECK constraints da tabela exigem consistência que este método
+      // criava diretamente com status != 'pendente' (ex.: importação de
+      // dados históricos já aprovados/rejeitados) violava:
+      // - data_aprovacao_requer_status: status = 'aprovado' exige
+      //   data_aprovacao preenchida (e mais nenhum outro status pode tê-la).
+      // - motivo_requer_rejeicao: status = 'rejeitado' exige motivo_rejeicao
+      //   preenchido (e mais nenhum outro status pode tê-lo).
+      const data_aprovacao = status === "aprovado" ? new Date().toISOString() : null;
+      const motivoFinal =
+        status === "rejeitado" ? motivo_rejeicao || "Motivo não informado" : null;
 
       stmt.run(
         pagamento_id,
@@ -148,12 +168,14 @@ export class DuplicatePaymentGuardDB {
         mes_referencia,
         total_pagar,
         status,
-        contexto.usuario.id
+        contexto.usuario.id,
+        data_aprovacao,
+        motivoFinal
       );
 
       // Retrieve the created record
       const selectStmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
          WHERE id = ?`
@@ -223,11 +245,11 @@ export class DuplicatePaymentGuardDB {
   ): PagamentoSubmetido[] {
     try {
       const stmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
          WHERE prestador_id = ?
-         ORDER BY data_submissao DESC
+         ORDER BY data_submissao DESC, rowid DESC
          LIMIT ?`
       );
 
@@ -247,11 +269,11 @@ export class DuplicatePaymentGuardDB {
   obterPendentes(): PagamentoSubmetido[] {
     try {
       const stmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
          WHERE status = 'pendente'
-         ORDER BY data_submissao ASC`
+         ORDER BY data_submissao ASC, rowid ASC`
       );
 
       return stmt.all() as PagamentoSubmetido[];
@@ -273,11 +295,11 @@ export class DuplicatePaymentGuardDB {
       const fim = data_fim.toISOString();
 
       const stmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
          WHERE data_submissao BETWEEN ? AND ?
-         ORDER BY data_submissao DESC`
+         ORDER BY data_submissao DESC, rowid DESC`
       );
 
       return stmt.all(inicio, fim) as PagamentoSubmetido[];
@@ -294,10 +316,10 @@ export class DuplicatePaymentGuardDB {
   obterTodos(): PagamentoSubmetido[] {
     try {
       const stmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
-         ORDER BY data_submissao DESC`
+         ORDER BY data_submissao DESC, rowid DESC`
       );
 
       return stmt.all() as PagamentoSubmetido[];
@@ -313,7 +335,7 @@ export class DuplicatePaymentGuardDB {
   obterPorId(pagamento_id: string): PagamentoSubmetido | null {
     try {
       const stmt = this.db.prepare(
-        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_id,
+        `SELECT id, prestador_id, mes_referencia, data_submissao, usuario_submissao_id AS usuario_id,
                 total_pagar, status, data_aprovacao, usuario_aprovacao_id, motivo_rejeicao
          FROM pagamentos_apontamentos
          WHERE id = ?`
