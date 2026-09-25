@@ -179,7 +179,7 @@ export function gerarProjecaoCaixa(
       entradas_financiamento: 0,
       saidas_financiamento: 0,
       liquido_financiamento: 0,
-      saldo_final: Math.max(0, saldoFinal),
+      saldo_final: saldoFinal,
       variacao_mes: liquidoOperacional,
       confianca:
         dadosMes.confianca >= 3 ? "alta" : dadosMes.confianca >= 2 ? "media" : "baixa",
@@ -199,7 +199,7 @@ export function gerarProjecaoCaixa(
     }
 
     saldos.push(saldoFinal);
-    saldoAtualizado = Math.max(0, saldoFinal);
+    saldoAtualizado = saldoFinal;
     mesProj += 1;
   }
 

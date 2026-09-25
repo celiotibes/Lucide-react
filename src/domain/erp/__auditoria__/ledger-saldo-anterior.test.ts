@@ -28,7 +28,7 @@ import { registrarLancamentoContabil, encerrarPeriodo, gerarBalancete } from "..
  * `ledger_saldos_periodo WHERE periodo_id = ? AND conta_id = ?` em vez do literal 0.
  */
 describe("ledger: gerarBalancete nunca lê o saldo_anterior que criarSaldosProximoPeriodo grava", () => {
-  it.fails("saldo_anterior da conta Caixa no período 2 deveria refletir o saldo final do período 1, fechado", async () => {
+  it("saldo_anterior da conta Caixa no período 2 deveria refletir o saldo final do período 1, fechado", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
 
