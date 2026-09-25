@@ -30,7 +30,7 @@ import { gerarFluxoCaixa, gerarFluxoCaixaComFiltro } from "../relatorios-integra
  * saldo negativo NA EXIBIÇÃO, sinalizar o déficit separadamente em vez de apagá-lo).
  */
 describe("relatorios-integrados: Fluxo de Caixa diverge entre as duas versões e esconde caixa negativo", () => {
-  it.fails("aquisição de imóvel deveria aparecer em Investimento também na versão sem filtro (usa conta 2.1.01 em vez de 1.2.05)", async () => {
+  it("aquisição de imóvel deveria aparecer em Investimento também na versão sem filtro (usa conta 2.1.01 em vez de 1.2.05)", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 7, 'aberto')", [entidade_id!]);
@@ -58,7 +58,7 @@ describe("relatorios-integrados: Fluxo de Caixa diverge entre as duas versões e
     expect(semFiltro.investimento.aquisicoes).toBeCloseTo(80000, 2);
   });
 
-  it.fails("saldo de caixa negativo não deveria ser apresentado como R$ 0,00", async () => {
+  it("saldo de caixa negativo não deveria ser apresentado como R$ 0,00", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 8, 'aberto')", [entidade_id!]);

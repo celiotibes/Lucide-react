@@ -221,9 +221,14 @@ export function gerarDRE(
 
   const resultadoOperacional = totalReceitas - totalCustos;
 
-  // Juros e Multas
-  const despesaJurosFinanciamento = getDebito("6.3.01");
-  const despesaJurosMora = getDebito("6.3.02");
+  // Juros e Multas. "receita_juros"/"receita_multa" aqui são só a ABERTURA informativa das
+  // mesmas contas 4.2.01/4.3.01 já somadas em total_receitas acima — NÃO entram de novo em
+  // resultado_final, senão dobra a contagem (ACHADO #1 do teste de auditoria).
+  // despesa_juros_financiamento lê a conta REAL de juros de financiamento (5.5.01) — 6.3.01
+  // é Honorários Advocatícios, categoria diferente (ACHADO #2). Não existe hoje conta
+  // dedicada a "juros de mora" (6.3.01/6.3.02 são honorários/custas judiciais).
+  const despesaJurosFinanciamento = getDebito("5.5.01");
+  const despesaJurosMora = 0;
   const receitaJurosJuros = getCredito("4.2.01");
   const receitaMulta = getCredito("4.3.01");
 
@@ -231,8 +236,7 @@ export function gerarDRE(
   const provisaoDevedora = getDebito("6.4.01");
 
   const resultadoFinal =
-    resultadoOperacional - despesaJurosFinanciamento - despesaJurosMora - provisaoDevedora +
-    receitaJurosJuros + receitaMulta;
+    resultadoOperacional - despesaJurosFinanciamento - despesaJurosMora - provisaoDevedora;
 
   return {
     receitas: {
@@ -284,11 +288,24 @@ export interface LinhasBalancete {
   patrimonio_liquido: number;
 }
 
+/* O plano real (planoDeContasErp.ts) usa: 1 = ativo (não existe "2.x" de ativo — a faixa
+ * 2 é patrimônio líquido) · 2 = patrimônio líquido · 3 = passivo (inclui caução, 3.3.01).
+ * Um Balanço Patrimonial é uma fotografia acumulada até o fim do período, não o movimento
+ * do mês — por isso as consultas abaixo somam todo período contábil da entidade cujo
+ * (ano, mês) seja <= ao período pedido, em vez de filtrar só `periodo_id = ?`. */
 export function gerarBalanco(
   db: Database,
   entidade_id: number,
   periodo_id: number,
 ): LinhasBalancete {
+  const condicaoAcumulada = `
+       le.periodo_id IN (
+         SELECT pc2.id FROM periodos_contabeis pc2
+         INNER JOIN periodos_contabeis pc_alvo ON pc_alvo.id = ?
+         WHERE pc2.entidade_id = pc_alvo.entidade_id
+           AND (pc2.ano < pc_alvo.ano OR (pc2.ano = pc_alvo.ano AND pc2.mes <= pc_alvo.mes))
+       )`;
+
   const getAtivoConta = (codigo: string) => {
     const [result] = consultar<{ total: number }>(
       db,
@@ -297,7 +314,7 @@ export function gerarBalanco(
              ELSE le.valor_credito END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`,
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`,
       [entidade_id, periodo_id, codigo],
     );
     return result?.total || 0;
@@ -311,7 +328,7 @@ export function gerarBalanco(
              ELSE le.valor_debito END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`,
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`,
       [entidade_id, periodo_id, codigo],
     );
     return result?.total || 0;
@@ -325,30 +342,31 @@ export function gerarBalanco(
              ELSE le.valor_debito END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`,
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`,
       [entidade_id, periodo_id, codigo],
     );
     return result?.total || 0;
   };
 
-  // Ativo Circulante (1.%)
-  const ativoCirculante = getAtivoConta("1.%");
+  // Ativo Circulante (1.1%) — caixa, bancos, aplicações
+  const ativoCirculante = getAtivoConta("1.1%");
 
-  // Ativo Não-Circulante (2.%)
-  const ativoNaoCirculante = getAtivoConta("2.%");
+  // Ativo Não-Circulante (1.2%, imobilizado, e 1.9%, transitório)
+  const ativoNaoCirculante = getAtivoConta("1.2%") + getAtivoConta("1.9%");
 
   const totalAtivo = ativoCirculante + ativoNaoCirculante;
 
   // Passivo Circulante (3.1%)
   const passivoCirculante = getPassivoConta("3.1%");
 
-  // Passivo Não-Circulante (3.2%)
-  const passivoNaoCirculante = getPassivoConta("3.2%");
+  // Passivo Não-Circulante (3.2%, empréstimos de longo prazo) e outros passivos de
+  // terceiros (3.3%, ex.: depósitos de caução recebidos)
+  const passivoNaoCirculante = getPassivoConta("3.2%") + getPassivoConta("3.3%");
 
   const totalPassivo = passivoCirculante + passivoNaoCirculante;
 
-  // Patrimônio Líquido (4.%)
-  const patrimonioLiquido = getPatrimonioLiquidoConta("4.%");
+  // Patrimônio Líquido (2.%, não "4.%" — a faixa 4 é receita)
+  const patrimonioLiquido = getPatrimonioLiquidoConta("2.%");
 
   return {
     ativo: {
@@ -445,13 +463,14 @@ export function gerarFluxoCaixa(
     [entidade_id, periodo_id],
   );
 
-  // Investimento: Aquisição de Imóvel (2.1.01)
+  // Investimento: Aquisição de Imóvel (1.2.05 — imóveis/ativo imobilizado; "2.1.01" é
+  // Capital Social, patrimônio líquido, não imóvel)
   const [aquisicoes] = consultar<{ total: number }>(
     db,
     `SELECT COALESCE(SUM(le.valor_debito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '2.1.01'`,
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '1.2.05'`,
     [entidade_id, periodo_id],
   );
 
@@ -498,7 +517,10 @@ export function gerarFluxoCaixa(
       amortizacoes: amortizacoes?.total || 0,
       liquido: fluxoFinanciamento,
     },
-    saldo_final: Math.max(0, saldo_final),
+    // Saldo negativo real (descoberto/dívida) é informação crítica para um laudo pericial
+    // — apresentá-lo como R$ 0,00 (Math.max(0, ...)) escondia exatamente o dado mais
+    // relevante em caso de problema de liquidez.
+    saldo_final,
   };
 }
 
@@ -607,9 +629,10 @@ export function gerarDREComFiltro(
 
   const resultadoOperacional = totalReceitas - totalCustos;
 
-  // Juros e Multas
-  const despesaJurosFinanciamento = getDebito("6.3.01");
-  const despesaJurosMora = getDebito("6.3.02");
+  // Juros e Multas — ver comentário equivalente em gerarDRE() sobre dupla contagem e as
+  // contas reais de juros de financiamento/mora.
+  const despesaJurosFinanciamento = getDebito("5.5.01");
+  const despesaJurosMora = 0;
   const receitaJurosJuros = getCredito("4.2.01");
   const receitaMulta = getCredito("4.3.01");
 
@@ -617,8 +640,7 @@ export function gerarDREComFiltro(
   const provisaoDevedora = getDebito("6.4.01");
 
   const resultadoFinal =
-    resultadoOperacional - despesaJurosFinanciamento - despesaJurosMora - provisaoDevedora +
-    receitaJurosJuros + receitaMulta;
+    resultadoOperacional - despesaJurosFinanciamento - despesaJurosMora - provisaoDevedora;
 
   return {
     receitas: {
@@ -670,13 +692,21 @@ export function gerarBalancoComFiltro(
   periodo_id: number,
   origem_modulos?: string[],
 ): LinhasBalancete {
+  const condicaoAcumulada = `
+       le.periodo_id IN (
+         SELECT pc2.id FROM periodos_contabeis pc2
+         INNER JOIN periodos_contabeis pc_alvo ON pc_alvo.id = ?
+         WHERE pc2.entidade_id = pc_alvo.entidade_id
+           AND (pc2.ano < pc_alvo.ano OR (pc2.ano = pc_alvo.ano AND pc2.mes <= pc_alvo.mes))
+       )`;
+
   const getAtivoConta = (codigo: string) => {
     let query = `SELECT COALESCE(SUM(
         CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
              ELSE le.valor_credito END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`;
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`;
 
     const params: (number | string)[] = [entidade_id, periodo_id, codigo];
 
@@ -696,7 +726,7 @@ export function gerarBalancoComFiltro(
              ELSE le.valor_debito END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`;
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`;
 
     const params: (number | string)[] = [entidade_id, periodo_id, codigo];
 
@@ -716,7 +746,7 @@ export function gerarBalancoComFiltro(
              ELSE le.valor_debito END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`;
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`;
 
     const params: (number | string)[] = [entidade_id, periodo_id, codigo];
 
@@ -730,24 +760,24 @@ export function gerarBalancoComFiltro(
     return result?.total || 0;
   };
 
-  // Ativo Circulante (1.%)
-  const ativoCirculante = getAtivoConta("1.%");
+  // Ativo Circulante (1.1%) — caixa, bancos, aplicações
+  const ativoCirculante = getAtivoConta("1.1%");
 
-  // Ativo Não-Circulante (2.%)
-  const ativoNaoCirculante = getAtivoConta("2.%");
+  // Ativo Não-Circulante (1.2%, imobilizado, e 1.9%, transitório)
+  const ativoNaoCirculante = getAtivoConta("1.2%") + getAtivoConta("1.9%");
 
   const totalAtivo = ativoCirculante + ativoNaoCirculante;
 
   // Passivo Circulante (3.1%)
   const passivoCirculante = getPassivoConta("3.1%");
 
-  // Passivo Não-Circulante (3.2%)
-  const passivoNaoCirculante = getPassivoConta("3.2%");
+  // Passivo Não-Circulante (3.2%) e outros passivos de terceiros (3.3%, ex.: caução)
+  const passivoNaoCirculante = getPassivoConta("3.2%") + getPassivoConta("3.3%");
 
   const totalPassivo = passivoCirculante + passivoNaoCirculante;
 
-  // Patrimônio Líquido (4.%)
-  const patrimonioLiquido = getPatrimonioLiquidoConta("4.%");
+  // Patrimônio Líquido (2.%, não "4.%" — a faixa 4 é receita)
+  const patrimonioLiquido = getPatrimonioLiquidoConta("2.%");
 
   return {
     ativo: {
@@ -873,6 +903,7 @@ export function gerarFluxoCaixaComFiltro(
       amortizacoes,
       liquido: fluxoFinanciamento,
     },
-    saldo_final: Math.max(0, saldo_final),
+    // Ver comentário equivalente em gerarFluxoCaixa() — não esconder saldo negativo.
+    saldo_final,
   };
 }

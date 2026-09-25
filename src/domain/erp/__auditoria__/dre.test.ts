@@ -39,7 +39,7 @@ import { gerarDRE } from "../relatorios-integrados";
  * são honorários/custas judiciais, categoria diferente).
  */
 describe("relatorios-integrados: gerarDRE conta duas vezes e usa contas erradas", () => {
-  it.fails("juros recebidos e outras receitas não deveriam ser somados duas vezes no resultado final", async () => {
+  it("juros recebidos e outras receitas não deveriam ser somados duas vezes no resultado final", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 5, 'aberto')", [entidade_id!]);
@@ -63,7 +63,7 @@ describe("relatorios-integrados: gerarDRE conta duas vezes e usa contas erradas"
     expect(dre.resultado_final).toBeCloseTo(1150, 2);
   });
 
-  it.fails("o juro real de financiamento (5.5.01) deveria reduzir o resultado da DRE, mas não aparece em lugar nenhum", async () => {
+  it("o juro real de financiamento (5.5.01) deveria reduzir o resultado da DRE, mas não aparece em lugar nenhum", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 6, 'aberto')", [entidade_id!]);

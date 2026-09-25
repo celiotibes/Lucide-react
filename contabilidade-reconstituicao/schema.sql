@@ -277,6 +277,11 @@ CREATE TABLE IF NOT EXISTS transacoes (
     id                  INTEGER PRIMARY KEY,
     conta_id            INTEGER NOT NULL REFERENCES contas_bancarias(id),
     data                DATE NOT NULL,
+    -- Data do EXTRATO (quando o dinheiro se moveu na conta) — governa caixa e
+    -- data_lancamento do razão. Distinta de `data_competencia` abaixo: um boleto de
+    -- dezembro pago em janeiro tem `data` = janeiro, mas pode ter `data_competencia` =
+    -- dezembro (mês do fato gerador), para reconstituição em regime de competência.
+    data_competencia    DATE,                     -- opcional; preenchida na triagem ou inferida da descrição
     valor               REAL NOT NULL,            -- positivo = entrada, negativo = saída
     descricao_original  TEXT NOT NULL,            -- texto cru do extrato, nunca editado
     fitid               TEXT,                     -- id da transação no OFX, para evitar duplicidade
@@ -669,9 +674,15 @@ CREATE INDEX IF NOT EXISTS idx_ledger_origem ON ledger_entries(origem_modulo, or
 -- mesma transação na mesma conta — e ao mesmo tempo permite as duas operações contábeis
 -- que a constraint anterior proibia: estornar, e RELANÇAR na conta certa depois de
 -- estornar (o caso de reclassificação, em que a perna de caixa volta na mesma conta).
+-- 'manual' fica FORA deste índice: é lançamento avulso de ajuste/acerto, sem origem_id
+-- que identifique um registro de negócio real a deduplicar — a tripla
+-- (origem_modulo='manual', origem_id, conta_id) não representa "reimportação da mesma
+-- operação" como representa para os módulos automatizados (transacoes, contratos etc.);
+-- forçar unicidade nela impede o caso legítimo de duas linhas manuais distintas (ex.:
+-- entrada de caixa e depois uma saída de caixa) tocarem a mesma conta sob o mesmo lote.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_origem_unica
     ON ledger_entries(origem_modulo, origem_id, conta_id)
-    WHERE estorno_de_id IS NULL AND estornado_por_id IS NULL;
+    WHERE estorno_de_id IS NULL AND estornado_por_id IS NULL AND origem_modulo != 'manual';
 CREATE INDEX IF NOT EXISTS idx_ledger_auditada ON ledger_entries(auditada);
 
 CREATE INDEX IF NOT EXISTS idx_saldos_periodo ON ledger_saldos_periodo(periodo_id);

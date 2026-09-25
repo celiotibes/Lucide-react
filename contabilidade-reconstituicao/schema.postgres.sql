@@ -373,6 +373,7 @@ CREATE TABLE IF NOT EXISTS transacoes (
     -- varre e reporta cada valor de `data`/`data_documento` que não bate com
     -- `\d{4}-\d{2}-\d{2}` ANTES de gerar o INSERT.
     data                date NOT NULL,
+    data_competencia    date,                     -- opcional; mês do fato gerador (ver schema.sql)
     valor               numeric(14,2) NOT NULL,   -- era REAL (dinheiro)
     descricao_original  text NOT NULL,
     fitid               text,
@@ -698,9 +699,10 @@ CREATE INDEX IF NOT EXISTS idx_ledger_origem ON ledger_entries(origem_modulo, or
 -- schema.sql. A constraint de tabela anterior, UNIQUE (origem_modulo, origem_id, conta_id),
 -- quebrava todo estorno: a reversão copia a tripla inteira do original. O índice indexa a
 -- mesma tripla, mas exclui a reversão e o original já revertido.
+-- 'manual' fica FORA deste índice — ver comentário equivalente em schema.sql.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_origem_unica
     ON ledger_entries(origem_modulo, origem_id, conta_id)
-    WHERE estorno_de_id IS NULL AND estornado_por_id IS NULL;
+    WHERE estorno_de_id IS NULL AND estornado_por_id IS NULL AND origem_modulo != 'manual';
 CREATE INDEX IF NOT EXISTS idx_ledger_auditada ON ledger_entries(auditada);
 
 CREATE INDEX IF NOT EXISTS idx_saldos_periodo ON ledger_saldos_periodo(periodo_id);
