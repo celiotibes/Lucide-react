@@ -592,13 +592,13 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
     estornado_por_id    INTEGER REFERENCES ledger_entries(id),
     motivo_estorno      TEXT,
 
-    -- Uma partida dobrada tem DUAS pernas com a mesma origem (débito numa conta, crédito
-    -- em outra). O UNIQUE anterior era (origem_modulo, origem_id) e só deixava passar UMA
-    -- linha por documento de origem: era impossível registrar a contrapartida, e o ledger
-    -- nascia estruturalmente desbalanceado — nenhum período fecharia. A chave certa
-    -- inclui a conta, o que continua barrando reimportação duplicada da mesma transação
-    -- na mesma conta, que era o objetivo original.
-    UNIQUE (origem_modulo, origem_id, conta_id),
+    -- O vínculo inverso: se ESTA linha é um estorno, qual lançamento ela reverte.
+    -- Não é redundante com estornado_por_id: é o que distingue, na hora do INSERT, uma
+    -- reversão deliberada de uma reimportação duplicada — ver o índice parcial abaixo.
+    estorno_de_id       INTEGER REFERENCES ledger_entries(id),
+
+    -- A unicidade por (origem_modulo, origem_id, conta_id) NÃO é uma constraint de tabela:
+    -- é o índice parcial idx_ledger_origem_unica, logo abaixo. Ver o comentário dele.
     CHECK (
         (valor_debito IS NOT NULL AND valor_credito IS NULL) OR
         (valor_debito IS NULL AND valor_credito IS NOT NULL)
@@ -651,6 +651,27 @@ CREATE INDEX IF NOT EXISTS idx_ledger_periodo ON ledger_entries(periodo_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_conta ON ledger_entries(conta_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_data ON ledger_entries(data_lancamento);
 CREATE INDEX IF NOT EXISTS idx_ledger_origem ON ledger_entries(origem_modulo, origem_id);
+
+-- Unicidade da origem: no máximo UMA perna VIVA por (documento de origem, conta).
+--
+-- Histórico, porque as duas versões anteriores estavam erradas de formas diferentes:
+--   1ª) UNIQUE (origem_modulo, origem_id) — só deixava passar UMA linha por documento.
+--       A contrapartida da partida dobrada era impossível; nenhum período fechava.
+--   2ª) UNIQUE (origem_modulo, origem_id, conta_id) como constraint de tabela — liberou a
+--       partida dobrada, mas quebrou TODO estorno: estornarLancamento() copia
+--       origem_modulo, origem_id E conta_id do original para a reversão, exatamente a
+--       tripla da chave. Toda chamada morria com "UNIQUE constraint failed", nas duas
+--       pernas. Comprovado em ledger-estorno.test.ts, que existe para não voltar a passar.
+--
+-- A versão atual indexa a mesma tripla, mas só as linhas VIVAS: nem a reversão em si
+-- (estorno_de_id IS NOT NULL) nem o original já revertido (estornado_por_id IS NOT NULL)
+-- entram no índice. Isso preserva o objetivo original — barrar reimportação duplicada da
+-- mesma transação na mesma conta — e ao mesmo tempo permite as duas operações contábeis
+-- que a constraint anterior proibia: estornar, e RELANÇAR na conta certa depois de
+-- estornar (o caso de reclassificação, em que a perna de caixa volta na mesma conta).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_origem_unica
+    ON ledger_entries(origem_modulo, origem_id, conta_id)
+    WHERE estorno_de_id IS NULL AND estornado_por_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_ledger_auditada ON ledger_entries(auditada);
 
 CREATE INDEX IF NOT EXISTS idx_saldos_periodo ON ledger_saldos_periodo(periodo_id);

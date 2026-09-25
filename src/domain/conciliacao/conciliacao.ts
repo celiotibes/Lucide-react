@@ -217,10 +217,14 @@ export function apurarConciliacao(
   let classificacaoPendenteIds = new Set<number>();
   if (migradas.length > 0) {
     const placeholders = migradas.map(() => "?").join(",");
+    // estornado_por_id IS NULL: uma transação que estava pendente e foi reclassificada
+    // (ver src/domain/reclassificacao/reclassificarTransacao.ts) tem a perna antiga em
+    // 1.9.99 estornada, não apagada — sem este filtro ela continuaria contando como
+    // pendente aqui para sempre, mesmo já classificada e corrigida no razão.
     const linhas = consultar<{ origem_id: number }>(
       db,
       `SELECT DISTINCT origem_id FROM ledger_entries
-       WHERE origem_modulo = 'transacoes' AND conta_id = ? AND origem_id IN (${placeholders})`,
+       WHERE origem_modulo = 'transacoes' AND conta_id = ? AND estornado_por_id IS NULL AND origem_id IN (${placeholders})`,
       [CONTA_CLASSIFICACAO_PENDENTE, ...migradas.map((t) => t.id)],
     );
     classificacaoPendenteIds = new Set(linhas.map((l) => l.origem_id));
