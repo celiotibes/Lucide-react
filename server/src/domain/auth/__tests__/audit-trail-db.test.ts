@@ -62,7 +62,6 @@ const adminUser: Usuario = {
   role: "admin",
   ativo: true,
   data_criacao: "2026-01-01",
-  senha_hash: "hash",
 };
 
 const adminContexto: ContextoAutenticacao = {
