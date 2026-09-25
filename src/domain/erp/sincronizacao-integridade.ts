@@ -199,7 +199,7 @@ export function reconciliarAlugueis(db: Database): {
      LEFT JOIN ledger_entries le ON le.origem_modulo = 'contratos'
        AND le.origem_id = c.id
        AND le.valor_debito > 0
-     WHERE c.status IN ('ativo', 'pendente')
+     WHERE c.data_fim IS NULL OR c.data_fim >= DATE('now')
      GROUP BY c.id, c.imovel_id`,
     [],
   );
