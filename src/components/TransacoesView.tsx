@@ -9,6 +9,7 @@ import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegra
 import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, gerarXlsxConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
 import { criarTransacaoManual, excluirTransacao, dividirTransacao, type ParteDivisao } from "../domain/transacoes/transacaoManual";
 import { provasDasTransacoes } from "../domain/importacao/cofre";
+import { reclassificarTransacao } from "../domain/reclassificacao/reclassificarTransacao";
 
 /** Filtro inicial vindo de outra tela (drill-down do Painel: clicar numa barra da cascata do
  * DRE ou numa célula do mapa de calor navega pra cá já filtrado pela categoria/mês/imóvel que
@@ -167,7 +168,15 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
 
   async function categorizar(transacaoId: number, codigo: string) {
     if (!db) return;
-    executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'manual' WHERE id = ?", [codigo || null, transacaoId]);
+    // Nunca UPDATE direto: uma reclassificação já migrada ao razão precisa de
+    // estorno+relançamento da perna de contrapartida, senão o razão fica com a
+    // classificação antiga para sempre (migrarTransacoesParaLedger é idempotente por
+    // origem e nunca revisita uma transação já migrada).
+    const resultado = reclassificarTransacao(db, transacaoId, codigo || null, { categorizado_por: "manual" });
+    if (!resultado.sucesso) {
+      avisar("warning", resultado.mensagem);
+      return;
+    }
     await persistir();
   }
 
