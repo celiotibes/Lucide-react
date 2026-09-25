@@ -67,7 +67,7 @@ export function verificarIntegridade(db: Database): RelatoriIntegridade {
   const [contratosAtivos] = consultar<{ count: number; valor_total: number }>(
     db,
     `SELECT COUNT(*) as count, COALESCE(SUM(valor_referencia), 0) as valor_total
-     FROM contratos_locacao WHERE status IN ('ativo', 'pendente')`,
+     FROM contratos_locacao WHERE data_fim IS NULL OR data_fim >= DATE('now')`,
     [],
   );
 

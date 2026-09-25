@@ -32,7 +32,7 @@ import { calcularBudgetVariance } from "../budget-variance";
  * (despesa) pelas faixas reais de despesa (5.2/5.3/5.5/6.x), conforme planoDeContasErp.ts.
  */
 describe("budget-variance: Orçado vs. Realizado nunca lê a receita ou a despesa reais", () => {
-  it.fails("receitas_realizadas deveria refletir o aluguel lançado no razão, mas sai R$ 0,00", async () => {
+  it("receitas_realizadas deveria refletir o aluguel lançado no razão, mas sai R$ 0,00", async () => {
     const db = await criarBancoDeTeste();
     const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular", cpf_cnpj: "52998224725" });
     expect(entidade_id).toBeDefined();
