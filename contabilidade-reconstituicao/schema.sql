@@ -277,6 +277,11 @@ CREATE TABLE IF NOT EXISTS transacoes (
     id                  INTEGER PRIMARY KEY,
     conta_id            INTEGER NOT NULL REFERENCES contas_bancarias(id),
     data                DATE NOT NULL,
+    -- Data do EXTRATO (quando o dinheiro se moveu na conta) — governa caixa e
+    -- data_lancamento do razão. Distinta de `data_competencia` abaixo: um boleto de
+    -- dezembro pago em janeiro tem `data` = janeiro, mas pode ter `data_competencia` =
+    -- dezembro (mês do fato gerador), para reconstituição em regime de competência.
+    data_competencia    DATE,                     -- opcional; preenchida na triagem ou inferida da descrição
     valor               REAL NOT NULL,            -- positivo = entrada, negativo = saída
     descricao_original  TEXT NOT NULL,            -- texto cru do extrato, nunca editado
     fitid               TEXT,                     -- id da transação no OFX, para evitar duplicidade
@@ -437,6 +442,14 @@ CREATE TABLE IF NOT EXISTS vistorias (
     status          TEXT NOT NULL CHECK (status IN ('agendada', 'em_progresso', 'concluida', 'aprovada')) DEFAULT 'agendada',
     observacoes     TEXT,
     valor_estimado  REAL,
+    -- Espelha o ciclo de provisionamento contábil dos danos desta vistoria
+    -- (integracao-vistorias-provisionamento.ts): sincronizarVistoriaConcluidaParaProvisionamento()
+    -- grava aqui depois de lançar a provisão no razão, e revertorProvisionamentoDanosVistoria()
+    -- atualiza para 'revertido' quando os danos são reparados. Sem estas duas colunas o
+    -- UPDATE estourava "no such column" (capturado só porque a função embrulha em try/catch,
+    -- reportando "erro ao provisionar" para toda vistoria com dano real).
+    status_provisionamento TEXT CHECK (status_provisionamento IN ('nao_requer', 'pendente', 'provisionado', 'revertido', 'erro')),
+    data_provisionamento   DATETIME,
     criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -473,12 +486,90 @@ CREATE TABLE IF NOT EXISTS vistoria_log (
     criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Log de sincronização entre vistoria e provisão contábil (integracao-vistorias-provisionamento.ts).
+-- Uma linha por tentativa de sincronização (não por vistoria): sincronizarVistoriaConcluidaParaProvisionamento
+-- insere uma nova linha a cada chamada (sucesso, sem danos ou erro), preservando o histórico
+-- de tentativas — quem quer o estado atual lê a mais recente por vistoria_id (ORDER BY
+-- criado_em DESC LIMIT 1, como obterStatusProvisionamento e validarConsistenciaVistoriaProvisionamento já fazem).
+CREATE TABLE IF NOT EXISTS provisionamento_vistoria_log (
+    id                          INTEGER PRIMARY KEY,
+    vistoria_id                 INTEGER NOT NULL REFERENCES vistorias(id),
+    imovel_id                   INTEGER,
+    contrato_id                 INTEGER,
+    status                      TEXT NOT NULL CHECK (status IN ('nao_requer', 'pendente', 'provisionado', 'revertido', 'erro')),
+    valor_danos_estimado        REAL NOT NULL DEFAULT 0,
+    valor_provision_registrada  REAL NOT NULL DEFAULT 0,
+    valor_desconto_caucao       REAL NOT NULL DEFAULT 0,
+    referencia_documento        TEXT,
+    criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_por                  INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_vistorias_imovel ON vistorias(imovel_id);
 CREATE INDEX IF NOT EXISTS idx_vistorias_contrato ON vistorias(contrato_id);
 CREATE INDEX IF NOT EXISTS idx_vistorias_status ON vistorias(status);
 CREATE INDEX IF NOT EXISTS idx_vistoria_item_vistoria ON vistoria_item(vistoria_id);
 CREATE INDEX IF NOT EXISTS idx_vistoria_anexo_vistoria ON vistoria_anexo(vistoria_id);
 CREATE INDEX IF NOT EXISTS idx_vistoria_log_vistoria ON vistoria_log(vistoria_id);
+CREATE INDEX IF NOT EXISTS idx_provisionamento_vistoria_log_vistoria ON provisionamento_vistoria_log(vistoria_id);
+
+-- Gestão operacional do imóvel: cadastro de inquilino e agenda de manutenção — o gap
+-- identificado em docs/dominios-a-reconstruir.md (seção 3): o app já concilia o financeiro
+-- do imóvel (contratos_locacao, vistorias), mas não tinha onde guardar quem mora lá nem
+-- quando a próxima manutenção está marcada. Ver src/domain/erp/gestaoOperacionalImovel.ts.
+--
+-- DECISÃO (não recriar imovel_documentos): `documentos` (tipo, arquivo_nome, valor,
+-- data_documento, cnpj_cpf_contraparte, nome_contraparte, criado_em) + `documento_imoveis`
+-- (vínculo N:N com percentual) já cobrem "documento do imóvel" (escritura, IPTU, contrato de
+-- obra etc. — sob tipo 'outro' ou 'contrato' quando cabível): o mesmo cadastro de documento já
+-- usado para boleto/nota fiscal, sem duplicar uma segunda tabela de documento só para imóvel.
+-- A única capacidade que o módulo apagado tinha e que não é reconstruída aqui é
+-- data_vencimento/status ('vigente'/'expirado') por documento — `documentos` não tem essa
+-- coluna hoje — deliberadamente fora de escopo desta tarefa (só inquilinos e manutenções foram
+-- pedidos); pode ser acrescentada depois como colunas opcionais em `documentos` se o produto
+-- precisar de alerta de vencimento de documento, sem precisar de tabela nova.
+--
+-- DECISÃO (não recriar despesas_operacionais_agendadas): já resolvida em
+-- dashboard-portfolio.ts — despesa operacional agendada do imóvel é uma linha de
+-- `contas_a_pagar` com `imovel_id` preenchido e `data_vencimento` futura.
+CREATE TABLE IF NOT EXISTS inquilinos (
+    id              INTEGER PRIMARY KEY,
+    imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
+    nome            TEXT NOT NULL,
+    cpf_cnpj        TEXT,
+    telefone        TEXT,
+    email           TEXT,
+    -- Contrato vigente deste inquilino, quando já identificado — opcional porque o
+    -- cadastro do inquilino pode ser feito antes do contrato (ex: pré-cadastro) ou o
+    -- inquilino pode não ter contrato individual (ex: responsável solidário já coberto
+    -- por contrato_locatarios). Histórico de inquilinos passados do mesmo imóvel continua
+    -- rastreável (várias linhas por imovel_id ao longo do tempo); "quem mora lá hoje" é
+    -- inferido pelo contrato ligado estar vigente (data_fim nulo ou futura), não por uma
+    -- coluna de status própria.
+    contrato_id     INTEGER REFERENCES contratos_locacao(id),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_inquilinos_imovel ON inquilinos(imovel_id);
+CREATE INDEX IF NOT EXISTS idx_inquilinos_contrato ON inquilinos(contrato_id);
+
+CREATE TABLE IF NOT EXISTS manutencoes (
+    id              INTEGER PRIMARY KEY,
+    imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
+    tipo            TEXT NOT NULL,               -- ex: "elétrica", "hidráulica", "pintura"
+    descricao       TEXT NOT NULL,
+    data_agendada   DATE NOT NULL,
+    data_conclusao  DATE,                        -- preenchida só ao concluir
+    custo           REAL CHECK (custo IS NULL OR custo >= 0),
+    status          TEXT NOT NULL DEFAULT 'agendada' CHECK (status IN ('agendada', 'em_andamento', 'concluida', 'cancelada')),
+    prestador_id    INTEGER REFERENCES prestadores(id),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_manutencoes_imovel_status ON manutencoes(imovel_id, status, data_agendada);
+CREATE INDEX IF NOT EXISTS idx_manutencoes_prestador ON manutencoes(prestador_id);
 
 -- ===== SPRINT 1: ERP CORE - LEDGER INTEGRADO =====
 -- Tabela central de lançamentos contábeis com rastreabilidade completa e períodos fecháveis.
@@ -514,7 +605,14 @@ CREATE TABLE IF NOT EXISTS centros_custo (
     entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
     codigo          TEXT NOT NULL,
     descricao       TEXT NOT NULL,
-    tipo            TEXT NOT NULL CHECK (tipo IN ('imavel', 'administrativo', 'operacional')),
+    -- ACHADO (auditoria de execução, alocacao-centros-custo.test.ts): o CHECK original
+    -- dizia 'imavel' (erro de digitação — não é palavra nem convenção usada em nenhum
+    -- outro lugar do sistema). criarCentroCustoImovel() sempre gravou tipo='imovel'
+    -- (grafia correta, igual à tabela `imoveis`, à coluna `imovel_id` e ao tipo
+    -- TypeScript `CentroCustoInfo.tipo`) — toda chamada rejeitada pelo CHECK, contra o
+    -- schema real. Só não estourava porque nenhum teste chegou a rodar essa função
+    -- contra `criarBancoDeTeste()` antes desta auditoria.
+    tipo            TEXT NOT NULL CHECK (tipo IN ('imovel', 'administrativo', 'operacional')),
     ativo           INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
     UNIQUE (entidade_id, codigo)
 );
@@ -552,15 +650,33 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
     -- Descrição/histórico do lançamento
     descricao           TEXT NOT NULL,
 
-    -- Rastreabilidade: origem do lançamento (qual módulo/operação gerou)
+    -- Rastreabilidade: origem do lançamento (qual módulo/operação gerou).
+    -- A lista precisa acompanhar a união `origem_modulo` de LancamentoContabil
+    -- (src/domain/erp/ledger.ts): o CHECK aqui era mais estreito que o tipo, e sete dos
+    -- módulos do ERP (advocacia, contas-pessoais, imovel-gestao, apontamento-prestador,
+    -- pagamentos-integracao, skillos, rateios no plural) gravavam um valor que o banco
+    -- real rejeitava — nenhum deles conseguia escrever no ledger em produção, só nos
+    -- fixtures de teste, que não tinham este CHECK.
     origem_modulo       TEXT NOT NULL CHECK (origem_modulo IN (
         'transacoes',           -- Transação bancária simples
         'contratos',            -- Contrato de locação
         'patrimonio',           -- Aquisição/depreciação de imóvel
         'caucao',               -- Caução
         'financiamento',        -- Financiamento/amortização
-        'rateio',               -- Rateio de despesa comum
+        'rateio',               -- Rateio de despesa comum (grafia legada, mantida)
+        'rateios',              -- Rateio de despesa comum
         'vistorias',            -- Provisão de dano em vistoria
+        'advocacia',            -- Honorários, custas e provisões de processo
+        'contas-pessoais',      -- Movimentos da pessoa física
+        'imovel-gestao',        -- Gestão operacional do imóvel
+        'apontamento-prestador',-- Apontamento de horas de prestador
+        'pagamentos-integracao',-- Baixa de pagamento a prestador
+        'skillos',              -- Módulo de habilidades
+        'fisco',                -- Provisão/pagamento de imposto (integracao-fisco.ts) — faltava
+                                -- aqui: registrarImpostoNoLedger gravava 'fisco' e todo INSERT
+                                -- quebrava contra o schema real (CHECK constraint failed), o
+                                -- mesmo defeito que os sete módulos acima já tiveram (ver
+                                -- comentário de origem_modulo em ledger.ts).
         'manual'                -- Lançamento manual (ajuste, acerto)
     )),
     origem_id           INTEGER NOT NULL,  -- PK da tabela de origem (transacao_id, contrato_id, etc.)
@@ -579,8 +695,13 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
     estornado_por_id    INTEGER REFERENCES ledger_entries(id),
     motivo_estorno      TEXT,
 
-    -- Índices para performance e consultas comuns
-    UNIQUE (origem_modulo, origem_id),
+    -- O vínculo inverso: se ESTA linha é um estorno, qual lançamento ela reverte.
+    -- Não é redundante com estornado_por_id: é o que distingue, na hora do INSERT, uma
+    -- reversão deliberada de uma reimportação duplicada — ver o índice parcial abaixo.
+    estorno_de_id       INTEGER REFERENCES ledger_entries(id),
+
+    -- A unicidade por (origem_modulo, origem_id, conta_id) NÃO é uma constraint de tabela:
+    -- é o índice parcial idx_ledger_origem_unica, logo abaixo. Ver o comentário dele.
     CHECK (
         (valor_debito IS NOT NULL AND valor_credito IS NULL) OR
         (valor_debito IS NULL AND valor_credito IS NOT NULL)
@@ -615,24 +736,53 @@ CREATE TABLE IF NOT EXISTS ledger_encerramentos (
     observacoes     TEXT
 );
 
--- Regras de mapeamento automático: quando uma transação chega de um módulo,
--- qual conta do plano recebe o lançamento contábil?
-CREATE TABLE IF NOT EXISTS regras_contabilizacao (
-    id              INTEGER PRIMARY KEY,
-    entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
-    origem_modulo   TEXT NOT NULL,
-    tipo_operacao   TEXT NOT NULL,  -- ex: "aluguel_recebido", "aluguel_esperado", "rateio_recebido"
-    conta_debito_id INTEGER REFERENCES contas_plano_contas(id),
-    conta_credito_id INTEGER REFERENCES contas_plano_contas(id),
-    descricao       TEXT,
-    UNIQUE (entidade_id, origem_modulo, tipo_operacao)
-);
-
+-- REMOVIDA: `regras_contabilizacao` (mapeamento módulo/operação → conta débito/crédito).
+-- Tabela morta — nunca teve uma linha de código lendo ou escrevendo nela
+-- (`grep -rn "regras_contabilizacao" src/` não retorna nada). O mapeamento que ela
+-- deveria tornar configurável existe de fato, mas hardcoded em
+-- src/domain/erp/mapeamentoPlanoApp.ts (MAPA_APP_PARA_ERP): ~32 entradas fixas,
+-- código do plano do app → conta de contrapartida no razão, consumidas por 6+ módulos
+-- (livroRazao, reclassificarTransacao, contasAPagar, migracao-ledger, aluguel-competencias).
+-- Tornar isso configurável via banco exigiria bem mais que criar a tabela: trocar toda
+-- leitura síncrona de MAPA_APP_PARA_ERP por consulta ao banco (ou cache invalidável) em
+-- cada um desses call sites, decidir fallback quando uma regra não existir (hoje é
+-- CONTA_CLASSIFICACAO_PENDENTE, comportamento que precisaria sobreviver), migrar as ~32
+-- linhas hardcoded como seed, e alguma tela de administração para editar regra por
+-- entidade/módulo/operação sem quebrar a paridade débito=crédito. Isso é trabalho de
+-- verdade, não uma tarefa de <1h — fica como recomendação futura, não implementada aqui.
+--
 -- Índices para o ledger (performance crítica)
 CREATE INDEX IF NOT EXISTS idx_ledger_periodo ON ledger_entries(periodo_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_conta ON ledger_entries(conta_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_data ON ledger_entries(data_lancamento);
 CREATE INDEX IF NOT EXISTS idx_ledger_origem ON ledger_entries(origem_modulo, origem_id);
+
+-- Unicidade da origem: no máximo UMA perna VIVA por (documento de origem, conta).
+--
+-- Histórico, porque as duas versões anteriores estavam erradas de formas diferentes:
+--   1ª) UNIQUE (origem_modulo, origem_id) — só deixava passar UMA linha por documento.
+--       A contrapartida da partida dobrada era impossível; nenhum período fechava.
+--   2ª) UNIQUE (origem_modulo, origem_id, conta_id) como constraint de tabela — liberou a
+--       partida dobrada, mas quebrou TODO estorno: estornarLancamento() copia
+--       origem_modulo, origem_id E conta_id do original para a reversão, exatamente a
+--       tripla da chave. Toda chamada morria com "UNIQUE constraint failed", nas duas
+--       pernas. Comprovado em ledger-estorno.test.ts, que existe para não voltar a passar.
+--
+-- A versão atual indexa a mesma tripla, mas só as linhas VIVAS: nem a reversão em si
+-- (estorno_de_id IS NOT NULL) nem o original já revertido (estornado_por_id IS NOT NULL)
+-- entram no índice. Isso preserva o objetivo original — barrar reimportação duplicada da
+-- mesma transação na mesma conta — e ao mesmo tempo permite as duas operações contábeis
+-- que a constraint anterior proibia: estornar, e RELANÇAR na conta certa depois de
+-- estornar (o caso de reclassificação, em que a perna de caixa volta na mesma conta).
+-- 'manual' fica FORA deste índice: é lançamento avulso de ajuste/acerto, sem origem_id
+-- que identifique um registro de negócio real a deduplicar — a tripla
+-- (origem_modulo='manual', origem_id, conta_id) não representa "reimportação da mesma
+-- operação" como representa para os módulos automatizados (transacoes, contratos etc.);
+-- forçar unicidade nela impede o caso legítimo de duas linhas manuais distintas (ex.:
+-- entrada de caixa e depois uma saída de caixa) tocarem a mesma conta sob o mesmo lote.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_origem_unica
+    ON ledger_entries(origem_modulo, origem_id, conta_id)
+    WHERE estorno_de_id IS NULL AND estornado_por_id IS NULL AND origem_modulo != 'manual';
 CREATE INDEX IF NOT EXISTS idx_ledger_auditada ON ledger_entries(auditada);
 
 CREATE INDEX IF NOT EXISTS idx_saldos_periodo ON ledger_saldos_periodo(periodo_id);
@@ -764,3 +914,625 @@ CREATE INDEX IF NOT EXISTS idx_emprestimos_prestador ON emprestimos(prestador_id
 CREATE INDEX IF NOT EXISTS idx_emprestimos_status ON emprestimos(status);
 CREATE INDEX IF NOT EXISTS idx_retificacoes_apontamento ON retificacoes(apontamento_id);
 CREATE INDEX IF NOT EXISTS idx_parametros_operacionais_parametro ON parametros_operacionais(parametro, vigencia_inicio);
+
+-- ============================================================================
+-- COFRE DE EVIDÊNCIAS E TRIAGEM DE IMPORTAÇÃO
+-- ============================================================================
+-- O critério de sucesso do sistema é responder, para qualquer valor: de onde veio, qual
+-- regra o classificou, quem aprovou, o que mudou, qual documento prova e como reproduzir
+-- o cálculo. Duas dessas perguntas não tinham resposta possível.
+--
+-- "QUEM APROVOU": os parsers escreviam direto em `transacoes`. A tela de importação tem
+-- uma etapa "Revisar antes de importar", mas ela vive em estado do React — recarregar a
+-- página perde tudo, e nada fica registrado sobre quem decidiu o quê. Agora cada arquivo
+-- vira um LOTE, cada linha do arquivo vira uma LINHA EM TRIAGEM com status próprio, e só
+-- linha aprovada vira transação.
+--
+-- "QUAL DOCUMENTO PROVA": `transacoes.documento_fonte` é só o NOME do arquivo em texto.
+-- Nome de arquivo não prova nada — dois arquivos diferentes podem ter o mesmo nome, e o
+-- mesmo arquivo pode ser editado sem mudar de nome. O lote guarda o SHA-256 do conteúdo:
+-- é isso que permite, num laudo ou numa petição, demonstrar que o extrato apresentado é
+-- byte a byte o que originou o lançamento.
+
+CREATE TABLE IF NOT EXISTS lotes_importacao (
+    id                  INTEGER PRIMARY KEY,
+    arquivo_nome        TEXT NOT NULL,
+    -- SHA-256 do CONTEÚDO do arquivo. É a evidência: reapresentado depois, o mesmo
+    -- arquivo tem o mesmo hash; alterado em um byte, tem outro.
+    arquivo_hash_sha256 TEXT NOT NULL,
+    arquivo_bytes       INTEGER NOT NULL,
+    tipo_detectado      TEXT NOT NULL,           -- ofx, csv, pdf_extrato, open_finance...
+    conta_id            INTEGER REFERENCES contas_bancarias(id),
+    status              TEXT NOT NULL CHECK (status IN ('em_triagem', 'concluido', 'descartado')) DEFAULT 'em_triagem',
+    importado_em        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    concluido_em        DATETIME,
+    total_linhas        INTEGER NOT NULL DEFAULT 0,
+    observacoes         TEXT,
+    -- Reimportar o mesmo arquivo na mesma conta reabre o lote existente em vez de criar um
+    -- segundo — era assim que o mesmo extrato entrava duas vezes sem ninguém ver.
+    UNIQUE (arquivo_hash_sha256, conta_id)
+);
+
+CREATE TABLE IF NOT EXISTS importacao_linhas (
+    id                  INTEGER PRIMARY KEY,
+    lote_id             INTEGER NOT NULL REFERENCES lotes_importacao(id),
+    -- Posição da linha dentro do arquivo: é o que permite voltar ao documento original e
+    -- apontar exatamente de onde o valor saiu.
+    linha_numero        INTEGER NOT NULL,
+    data                DATE,
+    valor               REAL,
+    descricao_original  TEXT NOT NULL,
+    fitid               TEXT,
+    plano_conta_codigo  TEXT REFERENCES plano_de_contas(codigo),
+    status              TEXT NOT NULL CHECK (status IN (
+        'pendente',              -- aguardando decisão humana
+        'aprovada',              -- virou transação (transacao_id preenchido)
+        'rejeitada',             -- decidido que não entra; motivo obrigatório na prática
+        'duplicata_provavel',    -- casa com transação já existente (duplicata_de_id)
+        'malformada'             -- data ou valor ilegíveis no arquivo
+    )) DEFAULT 'pendente',
+    motivo              TEXT,
+    -- Preenchido ao aprovar. É a ponte que responde "qual documento prova este lançamento":
+    -- transacoes -> importacao_linhas -> lotes_importacao.arquivo_hash_sha256.
+    transacao_id        INTEGER REFERENCES transacoes(id),
+    -- A transação já existente que motivou a suspeita de duplicidade.
+    duplicata_de_id     INTEGER REFERENCES transacoes(id),
+    decidido_em         DATETIME,
+    decidido_por        TEXT,
+    UNIQUE (lote_id, linha_numero)
+);
+
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_lote ON importacao_linhas(lote_id, status);
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_transacao ON importacao_linhas(transacao_id);
+CREATE INDEX IF NOT EXISTS idx_lotes_importacao_hash ON lotes_importacao(arquivo_hash_sha256);
+
+-- Trilha de auditoria persistente, encadeada por hash (hash_anterior -> hash_sha256).
+-- src/domain/erp/compliance-audit-log.ts já grava e lê exatamente estas colunas, mas a
+-- tabela só existia no fixture de teste: contra o banco real as funções davam
+-- "no such table" e devolviam zero registros em silêncio. Sem ela, a trilha do Painel de
+-- Auditoria vive só na memória da aba e zera ao recarregar a página.
+CREATE TABLE IF NOT EXISTS auditoria_log (
+    id                      INTEGER PRIMARY KEY,
+    timestamp               TEXT,
+    usuario_id              INTEGER,
+    usuario_nome            TEXT,
+    ip_origem               TEXT,
+    modulo_chamador         TEXT,
+    tipo_operacao           TEXT,
+    entidade_afetada        TEXT,
+    id_entidade             INTEGER,
+    descricao_alteracao     TEXT,
+    valor_anterior          TEXT,
+    valor_novo              TEXT,
+    hash_sha256             TEXT,
+    hash_anterior           TEXT,
+    status                  TEXT,
+    mensagem_erro           TEXT,
+    tempo_processamento_ms  INTEGER,
+    retencao_ate            TEXT,
+    assinado                INTEGER DEFAULT 0,
+    assinatura_digital      TEXT,
+    criado_em               TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_auditoria_log_entidade ON auditoria_log(entidade_afetada, id_entidade);
+CREATE INDEX IF NOT EXISTS idx_auditoria_log_timestamp ON auditoria_log(timestamp);
+
+-- ============================================================================
+-- CONCILIAÇÃO BANCÁRIA
+--
+-- `transacoes` (o extrato importado) e `ledger_entries` (o razão, via
+-- migracao-ledger.ts) são povoados automaticamente, mas nada até aqui comparava o
+-- resultado com o saldo real do banco numa data, nem apontava o que explica a
+-- diferença quando os números não batem — requisito central de um núcleo contábil.
+--
+-- Duas tabelas novas, propositalmente separadas:
+--   - extrato_saldos_informados: o FATO que o sistema não tem como deduzir sozinho —
+--     o saldo que o extrato bancário real mostrava numa data. É digitado pela pessoa,
+--     a partir do próprio extrato/aplicativo do banco, e existe independente de uma
+--     conciliação já ter sido rodada (pode ser cadastrado antes, revisitado depois).
+--   - conciliacoes_bancarias + conciliacoes_itens: o REGISTRO de cada apuração feita
+--     — os três saldos comparados, as diferenças e a decomposição delas — para que uma
+--     conciliação já feita continue auditável depois, sem precisar refazer o cálculo.
+--
+-- src/domain/conciliacao/conciliacao.ts é quem lê e grava estas tabelas.
+-- ============================================================================
+
+-- Saldo informado pelo extrato bancário real, numa data, para uma conta. Histórico por
+-- data (não só "o saldo mais recente"): uma mesma conta pode ser conciliada em cortes
+-- diferentes (fechamento mensal, por exemplo), e cada data guarda o que o extrato de
+-- verdade mostrava naquele dia — não um valor recalculado a posteriori.
+CREATE TABLE IF NOT EXISTS extrato_saldos_informados (
+    id              INTEGER PRIMARY KEY,
+    conta_id        INTEGER NOT NULL REFERENCES contas_bancarias(id),
+    data            DATE NOT NULL,
+    saldo           REAL NOT NULL,
+    informado_em    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    informado_por   TEXT,
+    observacoes     TEXT,
+    -- Reinformar o saldo da mesma conta na mesma data corrige o valor anterior em vez de
+    -- acumular duplicata — é sempre "o que o extrato mostrava nesta data", um fato só.
+    UNIQUE (conta_id, data)
+);
+
+-- Cada conciliação feita: os três saldos comparados (extrato informado, transações
+-- acumuladas no app, e a parcela do razão atribuível a esta conta — ver o comentário em
+-- conciliacao.ts sobre por que "atribuível", já que o caixa do razão, CONTA_CAIXA_ERP em
+-- mapeamentoPlanoApp.ts, é uma única conta compartilhada por todas as contas bancárias
+-- cadastradas) e as diferenças apuradas entre eles. `realizada_por` é texto livre, no
+-- mesmo padrão de `decidido_por` em importacao_linhas — não há autenticação de usuário
+-- neste sistema.
+CREATE TABLE IF NOT EXISTS conciliacoes_bancarias (
+    id                              INTEGER PRIMARY KEY,
+    conta_id                        INTEGER NOT NULL REFERENCES contas_bancarias(id),
+    data_corte                      DATE NOT NULL,
+    saldo_extrato                   REAL NOT NULL,
+    saldo_transacoes                REAL NOT NULL,
+    saldo_razao                     REAL NOT NULL,
+    diferenca_extrato_transacoes    REAL NOT NULL,  -- saldo_extrato - saldo_transacoes
+    diferenca_transacoes_razao      REAL NOT NULL,  -- saldo_transacoes - saldo_razao
+    diferenca_extrato_razao         REAL NOT NULL,  -- saldo_extrato - saldo_razao (diferença total)
+    fechada_sem_diferenca           INTEGER NOT NULL DEFAULT 0 CHECK (fechada_sem_diferenca IN (0, 1)),
+    realizada_em                    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    realizada_por                   TEXT,
+    observacoes                     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_conciliacoes_bancarias_conta ON conciliacoes_bancarias(conta_id, data_corte);
+
+-- Decomposição da diferença de uma conciliação: cada linha é um FATOR que explica parte
+-- (ou a totalidade) do descasamento entre os três saldos — nunca só o número da
+-- diferença sem dizer o que a compõe. `referencias_json` guarda os ids das linhas de
+-- origem (transacoes, importacao_linhas ou ledger_entries, conforme o tipo) para a tela
+-- poder abrir a lista por trás do item; é só para consulta, não FOREIGN KEY, porque o
+-- tipo de origem muda conforme `tipo` e os ids podem deixar de existir com o tempo.
+CREATE TABLE IF NOT EXISTS conciliacoes_itens (
+    id                  INTEGER PRIMARY KEY,
+    conciliacao_id      INTEGER NOT NULL REFERENCES conciliacoes_bancarias(id),
+    tipo                TEXT NOT NULL CHECK (tipo IN (
+        'nao_lancada_no_razao',      -- transação da conta, dentro do corte, sem perna correspondente no razão
+        'triagem_pendente',          -- linha de importação ainda sem decisão (pendente/duplicata provável/malformada)
+        'classificacao_pendente',    -- já está no razão, mas contra a conta transitória 1.9.99 (não afeta o total)
+        'lancamento_orfao_no_razao', -- lançamento de caixa no razão sem transação de origem encontrada (system-wide)
+        'residual_nao_identificado'  -- sobra depois dos itens acima — existe para nunca esconder diferença sem explicação
+    )),
+    descricao           TEXT NOT NULL,
+    quantidade          INTEGER NOT NULL DEFAULT 0,
+    valor               REAL NOT NULL DEFAULT 0,
+    afeta_diferenca     INTEGER NOT NULL DEFAULT 1 CHECK (afeta_diferenca IN (0, 1)),
+    referencias_json     TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE INDEX IF NOT EXISTS idx_conciliacoes_itens_conciliacao ON conciliacoes_itens(conciliacao_id);
+
+-- ============================================================================
+-- PROVENIÊNCIA DE CHAMADAS DE IA (src/domain/ia/)
+--
+-- O roteador multi-provedor de IA (roteador.ts) sempre soube registrar provedor,
+-- modelo, quando, tokens, custo estimado, confiança e o motivo do escalonamento/rodízio
+-- que levou a ESTE provedor a ser chamado nesta posição — mas só em memória do processo
+-- (ver src/domain/ia/proveniencia.ts): recarregar a página (F5) apagava tudo. O critério
+-- de sucesso do produto é responder, para qualquer valor, "de onde veio, qual regra o
+-- classificou, o que mudou, qual documento prova e como reproduzir o cálculo" — "a IA
+-- achou" não é resposta; "o modelo X, em tal data, com confiança média, a partir deste
+-- texto" é, e só é verificável se sobrevive a um F5. Esta tabela é o destino dessa
+-- persistência.
+--
+-- `prompt_texto` é o texto efetivamente enviado ao provedor (já truncado pelo chamador —
+-- ver o limite de 1000 caracteres em classificarComIA.ts — e sem CPF/CNPJ isolado, saldo
+-- ou dado além do próprio texto do documento) — sem ele, "como reproduzir o cálculo" não
+-- é respondível de verdade: nem o provedor original repete a mesma resposta sem saber
+-- qual foi a entrada. Fica limitado a 4000 caracteres na gravação (ver proveniencia.ts)
+-- como cinto e suspensório, já que o próprio chamador nunca deveria mandar mais que isso.
+--
+-- `documento_id`/`transacao_id` ligam esta chamada ao valor que ela ajudou a produzir —
+-- é o que permite, partindo de um valor em `documentos` ou `transacoes`, chegar até a
+-- linha exata de IA que o classificou (ver proveniencia.ts: vincularChamadaADocumento,
+-- vincularChamadaATransacao, chamadaDoDocumento, chamadaDaTransacao). Nenhum dos dois é
+-- NOT NULL nem preenchido no INSERT: a chamada é registrada no momento em que o roteador
+-- recebe a resposta do provedor, antes de o chamador saber se vai virar um documento ou
+-- uma transação (ou se o resultado será descartado na revisão manual) — por isso o
+-- vínculo é um UPDATE posterior, feito por quem cria o registro definitivo. Sem FOREIGN
+-- KEY: não há CASCADE aqui de propósito — apagar um documento/transação não deve apagar
+-- a prova de qual chamada de IA existiu, só deixar o vínculo pendente de outra explicação.
+CREATE TABLE IF NOT EXISTS ia_chamadas (
+    id                  INTEGER PRIMARY KEY,
+    provedor            TEXT NOT NULL CHECK (provedor IN ('anthropic', 'openai', 'google', 'ollama')),
+    modelo              TEXT NOT NULL,
+    quando              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tokens_entrada      INTEGER,
+    tokens_saida        INTEGER,
+    custo_estimado_usd  REAL,
+    confianca           TEXT CHECK (confianca IN ('alta', 'media', 'baixa')),
+    -- Nunca vazio — é a resposta a "por que a IA foi chamada": "preferido", "rodizio",
+    -- "fallback_apos_falha:<provedor-anterior>", "caminho_barato_local" ou
+    -- "escalonado_por_qualidade_baixa: <motivos>" (ver roteador.ts).
+    motivo              TEXT NOT NULL,
+    sucesso             INTEGER NOT NULL CHECK (sucesso IN (0, 1)),
+    erro                TEXT,
+    prompt_texto        TEXT,
+    documento_id        INTEGER,
+    transacao_id        INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_ia_chamadas_quando ON ia_chamadas(quando);
+CREATE INDEX IF NOT EXISTS idx_ia_chamadas_documento ON ia_chamadas(documento_id);
+CREATE INDEX IF NOT EXISTS idx_ia_chamadas_transacao ON ia_chamadas(transacao_id);
+
+-- ============================================================================
+-- CONTAS A PAGAR (src/domain/contasAPagar/contasAPagar.ts)
+-- ============================================================================
+-- Obrigação de pagar um fornecedor, com vencimento, antes de ter sido paga (baixada) —
+-- o padrão "aging de contas a pagar" que qualquer ERP de referência (Oracle, Xero,
+-- AppFolio) cobre e que faltava por completo: `documentos` já carrega quem cobra e
+-- quanto (valor, cnpj_cpf_contraparte, nome_contraparte), mas não tem vencimento nem
+-- status de pagamento — é exatamente essa lacuna que esta tabela fecha.
+--
+-- `documento_id` é opcional de propósito: pode existir uma obrigação de pagar sem
+-- documento formal ainda anexado (ex: acordo verbal com prestador, aguardando nota
+-- fiscal) — quando o documento chega depois, o vínculo é preenchido por UPDATE, não por
+-- recriação da linha.
+--
+-- `status` guarda só o que é FATO ('pendente', 'paga', 'cancelada') — 'atrasada' está no
+-- CHECK só para documentar o domínio completo da coluna, mas nunca é gravado: é
+-- CALCULADO em tempo de consulta (hoje > data_vencimento e status ainda 'pendente'), no
+-- mesmo espírito de `rateios.base_incompleta`/`caucoes` — nunca fabricar ou congelar um
+-- dado que muda sozinho com o calendário. Ver listarContasAPagar()/gerarRelatorioAging().
+--
+-- `ledger_entry_id_baixa` só é preenchido na baixa (pagamento) — é a prova de que a baixa
+-- virou um lançamento real no razão (`ledger_entries`), nunca uma tabela paralela
+-- desconectada da contabilidade de verdade. A baixa reusa a MESMA rota que uma transação
+-- bancária importada usaria (`registrarLancamentoContabil` com origem_modulo='transacoes'
+-- sobre uma linha nova em `transacoes`, ver contasAPagar.ts) — por isso não existe aqui
+-- nenhum novo valor de origem_modulo: a baixa É uma transação bancária de saída como
+-- qualquer outra, só que originada por uma obrigação já conhecida em vez de um extrato
+-- importado depois.
+CREATE TABLE IF NOT EXISTS contas_a_pagar (
+    id                  INTEGER PRIMARY KEY,
+    entidade_id         INTEGER NOT NULL REFERENCES entidades_legais(id),
+    documento_id        INTEGER REFERENCES documentos(id),
+    fornecedor_nome     TEXT NOT NULL,
+    fornecedor_cnpj_cpf TEXT,
+    descricao           TEXT,
+    valor               REAL NOT NULL CHECK (valor > 0),
+    data_vencimento     DATE NOT NULL,
+    data_pagamento      DATE,               -- NULL até ser paga
+    status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'paga', 'atrasada', 'cancelada')),
+    plano_conta_codigo  TEXT REFERENCES plano_de_contas(codigo),  -- em que despesa isso vira quando pago
+    imovel_id           INTEGER REFERENCES imoveis(id),           -- NULL = despesa não ligada a um imóvel específico
+    -- Despesa jurídica vinculada a um processo (advocacia) — NULL = despesa não ligada a
+    -- processo. Ver bloco "ADVOCACIA: PROCESSOS E PARTES" no final deste arquivo: não existe
+    -- `despesas_legais` própria, a despesa jurídica é uma linha comum desta tabela.
+    processo_id         INTEGER REFERENCES processos_legais(id),
+    ledger_entry_id_baixa INTEGER REFERENCES ledger_entries(id),  -- preenchido só na baixa
+    criado_em           DATE NOT NULL
+);
+
+-- Consulta mais comum: aging report de uma entidade, filtrado/ordenado por status e
+-- vencimento.
+CREATE INDEX IF NOT EXISTS idx_contas_a_pagar_entidade_status_venc ON contas_a_pagar(entidade_id, status, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_contas_a_pagar_processo ON contas_a_pagar(processo_id);
+
+-- Sugestão de classificação de transação por IA — camada A MAIS sobre a classificação
+-- determinística (regras_categorizacao) e a manual (TransacoesView.categorizar), NUNCA uma
+-- substituição delas: para uma transação sem plano_conta_codigo que nenhuma regra salva
+-- capturou, a IA propõe um código do plano_de_contas com confiança e explicação
+-- (ver src/domain/categorize/sugestaoClassificacaoIA.ts), e um humano aceita ou rejeita.
+-- REGRA DE OURO deste sistema, sem exceção aqui: IA nunca escreve direto no razão nem
+-- classifica uma transação sozinha — aceitar passa por reclassificarTransacao (estorno +
+-- relançamento no razão quando aplicável), exatamente como uma reclassificação manual.
+--
+-- pergunta_para_decisao é preenchida só quando a própria IA não consegue decidir sozinha
+-- (duas classificações plausíveis, contraparte desconhecida, valor atípico para o padrão da
+-- conta) e formula uma pergunta objetiva para o humano — é uma DECISÃO explicitamente pedida,
+-- não uma sugestão de confiança baixa escondida atrás de um código qualquer.
+--
+-- UNIQUE(transacao_id): só a sugestão mais recente por transação faz sentido manter viva —
+-- gerar uma nova sugestão para uma transação que já tinha uma (ex: uma rejeitada
+-- anteriormente) SUBSTITUI a linha em vez de acumular histórico ali (o histórico de
+-- PROVENIÊNCIA de cada chamada de IA que já rodou continua intacto em ia_chamadas, nunca
+-- apagado — só a "sugestão viva" por transação é sempre uma só).
+CREATE TABLE IF NOT EXISTS sugestoes_classificacao_ia (
+    id                              INTEGER PRIMARY KEY,
+    transacao_id                    INTEGER NOT NULL REFERENCES transacoes(id),
+    plano_conta_codigo_sugerido     TEXT REFERENCES plano_de_contas(codigo), -- NULL quando a IA não teve segurança para sugerir nenhum código (ver pergunta_para_decisao)
+    confianca                       TEXT NOT NULL CHECK (confianca IN ('alta', 'media', 'baixa')),
+    explicacao                      TEXT NOT NULL,               -- justificativa curta do porquê (auditável — "a IA achou" nunca é suficiente)
+    pergunta_para_decisao           TEXT,                         -- preenchida só em caso genuinamente ambíguo — ver comentário acima
+    -- Proveniência: qual chamada de IA (ia_chamadas acima) produziu esta sugestão. Sem
+    -- FOREIGN KEY de propósito, mesmo motivo de ia_chamadas.documento_id/transacao_id: não
+    -- deve travar em cascata se o histórico de chamadas for manipulado por outra via.
+    ia_chamada_id                   INTEGER,
+    status                          TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'aceita', 'rejeitada')),
+    criado_em                       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decidido_em                     DATETIME,
+    decidido_por                    INTEGER,                      -- usuario_id de quem aceitou/rejeitou (aceitarSugestao/rejeitarSugestao)
+    UNIQUE (transacao_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sugestoes_classificacao_ia_status ON sugestoes_classificacao_ia(status);
+
+-- Competência de aluguel: uma linha por MÊS DEVIDO de cada contrato de locação — o espelho,
+-- do lado da RECEITA, do que `contas_a_pagar` já resolveu para o lado da despesa (ver o
+-- comentário completo daquela tabela acima). Existe porque `integracao-inadimplencia.ts`
+-- (apurarInadimplenciaContrato) recalculava o vencimento a partir do MÊS DA PRÓPRIA data de
+-- referência a cada chamada, em vez de fixá-lo no mês em que a inadimplência de fato
+-- começou — resultado: `dias_atraso` nunca ultrapassava ~30 dias, tornando os estados
+-- em_cobranca/litigioso IMPOSSÍVEIS de produzir, para qualquer entrada (ver o `it.fails`
+-- correspondente em integracao-inadimplencia.test.ts). Aqui, cada competência tem seu
+-- PRÓPRIO vencimento — fixado uma vez, na geração (gerarCompetenciasPendentes), nunca
+-- recalculado depois — e seu próprio status de recebimento, agregável em aging por
+-- contrato exatamente como gerarRelatorioAging() faz para contas_a_pagar. Ver
+-- src/domain/erp/aluguel-competencias.ts.
+--
+-- `imovel_id` é herdado do contrato (contratos_locacao.imovel_id) e duplicado aqui de
+-- propósito, não por normalização ruim — mesmo motivo de contas_a_pagar.imovel_id: consulta
+-- direta por imóvel sem precisar de JOIN em contratos_locacao.
+--
+-- `status` só grava o que é FATO: 'pendente', 'recebido' ou 'cancelado' (competência
+-- anulada — ex.: contrato encerrado antes do mês vencer). 'atrasado' NUNCA é gravado aqui —
+-- é sempre CALCULADO comparando `data_vencimento` com uma data de referência, mesmo
+-- espírito de contas_a_pagar.status (nunca congelar um dado que muda sozinho com o
+-- calendário).
+--
+-- `ledger_entry_id_baixa` só é preenchida na baixa (recebimento) — prova de que o
+-- recebimento virou um lançamento real no razão (baixarCompetencia), pela MESMA rota que
+-- `baixarContaAPagar` usa (nova linha em `transacoes` + duas pernas via
+-- registrarLancamentoContabil com origem_modulo='transacoes'), só que invertida: débito em
+-- Caixa (entrada) e crédito em Receita de Aluguel, não o contrário.
+--
+-- UNIQUE(contrato_id, ano, mes): uma competência por contrato por mês, nunca duplicada —
+-- é o que torna gerarCompetenciasPendentes() idempotente por construção.
+CREATE TABLE IF NOT EXISTS aluguel_competencias (
+    id                      INTEGER PRIMARY KEY,
+    contrato_id             INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    imovel_id               INTEGER NOT NULL REFERENCES imoveis(id),
+    ano                     INTEGER NOT NULL,
+    mes                     INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+    data_vencimento         DATE NOT NULL,          -- vencimento REAL daquele mês; fixado na geração, nunca recalculado
+    valor_devido            REAL NOT NULL CHECK (valor_devido > 0),
+    data_recebimento        DATE,                   -- NULL até ser recebida
+    status                  TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'recebido', 'cancelado')),
+    ledger_entry_id_baixa   INTEGER REFERENCES ledger_entries(id),  -- preenchido só na baixa
+    criado_em               DATE NOT NULL,
+    UNIQUE (contrato_id, ano, mes)
+);
+
+-- Consulta mais comum: aging de um contrato, filtrado/ordenado por status e vencimento —
+-- mesmo padrão de idx_contas_a_pagar_entidade_status_venc.
+CREATE INDEX IF NOT EXISTS idx_aluguel_competencias_contrato_status_venc ON aluguel_competencias(contrato_id, status, data_vencimento);
+
+-- ============================================================================
+-- LGPD: DIREITOS DO TITULAR (src/domain/lgpd/direitosTitular.ts)
+-- ============================================================================
+-- Reconstrução do domínio apagado (`compliance-lgpd.ts`) que não tinha tabela nem teste
+-- contra nada real (ver docs/dominios-a-reconstruir.md, seção 6). Aqui a solicitação do
+-- titular (art. 18 da Lei 13.709/2018) fica registrada com o resultado de fato aplicado —
+-- não um checklist solto, mas uma linha por pedido, rastreável.
+CREATE TABLE IF NOT EXISTS solicitacoes_lgpd (
+    id                  INTEGER PRIMARY KEY,
+    titular_nome        TEXT NOT NULL,
+    titular_cpf         TEXT NOT NULL,
+    tipo                TEXT NOT NULL CHECK (tipo IN ('acesso', 'portabilidade', 'exclusao', 'correcao')),
+    status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'atendida', 'recusada')),
+    data_solicitacao    TEXT NOT NULL,      -- timestamp ISO 8601 completo
+    data_atendimento    TEXT,               -- NULL até atender (aceita ou recusada) — mesmo padrão de data_recebimento em aluguel_competencias
+    -- Só recusa que carregue O PORQUÊ: uma solicitação de exclusão negada por retenção
+    -- legal ativa (Lei 6404/76 — ver auditoria_log.retencao_ate) precisa do motivo
+    -- explícito, nunca um "não" silencioso.
+    motivo_recusa       TEXT,
+    detalhes            TEXT,               -- o que foi pedido/encontrado/feito — corpo da resposta ao titular
+    CHECK (motivo_recusa IS NULL OR status = 'recusada'),
+    CHECK ((status = 'pendente') = (data_atendimento IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_lgpd_titular_cpf ON solicitacoes_lgpd(titular_cpf);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_lgpd_status ON solicitacoes_lgpd(status);
+
+-- ============================================================================
+-- LGPD: REGISTRO DE POLÍTICA DE ROTAÇÃO DE CHAVE (src/domain/lgpd/rotacaoChave.ts)
+-- ============================================================================
+-- ATENÇÃO — o que esta tabela NÃO é: não há aqui execução de criptografia de arquivo
+-- nenhuma, porque este app roda 100% no navegador (sql.js/IndexedDB, sem backend) e não
+-- tem onde guardar uma chave de encriptação com segurança — a mesma limitação já
+-- documentada em src/domain/erp/compliance-audit-log.ts sobre o segredo de assinatura
+-- HMAC (quem abre o DevTools lê qualquer coisa guardada no cliente). Isto é só o REGISTRO
+-- de auditoria/política de que uma rotação de chave (de um sistema de criptografia real,
+-- quando o produto for para trás de um backend de verdade) aconteceu — quem, quando, por
+-- quê. A criptografia de dados em repouso em si é responsabilidade da infraestrutura
+-- (Postgres/Supabase), nunca deste módulo client-side.
+CREATE TABLE IF NOT EXISTS politica_rotacao_chave (
+    id                      INTEGER PRIMARY KEY,
+    data_rotacao            TEXT NOT NULL,      -- timestamp ISO 8601 completo
+    responsavel             TEXT NOT NULL,
+    motivo                  TEXT NOT NULL,
+    -- Hash da chave ANTERIOR (nunca a chave em si) — só para referência/auditoria, prova
+    -- de que a rotação trocou de fato a chave sem expor qual era.
+    chave_anterior_hash     TEXT NOT NULL,
+    observacoes             TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_politica_rotacao_chave_data ON politica_rotacao_chave(data_rotacao);
+
+-- ============================================================================
+-- CONTAS PESSOAIS — segregação patrimonial PF x sociedade de fato
+-- (docs/dominios-a-reconstruir.md, seção 2). Reconstrução do zero: os módulos
+-- antigos (`contas-pessoais.ts` e primos) escreviam em tabelas que nunca
+-- existiram neste schema. `contas_bancarias` (topo do arquivo) são todas da
+-- ENTIDADE — nada até agora distinguia dinheiro da pessoa física do dinheiro
+-- da atividade, que é exatamente o que perícia contábil de confusão
+-- patrimonial cobra. Lógica de escrita em
+-- src/domain/contasPessoais/contasPessoais.ts.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS pessoas (
+    id              INTEGER PRIMARY KEY,
+    nome            TEXT NOT NULL,
+    cpf             TEXT,
+    -- Papel da pessoa em relação à entidade/atividade — não é "quem é o
+    -- titular do sistema" (isso é entidades_legais), é "por que essa conta
+    -- pessoal aparece aqui": o próprio titular ('titular'), um sócio de fato
+    -- da sociedade não-formalizada, um familiar cuja conta às vezes recebe/
+    -- envia dinheiro da atividade (comum em confusão patrimonial de fato), ou
+    -- 'outro' para qualquer caso não previsto.
+    tipo_relacao    TEXT NOT NULL CHECK (tipo_relacao IN ('titular', 'socio', 'familiar', 'outro')),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pessoas_tipo_relacao ON pessoas(tipo_relacao);
+
+-- Conta bancária da PESSOA FÍSICA, nunca da entidade — diferença deliberada
+-- de `contas_bancarias` (que são todas da atividade/entidade hoje). Sem
+-- UNIQUE (banco, agencia, numero) global como em contas_bancarias: a mesma
+-- conta bancária real nunca deveria aparecer nas duas tabelas ao mesmo
+-- tempo, mas isso é responsabilidade de quem cadastra — cruzar UNIQUE entre
+-- duas tabelas diferentes não é possível em SQL puro sem trigger, e não foi
+-- criado um aqui.
+CREATE TABLE IF NOT EXISTS contas_pessoais (
+    id              INTEGER PRIMARY KEY,
+    pessoa_id       INTEGER NOT NULL REFERENCES pessoas(id),
+    banco           TEXT NOT NULL,
+    agencia         TEXT,
+    numero          TEXT NOT NULL,
+    tipo            TEXT NOT NULL CHECK (tipo IN ('corrente', 'poupanca', 'investimento')),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_contas_pessoais_pessoa ON contas_pessoais(pessoa_id);
+
+-- Movimento de uma conta pessoal. `valor` é assinado: positivo = dinheiro
+-- ENTRANDO na conta pessoal, negativo = SAINDO dela.
+--
+-- `transferencia_entidade_id` é o ponto sensível de segregação patrimonial:
+-- quando o movimento é uma transferência de/para a entidade (aporte de
+-- capital, retirada de capital, empréstimo de sócio ou sua devolução — ver
+-- `categoria` abaixo e `registrarMovimentoPessoal` em
+-- src/domain/contasPessoais/contasPessoais.ts), este campo aponta para o
+-- lançamento espelho em `ledger_entries` do lado da entidade. Um movimento
+-- com categoria de transferência e este campo NULO é uma transferência
+-- ÓRFÃ — dinheiro que "aparece" de um lado só, sem contrapartida contábil
+-- rastreável do lado da entidade; é exatamente o que
+-- `relatorioSegregacaoPatrimonial` audita.
+CREATE TABLE IF NOT EXISTS movimentos_pessoais (
+    id                          INTEGER PRIMARY KEY,
+    conta_pessoal_id            INTEGER NOT NULL REFERENCES contas_pessoais(id),
+    data                        DATE NOT NULL,
+    valor                       REAL NOT NULL CHECK (valor <> 0),
+    descricao                   TEXT NOT NULL,
+    -- Categoria livre para movimento comum (ex: 'salario', 'alimentacao'); as
+    -- quatro categorias reservadas ('aporte_capital', 'retirada_capital',
+    -- 'emprestimo_socio', 'devolucao_emprestimo' — ver
+    -- CATEGORIAS_TRANSFERENCIA_ENTIDADE em contasPessoais.ts) MARCAM o
+    -- movimento como transferência com a entidade. Não é ENUM/CHECK fechado
+    -- de propósito: um valor livre continua sendo só uma etiqueta de
+    -- relatório; as quatro reservadas é que carregam significado contábil.
+    categoria                   TEXT,
+    transferencia_entidade_id   INTEGER REFERENCES ledger_entries(id),
+    criado_em                   DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_movimentos_pessoais_conta_data ON movimentos_pessoais(conta_pessoal_id, data);
+CREATE INDEX IF NOT EXISTS idx_movimentos_pessoais_categoria ON movimentos_pessoais(categoria);
+
+-- ============================================================================
+-- OPEN BANKING / PAGAMENTOS INICIADOS (src/domain/pagamentos/pagamentosIniciados.ts)
+-- ============================================================================
+-- Pagamento eletrônico (PIX/TED/DOC) INICIADO pelo app — modela só o STATUS do pagamento
+-- (solicitado → confirmado/falhou → conciliado), não uma integração real com API bancária
+-- de pagamento. Hoje o app só IMPORTA extrato (OFX/Pluggy, ver src/domain/importacao/); não
+-- existe aqui nenhuma chamada de rede a provedor nenhum. `confirmarPagamento()` é o PONTO DE
+-- ENTRADA para quando uma integração real existir: uma função que RECEBE a confirmação do
+-- provedor e atualiza o status, nunca uma que liga para fora (ver
+-- src/domain/pagamentos/pagamentosIniciados.ts).
+--
+-- `contas_a_pagar_id` é opcional: um pagamento pode ser a baixa de uma obrigação já
+-- registrada (contas_a_pagar) ou avulso (ex.: pagamento pontual sem obrigação prévia). Ao
+-- contrário da baixa de contas_a_pagar (que já grava direto em `transacoes` e no razão, ver
+-- comentário daquela tabela), este pagamento NÃO lança no razão sozinho — ele só descreve a
+-- intenção e o status de um PIX/TED/DOC. O lançamento contábil de fato só acontece quando o
+-- extrato bancário real for importado e a transação resultante for conciliada aqui
+-- (`transacao_id`), fechando o ciclo por triagem/aprovação como qualquer outra transação
+-- (ver src/domain/importacao/triagem.ts) — nunca automaticamente.
+--
+-- `destinatario_chave_pix` só faz sentido para tipo='pix' — CHECK abaixo recusa gravar chave
+-- em TED/DOC. `motivo_falha` só é gravado quando status='falhou' — mesmo princípio de nunca
+-- congelar um dado que não corresponde ao status atual (ver contas_a_pagar.status).
+--
+-- `status`: 'solicitado' (registrado, nada confirmado ainda) → 'confirmado' (provedor real
+-- confirmou que o pagamento saiu) OU 'falhou' (provedor recusou/reverteu) → 'conciliado'
+-- (a transação bancária correspondente apareceu no extrato importado e foi confirmada
+-- manualmente — NUNCA automática, mesma regra de ouro de documento_transacoes.status).
+CREATE TABLE IF NOT EXISTS pagamentos_iniciados (
+    id                      INTEGER PRIMARY KEY,
+    entidade_id             INTEGER NOT NULL REFERENCES entidades_legais(id),
+    conta_bancaria_id       INTEGER NOT NULL REFERENCES contas_bancarias(id), -- de onde sai o dinheiro
+    tipo                    TEXT NOT NULL CHECK (tipo IN ('pix', 'ted', 'doc')),
+    valor                   REAL NOT NULL CHECK (valor > 0),
+    destinatario_nome       TEXT NOT NULL,
+    destinatario_documento  TEXT NOT NULL,          -- CPF ou CNPJ do destinatário
+    destinatario_chave_pix  TEXT,                   -- só preenchida quando tipo='pix'
+    status                  TEXT NOT NULL DEFAULT 'solicitado' CHECK (status IN ('solicitado', 'confirmado', 'falhou', 'conciliado')),
+    contas_a_pagar_id       INTEGER REFERENCES contas_a_pagar(id), -- opcional: baixa de obrigação já registrada
+    data_solicitacao        DATE NOT NULL,
+    data_confirmacao        DATE,                   -- NULL até confirmado pelo provedor
+    motivo_falha            TEXT,                   -- NULL a menos que status='falhou'
+    transacao_id            INTEGER REFERENCES transacoes(id), -- preenchido só na conciliação com o extrato importado
+    CHECK (destinatario_chave_pix IS NULL OR tipo = 'pix'),
+    CHECK (motivo_falha IS NULL OR status = 'falhou')
+);
+
+-- Consulta mais comum: relatório de pagamentos pendentes de uma entidade (solicitados ou
+-- confirmados, ainda não conciliados) — mesmo padrão de idx_contas_a_pagar_entidade_status_venc.
+CREATE INDEX IF NOT EXISTS idx_pagamentos_iniciados_entidade_status ON pagamentos_iniciados(entidade_id, status, data_solicitacao);
+
+-- ============================================================================
+-- ADVOCACIA: PROCESSOS E PARTES (src/domain/advocacia/advocacia.ts)
+-- ============================================================================
+-- Reconstrução do domínio de advocacia apagado por escrever em tabelas fictícias
+-- (`processos_legais`/`despesas_legais` citadas em rls.postgres.sql linha ~318 nunca
+-- existiram de verdade neste schema — ver docs/dominios-a-reconstruir.md, seção 1).
+--
+-- DECISÃO DE DESENHO (por que não existe `despesas_legais` própria): a despesa jurídica
+-- É uma obrigação com fornecedor, valor e vencimento — exatamente o que `contas_a_pagar`
+-- já resolve (aging, baixa via `registrarLancamentoContabil`, status calculado). Criar
+-- `despesas_legais` duplicaria esse controle de vencimento/baixa inteiro só para trocar o
+-- rótulo. Em vez disso, `contas_a_pagar` ganhou `processo_id` (ver a coluna, acima, no
+-- bloco CONTAS A PAGAR): uma despesa jurídica é uma linha comum de `contas_a_pagar` com
+-- `processo_id` preenchido e `plano_conta_codigo` tipicamente '2.1.11' (Advocacia —
+-- honorários e despesas jurídicas, que já mapeia para 6.3.01 Honorários advocatícios no
+-- razão — ver mapeamentoPlanoApp.ts). Isso também reaproveita de graça o aging/parcelamento
+-- (várias linhas de contas_a_pagar com o mesmo processo_id) sem nenhuma tabela ou lógica de
+-- vencimento nova.
+CREATE TABLE IF NOT EXISTS processos_legais (
+    id                  INTEGER PRIMARY KEY,
+    entidade_id         INTEGER NOT NULL REFERENCES entidades_legais(id),
+    numero_processo     TEXT,          -- NULL até ser protocolado (ex: processo em fase de estudo)
+    tipo                TEXT NOT NULL CHECK (tipo IN ('civel', 'trabalhista', 'tributario', 'outro')),
+    vara_comarca        TEXT,
+    status              TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'suspenso', 'encerrado', 'arquivado')),
+    valor_causa         REAL CHECK (valor_causa IS NULL OR valor_causa >= 0),
+    data_distribuicao   DATE,
+    data_encerramento   DATE,          -- NULL até encerrar
+    resultado           TEXT,          -- texto livre; NULL até encerrar
+    observacoes         TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_processos_legais_entidade_status ON processos_legais(entidade_id, status);
+
+-- Parte do processo: quem move ou é movido (autor/réu) e eventual terceiro interessado.
+-- `representado_por_nos` é o que distingue "nosso cliente" da parte contrária — sem essa
+-- coluna, uma consulta não teria como saber de que lado do processo a entidade está.
+CREATE TABLE IF NOT EXISTS partes_processo (
+    id                      INTEGER PRIMARY KEY,
+    processo_id             INTEGER NOT NULL REFERENCES processos_legais(id),
+    papel                   TEXT NOT NULL CHECK (papel IN ('autor', 'reu', 'terceiro_interessado')),
+    nome                    TEXT NOT NULL,
+    cpf_cnpj                TEXT,
+    representado_por_nos    INTEGER NOT NULL DEFAULT 0 CHECK (representado_por_nos IN (0, 1)),
+    criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_partes_processo_processo ON partes_processo(processo_id);

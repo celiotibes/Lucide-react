@@ -93,7 +93,7 @@ export function calcularBudgetVariance(
      FROM contas_plano_contas cp
      LEFT JOIN ledger_entries le ON le.conta_id = cp.id
        AND le.entidade_id = ? AND le.periodo_id = ?
-     WHERE cp.grupo = 'receita' AND cp.codigo LIKE '5.1%'
+     WHERE cp.grupo = 'receita' AND cp.codigo LIKE '4.1%'
      GROUP BY cp.id, cp.codigo, cp.descricao
      ORDER BY cp.codigo`,
     [entidade_id, periodo_id],
@@ -141,7 +141,7 @@ export function calcularBudgetVariance(
      FROM contas_plano_contas cp
      LEFT JOIN ledger_entries le ON le.conta_id = cp.id
        AND le.entidade_id = ? AND le.periodo_id = ?
-     WHERE cp.grupo = 'despesa' AND cp.codigo LIKE '6.1%'
+     WHERE cp.grupo = 'despesa' AND (cp.codigo LIKE '5.2%' OR cp.codigo LIKE '5.3%' OR cp.codigo LIKE '5.5%' OR cp.codigo LIKE '6.%')
      GROUP BY cp.id, cp.codigo, cp.descricao
      ORDER BY cp.codigo`,
     [entidade_id, periodo_id],

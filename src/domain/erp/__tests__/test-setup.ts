@@ -1,8 +1,37 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
+import { garantirPlanoDeContasErp } from "../planoDeContasErp";
+import type { Database } from "sql.js";
+
+const DIR_MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), "..", "__migrations__");
+
+/** Aplica os .sql de __migrations__ no banco de teste.
+ *
+ * As tabelas desses módulos NÃO são recriadas à mão no bloco de schema acima, de
+ * propósito: quando existiam as duas versões, a cópia do teste derivou da migration
+ * (ganhou ledger_entry_id, perdeu movimento_pessoal_id/tipo_sincronizacao) e passou a
+ * divergir do que o código de produção grava. Lendo o arquivo real, o teste passa a
+ * falhar quando o schema muda de verdade, que é o ponto. */
+function aplicarMigrations(db: Database): void {
+  const arquivos = readdirSync(DIR_MIGRATIONS)
+    .filter((n) => n.endsWith(".sql"))
+    .sort(); // prefixo de data no nome define a ordem
+  for (const arquivo of arquivos) {
+    const sql = readFileSync(join(DIR_MIGRATIONS, arquivo), "utf8");
+    db.run(sql);
+  }
+}
 
 export async function prepararBancoTeste() {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
+  // Integridade referencial ligada, como o schema.sql da produção faz. O fixture rodava
+  // sem ela e por isso era mais permissivo que o app real: aceitava lançamento em conta
+  // inexistente (que obterSaldoConta trata como devedora por omissão, invertendo o sinal
+  // do saldo) e log de sincronização apontando para movimento que não existe.
+  db.run("PRAGMA foreign_keys = ON;");
 
   // Criar esquema básico
   db.run(`
@@ -26,13 +55,18 @@ export async function prepararBancoTeste() {
 
     CREATE TABLE IF NOT EXISTS contas_plano_contas (
       id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
       codigo TEXT NOT NULL,
       descricao TEXT NOT NULL,
       grupo TEXT NOT NULL,
       natureza TEXT NOT NULL,
       analisavel INTEGER DEFAULT 1,
       ativo INTEGER DEFAULT 1,
-      UNIQUE(codigo)
+      -- Produção (contabilidade-reconstituicao/schema.sql) é UNIQUE (entidade_id,
+      -- codigo): o mesmo código de conta existe em entidades diferentes. O fixture
+      -- restringia só por codigo, o que é mais apertado que o app real e fazia
+      -- qualquer teste com duas entidades esbarrar em UNIQUE constraint.
+      UNIQUE(entidade_id, codigo)
     );
 
     CREATE TABLE IF NOT EXISTS ledger_entries (
@@ -51,6 +85,7 @@ export async function prepararBancoTeste() {
       criado_por INTEGER,
       criado_em TEXT,
       estornado_por_id INTEGER,
+      estorno_de_id INTEGER,
       motivo_estorno TEXT,
       auditada INTEGER DEFAULT 0,
       auditado_em TEXT,
@@ -93,6 +128,7 @@ export async function prepararBancoTeste() {
       uso_pessoal INTEGER DEFAULT 0,
       financiado INTEGER DEFAULT 0,
       valor_aquisicao REAL DEFAULT 0,
+      criado_em TEXT,
       FOREIGN KEY (entidade_id) REFERENCES entidades(id)
     );
 
@@ -162,6 +198,11 @@ export async function prepararBancoTeste() {
       valor_despesa REAL NOT NULL,
       beneficiario TEXT,
       referencia_documento TEXT,
+      origem_modulo TEXT DEFAULT 'advocacia',
+      tentativas INTEGER DEFAULT 0,
+      -- Guarda de idempotência, como em pagamentos: marca a despesa já lançada no
+      -- ledger para a sincronização não lançá-la de novo.
+      ledger_entry_id INTEGER,
       criado_em TEXT,
       FOREIGN KEY (processo_id) REFERENCES processos_legais(id),
       FOREIGN KEY (entidade_id) REFERENCES entidades(id),
@@ -178,6 +219,7 @@ export async function prepararBancoTeste() {
       data_abertura TEXT,
       status TEXT DEFAULT 'ativa',
       observacoes TEXT,
+      criado_em TEXT,
       FOREIGN KEY (entidade_id) REFERENCES entidades(id)
     );
 
@@ -191,6 +233,7 @@ export async function prepararBancoTeste() {
       tipo_movimento TEXT,
       valor REAL NOT NULL,
       categoria TEXT,
+      referencia_documento TEXT,
       observacoes TEXT,
       criado_em TEXT,
       FOREIGN KEY (conta_pessoal_id) REFERENCES contas_pessoais(id),
@@ -356,6 +399,10 @@ export async function prepararBancoTeste() {
       data_conclusao TEXT,
       tentativas INTEGER DEFAULT 0,
       ultimo_erro TEXT,
+      -- Guarda de idempotência: preenchido quando o pagamento já virou lançamento
+      -- contábil, e conferido antes de lançar de novo (pagamentos-ledger-integration.ts
+      -- linhas 270 e 418). Sem a coluna o guard nem chegava a ser avaliado.
+      ledger_entry_id INTEGER,
       reconciliacao_status TEXT DEFAULT 'nao_reconciliado',
       reconciliado_em TEXT
     );
@@ -369,7 +416,261 @@ export async function prepararBancoTeste() {
       codigo_retorno TEXT,
       FOREIGN KEY (payment_id) REFERENCES pagamentos(id)
     );
+
+    -- MÓDULO INTEGRAÇÃO ADVOCACIA-LEDGER (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS sincronizacoes_advocacia_ledger (
+      id INTEGER PRIMARY KEY,
+      despesa_legal_id INTEGER,
+      processo_id INTEGER,
+      ledger_entry_id INTEGER,
+      tipo_registro TEXT NOT NULL,
+      tipo_despesa TEXT,
+      origem_modulo TEXT DEFAULT 'advocacia',
+      status TEXT DEFAULT 'sucesso',
+      hash_provenance TEXT,
+      mensagem_erro TEXT,
+      criado_em TEXT,
+      tentativas INTEGER DEFAULT 1
+    );
+
+    -- MÓDULO CONTAS PESSOAIS-LEDGER: as tabelas vêm de __migrations__, carregadas
+    -- ao final desta função. Não recrie aqui — foi exatamente essa cópia paralela
+    -- que derivou da migration e quebrou a suíte.
+
+    -- Log de auditoria de compliance (compliance-audit-log.ts). Faltava no fixture,
+    -- de modo que registrarChamadaAPI gravava no vazio e o relatório saía sempre zerado.
+    CREATE TABLE IF NOT EXISTS auditoria_log (
+      id INTEGER PRIMARY KEY,
+      timestamp TEXT,
+      usuario_id INTEGER,
+      usuario_nome TEXT,
+      ip_origem TEXT,
+      modulo_chamador TEXT,
+      tipo_operacao TEXT,
+      entidade_afetada TEXT,
+      id_entidade INTEGER,
+      descricao_alteracao TEXT,
+      valor_anterior TEXT,
+      valor_novo TEXT,
+      hash_sha256 TEXT,
+      hash_anterior TEXT,
+      status TEXT,
+      mensagem_erro TEXT,
+      tempo_processamento_ms INTEGER,
+      retencao_ate TEXT,
+      assinado INTEGER DEFAULT 0,
+      assinatura_digital TEXT,
+      criado_em TEXT
+    );
+
+    -- Pagamentos PIX (open banking). Faltava no fixture, e como
+    -- initiarPagamentoPIX engole o erro do INSERT num catch, a falha passava calada:
+    -- a função devolvia o pagamento como iniciado sem ter gravado nada.
+    -- FIXME: esse catch silencioso merece revisão — iniciar pagamento e não registrar
+    -- não deveria ser indistinguível de sucesso.
+    CREATE TABLE IF NOT EXISTS pagamentos_pix (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      txid TEXT UNIQUE,
+      chave_pix TEXT,
+      valor REAL,
+      beneficiario TEXT,
+      descricao TEXT,
+      data_solicitacao TEXT,
+      data_confirmacao TEXT,
+      status TEXT DEFAULT 'solicitado',
+      criado_em TEXT
+    );
+
+    -- MÓDULO PAGAMENTOS-LEDGER (PHASE 4-7)
+    -- payment_id em inglês, e não pagamento_id, porque é assim que
+    -- pagamentos-ledger-integration.ts grava e lê (4 ocorrências, nenhuma em
+    -- português). Sem schema de produção para esta tabela, o código é o contrato.
+    CREATE TABLE IF NOT EXISTS sincronizacoes_pagamentos_ledger (
+      id INTEGER PRIMARY KEY,
+      payment_id TEXT,
+      ledger_entry_id INTEGER,
+      tipo_pagamento TEXT,
+      valor REAL,
+      status TEXT DEFAULT 'sucesso',
+      hash_provenance TEXT,
+      mensagem_erro TEXT,
+      tentativas INTEGER DEFAULT 1,
+      criado_em TEXT
+    );
+
+    -- MÓDULO TRANSAÇÕES INTEGRADAS (PHASE 4-7)
+    -- Colunas conforme o INSERT de core.ts (entidade, período, centro de custo, conta,
+    -- data, descrição, valor, tipo, origem, referência, auditada, criação).
+    CREATE TABLE IF NOT EXISTS transacoes_integradas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      centro_custo_id INTEGER,
+      conta_id INTEGER,
+      data TEXT,
+      descricao TEXT,
+      tipo TEXT,
+      valor REAL,
+      origem_modulo TEXT,
+      origem_id INTEGER,
+      referencia_documento TEXT,
+      auditada INTEGER DEFAULT 0,
+      hash_provenance TEXT,
+      criado_em TEXT
+    );
+
+    -- MÓDULO RETIFICAÇÃO (PHASE 4-7)
+    -- Espelha server/migrations/002_retificacao_ledger_mapping.sql, que é o schema que
+    -- ledger.ts grava (retificacao_id, ledger_entry_reverso_id, ledger_entry_novo_id).
+    -- O fixture tinha inventado ledger_entry_original_id/_retificacao_id, e o INSERT do
+    -- código falhava — a retificação era abortada e o teste via só a mensagem de erro.
+    CREATE TABLE IF NOT EXISTS retificacao_ledger_mapping (
+      id INTEGER PRIMARY KEY,
+      retificacao_id INTEGER NOT NULL,
+      ledger_entry_reverso_id INTEGER NOT NULL,
+      ledger_entry_novo_id INTEGER NOT NULL,
+      criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (retificacao_id, ledger_entry_reverso_id, ledger_entry_novo_id)
+    );
+
+    -- MÓDULO APONTAMENTOS (PHASE 4-7)
+    -- Apontamentos do prestador, por tipo de serviço. Estas cinco tabelas e
+    -- memorias_reajuste/emprestimos_parcelas abaixo são consultadas por
+    -- relatorios-apontamento.ts e não existem em schema.sql nem em migration nenhuma:
+    -- o módulo nunca teve onde rodar. As colunas aqui são o contrato que as próprias
+    -- consultas daquele arquivo exigem.
+    -- FIXME: promover a uma migration de verdade — enquanto o schema só existir no
+    -- fixture, o módulo continua sem poder rodar fora do teste.
+    CREATE TABLE IF NOT EXISTS apontamentos_urgencia (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      valor_total REAL,
+      minutos_trabalhados INTEGER,
+      eh_domingo INTEGER DEFAULT 0,
+      descricao TEXT,
+      status TEXT DEFAULT 'aberto',
+      prioridade TEXT,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS apontamentos_airbnb (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      tipo_servico TEXT,
+      numero_quartos INTEGER,
+      valor_total REAL,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS apontamentos_combustivel (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      km_percorrido REAL,
+      valor_litro REAL,
+      valor_total REAL,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS apontamentos_horas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data TEXT,
+      horas_efetivas REAL,
+      valor_hora REAL,
+      valor_total REAL,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS emprestimos_parcelas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      emprestimo_id INTEGER,
+      numero INTEGER,
+      data_vencimento TEXT,
+      principal REAL,
+      juros REAL,
+      valor_parcela REAL,
+      status TEXT DEFAULT 'aberta',
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS memorias_reajuste (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      tipo_item TEXT,
+      valor_anterior REAL,
+      indice_ipca REAL,
+      valor_novo REAL,
+      data_reajuste TEXT,
+      criado_em TEXT
+    );
+
+    -- MÓDULO PESSOAS E PRESTADORES (PHASE 4-7)
+    CREATE TABLE IF NOT EXISTS pessoas (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      nome TEXT,
+      tipo_pessoa TEXT,
+      documento TEXT,
+      criado_em TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS prestadores (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      nome TEXT,
+      tipo_servico TEXT,
+      documento TEXT,
+      criado_em TEXT
+    );
+
+    -- ATENÇÃO: "reembolsos" hoje carrega dois conceitos diferentes com o mesmo nome.
+    --   1) reembolso de despesa do prestador — lido por relatorios-apontamento.ts
+    --      (valor_solicitado/valor_aprovado, tipo_despesa, prestador_id);
+    --   2) estorno de um pagamento — gravado por pagamentos-*.ts
+    --      (pagamento_original_id, valor_reembolso, motivo).
+    -- As colunas abaixo são a união das duas, para os dois módulos rodarem. A separação
+    -- em duas tabelas é mudança de modelagem de produção, fora do alcance de corrigir
+    -- a suíte; enquanto não acontecer, uma linha só faz sentido para um dos usos.
+    CREATE TABLE IF NOT EXISTS reembolsos (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER,
+      periodo_id INTEGER,
+      prestador_id INTEGER,
+      data_solicitacao TEXT,
+      tipo_despesa TEXT,
+      valor_solicitado REAL,
+      valor_aprovado REAL,
+      justificativa TEXT,
+      observacoes TEXT,
+      pagamento_original_id INTEGER,
+      valor_reembolso REAL,
+      motivo TEXT,
+      data_processamento TEXT,
+      valor REAL,
+      descricao TEXT,
+      status TEXT DEFAULT 'pendente',
+      criado_em TEXT
+    );
   `);
+
+  aplicarMigrations(db);
 
   // Inserir dados de teste
   const entidade_id = 1;
@@ -386,13 +687,17 @@ export async function prepararBancoTeste() {
   );
 
   // Criar plano de contas básico
+  // Plano autoritativo do ERP (planoDeContasErp.ts) primeiro: é a fonte única, e é
+  // contra ele que os módulos referenciam conta por número. O bloco abaixo só acrescenta
+  // contas extras de teste, e NÃO pode redefinir nenhum código dele — foi assim que
+  // surgiram as duas colisões (faixa 5 como receita, 4.1.01 como Capital Social).
+  garantirPlanoDeContasErp(db, entidade_id);
+
   const contasPadrao = [
     // Ativo
     ["1.1.01", "Caixa", "ativo", "debito"],
     ["1.1.02", "Conta Bancária", "ativo", "debito"],
     ["1.1.03", "Aplicações Financeiras", "ativo", "debito"],
-    ["2.1.01", "Imóvel", "ativo", "debito"],
-    ["2.1.02", "Equipamentos", "ativo", "debito"],
 
     // Passivo
     ["3.1.01", "Fornecedores", "passivo", "credito"],
@@ -400,15 +705,8 @@ export async function prepararBancoTeste() {
     ["3.2.01", "Empréstimos de Longo Prazo", "passivo", "credito"],
 
     // Patrimônio Líquido
-    ["4.1.01", "Capital Social", "patrimonio_liquido", "credito"],
-    ["4.1.02", "Lucros Acumulados", "patrimonio_liquido", "credito"],
 
     // Receitas
-    ["5.1.01", "Aluguel", "receita", "credito"],
-    ["5.1.02", "Reajustes", "receita", "credito"],
-    ["5.1.03", "Rateios", "receita", "credito"],
-    ["5.2.01", "Juros Recebidos", "receita", "credito"],
-    ["5.3.01", "Outras Receitas", "receita", "credito"],
 
     // Despesas
     ["6.1.01", "Condomínio", "despesa", "debito"],
@@ -419,15 +717,68 @@ export async function prepararBancoTeste() {
     ["6.1.06", "Limpeza", "despesa", "debito"],
     ["6.1.07", "Seguros", "despesa", "debito"],
     ["6.2.01", "Depreciação", "despesa", "debito"],
-    ["6.3.01", "Juros Financiamento", "despesa", "debito"],
-    ["6.3.02", "Juros Mora", "despesa", "debito"],
-    ["6.4.01", "Provisão Devedora", "despesa", "debito"],
+    ["6.3.01", "Despesa com Honorários Advocatícios", "despesa", "debito"],
+    ["6.3.02", "Despesa com Custas Judiciais", "despesa", "debito"],
+    ["6.3.03", "Despesa com Perícia", "despesa", "debito"],
+    ["6.3.04", "Outras Despesas com Processos Legais", "despesa", "debito"],
+    ["6.4.01", "Provisão para Processos Legais", "despesa", "debito"],
+
+    // Contas que os módulos do ERP referenciam por id fixo (MAPEAMENTO_*_LEDGER,
+    // CONTA_CAIXA e afins) e que faltavam no plano. Sem elas, o lançamento ia para uma
+    // conta inexistente e obterSaldoConta caía no default "debito" — passivo baixado
+    // aparecia com o sinal trocado, sem nada acusar o erro.
+    // ATENÇÃO: os módulos usam 5.2.xx como DESPESA, enquanto este plano usa a faixa 5
+    // como RECEITA (5.1.01 Aluguel). A colisão é do código de produção; aqui as contas
+    // entram com a natureza que o uso exige, senão os saldos saem invertidos.
+    ["1.1.05", "Contas Correntes Pessoais", "ativo", "debito"],
+    ["1.2.05", "Imóveis (Ativo Imobilizado)", "ativo", "debito"],
+    ["3.1.05", "Remuneração a Pagar", "passivo", "credito"],
+    ["5.1.05", "Aluguel (despesa alocada)", "despesa", "debito"],
+    ["5.2.05", "Despesa com Manutenção", "despesa", "debito"],
+    ["5.2.06", "Despesa com Energia", "despesa", "debito"],
+    ["5.2.07", "Despesa com Água", "despesa", "debito"],
+    ["5.2.10", "Despesa com Condomínio", "despesa", "debito"],
+    ["5.2.12", "Despesa com Internet/Telecomunicações", "despesa", "debito"],
+    ["5.2.13", "Despesa com Seguros", "despesa", "debito"],
+    ["5.2.14", "Outras Despesas com Imóveis", "despesa", "debito"],
+    ["6.2.02", "Despesas com Utilidades", "despesa", "debito"],
   ];
 
+  // Mapeamento de códigos para IDs esperados pela lógica de negócios
+  const codigoParaId: Record<string, number> = {
+    "1.1.01": 1101, "1.1.02": 1102, "1.1.03": 1103,
+    "3.1.01": 3101, "3.1.02": 3102, "3.2.01": 3201,
+    "6.1.01": 6101, "6.1.02": 6102, "6.1.03": 6103, "6.1.04": 6104, "6.1.05": 6105, "6.1.06": 6106, "6.1.07": 6107,
+    "6.2.01": 6201,
+    "6.3.01": 6301, "6.3.02": 6302, "6.3.03": 6303, "6.3.04": 6304,
+    "6.4.01": 6401,
+    "1.1.05": 1105,
+    "1.2.05": 1205,
+    "3.1.05": 3105,
+    "5.1.05": 5105,
+    "5.2.05": 5205,
+    "5.2.06": 5206,
+    "5.2.07": 5207,
+    "5.2.10": 5210,
+    "5.2.12": 5212,
+    "5.2.13": 5213,
+    "5.2.14": 5214,
+    "6.2.02": 6202,
+  };
+
   for (const [codigo, desc, grupo, natureza] of contasPadrao) {
+    // Id fixo e derivado do código: os testes referenciam contas por esse número
+    // (obterSaldoConta(db, periodo, 3102)). O fallback anterior era Math.random()*10000,
+    // que produzia id float e diferente a cada execução — uma conta nova esquecida no
+    // mapa viraria falha intermitente em vez de erro claro.
+    const id = codigoParaId[codigo];
+    if (id === undefined) throw new Error(`Conta ${codigo} não tem id fixo em codigoParaId — acrescente antes de semeá-la`);
+    // INSERT OR IGNORE: o plano autoritativo do ERP já foi semeado acima e é quem manda.
+    // Este bloco só acrescenta contas extras de teste; se um código já existe lá, a
+    // definição de lá prevalece, em vez de o fixture redefini-la com outro significado.
     db.run(
-      `INSERT INTO contas_plano_contas (codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?)`,
-      [codigo, desc, grupo, natureza]
+      `INSERT OR IGNORE INTO contas_plano_contas (id, entidade_id, codigo, descricao, grupo, natureza) VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, entidade_id, codigo, desc, grupo, natureza]
     );
   }
 
@@ -436,7 +787,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Aluguel - janeiro', 15000, '2026-01-01', 'manual', 1, 'TEST001'
-     FROM contas_plano_contas WHERE codigo = '5.1.01'`,
+     FROM contas_plano_contas WHERE codigo = '4.1.01'`,
     [entidade_id, periodo_id]
   );
 
@@ -444,7 +795,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_credito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Rateios - janeiro', 3000, '2026-01-05', 'manual', 2, 'TEST002'
-     FROM contas_plano_contas WHERE codigo = '5.1.03'`,
+     FROM contas_plano_contas WHERE codigo = '4.1.02'`,
     [entidade_id, periodo_id]
   );
 
@@ -452,7 +803,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Condomínio - janeiro', 2000, '2026-01-10', 'manual', 3, 'TEST003'
-     FROM contas_plano_contas WHERE codigo = '6.1.01'`,
+     FROM contas_plano_contas WHERE codigo = '5.2.10'`,
     [entidade_id, periodo_id]
   );
 
@@ -460,7 +811,7 @@ export async function prepararBancoTeste() {
   db.run(
     `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, valor_debito, data_lancamento, origem_modulo, origem_id, referencia_documento)
      SELECT ?, ?, id, 'Manutenção - janeiro', 800, '2026-01-15', 'manual', 4, 'TEST004'
-     FROM contas_plano_contas WHERE codigo = '6.1.05'`,
+     FROM contas_plano_contas WHERE codigo = '5.2.05'`,
     [entidade_id, periodo_id]
   );
 
@@ -471,6 +822,27 @@ export async function prepararBancoTeste() {
      FROM contas_plano_contas WHERE codigo = '1.1.01'`,
     [entidade_id, periodo_id]
   );
+
+  // Contrapartidas. Os lançamentos acima eram de perna única: receita creditada sem
+  // débito, despesa debitada sem crédito, caixa aberto sem origem. O período ficava
+  // 5.200 fora de balanço e, como encerrarPeriodo recusa período desbalanceado (e faz
+  // bem), nenhum teste de fechamento conseguia chegar ao que queria verificar.
+  const contrapartidas: [string, string, string, number, string][] = [
+    // [código, descrição, coluna, valor, referência]
+    ["1.1.01", "Recebimento aluguel - janeiro", "valor_debito", 15000, "TEST001C"],
+    ["1.1.01", "Recebimento rateios - janeiro", "valor_debito", 3000, "TEST002C"],
+    ["1.1.01", "Pagamento condomínio - janeiro", "valor_credito", 2000, "TEST003C"],
+    ["1.1.01", "Pagamento manutenção - janeiro", "valor_credito", 800, "TEST004C"],
+    ["4.1.01", "Integralização - caixa inicial", "valor_credito", 10000, "TEST005C"],
+  ];
+  contrapartidas.forEach(([codigo, descricao, coluna, valor, referencia], i) => {
+    db.run(
+      `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, descricao, ${coluna}, data_lancamento, origem_modulo, origem_id, referencia_documento)
+       SELECT ?, ?, id, ?, ?, '2026-01-15', 'manual', ?, ?
+       FROM contas_plano_contas WHERE codigo = ?`,
+      [entidade_id, periodo_id, descricao, valor, 100 + i, referencia, codigo]
+    );
+  });
 
   // Ativo imóvel
   db.run(
@@ -540,11 +912,23 @@ export async function prepararBancoTeste() {
     [2, 1, "réu", "João da Silva"]
   );
 
-  // Inserir despesa legal
+  // Inserir despesas legais
   db.run(
     `INSERT INTO despesas_legais (id, processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [1, 1, entidade_id, periodo_id, "2026-01-10", "honorarios_advocaticios", "Honorários causa cobrança", 2500, "Dr. Advogado Silva", "NOTA001", "2026-01-10"]
+  );
+
+  db.run(
+    `INSERT INTO despesas_legais (id, processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [2, 1, entidade_id, periodo_id, "2026-01-11", "custas_judiciais", "Custas processuais", 1500, "Tribunal", "CUSTAS_001", "2026-01-11"]
+  );
+
+  db.run(
+    `INSERT INTO despesas_legais (id, processo_id, entidade_id, periodo_id, data_lancamento, tipo_despesa, descricao, valor_despesa, beneficiario, referencia_documento, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [3, 1, entidade_id, periodo_id, "2026-01-12", "pericia", "Perícia técnica", 3000, "Perito João", "PERICIA_001", "2026-01-12"]
   );
 
   // ===== DADOS DE TESTE: MÓDULO CONTAS PESSOAIS =====
@@ -554,6 +938,25 @@ export async function prepararBancoTeste() {
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [1, entidade_id, "conta_corrente_pessoal", "Conta pessoal Banco X", 500, "2020-01-01", "ativa"]
   );
+
+  // Movimentos pessoais que os testes de integração referenciam por id. Sem eles, o
+  // FOREIGN KEY de contas_pessoais_sincronizacao_log → movimentos_pessoais falha, e o
+  // fixture só não acusava porque rodava com foreign_keys desligada — mais permissivo
+  // que a produção, que liga a integridade referencial no schema.sql.
+  // Conta técnica separada: os movimentos abaixo existem só para satisfazer a chave
+  // estrangeira, e prendê-los à conta 1 alteraria o saldo que outros testes verificam.
+  db.run(
+    `INSERT INTO contas_pessoais (id, entidade_id, tipo_conta, descricao, saldo_inicial, data_abertura, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [99, entidade_id, "conta_corrente_pessoal", "Conta técnica (apenas para FK de movimentos)", 0, "2020-01-01", "ativa"]
+  );
+  for (const idMovimento of [1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 30, 40, 41, 50, 51, 52, 60, 61, 62, 63, 70, 71, 72, 80, 81, 82]) {
+    db.run(
+      `INSERT INTO movimentos_pessoais (id, conta_pessoal_id, entidade_id, periodo_id, data_movimento, descricao, tipo_movimento, valor, criado_em)
+       VALUES (?, 99, ?, ?, '2026-01-10', 'Movimento de teste', 'deposito', 100, '2026-01-10')`,
+      [idMovimento, entidade_id, periodo_id]
+    );
+  }
 
   // ===== DADOS DE TESTE: MÓDULO GESTÃO DE IMÓVEIS =====
   // Inserir documento de imóvel (Escritura)

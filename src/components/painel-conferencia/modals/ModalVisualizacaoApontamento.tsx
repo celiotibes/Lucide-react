@@ -1,13 +1,6 @@
-import { Apontamento } from "@/domain/apontamentos";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { Apontamento } from "../../../domain/apontamentos";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Badge } from "../ui";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
 import MemoriaCalculoDetalhada from "./MemoriaCalculoDetalhada";
 import { AlertCircle } from "lucide-react";
 

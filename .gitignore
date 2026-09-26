@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.db
+
+# Arquivos de runtime do SQLite. O `*.db` acima não os alcança porque a extensão
+# real é `.db-shm` / `.db-wal` — por isso os dois estavam versionados e apareciam
+# como alteração binária a cada vez que o servidor subia.
+*.db-shm
+*.db-wal

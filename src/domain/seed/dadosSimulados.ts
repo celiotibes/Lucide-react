@@ -441,6 +441,15 @@ export function limparBanco(db: Database): void {
   const tabelas = [
     // tabelas com FK para outras vêm primeiro (ordem importa mesmo com PRAGMA foreign_keys
     // ligado, porque o SQLite valida a FK no momento do DELETE, não no fim da transação)
+
+    // O razão vai junto. Ele é derivado de `transacoes` (ver migracao-ledger.ts): apagar a
+    // origem e manter os lançamentos deixaria o razão apontando para transações que não
+    // existem mais e, pior, a migração seguinte pularia as transações novas como "já
+    // migradas" — os ids recomeçam e colidiriam com os origem_id antigos. A entidade legal
+    // e o plano de contas do razão NÃO entram nesta lista de propósito: são identidade e
+    // configuração, não dados de demonstração, e recriá-los obrigaria a refazer o
+    // onboarding a cada recarga da demonstração.
+    "ledger_encerramentos", "ledger_saldos_periodo", "ledger_entries", "periodos_contabeis",
     "documento_transacoes", "documento_imoveis", "documentos",
     "rateios", "regras_categorizacao", "transacoes",
     "caucoes", "contrato_reajustes", "contrato_locatarios", "contratos_locacao",

@@ -1,10 +1,79 @@
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Home, Users, Trash2 } from "lucide-react";
+import { Plus, Pencil, Home, Users, Trash2, Wrench, Check, X } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
-import type { Imovel, ItemInventarioBem, RegimePatrimonial, TipoImovel } from "../domain/types";
+import type {
+  ContratoLocacao,
+  Imovel,
+  Inquilino,
+  ItemInventarioBem,
+  Manutencao,
+  RegimePatrimonial,
+  StatusManutencao,
+  TipoImovel,
+} from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { registrarLog, resumirDiferenca } from "../domain/auditoria/logAlteracoes";
+import { obterEntidadeAtiva } from "../domain/erp/entidadeLegal";
+import {
+  cadastrarInquilino,
+  listarInquilinosPorImovel,
+  removerInquilino,
+  agendarManutencao,
+  listarManutencoesPorImovel,
+  iniciarManutencao,
+  concluirManutencao,
+  cancelarManutencao,
+  obterResumoDespesasAgendadasImovel,
+} from "../domain/erp/gestaoOperacionalImovel";
+
+const ROTULO_STATUS_MANUTENCAO: Record<StatusManutencao, string> = {
+  agendada: "Agendada",
+  em_andamento: "Em andamento",
+  concluida: "Concluída",
+  cancelada: "Cancelada",
+};
+
+const PILL_STATUS_MANUTENCAO: Record<StatusManutencao, string> = {
+  agendada: "",
+  em_andamento: "warning",
+  concluida: "good",
+  cancelada: "",
+};
+
+interface RascunhoInquilino {
+  nome: string;
+  cpf_cnpj: string;
+  telefone: string;
+  email: string;
+  contrato_id: string;
+  observacoes: string;
+}
+
+const RASCUNHO_INQUILINO_VAZIO: RascunhoInquilino = {
+  nome: "",
+  cpf_cnpj: "",
+  telefone: "",
+  email: "",
+  contrato_id: "",
+  observacoes: "",
+};
+
+interface RascunhoManutencao {
+  tipo: string;
+  descricao: string;
+  data_agendada: string;
+  custo: string;
+  observacoes: string;
+}
+
+const RASCUNHO_MANUTENCAO_VAZIO: RascunhoManutencao = {
+  tipo: "",
+  descricao: "",
+  data_agendada: "",
+  custo: "",
+  observacoes: "",
+};
 
 const ROTULO_TIPO: Record<TipoImovel, string> = {
   apartamento: "Apartamento",
@@ -58,16 +127,49 @@ export function ImoveisView() {
   const { db, versao, persistir } = useDb();
   const [form, setForm] = useState<FormularioImovel | null>(null);
   const [novoItemInventario, setNovoItemInventario] = useState({ descricao: "", valor_reposicao: "", data_vistoria: "" });
+  const [abaOperacional, setAbaOperacional] = useState<"inquilinos" | "manutencoes">("inquilinos");
+  const [rascunhoInquilino, setRascunhoInquilino] = useState<RascunhoInquilino>(RASCUNHO_INQUILINO_VAZIO);
+  const [rascunhoManutencao, setRascunhoManutencao] = useState<RascunhoManutencao>(RASCUNHO_MANUTENCAO_VAZIO);
+  const [concluindoId, setConcluindoId] = useState<number | null>(null);
+  const [dataConclusao, setDataConclusao] = useState("");
+  const [custoConclusao, setCustoConclusao] = useState("");
+  const [cancelandoManutencaoId, setCancelandoManutencaoId] = useState<number | null>(null);
+  const [motivoCancelamentoManutencao, setMotivoCancelamentoManutencao] = useState("");
 
   const imoveis = useMemo<Imovel[]>(
     () => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade, 'zzz'), apelido") : []),
     [db, versao],
   );
 
+  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+
   const formId = form?.id ?? null;
   const itensInventario = useMemo<ItemInventarioBem[]>(
     () => (db && formId ? consultar<ItemInventarioBem>(db, "SELECT * FROM imovel_inventario_bens WHERE imovel_id = ? ORDER BY id", [formId]) : []),
     [db, versao, formId],
+  );
+
+  const contratosDoImovel = useMemo<ContratoLocacao[]>(
+    () =>
+      db && formId
+        ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE imovel_id = ? ORDER BY data_inicio DESC", [formId])
+        : [],
+    [db, versao, formId],
+  );
+
+  const inquilinos = useMemo<Inquilino[]>(
+    () => (db && formId ? listarInquilinosPorImovel(db, formId) : []),
+    [db, versao, formId],
+  );
+
+  const manutencoes = useMemo<Manutencao[]>(
+    () => (db && formId ? listarManutencoesPorImovel(db, formId) : []),
+    [db, versao, formId],
+  );
+
+  const resumoDespesas = useMemo(
+    () => (db && formId && entidade ? obterResumoDespesasAgendadasImovel(db, entidade.id, formId) : null),
+    [db, versao, formId, entidade],
   );
 
   const cidadesConhecidas = useMemo(
@@ -202,6 +304,105 @@ export function ImoveisView() {
     if (!db) return;
     executar(db, "DELETE FROM imovel_inventario_bens WHERE id = ?", [itemId]);
     await persistir();
+  }
+
+  async function adicionarInquilino() {
+    if (!db || !form?.id || rascunhoInquilino.nome.trim() === "") return;
+    const resultado = cadastrarInquilino(db, {
+      imovel_id: form.id,
+      nome: rascunhoInquilino.nome,
+      cpf_cnpj: rascunhoInquilino.cpf_cnpj || undefined,
+      telefone: rascunhoInquilino.telefone || undefined,
+      email: rascunhoInquilino.email || undefined,
+      contrato_id: rascunhoInquilino.contrato_id ? Number(rascunhoInquilino.contrato_id) : undefined,
+      observacoes: rascunhoInquilino.observacoes || undefined,
+    });
+    if (!resultado.sucesso) {
+      alert(resultado.mensagem);
+      return;
+    }
+    await persistir();
+    setRascunhoInquilino(RASCUNHO_INQUILINO_VAZIO);
+  }
+
+  async function removerInquilinoCadastrado(id: number) {
+    if (!db) return;
+    const resultado = removerInquilino(db, id);
+    if (!resultado.sucesso) {
+      alert(resultado.mensagem);
+      return;
+    }
+    await persistir();
+  }
+
+  async function adicionarManutencao() {
+    if (!db || !form?.id || rascunhoManutencao.tipo.trim() === "" || rascunhoManutencao.descricao.trim() === "" || !rascunhoManutencao.data_agendada) {
+      return;
+    }
+    const resultado = agendarManutencao(db, {
+      imovel_id: form.id,
+      tipo: rascunhoManutencao.tipo,
+      descricao: rascunhoManutencao.descricao,
+      data_agendada: rascunhoManutencao.data_agendada,
+      custo: rascunhoManutencao.custo.trim() === "" ? undefined : Number.parseFloat(rascunhoManutencao.custo.replace(",", ".")),
+      observacoes: rascunhoManutencao.observacoes || undefined,
+    });
+    if (!resultado.sucesso) {
+      alert(resultado.mensagem);
+      return;
+    }
+    await persistir();
+    setRascunhoManutencao(RASCUNHO_MANUTENCAO_VAZIO);
+  }
+
+  async function iniciarManutencaoAgendada(id: number) {
+    if (!db) return;
+    const resultado = iniciarManutencao(db, id);
+    if (!resultado.sucesso) {
+      alert(resultado.mensagem);
+      return;
+    }
+    await persistir();
+  }
+
+  function abrirConclusaoManutencao(m: Manutencao) {
+    setCancelandoManutencaoId(null);
+    setConcluindoId(m.id);
+    setDataConclusao(new Date().toISOString().slice(0, 10));
+    setCustoConclusao(m.custo !== undefined && m.custo !== null ? String(m.custo) : "");
+  }
+
+  async function confirmarConclusaoManutencao() {
+    if (!db || concluindoId === null || !dataConclusao) return;
+    const resultado = concluirManutencao(
+      db,
+      concluindoId,
+      dataConclusao,
+      custoConclusao.trim() === "" ? undefined : Number.parseFloat(custoConclusao.replace(",", ".")),
+    );
+    if (!resultado.sucesso) {
+      alert(resultado.mensagem);
+      return;
+    }
+    await persistir();
+    setConcluindoId(null);
+  }
+
+  function abrirCancelamentoManutencao(id: number) {
+    setConcluindoId(null);
+    setCancelandoManutencaoId(id);
+    setMotivoCancelamentoManutencao("");
+  }
+
+  async function confirmarCancelamentoManutencao() {
+    if (!db || cancelandoManutencaoId === null) return;
+    const resultado = cancelarManutencao(db, cancelandoManutencaoId, motivoCancelamentoManutencao);
+    if (!resultado.sucesso) {
+      alert(resultado.mensagem);
+      return;
+    }
+    await persistir();
+    setCancelandoManutencaoId(null);
   }
 
   return (
@@ -382,6 +583,262 @@ export function ImoveisView() {
                   <Plus size={13} />
                 </button>
               </div>
+            </div>
+          )}
+
+          {form.id !== null && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 6, fontWeight: 600 }}>
+                Gestão operacional
+              </div>
+
+              {resumoDespesas && (
+                <div className="kpi-grid" style={{ marginBottom: 10 }}>
+                  <div className="kpi-tile">
+                    <div className="label">Despesas atrasadas</div>
+                    <div className={`value ${resumoDespesas.total_atrasado > 0 ? "critical" : ""}`}>{formatarMoeda(resumoDespesas.total_atrasado)}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{resumoDespesas.quantidade_atrasada} conta(s)</div>
+                  </div>
+                  <div className="kpi-tile">
+                    <div className="label">Despesas a vencer</div>
+                    <div className="value">{formatarMoeda(resumoDespesas.total_pendente)}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{resumoDespesas.quantidade_pendente} conta(s)</div>
+                  </div>
+                </div>
+              )}
+              {!entidade && (
+                <p style={{ fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 10 }}>
+                  Cadastre a entidade titular para ver o resumo de despesas agendadas deste imóvel.
+                </p>
+              )}
+
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                <button
+                  className={`btn ${abaOperacional === "inquilinos" ? "primary" : ""}`}
+                  onClick={() => setAbaOperacional("inquilinos")}
+                >
+                  <Users size={13} /> Inquilinos ({inquilinos.length})
+                </button>
+                <button
+                  className={`btn ${abaOperacional === "manutencoes" ? "primary" : ""}`}
+                  onClick={() => setAbaOperacional("manutencoes")}
+                >
+                  <Wrench size={13} /> Manutenções ({manutencoes.length})
+                </button>
+              </div>
+
+              {abaOperacional === "inquilinos" && (
+                <div>
+                  {inquilinos.length > 0 && (
+                    <div className="table-wrap" style={{ marginBottom: 8 }}>
+                      <table className="data-table">
+                        <thead>
+                          <tr><th>Nome</th><th>Contato</th><th>Contrato</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                          {inquilinos.map((inq) => (
+                            <tr key={inq.id}>
+                              <td>
+                                {inq.nome}
+                                {inq.cpf_cnpj && <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{inq.cpf_cnpj}</div>}
+                              </td>
+                              <td style={{ fontSize: 12.5 }}>
+                                {inq.telefone ?? "—"}
+                                {inq.email && <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{inq.email}</div>}
+                              </td>
+                              <td>
+                                {inq.contrato_id ? (
+                                  <span className="pill good">contrato #{inq.contrato_id}</span>
+                                ) : (
+                                  <span className="pill" title="Sem contrato vigente ligado">sem contrato</span>
+                                )}
+                              </td>
+                              <td>
+                                <button className="btn" style={{ padding: "3px 6px" }} onClick={() => removerInquilinoCadastrado(inq.id)}>
+                                  <Trash2 size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 6, marginBottom: 6 }}>
+                    <input
+                      className="btn" style={{ cursor: "text" }}
+                      placeholder="Nome *"
+                      value={rascunhoInquilino.nome}
+                      onChange={(e) => setRascunhoInquilino({ ...rascunhoInquilino, nome: e.target.value })}
+                    />
+                    <input
+                      className="btn" style={{ cursor: "text" }}
+                      placeholder="CPF/CNPJ"
+                      value={rascunhoInquilino.cpf_cnpj}
+                      onChange={(e) => setRascunhoInquilino({ ...rascunhoInquilino, cpf_cnpj: e.target.value })}
+                    />
+                    <input
+                      className="btn" style={{ cursor: "text" }}
+                      placeholder="Telefone"
+                      value={rascunhoInquilino.telefone}
+                      onChange={(e) => setRascunhoInquilino({ ...rascunhoInquilino, telefone: e.target.value })}
+                    />
+                    <input
+                      className="btn" style={{ cursor: "text" }}
+                      placeholder="E-mail"
+                      value={rascunhoInquilino.email}
+                      onChange={(e) => setRascunhoInquilino({ ...rascunhoInquilino, email: e.target.value })}
+                    />
+                    <select
+                      className="btn"
+                      value={rascunhoInquilino.contrato_id}
+                      onChange={(e) => setRascunhoInquilino({ ...rascunhoInquilino, contrato_id: e.target.value })}
+                    >
+                      <option value="">Contrato vigente (opcional)</option>
+                      {contratosDoImovel.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          #{c.id} · {c.locatario} {c.data_fim ? `(até ${c.data_fim})` : "(vigente)"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      className="btn" style={{ cursor: "text", flex: 1 }}
+                      placeholder="Observações"
+                      value={rascunhoInquilino.observacoes}
+                      onChange={(e) => setRascunhoInquilino({ ...rascunhoInquilino, observacoes: e.target.value })}
+                    />
+                    <button className="btn" disabled={rascunhoInquilino.nome.trim() === ""} onClick={adicionarInquilino}>
+                      <Plus size={13} /> Cadastrar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {abaOperacional === "manutencoes" && (
+                <div>
+                  {manutencoes.length > 0 && (
+                    <div className="table-wrap" style={{ marginBottom: 8 }}>
+                      <table className="data-table">
+                        <thead>
+                          <tr><th>Tipo</th><th>Descrição</th><th>Agendada</th><th className="num">Custo</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                          {manutencoes.map((m) => (
+                            <>
+                              <tr key={m.id}>
+                                <td>{m.tipo}</td>
+                                <td style={{ fontSize: 12.5 }}>{m.descricao}</td>
+                                <td>{m.data_agendada}{m.data_conclusao ? <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>concluída {m.data_conclusao}</div> : null}</td>
+                                <td className="num">{m.custo !== undefined && m.custo !== null ? formatarMoeda(m.custo) : "—"}</td>
+                                <td><span className={`pill ${PILL_STATUS_MANUTENCAO[m.status]}`}>{ROTULO_STATUS_MANUTENCAO[m.status]}</span></td>
+                                <td style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                  {m.status === "agendada" && (
+                                    <button className="btn" style={{ padding: "3px 6px", fontSize: 12 }} onClick={() => iniciarManutencaoAgendada(m.id)}>
+                                      Iniciar
+                                    </button>
+                                  )}
+                                  {(m.status === "agendada" || m.status === "em_andamento") && (
+                                    <>
+                                      <button className="btn primary" style={{ padding: "3px 6px", fontSize: 12 }} onClick={() => abrirConclusaoManutencao(m)}>
+                                        Concluir
+                                      </button>
+                                      <button className="btn danger" style={{ padding: "3px 6px", fontSize: 12 }} onClick={() => abrirCancelamentoManutencao(m.id)}>
+                                        Cancelar
+                                      </button>
+                                    </>
+                                  )}
+                                </td>
+                              </tr>
+                              {concluindoId === m.id && (
+                                <tr key={`${m.id}-concluir`}>
+                                  <td colSpan={6} style={{ background: "var(--surface-2)" }}>
+                                    <div style={{ display: "flex", gap: 10, alignItems: "flex-end", padding: "10px 4px", flexWrap: "wrap" }}>
+                                      <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                                        Data de conclusão
+                                        <input type="date" className="btn" style={{ marginTop: 4 }} value={dataConclusao} onChange={(e) => setDataConclusao(e.target.value)} />
+                                      </label>
+                                      <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                                        Custo final (R$)
+                                        <input className="btn" style={{ cursor: "text", marginTop: 4, width: 120 }} value={custoConclusao} onChange={(e) => setCustoConclusao(e.target.value)} />
+                                      </label>
+                                      <button className="btn primary" disabled={!dataConclusao} onClick={confirmarConclusaoManutencao}>
+                                        <Check size={13} /> Confirmar
+                                      </button>
+                                      <button className="btn" onClick={() => setConcluindoId(null)}>
+                                        <X size={13} /> Cancelar
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              {cancelandoManutencaoId === m.id && (
+                                <tr key={`${m.id}-cancelar`}>
+                                  <td colSpan={6} style={{ background: "var(--surface-2)" }}>
+                                    <div style={{ display: "flex", gap: 10, alignItems: "flex-end", padding: "10px 4px", flexWrap: "wrap" }}>
+                                      <label style={{ fontSize: 12, color: "var(--ink-soft)", flex: 1, minWidth: 200 }}>
+                                        Motivo do cancelamento
+                                        <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={motivoCancelamentoManutencao} onChange={(e) => setMotivoCancelamentoManutencao(e.target.value)} />
+                                      </label>
+                                      <button className="btn danger" disabled={!motivoCancelamentoManutencao.trim()} onClick={confirmarCancelamentoManutencao}>
+                                        <Check size={13} /> Confirmar
+                                      </button>
+                                      <button className="btn" onClick={() => setCancelandoManutencaoId(null)}>
+                                        <X size={13} /> Voltar
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 6, marginBottom: 6 }}>
+                    <input
+                      className="btn" style={{ cursor: "text" }}
+                      placeholder="Tipo * (ex: elétrica)"
+                      value={rascunhoManutencao.tipo}
+                      onChange={(e) => setRascunhoManutencao({ ...rascunhoManutencao, tipo: e.target.value })}
+                    />
+                    <input
+                      className="btn" style={{ cursor: "text" }}
+                      placeholder="Descrição *"
+                      value={rascunhoManutencao.descricao}
+                      onChange={(e) => setRascunhoManutencao({ ...rascunhoManutencao, descricao: e.target.value })}
+                    />
+                    <input
+                      type="date" className="btn"
+                      value={rascunhoManutencao.data_agendada}
+                      onChange={(e) => setRascunhoManutencao({ ...rascunhoManutencao, data_agendada: e.target.value })}
+                    />
+                    <input
+                      className="btn" style={{ cursor: "text" }}
+                      placeholder="Custo estimado (R$)"
+                      value={rascunhoManutencao.custo}
+                      onChange={(e) => setRascunhoManutencao({ ...rascunhoManutencao, custo: e.target.value })}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      className="btn" style={{ cursor: "text", flex: 1 }}
+                      placeholder="Observações"
+                      value={rascunhoManutencao.observacoes}
+                      onChange={(e) => setRascunhoManutencao({ ...rascunhoManutencao, observacoes: e.target.value })}
+                    />
+                    <button
+                      className="btn"
+                      disabled={rascunhoManutencao.tipo.trim() === "" || rascunhoManutencao.descricao.trim() === "" || !rascunhoManutencao.data_agendada}
+                      onClick={adicionarManutencao}
+                    >
+                      <Plus size={13} /> Agendar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

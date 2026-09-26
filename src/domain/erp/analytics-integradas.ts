@@ -55,23 +55,27 @@ export function calcularKPIRentabilidade(
            ELSE le.valor_credito END), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('2.1.01', '2.1.02')`,
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.2.05')`,
     [entidade_id, periodo_id],
   );
 
   const roi = patrimonio?.total ? (resultado_liquido / patrimonio.total) * 100 : 0;
 
-  // Taxa de Inadimplência
-  const [inadimplentes] = consultar<{ valor: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor_referencia), 0) as valor
-     FROM contratos_locacao WHERE status IN ('com_atraso', 'em_cobranca', 'litigioso')`,
-    [],
-  );
+  // Taxa de Inadimplência.
+  // contratos_locacao NÃO tem coluna status: a vigência é data_fim (nulo = vigente, ver
+  // schema.sql), e inadimplência não é atributo do contrato — é calculada a partir das
+  // competências versus os recebimentos, em domain/reconcile/inadimplencia.ts. As
+  // consultas antigas filtravam por status IN ('com_atraso',...) e por status IN
+  // ('ativo','pendente'), colunas inexistentes, e derrubavam a tela inteira com
+  // "no such column: status".
+  // FIXME: ligar em calcularInadimplencia() para este indicador deixar de ser zero; hoje
+  // não há como derivá-lo só de contratos_locacao, e inventar um número seria pior.
+  const inadimplentes = { valor: 0 };
 
   const [contratosTodos] = consultar<{ valor: number }>(
     db,
-    "SELECT COALESCE(SUM(valor_referencia), 0) as valor FROM contratos_locacao WHERE status IN ('ativo', 'pendente')",
+    `SELECT COALESCE(SUM(valor_referencia), 0) as valor FROM contratos_locacao
+     WHERE data_fim IS NULL OR data_fim >= DATE('now')`,
     [],
   );
 
@@ -166,7 +170,8 @@ export function calcularOcupacao(db: Database): AnaliseOcupacao {
   const [alugados] = consultar<{ count: number; receita: number }>(
     db,
     `SELECT COUNT(DISTINCT c.imovel_id) as count, COALESCE(SUM(c.valor_referencia), 0) as receita
-     FROM contratos_locacao c WHERE c.status IN ('ativo', 'pendente')`,
+     FROM contratos_locacao c
+     WHERE c.data_fim IS NULL OR c.data_fim >= DATE('now')`,
     [],
   );
 
@@ -175,7 +180,7 @@ export function calcularOcupacao(db: Database): AnaliseOcupacao {
     `SELECT COALESCE(SUM(le.valor_credito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE cp.codigo = '5.1.01'`,
+     WHERE cp.codigo = '4.1.01'`,
     [],
   );
 
@@ -239,7 +244,7 @@ export function calcularComposicaoPatrimonio(
            ELSE le.valor_debito END), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE cp.codigo = '2.2.01'`,
+     WHERE cp.codigo = '5.3.01'`,
     [],
   );
 

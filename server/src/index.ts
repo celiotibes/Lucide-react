@@ -3,6 +3,10 @@ import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { pluggy, normalizarTransacao } from "./pluggy.js";
+import { initializeDatabase, getDatabase, closeDatabase } from "./database-init.js";
+import { AuthServiceDB } from "../src/domain/auth/auth-service-db.js";
+import { AuditTrailServiceDB } from "../src/domain/auth/audit-trail-db.js";
+import { DuplicatePaymentGuardDB } from "../src/domain/erp/duplicate-payment-guard-db.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -12,9 +16,26 @@ if (!process.env.API_KEY) {
 }
 const API_KEY = process.env.API_KEY;
 
+// Phase 2: Initialize database and services on startup
+console.log("[Server] Initializing database...");
+const db = initializeDatabase();
+
+// Create singleton service instances
+const authService = new AuthServiceDB(db);
+const auditService = new AuditTrailServiceDB(db);
+const paymentGuard = new DuplicatePaymentGuardDB(db);
+
+console.log("[Server] Database and services initialized");
+
 const app = express();
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN ?? "http://localhost:5173" }));
 app.use(express.json());
+
+// Attach services to app context for use in routes
+app.locals.authService = authService;
+app.locals.auditService = auditService;
+app.locals.paymentGuard = paymentGuard;
+app.locals.db = db;
 
 // Limite de requisições por IP — protege contra força bruta de itemId/accountId (agravaria o
 // achado abaixo se não houvesse chave) e contra estourar a cota paga da API da Pluggy.
@@ -143,6 +164,23 @@ app.use((erro: unknown, _req: express.Request, res: express.Response, _next: exp
 });
 
 const porta = Number(process.env.PORT) || 8787;
-app.listen(porta, () => {
+const server = app.listen(porta, () => {
   console.log(`Servidor de integração Pluggy rodando em http://localhost:${porta}`);
+});
+
+// Graceful shutdown - close database connection
+process.on("SIGTERM", () => {
+  console.log("[Server] SIGTERM received, closing server...");
+  server.close(() => {
+    closeDatabase();
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("[Server] SIGINT received, closing server...");
+  server.close(() => {
+    closeDatabase();
+    process.exit(0);
+  });
 });

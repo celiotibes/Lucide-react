@@ -1,13 +1,43 @@
 import { describe, expect, it } from "vitest";
 import initSqlJs from "sql.js";
 import schemaSql from "../../contabilidade-reconstituicao/schema.sql?raw";
-import { parseTabelasDoSchema, garantirColunasAtualizadas } from "./migracoes";
+import { parseTabelasDoSchema, garantirColunasAtualizadas, reconstruirLedgerEntries } from "./migracoes";
 
 describe("parseTabelasDoSchema — contra o schema.sql real", () => {
   const tabelas = parseTabelasDoSchema(schemaSql);
 
-  it("encontra todas as 37 tabelas do schema", () => {
-    expect(tabelas.size).toBe(37);
+  it("encontra as tabelas do schema (pelo menos 65 — número exato varia enquanto vários "
+    + "domínios do balde B/docs/dominios-a-reconstruir.md são reconstruídos em paralelo; "
+    + "este teste checa a PRESENÇA de cada tabela conhecida, não um total fixo, para não "
+    + "ficar quebrando a cada tabela nova de um domínio irmão)", () => {
+    expect(tabelas.size).toBeGreaterThanOrEqual(65);
+    // As mais novas a entrar: contas a pagar (src/domain/contasAPagar/), sugestão de
+    // classificação de transação por IA (src/domain/categorize/sugestaoClassificacaoIA.ts)
+    // — esta última é camada a mais sobre a classificação determinística/manual, nunca
+    // uma substituição —, o log de provisionamento de vistoria (balde C,
+    // integracao-vistorias-provisionamento.ts), competências mensais de aluguel
+    // (aluguel-competencias.ts, substitui regras_contabilizacao — tabela morta removida),
+    // o cadastro operacional de imóvel (inquilinos, manutencoes — balde B seção 3), LGPD
+    // (solicitacoes_lgpd, politica_rotacao_chave — balde B seção 6), contas pessoais
+    // (pessoas, contas_pessoais, movimentos_pessoais — balde B seção 2), advocacia
+    // (processos_legais, partes_processo — balde B seção 1) e pagamentos iniciados
+    // (pagamentos_iniciados — balde B seção 4, PIX/TED/DOC).
+    for (const nova of [
+      "extrato_saldos_informados",
+      "conciliacoes_bancarias",
+      "conciliacoes_itens",
+      "ia_chamadas",
+      "contas_a_pagar",
+      "sugestoes_classificacao_ia",
+      "provisionamento_vistoria_log",
+      "aluguel_competencias",
+      "inquilinos",
+      "manutencoes",
+      "pagamentos_iniciados",
+    ]) {
+      expect(tabelas.has(nova)).toBe(true);
+    }
+    expect(tabelas.has("regras_contabilizacao")).toBe(false);
   });
 
   it("imoveis: extrai co_titular_nome corretamente apesar do comentário multilinha com parêntese desbalanceado numa única linha (achado de auditoria anterior)", () => {
@@ -116,5 +146,109 @@ describe("garantirColunasAtualizadas — migração aditiva num banco 'antigo' d
     expect(colunas).toContain("base_incompleta");
     const [linha] = db.exec("SELECT base_incompleta FROM rateios WHERE id = 1")[0].values;
     expect(linha[0]).toBe(0);
+  });
+});
+
+describe("reconstruirLedgerEntries — banco criado antes da correção de constraint", () => {
+  // Definição de ledger_entries como estava antes: uma linha por documento de origem
+  // (impossibilitando a contrapartida) e um CHECK de origem_modulo com 8 valores.
+  const LEDGER_ANTIGO = `
+    CREATE TABLE ledger_entries (
+      id INTEGER PRIMARY KEY,
+      entidade_id INTEGER NOT NULL,
+      periodo_id INTEGER NOT NULL,
+      centro_custo_id INTEGER,
+      conta_id INTEGER NOT NULL,
+      data_lancamento DATE NOT NULL,
+      valor_debito REAL,
+      valor_credito REAL,
+      descricao TEXT NOT NULL,
+      origem_modulo TEXT NOT NULL CHECK (origem_modulo IN (
+        'transacoes','contratos','patrimonio','caucao','financiamento','rateio','vistorias','manual'
+      )),
+      origem_id INTEGER NOT NULL,
+      referencia_documento TEXT NOT NULL,
+      criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      criado_por INTEGER,
+      auditada INTEGER NOT NULL DEFAULT 0,
+      auditado_em DATETIME,
+      auditado_por INTEGER,
+      estornado_por_id INTEGER,
+      motivo_estorno TEXT,
+      UNIQUE (origem_modulo, origem_id)
+    );`;
+
+  async function bancoLegado() {
+    const SQL = await initSqlJs({ locateFile: (a) => `node_modules/sql.js/dist/${a}` });
+    const db = new SQL.Database();
+    db.run(schemaSql);
+    db.run("DROP TABLE ledger_entries");
+    db.run(LEDGER_ANTIGO);
+    // A tabela antiga não tinha FK; a nova tem. Sem as linhas-pai o INSERT passa antes da
+    // migração e falha depois — por FK, não pela constraint sob teste.
+    db.run(`INSERT INTO entidades_legais (id, tipo, cpf_cnpj, nome) VALUES (1, 'pessoa_fisica', '52998224725', 'Titular')`);
+    db.run(`INSERT INTO periodos_contabeis (id, entidade_id, ano, mes) VALUES (1, 1, 2024, 3)`);
+    for (const [id, codigo, grupo, natureza] of [
+      [1101, '1.1.01', 'ativo', 'debito'],
+      [4101, '4.1.01', 'receita', 'credito'],
+      [6301, '6.3.01', 'despesa', 'debito'],
+    ] as const) {
+      db.run(
+        `INSERT INTO contas_plano_contas (id, entidade_id, codigo, descricao, grupo, natureza)
+         VALUES (?, 1, ?, 'Conta', ?, ?)`,
+        [id, codigo, grupo, natureza],
+      );
+    }
+    db.run(
+      `INSERT INTO ledger_entries (id, entidade_id, periodo_id, conta_id, data_lancamento,
+        valor_debito, descricao, origem_modulo, origem_id, referencia_documento)
+       VALUES (7, 1, 1, 1101, '2024-03-10', 2500, 'Lançamento histórico', 'transacoes', 42, 'TXN-42')`,
+    );
+    return db;
+  }
+
+  it("preserva os lançamentos já existentes", async () => {
+    const db = await bancoLegado();
+    reconstruirLedgerEntries(db, schemaSql);
+
+    const [linha] = db.exec("SELECT id, descricao, valor_debito FROM ledger_entries")[0].values;
+    expect(linha).toEqual([7, "Lançamento histórico", 2500]);
+  });
+
+  it("passa a aceitar a contrapartida, que a constraint antiga barrava", async () => {
+    const db = await bancoLegado();
+    const inserirContrapartida = () =>
+      db.run(
+        `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, data_lancamento,
+          valor_credito, descricao, origem_modulo, origem_id, referencia_documento)
+         VALUES (1, 1, 4101, '2024-03-10', 2500, 'Contrapartida', 'transacoes', 42, 'TXN-42')`,
+      );
+
+    expect(inserirContrapartida).toThrow(/UNIQUE/i); // antes da migração
+    reconstruirLedgerEntries(db, schemaSql);
+    expect(inserirContrapartida).not.toThrow(); // depois
+  });
+
+  it("passa a aceitar os origem_modulo que o CHECK antigo rejeitava", async () => {
+    const db = await bancoLegado();
+    const inserirAdvocacia = () =>
+      db.run(
+        `INSERT INTO ledger_entries (entidade_id, periodo_id, conta_id, data_lancamento,
+          valor_debito, descricao, origem_modulo, origem_id, referencia_documento)
+         VALUES (1, 1, 6301, '2024-03-10', 900, 'Honorários', 'advocacia', 1, 'ADV-1')`,
+      );
+
+    expect(inserirAdvocacia).toThrow(/CHECK/i);
+    reconstruirLedgerEntries(db, schemaSql);
+    expect(inserirAdvocacia).not.toThrow();
+  });
+
+  it("é idempotente — rodar de novo num banco já migrado não faz nada", async () => {
+    const db = await bancoLegado();
+    reconstruirLedgerEntries(db, schemaSql);
+    reconstruirLedgerEntries(db, schemaSql);
+
+    expect(db.exec("SELECT COUNT(*) FROM ledger_entries")[0].values[0][0]).toBe(1);
+    expect(db.exec("SELECT name FROM sqlite_master WHERE name = 'ledger_entries_migracao'")).toEqual([]);
   });
 });

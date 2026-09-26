@@ -131,7 +131,22 @@ export function alocarRateiosaoCentro(
   return alocados;
 }
 
-/** Relatório: Despesas por Centro de Custo */
+/**
+ * Relatório: Despesas por Centro de Custo.
+ *
+ * ACHADO (gravidade GRAVE, corrigido): `valor_debito`/`valor_credito` são mutuamente
+ * exclusivos em `ledger_entries` (CHECK: exatamente um dos dois é NOT NULL, o outro é
+ * NULL — nunca 0). `le.valor_debito + le.valor_credito` soma um número com NULL em TODA
+ * linha, o que em SQL é NULL — não o operando não-nulo. `SUM(NULL, NULL, ...)` sobre a
+ * tabela inteira dá NULL, não a soma dos valores: `valor_total`, `percentual_do_centro` e
+ * o denominador da subquery saíam sempre NULL contra o schema real, embora a query nunca
+ * falhasse (por isso passava despercebida na auditoria só por leitura — nenhuma tabela ou
+ * coluna inexistente, só uma expressão aritmética que nunca produz um número). Confirmado
+ * rodando contra `criarBancoDeTeste()` pela primeira vez neste módulo. A mesma classe de
+ * bug NÃO ocorre em `analiseRentabilidadePorCentro`, logo abaixo, porque lá cada lado usa
+ * `COALESCE(..., 0)` por dentro do `CASE` antes de somar — o padrão correto, replicado
+ * aqui com `COALESCE(le.valor_debito,0) + COALESCE(le.valor_credito,0)`.
+ */
 export function relatorioDespesosPorCentro(
   db: Database,
   entidade_id: number,
@@ -143,9 +158,9 @@ export function relatorioDespesosPorCentro(
       cc.codigo as centro_codigo,
       cc.descricao as centro_descricao,
       cp.descricao as tipo_despesa,
-      SUM(le.valor_debito + le.valor_credito) as valor_total,
-      (SUM(le.valor_debito + le.valor_credito) /
-       (SELECT SUM(valor_debito + valor_credito) FROM ledger_entries WHERE periodo_id = ?) * 100) as percentual_do_centro,
+      SUM(COALESCE(le.valor_debito, 0) + COALESCE(le.valor_credito, 0)) as valor_total,
+      (SUM(COALESCE(le.valor_debito, 0) + COALESCE(le.valor_credito, 0)) /
+       (SELECT SUM(COALESCE(valor_debito, 0) + COALESCE(valor_credito, 0)) FROM ledger_entries WHERE periodo_id = ?) * 100) as percentual_do_centro,
       COUNT(le.id) as quantidade_lancamentos
      FROM ledger_entries le
      INNER JOIN centros_custo cc ON le.centro_custo_id = cc.id

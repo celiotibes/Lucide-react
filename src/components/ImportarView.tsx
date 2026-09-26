@@ -5,7 +5,7 @@ import { consultar } from "../db/connection";
 import { Dropzone } from "./Dropzone";
 import { ConectarPluggy } from "./ConectarPluggy";
 import { processarArquivo, type ResultadoImportacao } from "../domain/parsers/detectarTipo";
-import { persistirTransacoes } from "../domain/parsers/persistirTransacoes";
+import { hashDoArquivo, hashDoFile, registrarLote } from "../domain/importacao/cofre";
 import type { ContaBancaria } from "../domain/types";
 
 interface ArquivoProcessado {
@@ -13,6 +13,11 @@ interface ArquivoProcessado {
   resultado: ResultadoImportacao;
   contaId: number | null;
   aceito: boolean;
+  /** SHA-256 do conteúdo do arquivo. É o que vai para o cofre de evidências e permite
+   *  provar, depois, que o documento apresentado originou aquele lançamento. Nulo para
+   *  origens sem arquivo (Open Finance vem por API, não há bytes a carimbar). */
+  hash: string | null;
+  bytes: number;
 }
 
 const RESUMO_TIPO: Record<ResultadoImportacao["tipoDetectado"], string> = {
@@ -46,6 +51,8 @@ export function ImportarView() {
           resultado,
           contaId: contas[0]?.id ?? null,
           aceito: resultado.transacoes.length > 0,
+          hash: await hashDoFile(arquivo),
+          bytes: arquivo.size,
         });
       } catch (erro) {
         // Nunca deixa um arquivo com falha (ex: OCR sem rede) travar o lote inteiro
@@ -55,6 +62,8 @@ export function ImportarView() {
           resultado: { tipoDetectado: "nao_suportado", transacoes: [], avisos: [erro instanceof Error ? erro.message : String(erro)] },
           contaId: contas[0]?.id ?? null,
           aceito: false,
+          hash: null,
+          bytes: arquivo.size,
         });
       }
     }
@@ -64,32 +73,87 @@ export function ImportarView() {
 
   function tratarImportacaoPluggy(resultado: ResultadoImportacao, nomeFonte: string, contaSugeridaId: number | null) {
     setArquivos((atual) => [
-      { nomeArquivo: nomeFonte, resultado, contaId: contaSugeridaId ?? contas[0]?.id ?? null, aceito: resultado.transacoes.length > 0 },
+      {
+        nomeArquivo: nomeFonte,
+        resultado,
+        contaId: contaSugeridaId ?? contas[0]?.id ?? null,
+        aceito: resultado.transacoes.length > 0,
+        // Open Finance não entrega arquivo: o hash identifica a JANELA sincronizada, para
+        // que duas sincronizações da mesma conta não virem dois lotes idênticos.
+        hash: null,
+        bytes: 0,
+      },
       ...atual,
     ]);
   }
 
-  async function confirmarImportacao() {
+  /** Envia para a TRIAGEM, não para `transacoes`.
+   *
+   * Antes isto gravava direto na contabilidade: um extrato escolhido por engano entrava
+   * sem ninguém ver, a duplicidade só era detectada em OFX (a UNIQUE do banco é por
+   * conta_id+fitid, e CSV/PDF não têm fitid) e a linha ilegível era descartada com uma
+   * contagem no rodapé — o dado sumia sem deixar onde procurá-lo. Agora cada arquivo vira
+   * um lote com o hash do conteúdo, e cada linha espera decisão na aba Triagem. */
+  async function enviarParaTriagem() {
     if (!db) return;
-    let totalInserido = 0;
-    let totalDuplicado = 0;
-    let totalMalformado = 0;
+    let lotes = 0;
+    let linhas = 0;
+    let duplicatas = 0;
+    let ilegiveis = 0;
+    let repetidos = 0;
+
     for (const item of arquivos) {
       if (!item.aceito || !item.contaId) continue;
-      const resultado = persistirTransacoes(db, item.contaId, item.resultado.transacoes, item.nomeArquivo);
-      totalInserido += resultado.inseridas;
-      totalDuplicado += resultado.duplicadas;
-      totalMalformado += resultado.malformadas;
+
+      // Open Finance não tem arquivo. O hash é derivado do próprio conteúdo sincronizado,
+      // para que duas sincronizações idênticas da mesma conta não virem dois lotes.
+      const hash =
+        item.hash ??
+        (await hashDoArquivo(
+          new TextEncoder().encode(
+            item.resultado.transacoes.map((t) => `${t.data}|${t.valor}|${t.descricaoOriginal}`).join("\n"),
+          ),
+        ));
+
+      const r = registrarLote(
+        db,
+        {
+          arquivo_nome: item.nomeArquivo,
+          arquivo_hash_sha256: hash,
+          arquivo_bytes: item.bytes,
+          tipo_detectado: item.resultado.tipoDetectado,
+          conta_id: item.contaId,
+        },
+        item.resultado.transacoes,
+      );
+
+      if (r.ja_existia) {
+        repetidos++;
+        continue;
+      }
+      lotes++;
+      linhas += r.linhas_registradas;
+      duplicatas += r.linhas_duplicata_provavel;
+      ilegiveis += r.linhas_malformadas;
     }
+
     await persistir();
     setArquivos([]);
-    const partes = [`${totalInserido} lançamento(s) importado(s).`];
-    if (totalDuplicado > 0) partes.push(`${totalDuplicado} duplicidade(s) ignorada(s) automaticamente.`);
-    if (totalMalformado > 0) {
-      partes.push(
-        `${totalMalformado} linha(s) com data ou valor ilegível foram DESCARTADAS (não é duplicidade — confira o arquivo original, esse dado foi perdido).`,
+
+    if (lotes === 0 && repetidos > 0) {
+      setMensagem(
+        `Nenhum lote novo: ${repetidos} arquivo(s) já haviam sido importados antes (mesmo conteúdo, mesma conta). Veja a aba Triagem de importação.`,
       );
+      return;
     }
+
+    const partes = [
+      `${linhas} linha(s) de ${lotes} arquivo(s) em triagem — nenhuma virou lançamento ainda.`,
+      "Abra a aba Triagem de importação para aprovar, rejeitar ou corrigir.",
+    ];
+    if (duplicatas > 0) partes.push(`${duplicatas} marcada(s) como possível duplicidade.`);
+    if (ilegiveis > 0) partes.push(`${ilegiveis} com data ou valor ilegível, preservada(s) para correção.`);
+    if (repetidos > 0) partes.push(`${repetidos} arquivo(s) já importado(s) antes foram ignorados.`);
     setMensagem(partes.join(" "));
   }
 
@@ -108,6 +172,11 @@ export function ImportarView() {
       {arquivos.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <h2 className="section-title">Revisar antes de importar</h2>
+          <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: -8 }}>
+            O que for enviado vai para a <strong>triagem</strong>, não para a contabilidade: cada arquivo
+            entra com o hash SHA-256 do próprio conteúdo e cada linha espera aprovação na aba
+            Triagem de importação.
+          </p>
           {arquivos.map((item, indice) => (
             <div key={indice} className="card" style={{ marginBottom: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -172,8 +241,8 @@ export function ImportarView() {
               )}
             </div>
           ))}
-          <button className="btn primary" onClick={confirmarImportacao}>
-            Confirmar importação
+          <button className="btn primary" onClick={enviarParaTriagem}>
+            Enviar para triagem
           </button>
         </div>
       )}

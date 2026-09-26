@@ -1,5 +1,5 @@
-import { Apontamento, MemoriaCalculo } from "@/domain/apontamentos";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { Apontamento, MemoriaCalculo } from "../../../domain/apontamentos";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
 
 interface MemoriaCalculoDetalhadaProps {
   apontamento: Apontamento;
