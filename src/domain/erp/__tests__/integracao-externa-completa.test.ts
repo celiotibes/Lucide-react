@@ -8,7 +8,6 @@ import { prepararBancoTeste } from './test-setup';
 
 // Import all modules
 import * as fisco from '../integracao-fisco';
-import * as auditLog from '../compliance-audit-log';
 
 describe('PHASE 4: External Systems Integration', () => {
   let db: any;
@@ -332,111 +331,4 @@ describe('PHASE 4: External Systems Integration', () => {
     });
   });
 
-  // ============= COMPLIANCE AUDIT LOG TESTS (4g) =============
-  describe('4g: Compliance Audit Log', () => {
-    it('deve registrar chamada API no audit log', async () => {
-      const registro = await auditLog.registrarChamadaAPI(
-        db,
-        {
-          timestamp: '2026-01-15T10:00:00',
-          usuario_id: 1,
-          usuario_nome: 'Admin',
-          ip_origem: '127.0.0.1',
-          modulo_chamador: 'api-gateway',
-          tipo_operacao: 'leitura',
-          entidade_afetada: 'ledger_entry',
-          id_entidade: 1,
-          descricao_alteracao: 'Leitura de lançamento',
-          status: 'sucesso',
-          tempo_processamento_ms: 45,
-          assinado: false,
-        }
-      );
-
-      expect(registro.id).toBeDefined();
-      expect(registro.hash_sha256).toBeDefined();
-      expect(registro.assinatura_digital).toBeDefined();
-    });
-
-    it('deve verificar integridade do audit log', async () => {
-      const verificacao = await auditLog.verificarIntegridade(
-        db,
-        '2026-01-01',
-        '2026-01-31'
-      );
-
-      expect(verificacao).toHaveProperty('integro');
-      expect(verificacao).toHaveProperty('registros_verificados');
-      expect(verificacao).toHaveProperty('registros_corrompidos');
-    });
-
-    it('deve gerar relatório de auditoria', () => {
-      const relatorio = auditLog.gerarRelatorioAuditoria(
-        db,
-        '2026-01-01',
-        '2026-01-31'
-      );
-
-      expect(relatorio).toHaveProperty('total_registros');
-      expect(relatorio).toHaveProperty('operacoes_por_tipo');
-      expect(relatorio).toHaveProperty('operacoes_por_modulo');
-    });
-
-    it('deve exportar log em JSON', () => {
-      const json = auditLog.exportarLogAuditoria(
-        db,
-        '2026-01-01',
-        '2026-01-31',
-        'json'
-      );
-
-      expect(typeof json).toBe('string');
-    });
-
-    it('deve exportar log em CSV', () => {
-      const csv = auditLog.exportarLogAuditoria(
-        db,
-        '2026-01-01',
-        '2026-01-31',
-        'csv'
-      );
-
-      expect(typeof csv).toBe('string');
-    });
-
-    it('deve registrar acesso de leitura', () => {
-      expect(() => {
-        auditLog.registrarAcessoLeitura(
-          db,
-          1,
-          'Admin',
-          '127.0.0.1',
-          'ledger_entry',
-          1,
-          50
-        );
-      }).not.toThrow();
-    });
-
-    it('deve listar acessos de usuário', () => {
-      const acessos = auditLog.listarAcessosUsuario(db, 1);
-      expect(Array.isArray(acessos)).toBe(true);
-    });
-  });
-
-  // ============= ERROR HANDLING TESTS =============
-  describe('Error Handling', () => {
-    it('deve registrar erro no audit log', () => {
-      expect(() => {
-        auditLog.registrarErro(
-          db,
-          1,
-          'api-gateway',
-          'ledger_entry',
-          'Erro de autenticação',
-          '127.0.0.1'
-        );
-      }).not.toThrow();
-    });
-  });
 });

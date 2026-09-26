@@ -442,6 +442,14 @@ CREATE TABLE IF NOT EXISTS vistorias (
     status          TEXT NOT NULL CHECK (status IN ('agendada', 'em_progresso', 'concluida', 'aprovada')) DEFAULT 'agendada',
     observacoes     TEXT,
     valor_estimado  REAL,
+    -- Espelha o ciclo de provisionamento contábil dos danos desta vistoria
+    -- (integracao-vistorias-provisionamento.ts): sincronizarVistoriaConcluidaParaProvisionamento()
+    -- grava aqui depois de lançar a provisão no razão, e revertorProvisionamentoDanosVistoria()
+    -- atualiza para 'revertido' quando os danos são reparados. Sem estas duas colunas o
+    -- UPDATE estourava "no such column" (capturado só porque a função embrulha em try/catch,
+    -- reportando "erro ao provisionar" para toda vistoria com dano real).
+    status_provisionamento TEXT CHECK (status_provisionamento IN ('nao_requer', 'pendente', 'provisionado', 'revertido', 'erro')),
+    data_provisionamento   DATETIME,
     criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -478,12 +486,32 @@ CREATE TABLE IF NOT EXISTS vistoria_log (
     criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Log de sincronização entre vistoria e provisão contábil (integracao-vistorias-provisionamento.ts).
+-- Uma linha por tentativa de sincronização (não por vistoria): sincronizarVistoriaConcluidaParaProvisionamento
+-- insere uma nova linha a cada chamada (sucesso, sem danos ou erro), preservando o histórico
+-- de tentativas — quem quer o estado atual lê a mais recente por vistoria_id (ORDER BY
+-- criado_em DESC LIMIT 1, como obterStatusProvisionamento e validarConsistenciaVistoriaProvisionamento já fazem).
+CREATE TABLE IF NOT EXISTS provisionamento_vistoria_log (
+    id                          INTEGER PRIMARY KEY,
+    vistoria_id                 INTEGER NOT NULL REFERENCES vistorias(id),
+    imovel_id                   INTEGER,
+    contrato_id                 INTEGER,
+    status                      TEXT NOT NULL CHECK (status IN ('nao_requer', 'pendente', 'provisionado', 'revertido', 'erro')),
+    valor_danos_estimado        REAL NOT NULL DEFAULT 0,
+    valor_provision_registrada  REAL NOT NULL DEFAULT 0,
+    valor_desconto_caucao       REAL NOT NULL DEFAULT 0,
+    referencia_documento        TEXT,
+    criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_por                  INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_vistorias_imovel ON vistorias(imovel_id);
 CREATE INDEX IF NOT EXISTS idx_vistorias_contrato ON vistorias(contrato_id);
 CREATE INDEX IF NOT EXISTS idx_vistorias_status ON vistorias(status);
 CREATE INDEX IF NOT EXISTS idx_vistoria_item_vistoria ON vistoria_item(vistoria_id);
 CREATE INDEX IF NOT EXISTS idx_vistoria_anexo_vistoria ON vistoria_anexo(vistoria_id);
 CREATE INDEX IF NOT EXISTS idx_vistoria_log_vistoria ON vistoria_log(vistoria_id);
+CREATE INDEX IF NOT EXISTS idx_provisionamento_vistoria_log_vistoria ON provisionamento_vistoria_log(vistoria_id);
 
 -- ===== SPRINT 1: ERP CORE - LEDGER INTEGRADO =====
 -- Tabela central de lançamentos contábeis com rastreabilidade completa e períodos fecháveis.
@@ -519,7 +547,14 @@ CREATE TABLE IF NOT EXISTS centros_custo (
     entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
     codigo          TEXT NOT NULL,
     descricao       TEXT NOT NULL,
-    tipo            TEXT NOT NULL CHECK (tipo IN ('imavel', 'administrativo', 'operacional')),
+    -- ACHADO (auditoria de execução, alocacao-centros-custo.test.ts): o CHECK original
+    -- dizia 'imavel' (erro de digitação — não é palavra nem convenção usada em nenhum
+    -- outro lugar do sistema). criarCentroCustoImovel() sempre gravou tipo='imovel'
+    -- (grafia correta, igual à tabela `imoveis`, à coluna `imovel_id` e ao tipo
+    -- TypeScript `CentroCustoInfo.tipo`) — toda chamada rejeitada pelo CHECK, contra o
+    -- schema real. Só não estourava porque nenhum teste chegou a rodar essa função
+    -- contra `criarBancoDeTeste()` antes desta auditoria.
+    tipo            TEXT NOT NULL CHECK (tipo IN ('imovel', 'administrativo', 'operacional')),
     ativo           INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
     UNIQUE (entidade_id, codigo)
 );
@@ -579,6 +614,11 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
         'apontamento-prestador',-- Apontamento de horas de prestador
         'pagamentos-integracao',-- Baixa de pagamento a prestador
         'skillos',              -- Módulo de habilidades
+        'fisco',                -- Provisão/pagamento de imposto (integracao-fisco.ts) — faltava
+                                -- aqui: registrarImpostoNoLedger gravava 'fisco' e todo INSERT
+                                -- quebrava contra o schema real (CHECK constraint failed), o
+                                -- mesmo defeito que os sete módulos acima já tiveram (ver
+                                -- comentário de origem_modulo em ledger.ts).
         'manual'                -- Lançamento manual (ajuste, acerto)
     )),
     origem_id           INTEGER NOT NULL,  -- PK da tabela de origem (transacao_id, contrato_id, etc.)

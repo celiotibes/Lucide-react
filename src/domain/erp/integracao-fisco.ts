@@ -4,6 +4,8 @@
  * Suporte para 27 UFs e geração de relatórios de conformidade fiscal
  */
 
+import { assegurarPeriodoAberto } from "./ledger-period-validation";
+
 export interface TaxCalculationParams {
   receita_bruta: number;
   lucro_bruto: number;
@@ -114,22 +116,30 @@ export function calcularIRPJ(
 ): ImpostoCalculado {
   let aliquota = 0;
   let base_calculo = 0;
+  let valor_imposto = 0;
 
   if (regime === 'lucro_real') {
-    aliquota = 0.15;
     base_calculo = lucro_operacional;
 
-    // Adicional de 10% se lucro > 20000
-    if (lucro_operacional > 20000) {
-      aliquota = 0.25; // 15% + 10%
-    }
+    // ACHADO (gravidade ALTA, corrigido): a regra real do adicional de IRPJ é MARGINAL —
+    // 15% sobre TODO o lucro, mais 10% só sobre a parcela que EXCEDE R$ 20.000/mês — como
+    // o próprio docstring desta função já dizia ("15% + 10% adicional (acima de R$ 20k)").
+    // A implementação anterior, porém, aplicava 25% sobre a BASE INTEIRA assim que ela
+    // passava de R$ 20.000, em vez de só sobre o excedente — um lucro de R$ 20.001, por
+    // exemplo, pagava R$ 5.000,25 (20001 × 25%) em vez dos R$ 3.000,25 corretos
+    // (20000 × 15% + 1 × 25%): quase o dobro do imposto devido, para qualquer lucro logo
+    // acima do teto. Corrigido para o cálculo marginal; `aliquota` passa a reportar a
+    // alíquota EFETIVA (valor_imposto / base_calculo), não mais um valor fixo de 15/25%,
+    // já que a alíquota nominal deixou de ser uma constante única.
+    const adicional = Math.max(0, lucro_operacional - 20000) * 0.10;
+    valor_imposto = base_calculo * 0.15 + adicional;
+    aliquota = base_calculo > 0 ? valor_imposto / base_calculo : 0.15;
   } else if (regime === 'lucro_presumido') {
     base_calculo = receita_bruta || 0;
     // Aliquota varia por setor, usando 8% como default para comércio
     aliquota = 0.08;
+    valor_imposto = base_calculo * aliquota;
   }
-
-  const valor_imposto = base_calculo * aliquota;
 
   return {
     tipo_imposto: 'IRPJ',
@@ -428,7 +438,54 @@ function getProximoVencimento(periodicidade: string, dia_vencimento: number): st
 
 /**
  * Registra imposto calculado no ledger
+ *
+ * ACHADO (gravidade CRÍTICA, corrigido): esta função nunca tinha rodado contra o schema
+ * real (só existia um teste com tabela fictícia parcial — ver integracao-externa-completa
+ * .test.ts / test-setup.ts). Contra o schema real ela quebrava de duas formas:
+ *
+ * 1) `origem_id` é `NOT NULL` em `ledger_entries` e não estava na lista de colunas do
+ *    INSERT — todo lançamento falhava com "NOT NULL constraint failed: ledger_entries
+ *    .origem_id". Não existe hoje uma tabela persistida de obrigação fiscal com um id
+ *    próprio (gerarRelatorioObrigacoesFiscais monta a lista em memória, nunca grava), então
+ *    não há uma "linha de origem" real para referenciar. Usar só `periodo_id` parecia
+ *    razoável à primeira vista, mas quebra assim que DOIS tributos são lançados no MESMO
+ *    período (o caso normal: IRPJ + PIS + COFINS do mesmo mês) — o índice único
+ *    idx_ledger_origem_unica é (origem_modulo, origem_id, conta_id), e todo tributo debita
+ *    a MESMA conta de despesa (5.4.01) e credita a MESMA conta de caixa, então dois
+ *    tributos com `origem_id = periodo_id` colidiriam nessa dupla (mesmo conta_id em
+ *    ambas as pernas). Por isso `origem_id` combina período + tipo de tributo
+ *    (`origemIdImposto`), determinístico e único por (período, tributo) sem inventar uma
+ *    tabela de origem que não existe.
+ * 2) O comentário da própria função já dizia "Débito em Despesa com Imposto, Crédito em
+ *    Caixa", e o parâmetro `conta_caixa_id` existia na assinatura exatamente para isso —
+ *    mas o corpo da função nunca o usava. Só a perna de débito era gravada: todo
+ *    lançamento de imposto ficava permanentemente desbalanceado (só débito, nenhum
+ *    crédito), quebrando a invariante débito = crédito do razão inteiro que
+ *    sincronizacao-integridade.ts audita. Corrigido acrescentando a perna de crédito que
+ *    faltava, usando o parâmetro que já existia.
+ * 3) A função nunca verificava se o período estava aberto antes de gravar — diferente de
+ *    `registrarLancamentoContabil` (ledger.ts), que chama `assegurarPeriodoAberto` como
+ *    primeira linha. Sem essa checagem, um imposto podia ser lançado num período já
+ *    fechado/encerrado, o que o resto do razão não permite. Corrigido chamando a mesma
+ *    validação, para consistência com o restante do ERP.
  */
+// Código curto e determinístico por tipo de tributo, só para compor um origem_id único
+// por (período, tributo) — ver ACHADO 1 no docstring de registrarImpostoNoLedger. Não é
+// uma FK real (não existe tabela de tributos), só evita colisão no índice único de origem.
+const CODIGO_TIPO_IMPOSTO: Record<string, number> = {
+  IRPJ: 1,
+  PIS: 2,
+  COFINS: 3,
+  INSS: 4,
+  ICMS: 5,
+  ISS: 6,
+};
+
+function origemIdImposto(periodo_id: number, tipo_imposto: string): number {
+  const codigo = CODIGO_TIPO_IMPOSTO[tipo_imposto] ?? 99;
+  return periodo_id * 100 + codigo;
+}
+
 export function registrarImpostoNoLedger(
   db: any,
   entidade_id: number,
@@ -437,20 +494,44 @@ export function registrarImpostoNoLedger(
   conta_imposto_id: number,
   conta_caixa_id: number
 ): number {
+  assegurarPeriodoAberto(db, periodo_id);
+
   try {
-    // Lançamento: Débito em Despesa com Imposto, Crédito em Caixa
+    const data_lancamento = new Date().toISOString().substring(0, 10);
+    const referencia_documento = `IMPOSTO_${imposto.tipo_imposto}`;
+    const origem_id = origemIdImposto(periodo_id, imposto.tipo_imposto);
+
+    // Débito: Despesa com Imposto
     db.run(
       `INSERT INTO ledger_entries
-       (entidade_id, periodo_id, conta_id, data_lancamento, valor_debito, descricao, origem_modulo, referencia_documento)
-       VALUES (?, ?, ?, ?, ?, ?, 'fisco', ?)`,
+       (entidade_id, periodo_id, conta_id, data_lancamento, valor_debito, descricao, origem_modulo, origem_id, referencia_documento)
+       VALUES (?, ?, ?, ?, ?, ?, 'fisco', ?, ?)`,
       [
         entidade_id,
         periodo_id,
         conta_imposto_id,
-        new Date().toISOString().substring(0, 10),
+        data_lancamento,
         imposto.valor_imposto,
         `Provisão: ${imposto.tipo_imposto}`,
-        `IMPOSTO_${imposto.tipo_imposto}`,
+        origem_id,
+        referencia_documento,
+      ]
+    );
+
+    // Crédito: Caixa — a perna que faltava (ver ACHADO acima).
+    db.run(
+      `INSERT INTO ledger_entries
+       (entidade_id, periodo_id, conta_id, data_lancamento, valor_credito, descricao, origem_modulo, origem_id, referencia_documento)
+       VALUES (?, ?, ?, ?, ?, ?, 'fisco', ?, ?)`,
+      [
+        entidade_id,
+        periodo_id,
+        conta_caixa_id,
+        data_lancamento,
+        imposto.valor_imposto,
+        `Pagamento: ${imposto.tipo_imposto}`,
+        origem_id,
+        `${referencia_documento}_CX`,
       ]
     );
 
