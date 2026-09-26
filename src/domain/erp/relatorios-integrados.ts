@@ -172,10 +172,19 @@ export function gerarDRE(
   entidade_id: number,
   periodo_id: number,
 ): LinhasDRE {
+  // Líquido, não bruto: uma reclassificação (reclassificarTransacao.ts) estorna a perna
+  // antiga NA MESMA CONTA (débito original + crédito de estorno de mesmo valor) e lança a
+  // nova numa conta diferente. Somar só valor_credito (receita) ou só valor_debito
+  // (despesa) ignora o estorno por completo — a conta antiga nunca desconta, e a despesa
+  // é contada duas vezes (achado C do teste golden-path: R$500 reclassificados de
+  // Condomínio para Manutenção ficavam R$500 em Manutenção E R$800 em Condomínio, em vez
+  // de R$300). COALESCE por lado é necessário porque valor_debito/valor_credito são
+  // mutuamente exclusivos (CHECK do schema) — sem isso, `valor_credito - valor_debito`
+  // vira NULL sempre que um dos dois é NULL, que é a norma, não a exceção.
   const getCredito = (codigo: string) => {
     const [result] = consultar<{ total: number }>(
       db,
-      `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+      `SELECT COALESCE(SUM(le.valor_credito), 0) - COALESCE(SUM(le.valor_debito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`,
@@ -187,7 +196,7 @@ export function gerarDRE(
   const getDebito = (codigo: string) => {
     const [result] = consultar<{ total: number }>(
       db,
-      `SELECT COALESCE(SUM(le.valor_debito), 0) as total
+      `SELECT COALESCE(SUM(le.valor_debito), 0) - COALESCE(SUM(le.valor_credito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`,
@@ -310,8 +319,8 @@ export function gerarBalanco(
     const [result] = consultar<{ total: number }>(
       db,
       `SELECT COALESCE(SUM(
-        CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
-             ELSE le.valor_credito END), 0) as total
+        CASE WHEN cp.natureza = 'debito' THEN COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0)
+             ELSE COALESCE(le.valor_credito, 0) - COALESCE(le.valor_debito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`,
@@ -324,8 +333,8 @@ export function gerarBalanco(
     const [result] = consultar<{ total: number }>(
       db,
       `SELECT COALESCE(SUM(
-        CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
-             ELSE le.valor_debito END), 0) as total
+        CASE WHEN cp.natureza = 'credito' THEN COALESCE(le.valor_credito, 0) - COALESCE(le.valor_debito, 0)
+             ELSE COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`,
@@ -338,8 +347,8 @@ export function gerarBalanco(
     const [result] = consultar<{ total: number }>(
       db,
       `SELECT COALESCE(SUM(
-        CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
-             ELSE le.valor_debito END), 0) as total
+        CASE WHEN cp.natureza = 'credito' THEN COALESCE(le.valor_credito, 0) - COALESCE(le.valor_debito, 0)
+             ELSE COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`,
@@ -407,7 +416,12 @@ export function gerarFluxoCaixa(
   entidade_id: number,
   periodo_id: number,
 ): FluxoCaixaResultado {
-  // Saldo inicial (caixa no período anterior)
+  // Saldo inicial = saldo ACUMULADO de caixa em TODOS os períodos anteriores a este, não
+  // o movimento de um único período. Achado B do teste golden-path: a versão anterior (1)
+  // só olhava o período IMEDIATAMENTE anterior — um saldo de 3+ meses atrás desaparecia a
+  // partir do 2º mês migrado — e (2) somava só valor_debito (entradas), nunca descontando
+  // valor_credito (saídas), o mesmo defeito de A. COALESCE por lado pelo mesmo motivo
+  // documentado em gerarBalanco: valor_debito/valor_credito são mutuamente exclusivos.
   let saldo_inicial = 0;
   const [periodo] = consultar<{ ano: number; mes: number }>(
     db,
@@ -415,30 +429,18 @@ export function gerarFluxoCaixa(
     [periodo_id],
   );
 
-  if (periodo && (periodo.mes > 1 || periodo.ano > 1)) {
-    const mes_ant = periodo.mes === 1 ? 12 : periodo.mes - 1;
-    const ano_ant = periodo.mes === 1 ? periodo.ano - 1 : periodo.ano;
-
-    const [periodo_anterior] = consultar<{ id: number }>(
+  if (periodo) {
+    const [saldo] = consultar<{ total: number }>(
       db,
-      `SELECT id FROM periodos_contabeis
-       WHERE entidade_id = ? AND ano = ? AND mes = ?`,
-      [entidade_id, ano_ant, mes_ant],
+      `SELECT COALESCE(SUM(COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0)), 0) as total
+       FROM ledger_entries le
+       INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+       INNER JOIN periodos_contabeis pc ON le.periodo_id = pc.id
+       WHERE le.entidade_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')
+         AND pc.entidade_id = ? AND (pc.ano < ? OR (pc.ano = ? AND pc.mes < ?))`,
+      [entidade_id, entidade_id, periodo.ano, periodo.ano, periodo.mes],
     );
-
-    if (periodo_anterior) {
-      const [saldo] = consultar<{ total: number }>(
-        db,
-        `SELECT COALESCE(SUM(
-          CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
-               ELSE le.valor_credito END), 0) as total
-         FROM ledger_entries le
-         INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-         WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`,
-        [entidade_id, periodo_anterior.id],
-      );
-      saldo_inicial = saldo?.total || 0;
-    }
+    saldo_inicial = saldo?.total || 0;
   }
 
   // Entradas: Débitos em contas de caixa (1.1.01, 1.1.02, 1.1.03)
@@ -568,8 +570,10 @@ export function gerarDREComFiltro(
   periodo_id: number,
   origem_modulos?: string[],
 ): LinhasDRE {
+  // Líquido, não bruto — mesmo motivo documentado em gerarDRE acima (estorno de
+  // reclassificação não descontava, dobrando a despesa).
   const getCredito = (codigo: string) => {
-    let query = `SELECT COALESCE(SUM(le.valor_credito), 0) as total
+    let query = `SELECT COALESCE(SUM(le.valor_credito), 0) - COALESCE(SUM(le.valor_debito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`;
@@ -587,7 +591,7 @@ export function gerarDREComFiltro(
   };
 
   const getDebito = (codigo: string) => {
-    let query = `SELECT COALESCE(SUM(le.valor_debito), 0) as total
+    let query = `SELECT COALESCE(SUM(le.valor_debito), 0) - COALESCE(SUM(le.valor_credito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`;
@@ -702,8 +706,8 @@ export function gerarBalancoComFiltro(
 
   const getAtivoConta = (codigo: string) => {
     let query = `SELECT COALESCE(SUM(
-        CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
-             ELSE le.valor_credito END), 0) as total
+        CASE WHEN cp.natureza = 'debito' THEN COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0)
+             ELSE COALESCE(le.valor_credito, 0) - COALESCE(le.valor_debito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`;
@@ -722,8 +726,8 @@ export function gerarBalancoComFiltro(
 
   const getPassivoConta = (codigo: string) => {
     let query = `SELECT COALESCE(SUM(
-        CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
-             ELSE le.valor_debito END), 0) as total
+        CASE WHEN cp.natureza = 'credito' THEN COALESCE(le.valor_credito, 0) - COALESCE(le.valor_debito, 0)
+             ELSE COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`;
@@ -742,8 +746,8 @@ export function gerarBalancoComFiltro(
 
   const getPatrimonioLiquidoConta = (codigo: string) => {
     let query = `SELECT COALESCE(SUM(
-        CASE WHEN cp.natureza = 'credito' THEN le.valor_credito
-             ELSE le.valor_debito END), 0) as total
+        CASE WHEN cp.natureza = 'credito' THEN COALESCE(le.valor_credito, 0) - COALESCE(le.valor_debito, 0)
+             ELSE COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`;
@@ -808,6 +812,8 @@ export function gerarFluxoCaixaComFiltro(
   periodo_id: number,
   origem_modulos?: string[],
 ): FluxoCaixaResultado {
+  // Saldo acumulado de TODOS os períodos anteriores, líquido — ver o comentário completo
+  // em gerarFluxoCaixa (achado B do teste golden-path) para o porquê.
   let saldo_inicial = 0;
   const [periodo] = consultar<{ ano: number; mes: number }>(
     db,
@@ -815,36 +821,24 @@ export function gerarFluxoCaixaComFiltro(
     [periodo_id],
   );
 
-  if (periodo && (periodo.mes > 1 || periodo.ano > 1)) {
-    const mes_ant = periodo.mes === 1 ? 12 : periodo.mes - 1;
-    const ano_ant = periodo.mes === 1 ? periodo.ano - 1 : periodo.ano;
+  if (periodo) {
+    let query = `SELECT COALESCE(SUM(COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0)), 0) as total
+       FROM ledger_entries le
+       INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
+       INNER JOIN periodos_contabeis pc ON le.periodo_id = pc.id
+       WHERE le.entidade_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')
+         AND pc.entidade_id = ? AND (pc.ano < ? OR (pc.ano = ? AND pc.mes < ?))`;
 
-    const [periodo_anterior] = consultar<{ id: number }>(
-      db,
-      `SELECT id FROM periodos_contabeis
-       WHERE entidade_id = ? AND ano = ? AND mes = ?`,
-      [entidade_id, ano_ant, mes_ant],
-    );
+    const params: (number | string)[] = [entidade_id, entidade_id, periodo.ano, periodo.ano, periodo.mes];
 
-    if (periodo_anterior) {
-      let query = `SELECT COALESCE(SUM(
-          CASE WHEN cp.natureza = 'debito' THEN le.valor_debito
-               ELSE le.valor_credito END), 0) as total
-         FROM ledger_entries le
-         INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-         WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`;
-
-      const params: (number | string)[] = [entidade_id, periodo_anterior.id];
-
-      if (origem_modulos && origem_modulos.length > 0) {
-        const placeholders = origem_modulos.map(() => "?").join(",");
-        query += ` AND le.origem_modulo IN (${placeholders})`;
-        params.push(...origem_modulos);
-      }
-
-      const [saldo] = consultar<{ total: number }>(db, query, params);
-      saldo_inicial = saldo?.total || 0;
+    if (origem_modulos && origem_modulos.length > 0) {
+      const placeholders = origem_modulos.map(() => "?").join(",");
+      query += ` AND le.origem_modulo IN (${placeholders})`;
+      params.push(...origem_modulos);
     }
+
+    const [saldo] = consultar<{ total: number }>(db, query, params);
+    saldo_inicial = saldo?.total || 0;
   }
 
   const getFluxoDeCaixa = (codigosConta: string[], tipo: "debito" | "credito") => {
