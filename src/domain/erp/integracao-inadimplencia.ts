@@ -124,7 +124,19 @@ function calcularJurosMora(
  * motor de conciliação de src/domain/reconcile/contratos.ts (que casa competência a
  * competência com tolerância de valor/data e desduplica transações entre meses vizinhos —
  * ver `conciliar()`); usar aquele motor aqui, ou decidir a tolerância de valor para
- * pagamento PARCIAL, é decisão de produto fora do escopo deste achado. */
+ * pagamento PARCIAL, é decisão de produto fora do escopo deste achado.
+ *
+ * @deprecated para contratos com competências geradas (ver `gerarCompetenciasPendentes` em
+ * `aluguel-competencias.ts`), use `apurarInadimplenciaContratoPorCompetencia` — esta função
+ * segue com o defeito estrutural documentado no teste `it.fails` "status evolui por faixa
+ * de atraso..." (`__tests__/integracao-inadimplencia.test.ts`): o vencimento usado no
+ * cálculo é sempre recalculado a partir do MÊS DA PRÓPRIA data de referência, nunca fica
+ * preso ao mês em que a inadimplência de fato começou, e por isso `dias_atraso` nunca
+ * ultrapassa ~30 dias — `em_cobranca`/`litigioso` são estados impossíveis de alcançar por
+ * esta função, para qualquer entrada. Mantida (não removida, não reescrita) porque
+ * `relatorioInadimplenciaDetalhado`/`resumoInadimplenciaTotal`/`provisarJurosInadimplencia`
+ * ainda a chamam e não foram adaptados/testados contra o modelo de competência — ver o
+ * comentário no topo de `aluguel-competencias.ts` para o raciocínio completo desta escolha. */
 export function apurarInadimplenciaContrato(
   db: Database,
   contrato_id: number,

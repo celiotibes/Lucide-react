@@ -17,8 +17,12 @@ import {
  * ou `integrarRateioAoAluguel` falhava com "FOREIGN KEY constraint failed" (conta_id
  * fictícios 20-26 — ver comentário no topo de automacao-rateios.ts) e, mesmo corrigindo
  * isso, o pipeline completo para 2+ imóveis ainda falhava com "UNIQUE constraint failed"
- * (origem_id repetido — ver ACHADOs 1 e 2 no mesmo arquivo). Os dois problemas foram
- * corrigidos; o que resta documentado como `it.fails` é descrito em cada teste.
+ * (origem_id repetido — ver ACHADOs 1 e 2 no mesmo arquivo). Depois, o pipeline completo
+ * (automatizarRateioPorDocumento) creditava o mesmo rateio duas vezes por imóvel com
+ * contrato ativo, desbalanceando o período (ACHADO 3, ver comentário de
+ * integrarRateioAoAluguel) — corrigido nesta tarefa fazendo integrarRateioAoAluguel
+ * RECLASSIFICAR o crédito já lançado em vez de somar um crédito novo. Os quatro problemas
+ * foram corrigidos; nenhum `it.fails` resta neste arquivo.
  */
 
 async function montarBase() {
@@ -221,29 +225,56 @@ describe("automacao-rateios: integrarRateioAoAluguel", () => {
     expect(consultar(db, "SELECT id FROM ledger_entries")).toHaveLength(0);
   });
 
-  it("contrato existente grava o crédito na entidade/período corretos (não fixos em 1/1) e na conta real do plano", async () => {
+  // ACHADOS 2 e 3 (corrigidos nesta tarefa — ver o comentário completo em
+  // automacao-rateios.ts): integrarRateioAoAluguel deixou de lançar um crédito novo e
+  // passou a RECLASSIFICAR (estornar + relançar, mesmo padrão de reclassificarTransacao.ts)
+  // o crédito que processarDocumentoRateio já lança por imóvel. Por isso ela agora exige
+  // esse crédito já lançado — os dois testes abaixo cobrem os dois lados dessa mudança.
+  it("sem crédito de rateio já lançado para este imóvel neste período, retorna false sem gravar nada", async () => {
+    const { db, entidade_id, periodo_id } = await montarBase();
+    const imovel_id = criarImovel(db, "A");
+    const contrato_id = criarContrato(db, imovel_id);
+    // Nenhuma chamada a processarDocumentoRateio antes: não há crédito "rateio a receber"
+    // para este imóvel neste período, então não há o que reclassificar.
+    expect(integrarRateioAoAluguel(db, entidade_id, periodo_id, contrato_id, imovel_id, 150, "Rateio condomínio")).toBe(false);
+    expect(consultar(db, "SELECT id FROM ledger_entries")).toHaveLength(0);
+  });
+
+  it("contrato existente reclassifica o crédito de rateio já lançado para a entidade/período corretos (não fixos em 1/1) e mantém o período balanceado", async () => {
     const { db, entidade_id, periodo_id } = await montarBase();
     // Um segundo período, para provar que o valor passado é o usado (achado corrigido:
     // antes gravava sempre entidade_id=1, periodo_id=1, fixos no código).
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 2, 'aberto')", [entidade_id]);
     const periodo2 = consultar<{ id: number }>(db, "SELECT id FROM periodos_contabeis WHERE ano=2025 AND mes=2")[0].id;
 
-    const imovel_id = criarImovel(db, "A");
+    const imovel_id = criarImovel(db, "A", { fracao_ideal: 1 });
     const contrato_id = criarContrato(db, imovel_id);
+    const documento_id = criarDocumento(db, { valor: 150 });
+
+    // Pré-condição que integrarRateioAoAluguel agora exige: processarDocumentoRateio já
+    // lançou o crédito "rateio a receber" por imóvel neste período — é ele que será
+    // reclassificado, não um crédito novo.
+    processarDocumentoRateio(db, documento_id, entidade_id, periodo2);
 
     const sucesso = integrarRateioAoAluguel(db, entidade_id, periodo2, contrato_id, imovel_id, 150, "Rateio condomínio");
     expect(sucesso).toBe(true);
 
-    const [linha] = consultar<{ entidade_id: number; periodo_id: number; conta_id: number; valor_credito: number }>(
-      db, "SELECT entidade_id, periodo_id, conta_id, valor_credito FROM ledger_entries", [],
+    const [linhaViva] = consultar<{ entidade_id: number; periodo_id: number; conta_id: number; valor_credito: number }>(
+      db,
+      "SELECT entidade_id, periodo_id, conta_id, valor_credito FROM ledger_entries WHERE valor_credito IS NOT NULL AND estornado_por_id IS NULL ORDER BY id DESC LIMIT 1",
+      [],
     );
-    expect(linha.entidade_id).toBe(entidade_id);
-    expect(linha.periodo_id).toBe(periodo2);
-    expect(linha.valor_credito).toBe(150);
+    expect(linhaViva.entidade_id).toBe(entidade_id);
+    expect(linhaViva.periodo_id).toBe(periodo2);
+    expect(linhaViva.valor_credito).toBe(150);
     // A conta precisa existir de fato em contas_plano_contas (FK real) — se não existisse,
-    // o INSERT acima já teria lançado "FOREIGN KEY constraint failed".
-    const [conta] = consultar<{ grupo: string }>(db, "SELECT grupo FROM contas_plano_contas WHERE id = ?", [linha.conta_id]);
+    // o INSERT já teria lançado "FOREIGN KEY constraint failed".
+    const [conta] = consultar<{ grupo: string }>(db, "SELECT grupo FROM contas_plano_contas WHERE id = ?", [linhaViva.conta_id]);
     expect(conta.grupo).toBe("receita");
+
+    // A reclassificação (estorno + relançamento no mesmo valor) nunca desbalanceia o
+    // período — ao contrário do crédito duplicado de antes da correção (ACHADO 3).
+    expect(validarBalanceamento(db, periodo2).balanceado).toBe(true);
   });
 });
 
@@ -286,22 +317,20 @@ describe("automacao-rateios: automatizarRateioPorDocumento — pipeline completo
     expect(consultar(db, "SELECT id FROM ledger_entries")).toHaveLength(0);
   });
 
-  // ACHADO (decisão de produto, documentado nos dois it.fails logo abaixo, fora deste
-  // describe): o pipeline completo (automatizarRateioPorDocumento) credita o rateio duas
-  // vezes por imóvel com contrato ativo — uma vez em processarDocumentoRateio, outra em
-  // integrarRateioAoAluguel — sem nenhuma perna de débito para a segunda, desbalanceando
-  // o período no valor total rateado. Corrigir exige decidir se a segunda perna deveria
-  // reclassificar a primeira e qual conta de contrapartida usar — mudança no plano de
-  // contas compartilhado (contas_plano_contas/planoDeContasErp.ts), fora do escopo
-  // isolado destes 2 arquivos. Ver ACHADO 3 no comentário de integrarRateioAoAluguel.
+  // ACHADOS 2 e 3 (corrigidos nesta tarefa — ver o comentário completo em
+  // integrarRateioAoAluguel, automacao-rateios.ts): o pipeline completo
+  // (automatizarRateioPorDocumento) creditava o rateio duas vezes por imóvel com contrato
+  // ativo — uma vez em processarDocumentoRateio, outra em integrarRateioAoAluguel — sem
+  // nenhuma perna de débito para a segunda, desbalanceando o período no valor total
+  // rateado. A correção: integrarRateioAoAluguel passou a RECLASSIFICAR (estornar +
+  // relançar) o crédito que processarDocumentoRateio já lança, em vez de somar um crédito
+  // novo — o par estorno+relançamento é balanceado por construção. Provado abaixo (antigos
+  // `it.fails`, promovidos a `it` — se alguém reintroduzir a duplicidade, estes dois
+  // testes voltam a falhar).
 });
 
-// it.fails: prova, sem quebrar a suíte, que o desbalanceamento do ACHADO acima é real e
-// mensurável. Se algum dia alguém corrigir isso (adicionando a perna de débito que falta
-// ou removendo a duplicidade), este teste passa a FALHAR ao contrário — e o vitest acusa
-// "expected test to fail but it passed", sinal para promover para `it` normal.
-it.fails(
-  "ACHADO (produto): automatizarRateioPorDocumento desbalanceia o período pelo valor total rateado a imóveis com contrato ativo",
+it(
+  "ACHADO (produto, corrigido): automatizarRateioPorDocumento fecha o período balanceado mesmo com imóveis de contrato ativo — a reclassificação não duplica o crédito",
   async () => {
     const db = await criarBancoDeTeste();
     const onboarding = criarEntidadeLegal(db, { nome: "Titular de Teste", cpf_cnpj: "52998224725" });
@@ -324,29 +353,34 @@ it.fails(
     );
     const documento_id = consultar<{ id: number }>(db, "SELECT last_insert_rowid() as id")[0].id;
 
-    automatizarRateioPorDocumento(db, documento_id, entidade_id, periodo_id);
+    const resultado = automatizarRateioPorDocumento(db, documento_id, entidade_id, periodo_id);
+    expect(resultado.sucesso).toBe(true);
 
-    // Esperado de um pipeline correto: período balanceado (débito == crédito). Hoje fica
+    // Pipeline correto: período balanceado (débito == crédito) — antes da correção ficava
     // desbalanceado em exatamente 1000 (o rateio inteiro creditado duas vezes, sem débito
-    // correspondente na segunda vez) — este `expect` falha hoje, por isso `it.fails`.
+    // correspondente na segunda vez).
     expect(validarBalanceamento(db, periodo_id).balanceado).toBe(true);
   },
 );
 
-it.fails(
-  "ACHADO (produto): relatorioRateiosRealizados nunca mostra valor_rateio_recebido > 0 — nenhuma função grava a perna de débito que o alimentaria",
+it(
+  "ACHADO (produto, corrigido): relatorioRateiosRealizados mostra valor_rateio_recebido > 0 depois que o rateio é integrado ao aluguel",
   async () => {
     const { db, entidade_id, periodo_id } = await montarBase();
     const imovel_id = criarImovel(db, "A", { fracao_ideal: 1 });
     criarContrato(db, imovel_id);
     const documento_id = criarDocumento(db, { valor: 500 });
 
-    automatizarRateioPorDocumento(db, documento_id, entidade_id, periodo_id);
+    const resultado = automatizarRateioPorDocumento(db, documento_id, entidade_id, periodo_id);
+    expect(resultado.sucesso).toBe(true);
 
     const [linha] = relatorioRateiosRealizados(db, periodo_id);
-    // Esperado de uma reconciliação completa: algo foi "recebido" depois que o rateio foi
-    // processado. Hoje `valor_rateio_recebido` é sempre 0 (ver ACHADO no comentário de
-    // relatorioRateiosRealizados) — por isso este `expect` falha hoje.
-    expect(linha.valor_rateio_recebido).toBeGreaterThan(0);
+    expect(linha.imovel_id).toBe(imovel_id);
+    // A perna de estorno da reclassificação (débito em CONTA_RATEIO_RECEITA, marcada
+    // 'manual' por imóvel — ver comentário de integrarRateioAoAluguel) é o evento
+    // "recebido" que faltava: o rateio inteiro (500) foi absorvido no aluguel do contrato.
+    expect(linha.valor_rateio_esperado).toBeCloseTo(500, 2);
+    expect(linha.valor_rateio_recebido).toBeCloseTo(500, 2);
+    expect(linha.divergencia).toBeCloseTo(0, 2);
   },
 );

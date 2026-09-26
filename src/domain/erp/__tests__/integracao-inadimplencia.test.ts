@@ -174,6 +174,21 @@ describe("integracao-inadimplencia: apurarInadimplenciaContrato", () => {
    * não gera essas linhas — é decisão de schema (nova tabela, nos moldes de
    * `contas_a_pagar`) e de produto (quem gera a competência: fechamento mensal? geração
    * antecipada?), fora do escopo de um ajuste isolado a este arquivo.
+   *
+   * RESOLVIDO em outro lugar, sem alterar esta função: `aluguel_competencias`
+   * (schema.sql/.postgres.sql) + `src/domain/erp/aluguel-competencias.ts` implementam
+   * exatamente esse modelo — `gerarCompetenciasPendentes` cria uma linha por mês devido
+   * com vencimento próprio, e `apurarInadimplenciaContratoPorCompetencia` conta
+   * `dias_atraso` a partir da competência pendente MAIS ANTIGA (não do mês corrente),
+   * alcançando `em_cobranca`/`litigioso` de verdade. Ver
+   * `__tests__/aluguel-competencias.test.ts` — o teste
+   * "evolui de com_atraso→em_cobranca→litigioso..." lá recria esta mesma intenção
+   * (mesmos dias: 24/65/136) contra a função nova. `apurarInadimplenciaContrato` (esta
+   * função) foi deliberadamente MANTIDA como está — ver o comentário `@deprecated` nela
+   * — porque `relatorioInadimplenciaDetalhado`/`resumoInadimplenciaTotal`/
+   * `provisarJurosInadimplencia` ainda a chamam sem conhecer competências; por isso o
+   * `it.fails` abaixo continua descrevendo o comportamento real desta função,
+   * propositalmente não promovido a `it`.
    */
   it.fails(
     "status evolui por faixa de atraso: com_atraso (≤30) → em_cobranca (31-90) → litigioso (>90)",
