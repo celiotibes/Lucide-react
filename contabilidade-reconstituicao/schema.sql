@@ -1058,3 +1058,91 @@ CREATE TABLE IF NOT EXISTS ia_chamadas (
 CREATE INDEX IF NOT EXISTS idx_ia_chamadas_quando ON ia_chamadas(quando);
 CREATE INDEX IF NOT EXISTS idx_ia_chamadas_documento ON ia_chamadas(documento_id);
 CREATE INDEX IF NOT EXISTS idx_ia_chamadas_transacao ON ia_chamadas(transacao_id);
+
+-- ============================================================================
+-- CONTAS A PAGAR (src/domain/contasAPagar/contasAPagar.ts)
+-- ============================================================================
+-- Obrigação de pagar um fornecedor, com vencimento, antes de ter sido paga (baixada) —
+-- o padrão "aging de contas a pagar" que qualquer ERP de referência (Oracle, Xero,
+-- AppFolio) cobre e que faltava por completo: `documentos` já carrega quem cobra e
+-- quanto (valor, cnpj_cpf_contraparte, nome_contraparte), mas não tem vencimento nem
+-- status de pagamento — é exatamente essa lacuna que esta tabela fecha.
+--
+-- `documento_id` é opcional de propósito: pode existir uma obrigação de pagar sem
+-- documento formal ainda anexado (ex: acordo verbal com prestador, aguardando nota
+-- fiscal) — quando o documento chega depois, o vínculo é preenchido por UPDATE, não por
+-- recriação da linha.
+--
+-- `status` guarda só o que é FATO ('pendente', 'paga', 'cancelada') — 'atrasada' está no
+-- CHECK só para documentar o domínio completo da coluna, mas nunca é gravado: é
+-- CALCULADO em tempo de consulta (hoje > data_vencimento e status ainda 'pendente'), no
+-- mesmo espírito de `rateios.base_incompleta`/`caucoes` — nunca fabricar ou congelar um
+-- dado que muda sozinho com o calendário. Ver listarContasAPagar()/gerarRelatorioAging().
+--
+-- `ledger_entry_id_baixa` só é preenchido na baixa (pagamento) — é a prova de que a baixa
+-- virou um lançamento real no razão (`ledger_entries`), nunca uma tabela paralela
+-- desconectada da contabilidade de verdade. A baixa reusa a MESMA rota que uma transação
+-- bancária importada usaria (`registrarLancamentoContabil` com origem_modulo='transacoes'
+-- sobre uma linha nova em `transacoes`, ver contasAPagar.ts) — por isso não existe aqui
+-- nenhum novo valor de origem_modulo: a baixa É uma transação bancária de saída como
+-- qualquer outra, só que originada por uma obrigação já conhecida em vez de um extrato
+-- importado depois.
+CREATE TABLE IF NOT EXISTS contas_a_pagar (
+    id                  INTEGER PRIMARY KEY,
+    entidade_id         INTEGER NOT NULL REFERENCES entidades_legais(id),
+    documento_id        INTEGER REFERENCES documentos(id),
+    fornecedor_nome     TEXT NOT NULL,
+    fornecedor_cnpj_cpf TEXT,
+    descricao           TEXT,
+    valor               REAL NOT NULL CHECK (valor > 0),
+    data_vencimento     DATE NOT NULL,
+    data_pagamento      DATE,               -- NULL até ser paga
+    status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'paga', 'atrasada', 'cancelada')),
+    plano_conta_codigo  TEXT REFERENCES plano_de_contas(codigo),  -- em que despesa isso vira quando pago
+    imovel_id           INTEGER REFERENCES imoveis(id),           -- NULL = despesa não ligada a um imóvel específico
+    ledger_entry_id_baixa INTEGER REFERENCES ledger_entries(id),  -- preenchido só na baixa
+    criado_em           DATE NOT NULL
+);
+
+-- Consulta mais comum: aging report de uma entidade, filtrado/ordenado por status e
+-- vencimento.
+CREATE INDEX IF NOT EXISTS idx_contas_a_pagar_entidade_status_venc ON contas_a_pagar(entidade_id, status, data_vencimento);
+
+-- Sugestão de classificação de transação por IA — camada A MAIS sobre a classificação
+-- determinística (regras_categorizacao) e a manual (TransacoesView.categorizar), NUNCA uma
+-- substituição delas: para uma transação sem plano_conta_codigo que nenhuma regra salva
+-- capturou, a IA propõe um código do plano_de_contas com confiança e explicação
+-- (ver src/domain/categorize/sugestaoClassificacaoIA.ts), e um humano aceita ou rejeita.
+-- REGRA DE OURO deste sistema, sem exceção aqui: IA nunca escreve direto no razão nem
+-- classifica uma transação sozinha — aceitar passa por reclassificarTransacao (estorno +
+-- relançamento no razão quando aplicável), exatamente como uma reclassificação manual.
+--
+-- pergunta_para_decisao é preenchida só quando a própria IA não consegue decidir sozinha
+-- (duas classificações plausíveis, contraparte desconhecida, valor atípico para o padrão da
+-- conta) e formula uma pergunta objetiva para o humano — é uma DECISÃO explicitamente pedida,
+-- não uma sugestão de confiança baixa escondida atrás de um código qualquer.
+--
+-- UNIQUE(transacao_id): só a sugestão mais recente por transação faz sentido manter viva —
+-- gerar uma nova sugestão para uma transação que já tinha uma (ex: uma rejeitada
+-- anteriormente) SUBSTITUI a linha em vez de acumular histórico ali (o histórico de
+-- PROVENIÊNCIA de cada chamada de IA que já rodou continua intacto em ia_chamadas, nunca
+-- apagado — só a "sugestão viva" por transação é sempre uma só).
+CREATE TABLE IF NOT EXISTS sugestoes_classificacao_ia (
+    id                              INTEGER PRIMARY KEY,
+    transacao_id                    INTEGER NOT NULL REFERENCES transacoes(id),
+    plano_conta_codigo_sugerido     TEXT REFERENCES plano_de_contas(codigo), -- NULL quando a IA não teve segurança para sugerir nenhum código (ver pergunta_para_decisao)
+    confianca                       TEXT NOT NULL CHECK (confianca IN ('alta', 'media', 'baixa')),
+    explicacao                      TEXT NOT NULL,               -- justificativa curta do porquê (auditável — "a IA achou" nunca é suficiente)
+    pergunta_para_decisao           TEXT,                         -- preenchida só em caso genuinamente ambíguo — ver comentário acima
+    -- Proveniência: qual chamada de IA (ia_chamadas acima) produziu esta sugestão. Sem
+    -- FOREIGN KEY de propósito, mesmo motivo de ia_chamadas.documento_id/transacao_id: não
+    -- deve travar em cascata se o histórico de chamadas for manipulado por outra via.
+    ia_chamada_id                   INTEGER,
+    status                          TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'aceita', 'rejeitada')),
+    criado_em                       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decidido_em                     DATETIME,
+    decidido_por                    INTEGER,                      -- usuario_id de quem aceitou/rejeitou (aceitarSugestao/rejeitarSugestao)
+    UNIQUE (transacao_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sugestoes_classificacao_ia_status ON sugestoes_classificacao_ia(status);
