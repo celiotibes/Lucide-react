@@ -248,9 +248,8 @@ create policy contador_select_centros_custo
     on public.centros_custo for select to authenticated
     using (public.meu_papel() = 'contador');
 
-create policy contador_select_regras_contabilizacao
-    on public.regras_contabilizacao for select to authenticated
-    using (public.meu_papel() = 'contador');
+-- policy contador_select_regras_contabilizacao removida junto com a tabela
+-- regras_contabilizacao (tabela morta — ver comentário em schema.postgres.sql).
 
 -- períodos
 create policy contador_select_periodos_contabeis
