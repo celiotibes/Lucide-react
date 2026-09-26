@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { CopyCheck, TrendingUp, CalendarX2, Link2Off, Search } from "lucide-react";
+import { CopyCheck, TrendingUp, CalendarX2, Link2Off, Search, ShieldCheck, ShieldAlert, FileDown } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import {
@@ -9,7 +9,12 @@ import {
   CATEGORIAS_BENFORD_VARIAVEIS, AMOSTRA_MINIMA_BENFORD_INDICATIVA,
 } from "../domain/auditoria/auditoriaForense";
 import { listarLogCompleto } from "../domain/auditoria/logAlteracoes";
+import {
+  verificarIntegridade, gerarRelatorioAuditoria, listarAcessosUsuario, exportarLogAuditoria,
+  type VerificacaoIntegridade, type RelatorioAuditoria, type RegistroAuditoria,
+} from "../domain/erp/compliance-audit-log";
 import { formatarMoeda } from "../domain/formatarMoeda";
+import { KpiTile } from "./KpiTile";
 import type { FiltroTransacoesInicial } from "./TransacoesView";
 
 const ROTULO_TABELA: Record<string, string> = {
@@ -57,6 +62,69 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
   const transacoesCaucaoSemRegistro = useMemo(() => (db ? detectarTransacoesCaucaoSemRegistro(db) : []), [db, versao]);
   const financiamentosSemLancamento = useMemo(() => (db ? detectarFinanciamentosSemLancamento(db, hoje) : []), [db, versao, hoje]);
   const logAlteracoes = useMemo(() => (db ? listarLogCompleto(db, 100) : []), [db, versao]);
+
+  // Log de acesso e integridade (compliance-audit-log.ts) — trilha imutável de chamadas a
+  // APIs externas, distinta do "Histórico de edições" acima (que audita os CADASTROS, não o
+  // acesso). Reusa o mesmo período de 36 meses já calculado para o resto da tela.
+  const [integridade, setIntegridade] = useState<VerificacaoIntegridade | null>(null);
+  const [verificandoIntegridade, setVerificandoIntegridade] = useState(false);
+
+  useEffect(() => {
+    if (!db) return;
+    let cancelado = false;
+    setVerificandoIntegridade(true);
+    verificarIntegridade(db, dataInicio36m, hoje)
+      .then((resultado) => {
+        if (!cancelado) setIntegridade(resultado);
+      })
+      .finally(() => {
+        if (!cancelado) setVerificandoIntegridade(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [db, versao, dataInicio36m, hoje]);
+
+  const relatorioAuditoria = useMemo<RelatorioAuditoria | null>(
+    () => (db ? gerarRelatorioAuditoria(db, dataInicio36m, hoje) : null),
+    [db, versao, dataInicio36m, hoje],
+  );
+
+  // Não há cadastro de usuários/login nesta tela (app local, sem sessão) — a lista de
+  // usuários selecionáveis vem dos próprios registros do log, não de uma tabela à parte.
+  const usuariosComAcesso = useMemo(() => {
+    if (!db) return [];
+    return consultar<{ usuario_id: number; usuario_nome: string | null }>(
+      db,
+      `SELECT DISTINCT usuario_id, usuario_nome FROM auditoria_log WHERE usuario_id IS NOT NULL ORDER BY usuario_nome`,
+    );
+  }, [db, versao]);
+
+  const [usuarioSelecionado, setUsuarioSelecionado] = useState<number | "">("");
+
+  const acessosUsuario = useMemo(
+    () => (db && usuarioSelecionado !== "" ? listarAcessosUsuario(db, usuarioSelecionado, 50) : []),
+    [db, versao, usuarioSelecionado],
+  );
+
+  // Sem usuário selecionado: consulta geral (últimas alterações do período, já trazidas pelo
+  // relatório). Com usuário selecionado: histórico específico dele via listarAcessosUsuario.
+  const registrosAuditoriaExibidos: RegistroAuditoria[] =
+    usuarioSelecionado === "" ? relatorioAuditoria?.ultimas_alteracoes ?? [] : acessosUsuario;
+
+  function exportarLog(formato: "json" | "csv") {
+    if (!db) return;
+    const conteudo = exportarLogAuditoria(db, dataInicio36m, hoje, formato);
+    if (!conteudo) return;
+    const tipoMime = formato === "json" ? "application/json;charset=utf-8" : "text/csv;charset=utf-8";
+    const blob = new Blob([formato === "csv" ? "﻿" + conteudo : conteudo], { type: tipoMime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `log-auditoria_${dataInicio36m}_a_${hoje}.${formato}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div>
@@ -281,6 +349,133 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
                     <td>{ROTULO_TABELA[l.tabela] ?? l.tabela} #{l.registro_id}</td>
                     <td>{ROTULO_OPERACAO[l.operacao] ?? l.operacao}</td>
                     <td style={{ fontSize: 12 }}>{l.resumo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ marginTop: 24 }}>
+        <div className="section-title">
+          {integridade && !integridade.integro ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
+          Log de acesso e integridade
+        </div>
+        <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 16 }}>
+          Trilha imutável de chamadas a APIs externas (banco, fisco, open banking, gateways de pagamento) —
+          cadeia de hash SHA-256 encadeado registro a registro, com assinatura HMAC para não-repudiação
+          (exigência de LGPD/segurança e retenção de 7 anos). Distinta do "Histórico de edições" acima, que
+          audita os cadastros; esta seção audita o próprio acesso e a integridade do log. Período: {dataInicio36m}{" "}
+          a {hoje}.
+        </p>
+
+        {integridade && !integridade.integro && (
+          <div className="aviso-caixa" style={{ marginBottom: 16 }}>
+            <strong>ALERTA:</strong> a cadeia de hash do log de auditoria apresenta{" "}
+            {integridade.registros_corrompidos} registro(s) com hash ou assinatura divergente do esperado —
+            sinal de adulteração do log ou de gravação feita fora deste módulo. Verificado em{" "}
+            {new Date(integridade.data_verificacao).toLocaleString("pt-BR")}.
+          </div>
+        )}
+
+        <div className="kpi-grid">
+          <KpiTile
+            label="Integridade da cadeia"
+            value={!integridade ? (verificandoIntegridade ? "verificando…" : "—") : integridade.integro ? "Íntegra" : "COMPROMETIDA"}
+            variant={integridade ? (integridade.integro ? "good" : "critical") : undefined}
+          />
+          <KpiTile label="Registros verificados" value={integridade?.registros_verificados ?? 0} />
+          <KpiTile
+            label="Registros corrompidos"
+            value={integridade?.registros_corrompidos ?? 0}
+            variant={integridade && integridade.registros_corrompidos > 0 ? "critical" : integridade ? "good" : undefined}
+          />
+          <KpiTile label="Total de registros no período" value={relatorioAuditoria?.total_registros ?? 0} />
+          <KpiTile label="Usuários ativos" value={relatorioAuditoria?.usuarios_ativos ?? 0} />
+          <KpiTile label="IPs diferentes" value={relatorioAuditoria?.ips_diferentes ?? 0} />
+          <KpiTile
+            label="Erros registrados"
+            value={relatorioAuditoria?.erros_registrados ?? 0}
+            variant={relatorioAuditoria && relatorioAuditoria.erros_registrados > 0 ? "critical" : relatorioAuditoria ? "good" : undefined}
+          />
+        </div>
+
+        {relatorioAuditoria && (Object.keys(relatorioAuditoria.operacoes_por_tipo).length > 0 || Object.keys(relatorioAuditoria.operacoes_por_modulo).length > 0) && (
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 13, marginBottom: 18 }}>
+            {Object.keys(relatorioAuditoria.operacoes_por_tipo).length > 0 && (
+              <div>
+                <strong>Por tipo de operação:</strong>{" "}
+                {Object.entries(relatorioAuditoria.operacoes_por_tipo).map(([tipo, n]) => `${tipo}: ${n}`).join(" · ")}
+              </div>
+            )}
+            {Object.keys(relatorioAuditoria.operacoes_por_modulo).length > 0 && (
+              <div>
+                <strong>Por módulo:</strong>{" "}
+                {Object.entries(relatorioAuditoria.operacoes_por_modulo).map(([modulo, n]) => `${modulo}: ${n}`).join(" · ")}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+          <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
+            Usuário:
+            <select
+              value={usuarioSelecionado}
+              onChange={(e) => setUsuarioSelecionado(e.target.value === "" ? "" : Number(e.target.value))}
+              style={{ border: "1px solid var(--line)", borderRadius: 6, padding: "5px 8px", fontSize: 13 }}
+            >
+              <option value="">Todos (últimas alterações do período)</option>
+              {usuariosComAcesso.map((u) => (
+                <option key={u.usuario_id} value={u.usuario_id}>
+                  {u.usuario_nome || `Usuário #${u.usuario_id}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" onClick={() => exportarLog("json")} title="Baixar o log do período em JSON">
+              <FileDown size={14} /> Exportar JSON
+            </button>
+            <button className="btn" onClick={() => exportarLog("csv")} title="Baixar o log do período em CSV">
+              <FileDown size={14} /> Exportar CSV
+            </button>
+          </div>
+        </div>
+
+        {registrosAuditoriaExibidos.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>
+            Nenhum registro de auditoria encontrado {usuarioSelecionado === "" ? "no período" : "para este usuário"}.
+          </p>
+        ) : (
+          <div className="table-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Quando</th>
+                  <th>Usuário</th>
+                  <th>Módulo</th>
+                  <th>Operação</th>
+                  <th>Entidade</th>
+                  <th>Descrição</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registrosAuditoriaExibidos.map((r) => (
+                  <tr key={r.id ?? `${r.timestamp}-${r.hash_sha256}`}>
+                    <td>{new Date(r.timestamp).toLocaleString("pt-BR")}</td>
+                    <td>{r.usuario_nome || (r.usuario_id ? `#${r.usuario_id}` : "—")}</td>
+                    <td>{r.modulo_chamador}</td>
+                    <td>{r.tipo_operacao}</td>
+                    <td>{r.entidade_afetada} #{r.id_entidade}</td>
+                    <td style={{ fontSize: 12 }}>{r.descricao_alteracao}</td>
+                    <td>
+                      <span className={`pill ${r.status === "erro" ? "critical" : r.status === "pendente" ? "warning" : "good"}`}>
+                        {r.status}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
