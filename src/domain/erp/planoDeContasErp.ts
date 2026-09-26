@@ -45,6 +45,11 @@ export const PLANO_DE_CONTAS_ERP = [
   { id: 3102, codigo: "3.1.02", descricao: "Contas a pagar", grupo: "passivo", natureza: "credito" },
   { id: 3105, codigo: "3.1.05", descricao: "Remuneração a pagar", grupo: "passivo", natureza: "credito" },
   { id: 3201, codigo: "3.2.01", descricao: "Empréstimos de longo prazo", grupo: "passivo", natureza: "credito" },
+  // Passivo exigível de sócio/pessoa física — deliberadamente separada de 3.2.01
+  // (empréstimo bancário/financiamento): são credores de natureza diferente para efeito de
+  // perícia de segregação patrimonial (docs/dominios-a-reconstruir.md, seção 2). Ver
+  // CONTA_EMPRESTIMO_SOCIO_ERP em src/domain/contasPessoais/contasPessoais.ts.
+  { id: 3202, codigo: "3.2.02", descricao: "Empréstimos de sócios (mútuo com pessoa física)", grupo: "passivo", natureza: "credito" },
   { id: 3301, codigo: "3.3.01", descricao: "Depósitos caução recebidos", grupo: "passivo", natureza: "credito" },
 
   // Receita
