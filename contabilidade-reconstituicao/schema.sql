@@ -1200,6 +1200,10 @@ CREATE TABLE IF NOT EXISTS contas_a_pagar (
     status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'paga', 'atrasada', 'cancelada')),
     plano_conta_codigo  TEXT REFERENCES plano_de_contas(codigo),  -- em que despesa isso vira quando pago
     imovel_id           INTEGER REFERENCES imoveis(id),           -- NULL = despesa não ligada a um imóvel específico
+    -- Despesa jurídica vinculada a um processo (advocacia) — NULL = despesa não ligada a
+    -- processo. Ver bloco "ADVOCACIA: PROCESSOS E PARTES" no final deste arquivo: não existe
+    -- `despesas_legais` própria, a despesa jurídica é uma linha comum desta tabela.
+    processo_id         INTEGER REFERENCES processos_legais(id),
     ledger_entry_id_baixa INTEGER REFERENCES ledger_entries(id),  -- preenchido só na baixa
     criado_em           DATE NOT NULL
 );
@@ -1207,6 +1211,7 @@ CREATE TABLE IF NOT EXISTS contas_a_pagar (
 -- Consulta mais comum: aging report de uma entidade, filtrado/ordenado por status e
 -- vencimento.
 CREATE INDEX IF NOT EXISTS idx_contas_a_pagar_entidade_status_venc ON contas_a_pagar(entidade_id, status, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_contas_a_pagar_processo ON contas_a_pagar(processo_id);
 
 -- Sugestão de classificação de transação por IA — camada A MAIS sobre a classificação
 -- determinística (regras_categorizacao) e a manual (TransacoesView.categorizar), NUNCA uma
@@ -1296,3 +1301,238 @@ CREATE TABLE IF NOT EXISTS aluguel_competencias (
 -- Consulta mais comum: aging de um contrato, filtrado/ordenado por status e vencimento —
 -- mesmo padrão de idx_contas_a_pagar_entidade_status_venc.
 CREATE INDEX IF NOT EXISTS idx_aluguel_competencias_contrato_status_venc ON aluguel_competencias(contrato_id, status, data_vencimento);
+
+-- ============================================================================
+-- LGPD: DIREITOS DO TITULAR (src/domain/lgpd/direitosTitular.ts)
+-- ============================================================================
+-- Reconstrução do domínio apagado (`compliance-lgpd.ts`) que não tinha tabela nem teste
+-- contra nada real (ver docs/dominios-a-reconstruir.md, seção 6). Aqui a solicitação do
+-- titular (art. 18 da Lei 13.709/2018) fica registrada com o resultado de fato aplicado —
+-- não um checklist solto, mas uma linha por pedido, rastreável.
+CREATE TABLE IF NOT EXISTS solicitacoes_lgpd (
+    id                  INTEGER PRIMARY KEY,
+    titular_nome        TEXT NOT NULL,
+    titular_cpf         TEXT NOT NULL,
+    tipo                TEXT NOT NULL CHECK (tipo IN ('acesso', 'portabilidade', 'exclusao', 'correcao')),
+    status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'atendida', 'recusada')),
+    data_solicitacao    TEXT NOT NULL,      -- timestamp ISO 8601 completo
+    data_atendimento    TEXT,               -- NULL até atender (aceita ou recusada) — mesmo padrão de data_recebimento em aluguel_competencias
+    -- Só recusa que carregue O PORQUÊ: uma solicitação de exclusão negada por retenção
+    -- legal ativa (Lei 6404/76 — ver auditoria_log.retencao_ate) precisa do motivo
+    -- explícito, nunca um "não" silencioso.
+    motivo_recusa       TEXT,
+    detalhes            TEXT,               -- o que foi pedido/encontrado/feito — corpo da resposta ao titular
+    CHECK (motivo_recusa IS NULL OR status = 'recusada'),
+    CHECK ((status = 'pendente') = (data_atendimento IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_lgpd_titular_cpf ON solicitacoes_lgpd(titular_cpf);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_lgpd_status ON solicitacoes_lgpd(status);
+
+-- ============================================================================
+-- LGPD: REGISTRO DE POLÍTICA DE ROTAÇÃO DE CHAVE (src/domain/lgpd/rotacaoChave.ts)
+-- ============================================================================
+-- ATENÇÃO — o que esta tabela NÃO é: não há aqui execução de criptografia de arquivo
+-- nenhuma, porque este app roda 100% no navegador (sql.js/IndexedDB, sem backend) e não
+-- tem onde guardar uma chave de encriptação com segurança — a mesma limitação já
+-- documentada em src/domain/erp/compliance-audit-log.ts sobre o segredo de assinatura
+-- HMAC (quem abre o DevTools lê qualquer coisa guardada no cliente). Isto é só o REGISTRO
+-- de auditoria/política de que uma rotação de chave (de um sistema de criptografia real,
+-- quando o produto for para trás de um backend de verdade) aconteceu — quem, quando, por
+-- quê. A criptografia de dados em repouso em si é responsabilidade da infraestrutura
+-- (Postgres/Supabase), nunca deste módulo client-side.
+CREATE TABLE IF NOT EXISTS politica_rotacao_chave (
+    id                      INTEGER PRIMARY KEY,
+    data_rotacao            TEXT NOT NULL,      -- timestamp ISO 8601 completo
+    responsavel             TEXT NOT NULL,
+    motivo                  TEXT NOT NULL,
+    -- Hash da chave ANTERIOR (nunca a chave em si) — só para referência/auditoria, prova
+    -- de que a rotação trocou de fato a chave sem expor qual era.
+    chave_anterior_hash     TEXT NOT NULL,
+    observacoes             TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_politica_rotacao_chave_data ON politica_rotacao_chave(data_rotacao);
+
+-- ============================================================================
+-- CONTAS PESSOAIS — segregação patrimonial PF x sociedade de fato
+-- (docs/dominios-a-reconstruir.md, seção 2). Reconstrução do zero: os módulos
+-- antigos (`contas-pessoais.ts` e primos) escreviam em tabelas que nunca
+-- existiram neste schema. `contas_bancarias` (topo do arquivo) são todas da
+-- ENTIDADE — nada até agora distinguia dinheiro da pessoa física do dinheiro
+-- da atividade, que é exatamente o que perícia contábil de confusão
+-- patrimonial cobra. Lógica de escrita em
+-- src/domain/contasPessoais/contasPessoais.ts.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS pessoas (
+    id              INTEGER PRIMARY KEY,
+    nome            TEXT NOT NULL,
+    cpf             TEXT,
+    -- Papel da pessoa em relação à entidade/atividade — não é "quem é o
+    -- titular do sistema" (isso é entidades_legais), é "por que essa conta
+    -- pessoal aparece aqui": o próprio titular ('titular'), um sócio de fato
+    -- da sociedade não-formalizada, um familiar cuja conta às vezes recebe/
+    -- envia dinheiro da atividade (comum em confusão patrimonial de fato), ou
+    -- 'outro' para qualquer caso não previsto.
+    tipo_relacao    TEXT NOT NULL CHECK (tipo_relacao IN ('titular', 'socio', 'familiar', 'outro')),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pessoas_tipo_relacao ON pessoas(tipo_relacao);
+
+-- Conta bancária da PESSOA FÍSICA, nunca da entidade — diferença deliberada
+-- de `contas_bancarias` (que são todas da atividade/entidade hoje). Sem
+-- UNIQUE (banco, agencia, numero) global como em contas_bancarias: a mesma
+-- conta bancária real nunca deveria aparecer nas duas tabelas ao mesmo
+-- tempo, mas isso é responsabilidade de quem cadastra — cruzar UNIQUE entre
+-- duas tabelas diferentes não é possível em SQL puro sem trigger, e não foi
+-- criado um aqui.
+CREATE TABLE IF NOT EXISTS contas_pessoais (
+    id              INTEGER PRIMARY KEY,
+    pessoa_id       INTEGER NOT NULL REFERENCES pessoas(id),
+    banco           TEXT NOT NULL,
+    agencia         TEXT,
+    numero          TEXT NOT NULL,
+    tipo            TEXT NOT NULL CHECK (tipo IN ('corrente', 'poupanca', 'investimento')),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_contas_pessoais_pessoa ON contas_pessoais(pessoa_id);
+
+-- Movimento de uma conta pessoal. `valor` é assinado: positivo = dinheiro
+-- ENTRANDO na conta pessoal, negativo = SAINDO dela.
+--
+-- `transferencia_entidade_id` é o ponto sensível de segregação patrimonial:
+-- quando o movimento é uma transferência de/para a entidade (aporte de
+-- capital, retirada de capital, empréstimo de sócio ou sua devolução — ver
+-- `categoria` abaixo e `registrarMovimentoPessoal` em
+-- src/domain/contasPessoais/contasPessoais.ts), este campo aponta para o
+-- lançamento espelho em `ledger_entries` do lado da entidade. Um movimento
+-- com categoria de transferência e este campo NULO é uma transferência
+-- ÓRFÃ — dinheiro que "aparece" de um lado só, sem contrapartida contábil
+-- rastreável do lado da entidade; é exatamente o que
+-- `relatorioSegregacaoPatrimonial` audita.
+CREATE TABLE IF NOT EXISTS movimentos_pessoais (
+    id                          INTEGER PRIMARY KEY,
+    conta_pessoal_id            INTEGER NOT NULL REFERENCES contas_pessoais(id),
+    data                        DATE NOT NULL,
+    valor                       REAL NOT NULL CHECK (valor <> 0),
+    descricao                   TEXT NOT NULL,
+    -- Categoria livre para movimento comum (ex: 'salario', 'alimentacao'); as
+    -- quatro categorias reservadas ('aporte_capital', 'retirada_capital',
+    -- 'emprestimo_socio', 'devolucao_emprestimo' — ver
+    -- CATEGORIAS_TRANSFERENCIA_ENTIDADE em contasPessoais.ts) MARCAM o
+    -- movimento como transferência com a entidade. Não é ENUM/CHECK fechado
+    -- de propósito: um valor livre continua sendo só uma etiqueta de
+    -- relatório; as quatro reservadas é que carregam significado contábil.
+    categoria                   TEXT,
+    transferencia_entidade_id   INTEGER REFERENCES ledger_entries(id),
+    criado_em                   DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_movimentos_pessoais_conta_data ON movimentos_pessoais(conta_pessoal_id, data);
+CREATE INDEX IF NOT EXISTS idx_movimentos_pessoais_categoria ON movimentos_pessoais(categoria);
+
+-- ============================================================================
+-- OPEN BANKING / PAGAMENTOS INICIADOS (src/domain/pagamentos/pagamentosIniciados.ts)
+-- ============================================================================
+-- Pagamento eletrônico (PIX/TED/DOC) INICIADO pelo app — modela só o STATUS do pagamento
+-- (solicitado → confirmado/falhou → conciliado), não uma integração real com API bancária
+-- de pagamento. Hoje o app só IMPORTA extrato (OFX/Pluggy, ver src/domain/importacao/); não
+-- existe aqui nenhuma chamada de rede a provedor nenhum. `confirmarPagamento()` é o PONTO DE
+-- ENTRADA para quando uma integração real existir: uma função que RECEBE a confirmação do
+-- provedor e atualiza o status, nunca uma que liga para fora (ver
+-- src/domain/pagamentos/pagamentosIniciados.ts).
+--
+-- `contas_a_pagar_id` é opcional: um pagamento pode ser a baixa de uma obrigação já
+-- registrada (contas_a_pagar) ou avulso (ex.: pagamento pontual sem obrigação prévia). Ao
+-- contrário da baixa de contas_a_pagar (que já grava direto em `transacoes` e no razão, ver
+-- comentário daquela tabela), este pagamento NÃO lança no razão sozinho — ele só descreve a
+-- intenção e o status de um PIX/TED/DOC. O lançamento contábil de fato só acontece quando o
+-- extrato bancário real for importado e a transação resultante for conciliada aqui
+-- (`transacao_id`), fechando o ciclo por triagem/aprovação como qualquer outra transação
+-- (ver src/domain/importacao/triagem.ts) — nunca automaticamente.
+--
+-- `destinatario_chave_pix` só faz sentido para tipo='pix' — CHECK abaixo recusa gravar chave
+-- em TED/DOC. `motivo_falha` só é gravado quando status='falhou' — mesmo princípio de nunca
+-- congelar um dado que não corresponde ao status atual (ver contas_a_pagar.status).
+--
+-- `status`: 'solicitado' (registrado, nada confirmado ainda) → 'confirmado' (provedor real
+-- confirmou que o pagamento saiu) OU 'falhou' (provedor recusou/reverteu) → 'conciliado'
+-- (a transação bancária correspondente apareceu no extrato importado e foi confirmada
+-- manualmente — NUNCA automática, mesma regra de ouro de documento_transacoes.status).
+CREATE TABLE IF NOT EXISTS pagamentos_iniciados (
+    id                      INTEGER PRIMARY KEY,
+    entidade_id             INTEGER NOT NULL REFERENCES entidades_legais(id),
+    conta_bancaria_id       INTEGER NOT NULL REFERENCES contas_bancarias(id), -- de onde sai o dinheiro
+    tipo                    TEXT NOT NULL CHECK (tipo IN ('pix', 'ted', 'doc')),
+    valor                   REAL NOT NULL CHECK (valor > 0),
+    destinatario_nome       TEXT NOT NULL,
+    destinatario_documento  TEXT NOT NULL,          -- CPF ou CNPJ do destinatário
+    destinatario_chave_pix  TEXT,                   -- só preenchida quando tipo='pix'
+    status                  TEXT NOT NULL DEFAULT 'solicitado' CHECK (status IN ('solicitado', 'confirmado', 'falhou', 'conciliado')),
+    contas_a_pagar_id       INTEGER REFERENCES contas_a_pagar(id), -- opcional: baixa de obrigação já registrada
+    data_solicitacao        DATE NOT NULL,
+    data_confirmacao        DATE,                   -- NULL até confirmado pelo provedor
+    motivo_falha            TEXT,                   -- NULL a menos que status='falhou'
+    transacao_id            INTEGER REFERENCES transacoes(id), -- preenchido só na conciliação com o extrato importado
+    CHECK (destinatario_chave_pix IS NULL OR tipo = 'pix'),
+    CHECK (motivo_falha IS NULL OR status = 'falhou')
+);
+
+-- Consulta mais comum: relatório de pagamentos pendentes de uma entidade (solicitados ou
+-- confirmados, ainda não conciliados) — mesmo padrão de idx_contas_a_pagar_entidade_status_venc.
+CREATE INDEX IF NOT EXISTS idx_pagamentos_iniciados_entidade_status ON pagamentos_iniciados(entidade_id, status, data_solicitacao);
+
+-- ============================================================================
+-- ADVOCACIA: PROCESSOS E PARTES (src/domain/advocacia/advocacia.ts)
+-- ============================================================================
+-- Reconstrução do domínio de advocacia apagado por escrever em tabelas fictícias
+-- (`processos_legais`/`despesas_legais` citadas em rls.postgres.sql linha ~318 nunca
+-- existiram de verdade neste schema — ver docs/dominios-a-reconstruir.md, seção 1).
+--
+-- DECISÃO DE DESENHO (por que não existe `despesas_legais` própria): a despesa jurídica
+-- É uma obrigação com fornecedor, valor e vencimento — exatamente o que `contas_a_pagar`
+-- já resolve (aging, baixa via `registrarLancamentoContabil`, status calculado). Criar
+-- `despesas_legais` duplicaria esse controle de vencimento/baixa inteiro só para trocar o
+-- rótulo. Em vez disso, `contas_a_pagar` ganhou `processo_id` (ver a coluna, acima, no
+-- bloco CONTAS A PAGAR): uma despesa jurídica é uma linha comum de `contas_a_pagar` com
+-- `processo_id` preenchido e `plano_conta_codigo` tipicamente '2.1.11' (Advocacia —
+-- honorários e despesas jurídicas, que já mapeia para 6.3.01 Honorários advocatícios no
+-- razão — ver mapeamentoPlanoApp.ts). Isso também reaproveita de graça o aging/parcelamento
+-- (várias linhas de contas_a_pagar com o mesmo processo_id) sem nenhuma tabela ou lógica de
+-- vencimento nova.
+CREATE TABLE IF NOT EXISTS processos_legais (
+    id                  INTEGER PRIMARY KEY,
+    entidade_id         INTEGER NOT NULL REFERENCES entidades_legais(id),
+    numero_processo     TEXT,          -- NULL até ser protocolado (ex: processo em fase de estudo)
+    tipo                TEXT NOT NULL CHECK (tipo IN ('civel', 'trabalhista', 'tributario', 'outro')),
+    vara_comarca        TEXT,
+    status              TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'suspenso', 'encerrado', 'arquivado')),
+    valor_causa         REAL CHECK (valor_causa IS NULL OR valor_causa >= 0),
+    data_distribuicao   DATE,
+    data_encerramento   DATE,          -- NULL até encerrar
+    resultado           TEXT,          -- texto livre; NULL até encerrar
+    observacoes         TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_processos_legais_entidade_status ON processos_legais(entidade_id, status);
+
+-- Parte do processo: quem move ou é movido (autor/réu) e eventual terceiro interessado.
+-- `representado_por_nos` é o que distingue "nosso cliente" da parte contrária — sem essa
+-- coluna, uma consulta não teria como saber de que lado do processo a entidade está.
+CREATE TABLE IF NOT EXISTS partes_processo (
+    id                      INTEGER PRIMARY KEY,
+    processo_id             INTEGER NOT NULL REFERENCES processos_legais(id),
+    papel                   TEXT NOT NULL CHECK (papel IN ('autor', 'reu', 'terceiro_interessado')),
+    nome                    TEXT NOT NULL,
+    cpf_cnpj                TEXT,
+    representado_por_nos    INTEGER NOT NULL DEFAULT 0 CHECK (representado_por_nos IN (0, 1)),
+    criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_partes_processo_processo ON partes_processo(processo_id);
