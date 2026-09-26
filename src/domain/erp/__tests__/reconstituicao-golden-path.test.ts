@@ -39,6 +39,12 @@ const TOLERANCIA = 0.01; // mesma margem usada em conciliacao.ts e ledger.ts
  * alcançava (os testes existentes em __auditoria__/balanco-patrimonial.test.ts, por
  * exemplo, só lançam um único débito OU um único crédito por conta — nunca os dois).
  *
+ * ATUALIZAÇÃO: A, B e C foram corrigidos (relatorios-integrados.ts agora soma líquido —
+ * débito menos crédito, ou vice-versa conforme a natureza — em vez de um lado só) e os
+ * três testes abaixo viraram `it` normal, passando de verdade. Só D permanece `it.fails`:
+ * é uma lacuna estrutural (falta o lançamento de encerramento que transfere o resultado do
+ * período para o PL), não um bug pontual de query, e está fora do escopo desta correção.
+ *
  * A) gerarBalanco / gerarBalancoComFiltro (relatorios-integrados.ts, getAtivoConta
  *    ~L309-321, getPassivoConta ~L323-335, getPatrimonioLiquidoConta ~L337-349, e os
  *    gêmeos em gerarBalancoComFiltro ~L703-761): a query usa
@@ -377,7 +383,7 @@ describe("Reconstituição contábil — golden path de 1 ano (2025)", () => {
     // do ano + imóvel capitalizado) é a soma correta e reproduzível por SQL direto —
     // Passivo e PL são ambos R$ 0,00 neste cenário (nenhuma conta de passivo/PL foi
     // tocada), então a identidade correta é Ativo = Resultado acumulado do ano.
-    it.fails(
+    it(
       "Balanço de dezembro fecha: Ativo total = Passivo total + Patrimônio Líquido total",
       () => {
         const balancoDez = gerarBalanco(db, entidade_id, periodoPorMes[12]);
@@ -426,7 +432,7 @@ describe("Reconstituição contábil — golden path de 1 ano (2025)", () => {
     // exatamente como conciliacao.ts::saldo_razao já faz e testa: soma direta e líquida
     // de valor_debito - valor_credito da conta de caixa, sobre TODOS os lançamentos até a
     // data — não uma aproximação.
-    it.fails(
+    it(
       "Fluxo de Caixa de dezembro: saldo final apurado = soma líquida da conta de caixa no razão",
       () => {
         const fluxoDez = gerarFluxoCaixa(db, entidade_id, periodoPorMes[12]);
@@ -448,7 +454,7 @@ describe("Reconstituição contábil — golden path de 1 ano (2025)", () => {
     // condomínio de verdade) e continua em R$ 800 (o valor de antes da correção, intacto)
     // — a despesa reclassificada não sai de onde estava, só é somada de novo no lugar
     // certo.
-    it.fails(
+    it(
       "a reclassificação corrige Condomínio (não deveria continuar contando o valor reclassificado)",
       () => {
         expect(dreMarAntes.custos.condominio).toBeCloseTo(300 + 500, 2); // 300 do mês + 500 mal classificado
