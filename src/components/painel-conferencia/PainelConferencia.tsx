@@ -13,7 +13,8 @@ import ApontamentosPendentes from "./tabs/ApontamentosPendentes";
 import FechamentosSemamanais from "./tabs/FechamentosSemamanais";
 import MovimentacoesFinanceiras from "./tabs/MovimentacoesFinanceiras";
 import ReajusteIPCATab from "./tabs/ReajusteIPCATab";
-import { AlertCircle, FileText, TrendingUp, DollarSign, RotateCcw } from "lucide-react";
+import RelatoriosApontamentoTab from "./tabs/RelatoriosApontamentoTab";
+import { AlertCircle, FileText, TrendingUp, DollarSign, RotateCcw, BarChart3 } from "lucide-react";
 import { useDb } from "../../db/useDb";
 import { existemPrestadoresCadastrados, listarApontamentos, listarFechamentos, listarMovimentacoes, obterReajusteIPCA } from "./data/painelConferenciaRepo";
 import { gerarDadosDemonstracaoPainelConferencia } from "./data/seedDemoPainelConferencia";
@@ -220,11 +221,16 @@ const PainelConferencia: React.FC<PainelConferenciaProps> = ({ usuarioId = "gest
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <TabsList className="grid w-full grid-cols-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                 <TabsTrigger value="apontamentos">Apontamentos</TabsTrigger>
                 <TabsTrigger value="fechamentos">Fechamentos</TabsTrigger>
                 <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
                 <TabsTrigger value="reajuste">Reajuste IPCA</TabsTrigger>
+                <TabsTrigger value="relatorios">
+                  <span className="flex items-center gap-1 justify-center">
+                    <BarChart3 className="w-4 h-4" /> Relatórios
+                  </span>
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="apontamentos" className="mt-6">
@@ -262,6 +268,10 @@ const PainelConferencia: React.FC<PainelConferenciaProps> = ({ usuarioId = "gest
 
               <TabsContent value="reajuste" className="mt-6">
                 <ReajusteIPCATab reajusteIPCA={reajusteIPCA} loading={carregando} onRefresh={carregarTudo} usuarioId={usuarioId} />
+              </TabsContent>
+
+              <TabsContent value="relatorios" className="mt-6">
+                <RelatoriosApontamentoTab />
               </TabsContent>
             </Tabs>
           </>

@@ -6,13 +6,16 @@ import { parseTabelasDoSchema, garantirColunasAtualizadas, reconstruirLedgerEntr
 describe("parseTabelasDoSchema — contra o schema.sql real", () => {
   const tabelas = parseTabelasDoSchema(schemaSql);
 
-  it("encontra todas as 55 tabelas do schema", () => {
-    expect(tabelas.size).toBe(55);
+  it("encontra todas as 57 tabelas do schema", () => {
+    expect(tabelas.size).toBe(57);
     // As mais novas a entrar: contas a pagar (src/domain/contasAPagar/), sugestão de
     // classificação de transação por IA (src/domain/categorize/sugestaoClassificacaoIA.ts)
     // — esta última é camada a mais sobre a classificação determinística/manual, nunca
-    // uma substituição — e o log de provisionamento de vistoria (balde C,
-    // integracao-vistorias-provisionamento.ts).
+    // uma substituição —, o log de provisionamento de vistoria (balde C,
+    // integracao-vistorias-provisionamento.ts), competências mensais de aluguel
+    // (aluguel-competencias.ts, substitui regras_contabilizacao — tabela morta removida)
+    // e o cadastro operacional de imóvel (inquilinos, manutencoes — reconstrução do
+    // balde B, docs/dominios-a-reconstruir.md seção 3).
     for (const nova of [
       "extrato_saldos_informados",
       "conciliacoes_bancarias",
@@ -21,9 +24,13 @@ describe("parseTabelasDoSchema — contra o schema.sql real", () => {
       "contas_a_pagar",
       "sugestoes_classificacao_ia",
       "provisionamento_vistoria_log",
+      "aluguel_competencias",
+      "inquilinos",
+      "manutencoes",
     ]) {
       expect(tabelas.has(nova)).toBe(true);
     }
+    expect(tabelas.has("regras_contabilizacao")).toBe(false);
   });
 
   it("imoveis: extrai co_titular_nome corretamente apesar do comentário multilinha com parêntese desbalanceado numa única linha (achado de auditoria anterior)", () => {

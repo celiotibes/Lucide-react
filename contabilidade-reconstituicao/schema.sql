@@ -513,6 +513,64 @@ CREATE INDEX IF NOT EXISTS idx_vistoria_anexo_vistoria ON vistoria_anexo(vistori
 CREATE INDEX IF NOT EXISTS idx_vistoria_log_vistoria ON vistoria_log(vistoria_id);
 CREATE INDEX IF NOT EXISTS idx_provisionamento_vistoria_log_vistoria ON provisionamento_vistoria_log(vistoria_id);
 
+-- Gestão operacional do imóvel: cadastro de inquilino e agenda de manutenção — o gap
+-- identificado em docs/dominios-a-reconstruir.md (seção 3): o app já concilia o financeiro
+-- do imóvel (contratos_locacao, vistorias), mas não tinha onde guardar quem mora lá nem
+-- quando a próxima manutenção está marcada. Ver src/domain/erp/gestaoOperacionalImovel.ts.
+--
+-- DECISÃO (não recriar imovel_documentos): `documentos` (tipo, arquivo_nome, valor,
+-- data_documento, cnpj_cpf_contraparte, nome_contraparte, criado_em) + `documento_imoveis`
+-- (vínculo N:N com percentual) já cobrem "documento do imóvel" (escritura, IPTU, contrato de
+-- obra etc. — sob tipo 'outro' ou 'contrato' quando cabível): o mesmo cadastro de documento já
+-- usado para boleto/nota fiscal, sem duplicar uma segunda tabela de documento só para imóvel.
+-- A única capacidade que o módulo apagado tinha e que não é reconstruída aqui é
+-- data_vencimento/status ('vigente'/'expirado') por documento — `documentos` não tem essa
+-- coluna hoje — deliberadamente fora de escopo desta tarefa (só inquilinos e manutenções foram
+-- pedidos); pode ser acrescentada depois como colunas opcionais em `documentos` se o produto
+-- precisar de alerta de vencimento de documento, sem precisar de tabela nova.
+--
+-- DECISÃO (não recriar despesas_operacionais_agendadas): já resolvida em
+-- dashboard-portfolio.ts — despesa operacional agendada do imóvel é uma linha de
+-- `contas_a_pagar` com `imovel_id` preenchido e `data_vencimento` futura.
+CREATE TABLE IF NOT EXISTS inquilinos (
+    id              INTEGER PRIMARY KEY,
+    imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
+    nome            TEXT NOT NULL,
+    cpf_cnpj        TEXT,
+    telefone        TEXT,
+    email           TEXT,
+    -- Contrato vigente deste inquilino, quando já identificado — opcional porque o
+    -- cadastro do inquilino pode ser feito antes do contrato (ex: pré-cadastro) ou o
+    -- inquilino pode não ter contrato individual (ex: responsável solidário já coberto
+    -- por contrato_locatarios). Histórico de inquilinos passados do mesmo imóvel continua
+    -- rastreável (várias linhas por imovel_id ao longo do tempo); "quem mora lá hoje" é
+    -- inferido pelo contrato ligado estar vigente (data_fim nulo ou futura), não por uma
+    -- coluna de status própria.
+    contrato_id     INTEGER REFERENCES contratos_locacao(id),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_inquilinos_imovel ON inquilinos(imovel_id);
+CREATE INDEX IF NOT EXISTS idx_inquilinos_contrato ON inquilinos(contrato_id);
+
+CREATE TABLE IF NOT EXISTS manutencoes (
+    id              INTEGER PRIMARY KEY,
+    imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
+    tipo            TEXT NOT NULL,               -- ex: "elétrica", "hidráulica", "pintura"
+    descricao       TEXT NOT NULL,
+    data_agendada   DATE NOT NULL,
+    data_conclusao  DATE,                        -- preenchida só ao concluir
+    custo           REAL CHECK (custo IS NULL OR custo >= 0),
+    status          TEXT NOT NULL DEFAULT 'agendada' CHECK (status IN ('agendada', 'em_andamento', 'concluida', 'cancelada')),
+    prestador_id    INTEGER REFERENCES prestadores(id),
+    observacoes     TEXT,
+    criado_em       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_manutencoes_imovel_status ON manutencoes(imovel_id, status, data_agendada);
+CREATE INDEX IF NOT EXISTS idx_manutencoes_prestador ON manutencoes(prestador_id);
+
 -- ===== SPRINT 1: ERP CORE - LEDGER INTEGRADO =====
 -- Tabela central de lançamentos contábeis com rastreabilidade completa e períodos fecháveis.
 -- Todas as 7 integrações (contratos, patrimônio, rateios, vistorias, financiamentos, etc.)

@@ -85,6 +85,13 @@ export function existemPrestadoresCadastrados(db: Database): boolean {
   return (linha?.total ?? 0) > 0;
 }
 
+/** Lista mínima (id, nome) para popular o seletor de prestador dos filtros de relatório —
+ * diferente do filtro por nome livre (condicaoNomePrestador) usado nas outras abas, o filtro
+ * de relatório (relatorio-apontamento-real.ts) espera um prestador_id exato. */
+export function listarPrestadoresParaFiltro(db: Database): { id: number; nome: string }[] {
+  return consultar<{ id: number; nome: string }>(db, "SELECT id, nome FROM prestadores ORDER BY nome");
+}
+
 // ===================================================================================
 // Apontamentos
 // ===================================================================================
