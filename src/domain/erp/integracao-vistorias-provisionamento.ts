@@ -193,45 +193,52 @@ export function revertorProvisionamentoDanosVistoria(
       return false; // Não há provisão a reverter
     }
 
-    // 2. Reverter lançamento de provisão
-    // Crédito em "Provisão para Devedora" (reversão da despesa)
-    registrarLancamentoContabil(db, {
-      entidade_id: entidadeId,
-      periodo_id: periodoId,
-      conta_id: 27, // Provisão para Devedora
-      data_lancamento: dataReparo,
-      valor_credito: provisionamento.valor_provision_registrada,
-      descricao: `Reversão provisão danos vistoria ${vistoriaId}`,
-      origem_modulo: "vistorias",
-      origem_id: vistoriaId,
-      referencia_documento: `VIST-${vistoriaId}-REVERT`,
-    });
+    // 2. Reverter TODOS os lançamentos vivos desta vistoria no razão (o débito da
+    // provisão e, quando houve, o crédito de desconto na caução) — mesmo padrão de
+    // estorno que reclassificarTransacao.ts já usa: a perna reversa entra com
+    // origem_modulo 'manual' (o índice único idx_ledger_origem_unica indexa a tripla
+    // origem_modulo/origem_id/conta_id só para módulos != 'manual', então a reversão não
+    // colide com o lançamento original que ela reverte na MESMA conta) e
+    // estornado_por_id liga um ao outro.
+    //
+    // Antes, as duas reversões usavam origem_modulo: 'vistorias' e origem_id: vistoriaId
+    // — exatamente a mesma tripla (origem_modulo, origem_id, conta_id) do lançamento
+    // original que ainda estava viva (estornado_por_id IS NULL) na mesma conta. Isso
+    // violava idx_ledger_origem_unica, e o erro subia direto para o catch desta função,
+    // que reportava reversão bem-sucedida como `false` sem nenhum diagnóstico.
+    const lancamentosOriginais = consultar<{
+      id: number;
+      conta_id: number;
+      valor_debito: number | null;
+      valor_credito: number | null;
+    }>(
+      db,
+      `SELECT id, conta_id, valor_debito, valor_credito FROM ledger_entries
+       WHERE origem_modulo = 'vistorias' AND origem_id = ?
+         AND estornado_por_id IS NULL AND estorno_de_id IS NULL`,
+      [vistoriaId],
+    );
 
-    // 3. Se há desconto em caução, reverter
-    if (provisionamento.valor_desconto_caucao > 0 && provisionamento.contrato_id) {
-      const [caucao] = consultar<{ id: number }>(
-        db,
-        `SELECT id FROM caucoes WHERE contrato_id = ? AND data_devolucao IS NULL`,
-        [provisionamento.contrato_id]
-      );
-
-      if (caucao) {
-        // Recuperar caução (débito em Caução a Devolver)
-        registrarLancamentoContabil(db, {
-          entidade_id: entidadeId,
-          periodo_id: periodoId,
-          conta_id: 4, // Caução a Devolver
-          data_lancamento: dataReparo,
-          valor_debito: provisionamento.valor_desconto_caucao,
-          descricao: `Recuperação caução - danos reparados`,
-          origem_modulo: "vistorias",
-          origem_id: vistoriaId,
-          referencia_documento: `VIST-${vistoriaId}-CAUCAO-RECUP`,
-        });
-      }
+    for (const original of lancamentosOriginais) {
+      const estornoId = registrarLancamentoContabil(db, {
+        entidade_id: entidadeId,
+        periodo_id: periodoId,
+        conta_id: original.conta_id,
+        data_lancamento: dataReparo,
+        valor_debito: original.valor_credito ?? undefined,
+        valor_credito: original.valor_debito ?? undefined,
+        descricao: `Reversão provisão danos vistoria ${vistoriaId} (danos reparados)`,
+        origem_modulo: "manual",
+        origem_id: original.id,
+        referencia_documento: `VIST-${vistoriaId}-REVERT-${original.id}`,
+      });
+      executar(db, `UPDATE ledger_entries SET estornado_por_id = ? WHERE id = ?`, [
+        estornoId,
+        original.id,
+      ]);
     }
 
-    // 4. Atualizar status
+    // 3. Atualizar status
     executar(
       db,
       `UPDATE provisionamento_vistoria_log SET status = 'revertido' WHERE id = ?`,
@@ -264,6 +271,9 @@ export function processarVistoriasPendentes(
   erros: number;
 } {
   // Obter vistorias concluídas mas ainda não provisionadas
+  // `v.data_vistoria` não existe em `vistorias` (a coluna real é `data_realizada` —
+  // schema.sql): a query estourava "no such column" sem nada capturar o erro (esta
+  // função não tem try/catch), quebrando processarVistoriasPendentes por inteiro.
   const vistoriasPendentes = consultar<{ id: number }>(
     db,
     `SELECT DISTINCT v.id
@@ -271,7 +281,7 @@ export function processarVistoriasPendentes(
      LEFT JOIN provisionamento_vistoria_log p ON v.id = p.vistoria_id AND p.status = 'provisionado'
      WHERE v.status = 'concluida'
        AND p.id IS NULL
-     ORDER BY v.data_vistoria ASC`,
+     ORDER BY v.data_realizada ASC`,
     []
   );
 
@@ -501,7 +511,7 @@ export function gerarRelatorioProvisionoesPendentes(
     db,
     `SELECT v.id as vistoria_id, v.imovel_id,
             SUM(vi.valor_estimado) as valor_danos,
-            CAST((julianday('now') - julianday(v.data_vistoria)) AS INTEGER) as dias_atraso
+            CAST((julianday('now') - julianday(v.data_realizada)) AS INTEGER) as dias_atraso
      FROM vistorias v
      LEFT JOIN provisionamento_vistoria_log p ON v.id = p.vistoria_id AND p.status = 'provisionado'
      LEFT JOIN vistoria_item vi ON v.id = vi.vistoria_id AND vi.tipo IN ('dano', 'necessidade_reparo')

@@ -504,6 +504,15 @@ export function calcularCombustivel(
   valor_litro: number = 6.5,
   km_por_litro: number = 10,
 ): ResultadoCombustivel {
+  // Deslocamento negativo (dado de entrada invertido/errado) computava silenciosamente
+  // um reembolso NEGATIVO — sem erro nem aviso — em vez de recusar um valor que não
+  // existe fisicamente (não se percorre km negativo). Mesmo princípio de "nunca fabricar
+  // dado" já aplicado noutros módulos (ex: rateios.base_incompleta): recusa explícita em
+  // vez de devolver um número que parece válido mas não é.
+  if (quilometros < 0) {
+    throw new Error(`Quilometragem não pode ser negativa: ${quilometros} km`);
+  }
+
   const memoria: MemoriaCalculoCombustivel = {
     data_calculo: new Date().toISOString(),
     quilometros,
@@ -649,9 +658,14 @@ export function calcularEmprestimo(
   );
 
   // Passo 1: Calcular parcela fixa (Sistema Price)
-  const valor_parcela = arredondarCentavos(
-    (valor_original * taxa_decimal * fator) / (fator - 1),
-  );
+  // Empréstimo com taxa 0% (valor perfeitamente válido: adiantamento sem juros a
+  // prestador) faz fator = (1+0)^prazo = 1, e a fórmula do Price divide por
+  // (fator - 1) = 0 — NaN silencioso em toda parcela, sem nada acusar o problema.
+  // Sem juros, a amortização correta é simplesmente linear: valor_original / prazo.
+  const valor_parcela =
+    taxa_decimal === 0
+      ? arredondarCentavos(valor_original / prazo_meses)
+      : arredondarCentavos((valor_original * taxa_decimal * fator) / (fator - 1));
 
   memoria.passos_calculo.push(
     `Fator de juros: (1 + ${taxa_decimal.toFixed(6)})^${prazo_meses} = ${fator.toFixed(6)}`,
