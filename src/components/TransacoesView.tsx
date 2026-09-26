@@ -6,7 +6,7 @@ import { useToast } from "../ui/useToast";
 import type { ContaBancaria, Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
-import { sugestoesPendentesPorTransacao, aceitarSugestao, rejeitarSugestao } from "../domain/categorize/sugestaoClassificacaoIA";
+import { sugestoesPendentesPorTransacao, aceitarSugestao, rejeitarSugestao, gerarSugestoesPendentes } from "../domain/categorize/sugestaoClassificacaoIA";
 import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, gerarXlsxConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
 import { criarTransacaoManual, excluirTransacao, dividirTransacao, type ParteDivisao } from "../domain/transacoes/transacaoManual";
 import { provasDasTransacoes } from "../domain/importacao/cofre";
@@ -74,6 +74,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [divisaoAbertaId, setDivisaoAbertaId] = useState<number | null>(null);
   const [partesDivisao, setPartesDivisao] = useState<{ valor: string; planoContaCodigo: string; imovelId: number | "" }[]>([]);
+  const [gerandoSugestoesIA, setGerandoSugestoesIA] = useState(false);
   const [formManualAberto, setFormManualAberto] = useState(false);
   const [formManual, setFormManual] = useState({ contaId: "" as number | "", data: "", valor: "", descricao: "", planoContaCodigo: "", imovelId: "" as number | "" });
 
@@ -213,6 +214,39 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
       return;
     }
     await persistir();
+  }
+
+  // Dispara a geração de sugestões de IA sob demanda (ver gerarSugestoesPendentes em
+  // sugestaoClassificacaoIA.ts) — a tela já sabia CONSUMIR sugestões já geradas (bloco
+  // "Sugestões de classificação por IA" acima), mas nada ainda disparava a geração; era
+  // só chamado por teste. `gerarSugestoesPendentes` nunca lança (falha de rede, nenhum
+  // provedor de IA configurado ou resposta ilegível vira `ignoradasPorErro` por transação,
+  // sem interromper o lote) — o try/catch aqui é só um cinto de segurança extra para algo
+  // inesperado (ex: banco indisponível), nunca para deixar a tela quebrar.
+  async function gerarSugestoesIA() {
+    if (!db || gerandoSugestoesIA) return;
+    setGerandoSugestoesIA(true);
+    try {
+      const resultado = await gerarSugestoesPendentes(db);
+      await persistir();
+      if (resultado.candidatas === 0) {
+        avisar("good", "Nenhuma transação pendente sem sugestão para gerar agora — todas já têm sugestão ou já foram classificadas.");
+      } else if (resultado.geradas === 0) {
+        avisar(
+          "warning",
+          `Não foi possível gerar nenhuma sugestão (${resultado.ignoradasPorErro} de ${resultado.candidatas} transação(ões) falharam) — verifique a conexão ou se algum provedor de IA está configurado.`,
+        );
+      } else {
+        const partes = [`${resultado.geradas} sugestão(ões) de IA gerada(s) de ${resultado.candidatas} transação(ões) avaliada(s)`];
+        if (resultado.comPergunta > 0) partes.push(`${resultado.comPergunta} com pergunta para decisão humana`);
+        if (resultado.ignoradasPorErro > 0) partes.push(`${resultado.ignoradasPorErro} sem sugestão por erro`);
+        avisar("good", partes.join(" — ") + ".");
+      }
+    } catch (erro) {
+      avisar("warning", `Não foi possível gerar sugestões de IA: ${(erro as Error).message}`);
+    } finally {
+      setGerandoSugestoesIA(false);
+    }
   }
 
   async function atribuirImovel(transacaoId: number, imovelId: string) {
@@ -370,6 +404,14 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
             />
             Mostrar apenas pendentes
           </label>
+          <button
+            className="btn"
+            disabled={!db || gerandoSugestoesIA}
+            onClick={gerarSugestoesIA}
+            title="Chama a IA para sugerir uma classificação para transações pendentes que ainda não têm sugestão — nunca classifica sozinha, cada sugestão precisa ser aceita ou rejeitada por um humano na coluna Categoria"
+          >
+            <Sparkles size={13} /> {gerandoSugestoesIA ? "Gerando sugestões…" : "Gerar sugestões de IA"}
+          </button>
           <button className="btn" onClick={exportarMapaConciliacao} title="Exporta todas as transações com Data, Descrição, Valor, Categoria, Imóvel e PF/Negócio">
             <Download size={13} /> Exportar mapa de conciliação (CSV)
           </button>
