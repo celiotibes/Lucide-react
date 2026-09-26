@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useMemo, useState } from "react";
-import { Calculator, ChevronDown, ChevronUp, History, Landmark } from "lucide-react";
+import { AlertTriangle, Calculator, ChevronDown, ChevronUp, CircleCheck, History, Landmark } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { useToast } from "./useToast";
 import {
@@ -17,6 +17,7 @@ import {
   type DetalheTriagem,
   type DetalheLancamentoOrfao,
 } from "../domain/conciliacao/conciliacao";
+import { detectarLacunasEmLotesImportados } from "../domain/conciliacao/deteccaoLacunas";
 
 /** Conciliação bancária: o saldo do extrato real, numa data, contra o que o app
  * reconstituiu (as transações importadas e a parcela do razão contábil que vem desta
@@ -40,6 +41,11 @@ function moeda(v: number) {
 
 function hojeISO() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function contextoTexto(c: { data: string; valor: number; descricao_original: string } | null): string {
+  if (!c) return "nenhuma transação registrada";
+  return `${c.data} · ${moeda(c.valor)} · ${c.descricao_original}`;
 }
 
 function linhaDetalhe(chave: string | number, esquerda: string, valor: number, extra?: string) {
@@ -136,6 +142,14 @@ export function Conciliacao() {
 
   const historico = useMemo(
     () => (db && contaAtiva ? listarConciliacoes(db, contaAtiva) : []),
+    [db, versao, tick, contaAtiva],
+  );
+
+  // Lacunas no extrato importado — reusa a mesma conta selecionada acima. Infere o período
+  // a partir dos lotes de importação concluídos da conta (não há um período separado
+  // selecionado nesta tela, só a data de corte), ver deteccaoLacunas.ts.
+  const lacunasResultado = useMemo(
+    () => (db && contaAtiva ? detectarLacunasEmLotesImportados(db, contaAtiva) : null),
     [db, versao, tick, contaAtiva],
   );
 
@@ -386,6 +400,76 @@ export function Conciliacao() {
               {registrando ? "Registrando…" : "Registrar conciliação"}
             </button>
           </div>
+        </div>
+      )}
+
+      <h2 className="section-title" style={{ marginTop: 26 }}>
+        <AlertTriangle size={16} /> Lacunas no extrato{contaSelecionada ? ` — ${contaSelecionada.banco} cc ${contaSelecionada.numero}` : ""}
+      </h2>
+      <p style={{ color: "var(--ink-soft)", marginTop: -8, maxWidth: "72ch" }}>
+        Trechos de dias corridos sem nenhuma transação importada para esta conta, dentro do período coberto pelos
+        lotes de importação já concluídos. A conciliação acima pode fechar sem diferença mesmo com um trecho do
+        extrato nunca importado — esta seção existe para esse achado não passar despercebido.
+      </p>
+      {!contaAtiva ? (
+        <div className="card">
+          <p style={{ margin: 0, color: "var(--ink-soft)" }}>
+            Selecione uma conta bancária acima para verificar lacunas no extrato importado.
+          </p>
+        </div>
+      ) : !lacunasResultado || lacunasResultado.data_inicio === null || lacunasResultado.data_fim === null ? (
+        <div className="card">
+          <p style={{ margin: 0, color: "var(--ink-soft)" }}>
+            Nenhum lote de importação concluído para esta conta ainda — não há período coberto para verificar
+            lacunas.
+          </p>
+        </div>
+      ) : lacunasResultado.lacunas.length === 0 ? (
+        <div className="card" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <CircleCheck size={18} color="var(--viz-good)" />
+          <span>
+            Nenhuma lacuna suspeita encontrada no período coberto ({lacunasResultado.data_inicio} a{" "}
+            {lacunasResultado.data_fim}, {lacunasResultado.lotes_considerados} lote(s) concluído(s) considerado(s)).
+          </span>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: 0 }}>
+            Período coberto: {lacunasResultado.data_inicio} a {lacunasResultado.data_fim} ·{" "}
+            {lacunasResultado.lotes_considerados} lote(s) concluído(s) considerado(s).
+          </p>
+          {lacunasResultado.lacunas.map((lacuna) => (
+            <div
+              key={`${lacuna.data_inicio_lacuna}_${lacuna.data_fim_lacuna}`}
+              className="card"
+              style={{ borderLeft: `4px solid ${lacuna.severidade === "alta" ? "var(--viz-critical)" : "var(--viz-warning)"}` }}
+            >
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+                <strong style={{ fontSize: 14 }}>
+                  {lacuna.data_inicio_lacuna} a {lacuna.data_fim_lacuna}
+                </strong>
+                <span className={`pill ${lacuna.severidade === "alta" ? "critical" : "warning"}`}>
+                  {lacuna.dias_sem_movimento} dias sem movimento
+                  {lacuna.severidade === "alta" ? " · saldo informado no período" : ""}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", display: "flex", flexDirection: "column", gap: 2 }}>
+                <span>Última transação antes: {contextoTexto(lacuna.contexto.antes)}</span>
+                <span>Primeira transação depois: {contextoTexto(lacuna.contexto.depois)}</span>
+              </div>
+              {lacuna.saldos_informados_no_periodo.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 12.5 }}>
+                  <span style={{ color: "var(--ink-soft)" }}>Saldo do extrato informado dentro da lacuna: </span>
+                  {lacuna.saldos_informados_no_periodo.map((s, i) => (
+                    <span key={s.data} className="num">
+                      {i > 0 ? " · " : ""}
+                      {s.data} = {moeda(s.saldo)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
