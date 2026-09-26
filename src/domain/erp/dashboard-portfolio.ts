@@ -1,7 +1,37 @@
 /**
  * Dashboard de Portfólio de Imóveis
  * Métricas e KPIs: NOI, Taxa Ocupação, ROI, Cashflow, Inadimplência
- * Integração com: imovel-gestao, integracao-contratos, integracao-rateios, ledger
+ *
+ * ACHADO (balde D — módulo órfão investigado nesta sessão): o módulo original foi escrito
+ * contra um schema fictício, divergente do real (`contabilidade-reconstituicao/schema.sql`)
+ * em vários pontos, não só na tabela `despesas_operacionais_agendadas` (que não existe):
+ *   - `contratos_locacao` não tem coluna `status` nem `valor_aluguel` (é `valor_referencia`,
+ *     e "ativo" é inferido por `data_inicio`/`data_fim`, nunca por uma coluna de status);
+ *   - `imoveis` não tem `entidade_id` — no schema real um imóvel não pertence a uma entidade
+ *     legal (é global ao usuário; `entidades_legais` existe para separar CPF/CNPJ para fins
+ *     fiscais, não para segmentar o patrimônio físico). O filtro de portfólio usado aqui é
+ *     `uso_pessoal = 0`, a mesma convenção de `reports/desempenhoPorImovel.ts`.
+ * Nenhuma dessas queries rodava contra `criarBancoDeTeste()` (schema real) antes desta
+ * revisão — só contra a cópia fictícia em `__tests__/test-setup.ts`, que não provava nada.
+ *
+ * DECISÃO (despesas_operacionais_agendadas → reaproveitar `contas_a_pagar`): o conceito de
+ * "despesa operacional agendada por imóvel" (condomínio, IPTU, seguro) já é coberto por
+ * `contas_a_pagar` (src/domain/contasAPagar/contasAPagar.ts) — uma obrigação com
+ * `data_vencimento`, `imovel_id` e `status`, já com aging e baixa integrada ao razão. Criar
+ * uma tabela nova só para "despesa agendada" duplicaria esse modelo sem trazer nada que
+ * `contas_a_pagar` não tenha: uma despesa recorrente (condomínio todo mês) já é lançada como
+ * uma linha de `contas_a_pagar` por competência (uma por mês), exatamente como qualquer outro
+ * ERP de referência trata "despesa recorrente" — não como uma definição de recorrência à
+ * parte, mas como instâncias concretas com vencimento. Este módulo lê a despesa operacional
+ * do mês de um imóvel como `SUM(valor) FROM contas_a_pagar WHERE imovel_id = ? AND
+ * status != 'cancelada' AND data_vencimento` dentro do mês — pendente ou já paga, porque
+ * NOI/cashflow aqui são pelo REGIME DE COMPETÊNCIA (a despesa existe no mês em que vence,
+ * independente de já ter sido baixada), não de caixa efetivo.
+ *
+ * Integração com: imovel-gestao, integracao-contratos, integracao-rateios, ledger,
+ * contas_a_pagar. A inadimplência real (atraso de aluguel) é responsabilidade de
+ * `reconcile/inadimplencia.ts` / `integracao-inadimplencia.ts` — este módulo só expõe o
+ * ponto de extensão (`calcularInadimplencia`), sem duplicar aquela lógica.
  */
 
 import type { Database } from "sql.js";
@@ -34,45 +64,111 @@ export interface PortfolioMetrics {
   imoveis: MetricaImove[];
 }
 
-/**
- * Calcular NOI (Net Operating Income) de um imóvel
- * NOI = (Aluguel + Rateios) - (Condomínio + IPTU + Água + Energia + Manutenção)
- */
-export function calcularNOI(db: Database, imovel_id: number, periodo_id: number): number {
-  // Buscar valor de aluguel do contrato
-  const contratos = consultar<{ valor_aluguel: number }>(
+function round2(valor: number): number {
+  return Math.round(valor * 100) / 100;
+}
+
+function doisDigitos(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function primeiroDiaMes(ano: number, mes: number): string {
+  return `${ano}-${doisDigitos(mes)}-01`;
+}
+
+function ultimoDiaMes(ano: number, mes: number): string {
+  const dia = new Date(ano, mes, 0).getDate();
+  return `${ano}-${doisDigitos(mes)}-${doisDigitos(dia)}`;
+}
+
+/** Dias entre duas datas ISO "AAAA-MM-DD" (inclusive), nunca negativo. */
+function diasEntreInclusive(inicio: string, fim: string): number {
+  const a = new Date(`${inicio}T00:00:00Z`).getTime();
+  const b = new Date(`${fim}T00:00:00Z`).getTime();
+  return Math.round((b - a) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+/** Soma de `valor_referencia` dos contratos de locação do imóvel vigentes em algum dia do
+ * mês (data_inicio <= último dia do mês E (sem data_fim OU data_fim >= primeiro dia do
+ * mês)). Soma (não pega só o primeiro contrato, como a versão anterior fazia) porque nada
+ * impede dois contratos ativos simultâneos no mesmo imóvel (ex: contrato residencial +
+ * contrato de vaga de garagem separado) — pegar só o primeiro subestimava a receita nesse
+ * caso. */
+function obterAluguelVigenteNoMes(db: Database, imovel_id: number, ano: number, mes: number): number {
+  const inicioMes = primeiroDiaMes(ano, mes);
+  const fimMes = ultimoDiaMes(ano, mes);
+  const contratos = consultar<{ valor_referencia: number; data_inicio: string; data_fim: string | null }>(
     db,
-    `SELECT valor_aluguel FROM contratos_locacao
-     WHERE imovel_id = ? AND status = 'ativo' LIMIT 1`,
-    [imovel_id]
+    `SELECT valor_referencia, data_inicio, data_fim FROM contratos_locacao WHERE imovel_id = ?`,
+    [imovel_id],
   );
+  return contratos
+    .filter((c) => c.data_inicio <= fimMes && (c.data_fim === null || c.data_fim >= inicioMes))
+    .reduce((soma, c) => soma + c.valor_referencia, 0);
+}
 
-  // Despesas operacionais agendadas (condomínio, água, energia, etc)
-  const despesasOp = consultar<{ valor_mensal: number }>(
+/** Despesas operacionais do imóvel no mês — ver decisão no cabeçalho do arquivo: lidas de
+ * `contas_a_pagar` (pendentes ou já pagas; nunca canceladas), pelo regime de competência
+ * (mês de `data_vencimento`), filtradas também por `entidade_id` porque
+ * `contas_a_pagar.entidade_id` é NOT NULL no schema real. */
+function obterDespesasOperacionaisDoMes(
+  db: Database,
+  imovel_id: number,
+  entidade_id: number,
+  ano: number,
+  mes: number,
+): number {
+  const inicioMes = primeiroDiaMes(ano, mes);
+  const fimMes = ultimoDiaMes(ano, mes);
+  const [linha] = consultar<{ total: number | null }>(
     db,
-    `SELECT COALESCE(SUM(valor_mensal), 0) as valor_mensal
-     FROM despesas_operacionais_agendadas
-     WHERE imovel_id = ? AND status = 'ativa'`,
-    [imovel_id]
+    `SELECT COALESCE(SUM(valor), 0) as total FROM contas_a_pagar
+     WHERE imovel_id = ? AND entidade_id = ? AND status != 'cancelada'
+       AND data_vencimento BETWEEN ? AND ?`,
+    [imovel_id, entidade_id, inicioMes, fimMes],
   );
-
-  const aluguelMensal = contratos.length > 0 ? contratos[0].valor_aluguel : 0;
-  const totalDespesas = despesasOp.length > 0 ? despesasOp[0].valor_mensal : 0;
-
-  return aluguelMensal - totalDespesas;
+  return linha?.total ?? 0;
 }
 
 /**
- * Calcular Taxa de Ocupação
- * Taxa Ocupação = dias_ocupado / dias_mes * 100
+ * Calcular NOI (Net Operating Income) de um imóvel num mês
+ * NOI = (Aluguel + Rateios do(s) contrato(s) vigente(s)) - (despesas operacionais do mês
+ * lançadas em contas_a_pagar: condomínio, IPTU, água, energia, manutenção etc)
+ */
+export function calcularNOI(db: Database, imovel_id: number, entidade_id: number, ano: number, mes: number): number {
+  const aluguelMensal = obterAluguelVigenteNoMes(db, imovel_id, ano, mes);
+  const totalDespesas = obterDespesasOperacionaisDoMes(db, imovel_id, entidade_id, ano, mes);
+  return aluguelMensal - totalDespesas;
+}
+
+/** NOI somado dos 12 meses do ano — base real do ROI anual (ver calcularROIAnual). Não é
+ * `calcularNOI(mes atual) * 12`: essa extrapolação (usada na versão anterior para o campo
+ * noi_anual) diverge do NOI anual de verdade sempre que a receita ou a despesa variarem mês
+ * a mês (contrato novo no meio do ano, despesa pontual etc). */
+function calcularNOIAnual(db: Database, imovel_id: number, entidade_id: number, ano: number): number {
+  let total = 0;
+  for (let mes = 1; mes <= 12; mes++) {
+    total += calcularNOI(db, imovel_id, entidade_id, ano, mes);
+  }
+  return total;
+}
+
+/**
+ * Calcular Taxa de Ocupação de um imóvel num mês
+ * Taxa Ocupação = dias_ocupados / dias_do_mês * 100 (capado em 100%)
+ *
+ * ACHADO: a versão anterior comparava só o NÚMERO do mês do contrato
+ * (`dataInicio.getMonth()+1`) sem considerar o ANO, então um contrato iniciado em anos
+ * anteriores e ainda vigente (o caso mais comum) caía fora de todos os `if/else if` e
+ * contava 0 dias ocupados. Reescrito como interseção de intervalo (contrato × mês
+ * consultado), que cobre contrato iniciado antes, durante ou depois do mês, com ou sem
+ * data_fim.
  */
 export function calcularTaxaOcupacao(db: Database, imovel_id: number, mes: number, ano: number): number {
-  // Buscar contratos ativos do imóvel
-  const contratos = consultar<{ id: number; data_inicio: string; data_fim?: string }>(
+  const contratos = consultar<{ data_inicio: string; data_fim: string | null }>(
     db,
-    `SELECT id, data_inicio, data_fim FROM contratos_locacao
-     WHERE imovel_id = ? AND status IN ('ativo', 'pendente')`,
-    [imovel_id]
+    `SELECT data_inicio, data_fim FROM contratos_locacao WHERE imovel_id = ?`,
+    [imovel_id],
   );
 
   if (!contratos || contratos.length === 0) {
@@ -80,104 +176,60 @@ export function calcularTaxaOcupacao(db: Database, imovel_id: number, mes: numbe
   }
 
   const diasMes = new Date(ano, mes, 0).getDate();
+  const inicioMes = primeiroDiaMes(ano, mes);
+  const fimMes = ultimoDiaMes(ano, mes);
+
   let diasOcupados = 0;
-
   for (const contrato of contratos) {
-    const dataInicio = new Date(contrato.data_inicio);
-    const dataFim = contrato.data_fim ? new Date(contrato.data_fim) : new Date(ano, mes, 0);
-
-    // Ajustar datas para o mês em questão
-    const mes_contrato_inicio = dataInicio.getMonth() + 1;
-    const ano_contrato_inicio = dataInicio.getFullYear();
-
-    if (mes_contrato_inicio === mes && ano_contrato_inicio === ano) {
-      // Contrato começa neste mês
-      diasOcupados += Math.min(
-        diasMes - dataInicio.getDate() + 1,
-        (dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24) + 1
-      );
-    } else if (mes_contrato_inicio < mes && dataFim) {
-      // Contrato começou antes deste mês
-      const mes_contrato_fim = dataFim.getMonth() + 1;
-      const ano_contrato_fim = dataFim.getFullYear();
-
-      if (ano_contrato_fim > ano || (ano_contrato_fim === ano && mes_contrato_fim >= mes)) {
-        // Contrato termina neste mês ou depois
-        const diaFim = mes_contrato_fim === mes && ano_contrato_fim === ano ? dataFim.getDate() : diasMes;
-        diasOcupados += diaFim;
-      }
-    } else if (mes_contrato_inicio <= mes) {
-      // Contrato sem fim definido ou termina depois deste mês
-      diasOcupados += diasMes;
+    const inicioEfetivo = contrato.data_inicio > inicioMes ? contrato.data_inicio : inicioMes;
+    const fimContrato = contrato.data_fim ?? fimMes;
+    const fimEfetivo = fimContrato < fimMes ? fimContrato : fimMes;
+    if (inicioEfetivo <= fimEfetivo) {
+      diasOcupados += diasEntreInclusive(inicioEfetivo, fimEfetivo);
     }
   }
 
-  return (diasOcupados / diasMes) * 100;
+  // Capado em 100%: dois contratos sobrepostos no mesmo imóvel (dado inconsistente, mas
+  // possível) não podem produzir "120% ocupado".
+  return Math.min(100, (diasOcupados / diasMes) * 100);
 }
 
 /**
  * Calcular ROI Anual
- * ROI = (NOI anual / valor_aquisicao) * 100
+ * ROI = (NOI anual real (soma dos 12 meses) / valor_aquisicao) * 100
  */
-export function calcularROIAnual(
-  db: Database,
-  imovel_id: number,
-  ano: number
-): number {
-  // Buscar valor de aquisição do imóvel
-  const imoveis = consultar<{ valor_aquisicao: number }>(
+export function calcularROIAnual(db: Database, imovel_id: number, entidade_id: number, ano: number): number {
+  const [imovel] = consultar<{ valor_aquisicao: number | null }>(
     db,
     `SELECT valor_aquisicao FROM imoveis WHERE id = ?`,
-    [imovel_id]
+    [imovel_id],
   );
 
-  if (!imoveis || imoveis.length === 0 || imoveis[0].valor_aquisicao <= 0) {
+  if (!imovel || !imovel.valor_aquisicao || imovel.valor_aquisicao <= 0) {
     return 0;
   }
 
-  const valor_aquisicao = imoveis[0].valor_aquisicao;
-
-  // Calcular NOI para cada período (mês) do ano
-  let noiAnual = 0;
-  for (let mes = 1; mes <= 12; mes++) {
-    const periodos = consultar<{ id: number }>(
-      db,
-      `SELECT id FROM periodos_contabeis WHERE ano = ? AND mes = ? LIMIT 1`,
-      [ano, mes]
-    );
-
-    if (periodos && periodos.length > 0) {
-      noiAnual += calcularNOI(db, imovel_id, periodos[0].id);
-    }
-  }
-
-  return (noiAnual / valor_aquisicao) * 100;
+  const noiAnual = calcularNOIAnual(db, imovel_id, entidade_id, ano);
+  return (noiAnual / imovel.valor_aquisicao) * 100;
 }
 
 /**
  * Calcular Cashflow Mensal
- * Cashflow = Recebimentos - Desembolsos
+ * Cashflow = Recebimentos (aluguel vigente no mês) - Desembolsos (despesas operacionais do
+ * mês). Simplificação deliberada, herdada do módulo original: não distingue "recebido de
+ * fato" de "contratado", porque o recebimento efetivo do aluguel é responsabilidade do
+ * módulo de inadimplência (reconcile/inadimplencia.ts, integracao-inadimplencia.ts), que
+ * este módulo órfão ainda não consome.
  */
-export function calcularCashflowMensal(db: Database, imovel_id: number, periodo_id: number): number {
-  // Buscar contratos e despesas operacionais
-  const contratos = consultar<{ valor_aluguel: number }>(
-    db,
-    `SELECT valor_aluguel FROM contratos_locacao
-     WHERE imovel_id = ? AND status = 'ativo' LIMIT 1`,
-    [imovel_id]
-  );
-
-  const despesasOp = consultar<{ valor_mensal: number }>(
-    db,
-    `SELECT COALESCE(SUM(valor_mensal), 0) as valor_mensal
-     FROM despesas_operacionais_agendadas
-     WHERE imovel_id = ? AND status = 'ativa'`,
-    [imovel_id]
-  );
-
-  const recebimentos = contratos.length > 0 ? contratos[0].valor_aluguel : 0;
-  const desembolsos = despesasOp.length > 0 ? despesasOp[0].valor_mensal : 0;
-
+export function calcularCashflowMensal(
+  db: Database,
+  imovel_id: number,
+  entidade_id: number,
+  ano: number,
+  mes: number,
+): number {
+  const recebimentos = obterAluguelVigenteNoMes(db, imovel_id, ano, mes);
+  const desembolsos = obterDespesasOperacionaisDoMes(db, imovel_id, entidade_id, ano, mes);
   return recebimentos - desembolsos;
 }
 
@@ -185,34 +237,26 @@ export function calcularCashflowMensal(db: Database, imovel_id: number, periodo_
  * Calcular Inadimplência
  * Retorna valor total em atraso e percentual em relação ao aluguel
  *
- * Nota: Este é um cálculo simplificado. Em produção, deveria integrar com
- * dados de transações e recebimentos reais para calcular atrasos
+ * Nota: Este é um cálculo simplificado. A apuração real de atraso (multa, juros, correção
+ * monetária por índice contratual) é feita por reconcile/inadimplencia.ts a partir de
+ * competências e recebimentos efetivos — fora do escopo deste dashboard, que só expõe o
+ * ponto de extensão.
  */
 export function calcularInadimplencia(
   db: Database,
-  imovel_id: number
+  imovel_id: number,
 ): { valor_atraso: number; percentual: number; dias_medio: number } {
-  // Para este MVP, retornamos 0 pois não temos informações de atraso
-  // na estrutura atual de contratos. Em produção, isso seria calculado
-  // comparando datas de vencimento com recebimentos efetivos.
-
-  // Buscar contratos ativos do imóvel (apenas para validar que existem)
-  const contratos = consultar<{
-    id: number;
-    valor_aluguel: number;
-  }>(
+  const contratos = consultar<{ id: number }>(
     db,
-    `SELECT id, valor_aluguel FROM contratos_locacao
-     WHERE imovel_id = ? AND status = 'ativo'`,
-    [imovel_id]
+    `SELECT id FROM contratos_locacao WHERE imovel_id = ?`,
+    [imovel_id],
   );
 
   if (!contratos || contratos.length === 0) {
     return { valor_atraso: 0, percentual: 0, dias_medio: 0 };
   }
 
-  // Retorno padrão: sem atrasos detectados
-  // Isto será expandido quando integrar com módulo de integracao-inadimplencia
+  // Retorno padrão: sem atrasos detectados por este módulo — ver nota acima.
   return {
     valor_atraso: 0,
     percentual: 0,
@@ -226,48 +270,38 @@ export function calcularInadimplencia(
 export function obterMetricaImovel(
   db: Database,
   imovel_id: number,
+  entidade_id: number,
   ano: number,
-  mes: number
+  mes: number,
 ): MetricaImove | null {
-  // Buscar dados do imóvel
-  const imoveis = consultar<{ endereco: string; valor_aquisicao: number }>(
+  const [imovel] = consultar<{ endereco: string | null; valor_aquisicao: number | null }>(
     db,
     `SELECT endereco, valor_aquisicao FROM imoveis WHERE id = ?`,
-    [imovel_id]
+    [imovel_id],
   );
 
-  if (!imoveis || imoveis.length === 0) {
+  if (!imovel) {
     return null;
   }
 
-  const imovel = imoveis[0];
-
-  // Buscar período contábil para calcular NOI
-  const periodos = consultar<{ id: number }>(
-    db,
-    `SELECT id FROM periodos_contabeis WHERE ano = ? AND mes = ? LIMIT 1`,
-    [ano, mes]
-  );
-
-  const periodo_id = periodos && periodos.length > 0 ? periodos[0].id : 1;
-
-  const noiMensal = calcularNOI(db, imovel_id, periodo_id);
-  const noiAnual = noiMensal * 12;
+  const valorAquisicao = imovel.valor_aquisicao ?? 0;
+  const noiMensal = calcularNOI(db, imovel_id, entidade_id, ano, mes);
+  const noiAnual = calcularNOIAnual(db, imovel_id, entidade_id, ano);
   const taxaOcupacao = calcularTaxaOcupacao(db, imovel_id, mes, ano);
-  const roiAnual = calcularROIAnual(db, imovel_id, ano);
-  const cashflowMensal = calcularCashflowMensal(db, imovel_id, periodo_id);
+  const roiAnual = valorAquisicao > 0 ? (noiAnual / valorAquisicao) * 100 : 0;
+  const cashflowMensal = calcularCashflowMensal(db, imovel_id, entidade_id, ano, mes);
   const inadimplencia = calcularInadimplencia(db, imovel_id);
 
   return {
     imovel_id,
-    endereco: imovel.endereco,
-    valor_aquisicao: imovel.valor_aquisicao,
-    noi_mensal: Math.round(noiMensal * 100) / 100,
-    noi_anual: Math.round(noiAnual * 100) / 100,
-    taxa_ocupacao: Math.round(taxaOcupacao * 100) / 100,
-    roi_anual: Math.round(roiAnual * 100) / 100,
-    cashflow_mensal: Math.round(cashflowMensal * 100) / 100,
-    inadimplencia_valor: Math.round(inadimplencia.valor_atraso * 100) / 100,
+    endereco: imovel.endereco ?? "",
+    valor_aquisicao: valorAquisicao,
+    noi_mensal: round2(noiMensal),
+    noi_anual: round2(noiAnual),
+    taxa_ocupacao: round2(taxaOcupacao),
+    roi_anual: round2(roiAnual),
+    cashflow_mensal: round2(cashflowMensal),
+    inadimplencia_valor: round2(inadimplencia.valor_atraso),
     inadimplencia_percentual: inadimplencia.percentual,
     dias_medio_inadimplencia: inadimplencia.dias_medio,
   };
@@ -275,18 +309,21 @@ export function obterMetricaImovel(
 
 /**
  * Obter Portfolio Completo com Agregações
+ *
+ * `entidade_id` escopa as despesas (`contas_a_pagar.entidade_id` é NOT NULL) — não os
+ * imóveis em si: no schema real `imoveis` não tem `entidade_id` (ver cabeçalho do
+ * arquivo), então o portfólio lista todo imóvel de investimento (`uso_pessoal = 0`), a
+ * mesma convenção usada em `reports/desempenhoPorImovel.ts`.
  */
 export function obterPortfolioCompleto(
   db: Database,
   entidade_id: number,
   ano: number,
-  mes: number
+  mes: number,
 ): PortfolioMetrics {
-  // Buscar todos os imóveis da entidade
   const imoveis = consultar<{ id: number }>(
     db,
-    `SELECT id FROM imoveis WHERE entidade_id = ? ORDER BY id`,
-    [entidade_id]
+    `SELECT id FROM imoveis WHERE uso_pessoal = 0 ORDER BY id`,
   );
 
   const metricas: MetricaImove[] = [];
@@ -301,7 +338,7 @@ export function obterPortfolioCompleto(
 
   if (imoveis && imoveis.length > 0) {
     for (const imove of imoveis) {
-      const metrica = obterMetricaImovel(db, imove.id, ano, mes);
+      const metrica = obterMetricaImovel(db, imove.id, entidade_id, ano, mes);
 
       if (metrica) {
         metricas.push(metrica);
@@ -329,14 +366,14 @@ export function obterPortfolioCompleto(
 
   return {
     total_imoveis: totalImoveis,
-    valor_total: Math.round(valorTotalPortfolio * 100) / 100,
-    noi_mensal_total: Math.round(noiMensalTotal * 100) / 100,
-    noi_anual_total: Math.round(noiAnualTotal * 100) / 100,
-    roi_medio_anual: Math.round(roiMedio * 100) / 100,
-    taxa_ocupacao_media: Math.round(taxaOcupacaoMedia * 100) / 100,
-    cashflow_mensal_total: Math.round(cashflowMensalTotal * 100) / 100,
-    inadimplencia_valor_total: Math.round(inadimplenciaValorTotal * 100) / 100,
-    inadimplencia_percentual_media: Math.round(inadimplenciaPercentualMedia * 100) / 100,
+    valor_total: round2(valorTotalPortfolio),
+    noi_mensal_total: round2(noiMensalTotal),
+    noi_anual_total: round2(noiAnualTotal),
+    roi_medio_anual: round2(roiMedio),
+    taxa_ocupacao_media: round2(taxaOcupacaoMedia),
+    cashflow_mensal_total: round2(cashflowMensalTotal),
+    inadimplencia_valor_total: round2(inadimplenciaValorTotal),
+    inadimplencia_percentual_media: round2(inadimplenciaPercentualMedia),
     imoveis: metricas,
   };
 }
