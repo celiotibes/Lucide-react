@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -38,6 +38,7 @@ const ReajustesRescisaoView = lazy(() => import("./components/ReajustesRescisaoV
 const IndicesEconomicosView = lazy(() => import("./components/IndicesEconomicosView").then((m) => ({ default: m.IndicesEconomicosView })));
 const ImoveisView = lazy(() => import("./components/ImoveisView").then((m) => ({ default: m.ImoveisView })));
 const DocumentosView = lazy(() => import("./components/DocumentosView").then((m) => ({ default: m.DocumentosView })));
+const ContasAPagarView = lazy(() => import("./components/ContasAPagarView").then((m) => ({ default: m.ContasAPagarView })));
 const CadastrosView = lazy(() => import("./components/CadastrosView").then((m) => ({ default: m.CadastrosView })));
 const PatrimonioView = lazy(() => import("./components/PatrimonioView").then((m) => ({ default: m.PatrimonioView })));
 const SincronizacaoView = lazy(() => import("./components/SincronizacaoView").then((m) => ({ default: m.SincronizacaoView })));
@@ -55,7 +56,7 @@ const ConfiguracaoIA = lazy(() => import("./ui/ConfiguracaoIA").then((m) => ({ d
 const PainelConferencia = lazy(() => import("./components/painel-conferencia/PainelConferencia"));
 
 type Aba =
-  | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "transacoes" | "contratos" | "caucao"
+  | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia";
 
@@ -67,6 +68,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "importar", rotulo: "Importar documentos", icone: UploadCloud },
   { id: "triagem", rotulo: "Triagem de importação", icone: ListChecks },
   { id: "documentos", rotulo: "Documentos e classificação", icone: FolderSearch },
+  { id: "contasapagar", rotulo: "Contas a pagar", icone: BanknoteArrowDown },
   { id: "transacoes", rotulo: "Transações", icone: ListChecks },
   { id: "contratos", rotulo: "Contratos e inadimplência", icone: FileSignature },
   { id: "reajustes", rotulo: "Reajustes e rescisão", icone: TrendingUp },
@@ -405,6 +407,7 @@ function Conteudo() {
             {aba === "importar" && <ImportarView />}
             {aba === "triagem" && <TriagemImportacao />}
             {aba === "documentos" && <DocumentosView />}
+            {aba === "contasapagar" && <ContasAPagarView />}
             {aba === "transacoes" && <TransacoesView filtroInicial={filtroTransacoesDrillDown} />}
             {aba === "contratos" && <ContratosInadimplenciaView />}
             {aba === "reajustes" && <ReajustesRescisaoView />}
