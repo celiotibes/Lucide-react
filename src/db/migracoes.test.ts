@@ -6,11 +6,20 @@ import { parseTabelasDoSchema, garantirColunasAtualizadas, reconstruirLedgerEntr
 describe("parseTabelasDoSchema — contra o schema.sql real", () => {
   const tabelas = parseTabelasDoSchema(schemaSql);
 
-  it("encontra todas as 52 tabelas do schema", () => {
-    expect(tabelas.size).toBe(52);
-    // A mais nova a entrar: persistência da proveniência de chamadas de IA (ver
-    // src/domain/ia/proveniencia.ts) — antes só vivia em memória do processo.
-    for (const nova of ["extrato_saldos_informados", "conciliacoes_bancarias", "conciliacoes_itens", "ia_chamadas"]) {
+  it("encontra todas as 54 tabelas do schema", () => {
+    expect(tabelas.size).toBe(54);
+    // As mais novas a entrar: contas a pagar (src/domain/contasAPagar/) e sugestão de
+    // classificação de transação por IA (src/domain/categorize/sugestaoClassificacaoIA.ts)
+    // — esta última é camada a mais sobre a classificação determinística/manual, nunca
+    // uma substituição.
+    for (const nova of [
+      "extrato_saldos_informados",
+      "conciliacoes_bancarias",
+      "conciliacoes_itens",
+      "ia_chamadas",
+      "contas_a_pagar",
+      "sugestoes_classificacao_ia",
+    ]) {
       expect(tabelas.has(nova)).toBe(true);
     }
   });

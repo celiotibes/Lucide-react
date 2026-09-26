@@ -1,11 +1,12 @@
 import { Fragment, useMemo, useState, useCallback } from "react";
-import { Wand2, Split, Scissors, Trash2, Download, Plus, X, FileSearch, Fingerprint, Copy, Check, ShieldOff } from "lucide-react";
+import { Wand2, Split, Scissors, Trash2, Download, Plus, X, FileSearch, Fingerprint, Copy, Check, ShieldOff, Sparkles } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
 import { useToast } from "../ui/useToast";
 import type { ContaBancaria, Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
+import { sugestoesPendentesPorTransacao, aceitarSugestao, rejeitarSugestao } from "../domain/categorize/sugestaoClassificacaoIA";
 import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, gerarXlsxConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
 import { criarTransacaoManual, excluirTransacao, dividirTransacao, type ParteDivisao } from "../domain/transacoes/transacaoManual";
 import { provasDasTransacoes } from "../domain/importacao/cofre";
@@ -153,6 +154,16 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     [db, versao, transacoes],
   );
 
+  // Sugestões de classificação por IA (ver src/domain/categorize/sugestaoClassificacaoIA.ts)
+  // — já geradas antes desta tela abrir (rodar a geração sob demanda fica para depois; aqui
+  // só CONSOME o que já existe). Mesma ideia de `provas` acima: uma consulta só para a
+  // página inteira, não uma por linha renderizada. Só têm sentido para transações ainda
+  // sem categoria — uma vez aceita/rejeitada, a sugestão some da consulta (status != 'pendente').
+  const sugestoesIA = useMemo(
+    () => (db ? sugestoesPendentesPorTransacao(db, transacoes.filter((t) => !t.plano_conta_codigo).map((t) => t.id)) : new Map()),
+    [db, versao, transacoes],
+  );
+
   const copiarHashProva = useCallback(
     async (hash: string) => {
       try {
@@ -173,6 +184,30 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     // classificação antiga para sempre (migrarTransacoesParaLedger é idempotente por
     // origem e nunca revisita uma transação já migrada).
     const resultado = reclassificarTransacao(db, transacaoId, codigo || null, { categorizado_por: "manual" });
+    if (!resultado.sucesso) {
+      avisar("warning", resultado.mensagem);
+      return;
+    }
+    await persistir();
+  }
+
+  // Aceitar/rejeitar uma sugestão de IA: nunca um UPDATE direto — aceitarSugestao() passa
+  // por reclassificarTransacao() por baixo (estorno + relançamento no razão quando
+  // aplicável), exatamente o mesmo caminho de categorizar() acima. A IA nunca classifica
+  // sozinha: isto só roda quando o próprio usuário clica em "Aceitar".
+  async function aceitarSugestaoIA(sugestaoId: number) {
+    if (!db) return;
+    const resultado = aceitarSugestao(db, sugestaoId);
+    if (!resultado.sucesso) {
+      avisar("warning", resultado.mensagem);
+      return;
+    }
+    await persistir();
+  }
+
+  async function rejeitarSugestaoIA(sugestaoId: number) {
+    if (!db) return;
+    const resultado = rejeitarSugestao(db, sugestaoId);
     if (!resultado.sucesso) {
       avisar("warning", resultado.mensagem);
       return;
@@ -530,6 +565,63 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                           </option>
                         ))}
                       </select>
+                      {!t.plano_conta_codigo &&
+                        (() => {
+                          const sugestao = sugestoesIA.get(t.id);
+                          if (!sugestao) return null;
+                          const contaSugerida = sugestao.plano_conta_codigo_sugerido
+                            ? planoContasPorCodigo.get(sugestao.plano_conta_codigo_sugerido)
+                            : undefined;
+                          return (
+                            <div
+                              style={{
+                                marginTop: 5,
+                                padding: "6px 8px",
+                                border: "1px solid var(--border)",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4,
+                                maxWidth: 260,
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                <Sparkles size={12} style={{ flexShrink: 0, color: "var(--ink-soft)" }} />
+                                <strong>Sugestão de IA</strong>
+                                <span className={`pill ${sugestao.confianca === "alta" ? "good" : sugestao.confianca === "media" ? "warning" : "critical"}`}>
+                                  {sugestao.confianca}
+                                </span>
+                              </div>
+                              {sugestao.plano_conta_codigo_sugerido && (
+                                <div>
+                                  {sugestao.plano_conta_codigo_sugerido}
+                                  {contaSugerida ? ` · ${contaSugerida.descricao}` : ""}
+                                </div>
+                              )}
+                              <div style={{ color: "var(--ink-soft)" }}>{sugestao.explicacao}</div>
+                              {sugestao.pergunta_para_decisao && (
+                                <div style={{ color: "var(--viz-despesa)" }}>
+                                  <strong>Pergunta:</strong> {sugestao.pergunta_para_decisao}
+                                </div>
+                              )}
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button
+                                  className="btn primary"
+                                  style={{ padding: "3px 8px", fontSize: 11.5 }}
+                                  disabled={!sugestao.plano_conta_codigo_sugerido}
+                                  title={sugestao.plano_conta_codigo_sugerido ? "Aplicar esta classificação" : "A IA não chegou a um código sugerido — responda a pergunta e classifique manualmente"}
+                                  onClick={() => aceitarSugestaoIA(sugestao.id)}
+                                >
+                                  Aceitar
+                                </button>
+                                <button className="btn" style={{ padding: "3px 8px", fontSize: 11.5 }} onClick={() => rejeitarSugestaoIA(sugestao.id)}>
+                                  Rejeitar
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
                     </td>
                     <td>
                       {rateios.length > 0 ? (
