@@ -35,6 +35,13 @@ export const CONTA_CAIXA_ERP = 1101;
 /** Conta transitória para transação sem classificação — ver planoDeContasErp.ts. */
 export const CONTA_CLASSIFICACAO_PENDENTE = 1999;
 
+/** "Lucros acumulados" (2.1.02), grupo patrimônio_líquido — planoDeContasErp.ts. Destino
+ * do lançamento de encerramento (ledger.ts::encerrarPeriodo): é para cá que o resultado
+ * do período (receita líquida − despesa líquida) é transferido quando um período fecha,
+ * a "closing entry" clássica de contabilidade que faz o PL do Balanço se mover com o
+ * resultado da DRE. */
+export const CONTA_LUCROS_ACUMULADOS_ERP = 2102;
+
 /** código do plano do app → id da conta de contrapartida no plano do razão. */
 export const MAPA_APP_PARA_ERP: Readonly<Record<string, number>> = {
   // Receitas (app grupo "receita") → faixa 4 do razão

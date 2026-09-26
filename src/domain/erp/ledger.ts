@@ -9,6 +9,7 @@ import {
   assegurarPeriodoAberto,
   obterDescricaoPeriodo,
 } from "./ledger-period-validation";
+import { CONTA_LUCROS_ACUMULADOS_ERP } from "./mapeamentoPlanoApp";
 
 /** SHA-256 pela Web Crypto API — a mesma que src/domain/backupIntegridade.ts usa.
  *
@@ -247,9 +248,9 @@ export async function encerrarPeriodo(
   motivo: string,
 ): Promise<{ sucesso: boolean; mensagem: string }> {
   // 1. Validar que o período está aberto
-  const [periodo] = consultar<{ status: string }>(
+  const [periodo] = consultar<{ status: string; entidade_id: number }>(
     db,
-    "SELECT status FROM periodos_contabeis WHERE id = ?",
+    "SELECT status, entidade_id FROM periodos_contabeis WHERE id = ?",
     [periodo_id],
   );
 
@@ -257,11 +258,16 @@ export async function encerrarPeriodo(
     return { sucesso: false, mensagem: "Período não encontrado" };
   }
 
+  // Esta checagem também é a garantia de idempotência do lançamento de encerramento
+  // logo abaixo: encerrarPeriodo só chega em fecharContasDeResultado() enquanto o
+  // período ainda está 'aberto', e o status vira 'fechado' antes de retornar (passo 6).
+  // Rodar encerrarPeriodo de novo no mesmo período cai aqui e nunca duplica a
+  // transferência — não precisa de nenhuma checagem extra por referencia_documento.
   if (periodo.status !== "aberto") {
     return { sucesso: false, mensagem: "Período já está fechado" };
   }
 
-  // 2. Validar balanceamento
+  // 2. Validar balanceamento (do movimento lançado pelos módulos, antes do encerramento)
   const balancete = validarBalanceamento(db, periodo_id);
   if (!balancete.balanceado) {
     return {
@@ -270,7 +276,13 @@ export async function encerrarPeriodo(
     };
   }
 
-  // 3. Gerar snapshot dos saldos finais
+  // 2.5. Lançamento de encerramento: fecha as contas de resultado (receita/despesa)
+  // contra o Patrimônio Líquido (2.1.02, Lucros Acumulados) — ver fecharContasDeResultado()
+  // para o desenho da contrapartida. Roda ANTES do snapshot (passo 3) para o balancete e o
+  // saldo transportado ao próximo período (passo 7) já refletirem o resultado transferido.
+  fecharContasDeResultado(db, periodo_id, periodo.entidade_id, encerrado_por);
+
+  // 3. Gerar snapshot dos saldos finais (já com o efeito do encerramento acima)
   const balancete_completo = gerarBalancete(db, periodo_id);
 
   // 4. Hash dos saldos (para detectar manipulação pós-fechamento)
@@ -310,6 +322,148 @@ export async function encerrarPeriodo(
   criarSaldosProximoPeriodo(db, periodo_id);
 
   return { sucesso: true, mensagem: "Período encerrado com sucesso" };
+}
+
+/**
+ * Lançamento de encerramento: fecha as contas de resultado (receita/despesa) do período
+ * contra o Patrimônio Líquido — a "closing entry" clássica de contabilidade que faltava
+ * (achado D do teste `reconstituicao-golden-path.test.ts`; ver o comentário no topo
+ * daquele arquivo).
+ *
+ * DESENHO DA CONTRAPARTIDA (por que não é "uma perna só" em 2.1.02):
+ * a tarefa pede para NÃO criar conta nova, e não existe no plano nenhuma conta "neutra"
+ * de apuração de resultado (só as próprias contas de receita/despesa e 2.1.02). A opção
+ * que sobra — e é, por sinal, o lançamento de encerramento real de contabilidade — é
+ * zerar CADA conta de receita/despesa que teve movimento no período (lançando o inverso
+ * do seu saldo) e levar o LÍQUIDO dessas zeragens para 2.1.02: crédito se o período deu
+ * lucro, débito se deu prejuízo. Isso é sempre balanceado por construção:
+ *   - Represento o saldo de cada conta como (débito − crédito) no período.
+ *   - Receita (natureza crédito) normalmente fecha o período com saldo NEGATIVO nessa
+ *     conta (mais crédito que débito); despesa (natureza débito) fecha POSITIVO.
+ *   - Resultado do período (lucro > 0) = receita líquida − despesa líquida = −Σ(saldo)
+ *     de todas as contas de receita/despesa tocadas.
+ *   - Para "zerar" uma conta de saldo positivo (típico despesa), lança-se um CRÉDITO
+ *     igual ao saldo; para saldo negativo (típico receita), um DÉBITO igual a |saldo|.
+ *   - Somando tudo: débitos = Σ|saldo| das contas com saldo<0 (receita líquida) + (se
+ *     prejuízo) o débito em 2.1.02; créditos = Σ saldo das contas com saldo>0 (despesa
+ *     líquida) + (se lucro) o crédito em 2.1.02. Substituindo resultado = receita −
+ *     despesa nos dois lados, débitos = créditos sempre — não é preciso confiar, dá para
+ *     conferir na conta: receita=2000, despesa=300 (lucro=1700) → débitos = 2000
+ *     (zeragem da receita) = créditos = 300 (zeragem da despesa) + 1700 (crédito em
+ *     2.1.02). Por isso o período continua batendo (débito=crédito) depois do
+ *     encerramento, e a identidade "Ativo = Passivo + PL + resultado" do razão (testada
+ *     em reconstituicao-golden-path.test.ts) não se altera: o encerramento só RECLASSIFICA
+ *     o resultado, tirando-o das contas de receita/despesa e colocando em Lucros
+ *     Acumulados — o total do lado direito da equação patrimonial não muda.
+ *
+ * IDEMPOTÊNCIA: não tem checagem própria porque não precisa — encerrarPeriodo só chama
+ * esta função enquanto o período está 'aberto' (ver comentário lá), e vira 'fechado'
+ * antes de qualquer retorno bem-sucedido. Rodar encerrarPeriodo duas vezes no mesmo
+ * período nunca chega aqui na segunda vez.
+ */
+function fecharContasDeResultado(
+  db: Database,
+  periodo_id: number,
+  entidade_id: number,
+  encerrado_por: number,
+): void {
+  // Uma conta por linha, cada uma com seu saldo líquido (débito − crédito) no período —
+  // não SUM(valor_debito)/SUM(valor_credito) brutos por lado, para já vir líquido de
+  // eventuais estornos (mesmo cuidado do achado C, gerarDRE).
+  const contas = consultar<{ id: number; descricao: string; saldo: number }>(
+    db,
+    `SELECT cp.id, cp.descricao,
+            COALESCE(SUM(le.valor_debito), 0) - COALESCE(SUM(le.valor_credito), 0) AS saldo
+     FROM ledger_entries le
+     INNER JOIN contas_plano_contas cp ON cp.id = le.conta_id
+     WHERE le.periodo_id = ? AND cp.grupo IN ('receita', 'despesa')
+     GROUP BY cp.id, cp.descricao
+     HAVING ABS(COALESCE(SUM(le.valor_debito), 0) - COALESCE(SUM(le.valor_credito), 0)) > 0.005`,
+    [periodo_id],
+  );
+
+  if (contas.length === 0) return; // período sem movimento de resultado — nada a fechar
+
+  // Mesma data para todas as pernas deste lançamento: a data do último movimento real do
+  // período (não "hoje", que não tem relação nenhuma com o período contábil sendo
+  // fechado, e apareceria fora de ordem cronológica no razão de um período passado).
+  const [ultimoMovimento] = consultar<{ data: string }>(
+    db,
+    "SELECT MAX(data_lancamento) as data FROM ledger_entries WHERE periodo_id = ?",
+    [periodo_id],
+  );
+  const dataFechamento = ultimoMovimento?.data || new Date().toISOString().slice(0, 10);
+
+  const referencia = `ENCERRAMENTO-${periodo_id}`;
+  let somaSaldos = 0;
+
+  for (const conta of contas) {
+    somaSaldos += conta.saldo;
+    const descricao = `Encerramento do período: zeragem de ${conta.descricao} contra Lucros Acumulados`;
+    const zeragem: LancamentoContabil =
+      conta.saldo > 0
+        ? {
+            // Saldo devedor (típico de despesa): zera com crédito.
+            entidade_id,
+            periodo_id,
+            conta_id: conta.id,
+            data_lancamento: dataFechamento,
+            valor_credito: conta.saldo,
+            descricao,
+            origem_modulo: "manual",
+            origem_id: periodo_id,
+            referencia_documento: referencia,
+            criado_por: encerrado_por,
+          }
+        : {
+            // Saldo credor (típico de receita): zera com débito.
+            entidade_id,
+            periodo_id,
+            conta_id: conta.id,
+            data_lancamento: dataFechamento,
+            valor_debito: -conta.saldo,
+            descricao,
+            origem_modulo: "manual",
+            origem_id: periodo_id,
+            referencia_documento: referencia,
+            criado_por: encerrado_por,
+          };
+    registrarLancamentoContabil(db, zeragem);
+  }
+
+  // resultado = −Σ(saldo): ver a conta completa no comentário da função.
+  const resultado = -somaSaldos;
+  if (Math.abs(resultado) <= 0.005) return; // resultado nulo — receita e despesa se cancelam
+
+  const transferenciaPL: LancamentoContabil =
+    resultado > 0
+      ? {
+          // Lucro: credita Lucros Acumulados.
+          entidade_id,
+          periodo_id,
+          conta_id: CONTA_LUCROS_ACUMULADOS_ERP,
+          data_lancamento: dataFechamento,
+          valor_credito: resultado,
+          descricao: "Encerramento do período: transferência do resultado (lucro) para Lucros Acumulados",
+          origem_modulo: "manual",
+          origem_id: periodo_id,
+          referencia_documento: referencia,
+          criado_por: encerrado_por,
+        }
+      : {
+          // Prejuízo: debita Lucros Acumulados (reduz o PL).
+          entidade_id,
+          periodo_id,
+          conta_id: CONTA_LUCROS_ACUMULADOS_ERP,
+          data_lancamento: dataFechamento,
+          valor_debito: -resultado,
+          descricao: "Encerramento do período: transferência do resultado (prejuízo) para Lucros Acumulados",
+          origem_modulo: "manual",
+          origem_id: periodo_id,
+          referencia_documento: referencia,
+          criado_por: encerrado_por,
+        };
+  registrarLancamentoContabil(db, transferenciaPL);
 }
 
 /** Criar saldos iniciais (saldo_anterior) do próximo período */
