@@ -181,13 +181,23 @@ export function gerarDRE(
   // de R$300). COALESCE por lado é necessário porque valor_debito/valor_credito são
   // mutuamente exclusivos (CHECK do schema) — sem isso, `valor_credito - valor_debito`
   // vira NULL sempre que um dos dois é NULL, que é a norma, não a exceção.
+  // ENCERRAMENTO-% exclui o lançamento de encerramento de encerrarPeriodo() (ledger.ts):
+  // ele zera as próprias contas de receita/despesa do período contra 2.1.02 (Lucros
+  // Acumulados) para que o Balanço passe a mostrar o resultado no PL. Sem esse filtro, a
+  // DRE de um período JÁ FECHADO leria essa zeragem na mesma soma e reportaria
+  // resultado 0 (a conta zerada por ela mesma) em vez do resultado real do período — a
+  // DRE de janeiro deixaria de bater com a variação do PL logo depois do fechamento,
+  // exatamente o problema que o encerramento deveria resolver. A DRE de um período
+  // fechado precisa continuar mostrando o resultado ORIGINAL apurado nele, não o
+  // trial balance pós-encerramento (que é para isso que serve gerarBalancete, não a DRE).
   const getCredito = (codigo: string) => {
     const [result] = consultar<{ total: number }>(
       db,
       `SELECT COALESCE(SUM(le.valor_credito), 0) - COALESCE(SUM(le.valor_debito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`,
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?
+         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'`,
       [entidade_id, periodo_id, codigo],
     );
     return result?.total || 0;
@@ -199,7 +209,8 @@ export function gerarDRE(
       `SELECT COALESCE(SUM(le.valor_debito), 0) - COALESCE(SUM(le.valor_credito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`,
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?
+         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'`,
       [entidade_id, periodo_id, codigo],
     );
     return result?.total || 0;
@@ -572,11 +583,15 @@ export function gerarDREComFiltro(
 ): LinhasDRE {
   // Líquido, não bruto — mesmo motivo documentado em gerarDRE acima (estorno de
   // reclassificação não descontava, dobrando a despesa).
+  // ENCERRAMENTO-% exclui a zeragem de encerrarPeriodo() (ledger.ts) — ver o comentário
+  // equivalente em gerarDRE() acima sobre por que a DRE de um período fechado não pode
+  // somar seu próprio lançamento de encerramento.
   const getCredito = (codigo: string) => {
     let query = `SELECT COALESCE(SUM(le.valor_credito), 0) - COALESCE(SUM(le.valor_debito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`;
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?
+         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'`;
 
     const params: (number | string)[] = [entidade_id, periodo_id, codigo];
 
@@ -594,7 +609,8 @@ export function gerarDREComFiltro(
     let query = `SELECT COALESCE(SUM(le.valor_debito), 0) - COALESCE(SUM(le.valor_credito), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?`;
+       WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?
+         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'`;
 
     const params: (number | string)[] = [entidade_id, periodo_id, codigo];
 

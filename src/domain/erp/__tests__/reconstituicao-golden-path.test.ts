@@ -41,9 +41,17 @@ const TOLERANCIA = 0.01; // mesma margem usada em conciliacao.ts e ledger.ts
  *
  * ATUALIZAÇÃO: A, B e C foram corrigidos (relatorios-integrados.ts agora soma líquido —
  * débito menos crédito, ou vice-versa conforme a natureza — em vez de um lado só) e os
- * três testes abaixo viraram `it` normal, passando de verdade. Só D permanece `it.fails`:
- * é uma lacuna estrutural (falta o lançamento de encerramento que transfere o resultado do
- * período para o PL), não um bug pontual de query, e está fora do escopo desta correção.
+ * três testes correspondentes viraram `it` normal, passando de verdade.
+ *
+ * ATUALIZAÇÃO 2: D também foi corrigido — encerrarPeriodo() (ledger.ts) agora lança o
+ * encerramento clássico de contabilidade: zera cada conta de receita/despesa que teve
+ * movimento no período (contra o seu próprio saldo) e transfere o líquido para 2.1.02
+ * (Lucros Acumulados) — ver o comentário de fecharContasDeResultado() em ledger.ts para o
+ * desenho completo da contrapartida e a prova de que o lançamento sempre fecha
+ * (débito=crédito). gerarDRE/gerarDREComFiltro (relatorios-integrados.ts) passaram a
+ * excluir esse lançamento de encerramento (referencia_documento LIKE 'ENCERRAMENTO-%') das
+ * suas somas — sem isso, a DRE de um período já fechado leria a própria zeragem e
+ * reportaria resultado zero. O teste abaixo também virou `it` normal.
  *
  * A) gerarBalanco / gerarBalancoComFiltro (relatorios-integrados.ts, getAtivoConta
  *    ~L309-321, getPassivoConta ~L323-335, getPatrimonioLiquidoConta ~L337-349, e os
@@ -82,27 +90,27 @@ const TOLERANCIA = 0.01; // mesma margem usada em conciliacao.ts e ledger.ts
  *    deveria cair para R$ 300,00 e permanece em R$ 800,00) — a despesa é contada duas vezes,
  *    não corrigida.
  *
- * D) Ausência de lançamento de encerramento (não é um bug de uma função específica, é uma
- *    lacuna estrutural): nenhum lugar do código transfere o resultado do período (receita −
- *    despesa) para uma conta de Patrimônio Líquido (2.1.02 "Lucros acumulados" existe no
- *    plano — planoDeContasErp.ts L41 — mas nunca é creditada por nada; `encerrarPeriodo` em
- *    ledger.ts fecha o período e grava o snapshot/hash, mas não lança essa transferência).
- *    Por isso o Patrimônio Líquido do Balanço nunca se move com o resultado operacional: a
- *    variação do PL entre o início e o fim de um período é R$ 0,00 mesmo quando a DRE do
- *    mesmo período aponta um resultado de R$ 1.700,00 — a peça central pedida pela auditoria
- *    ("a DRE liga com o Balanço") não fecha por falta dessa transferência.
+ * D) [CORRIGIDO] Ausência de lançamento de encerramento: nenhum lugar do código transferia
+ *    o resultado do período (receita − despesa) para uma conta de Patrimônio Líquido
+ *    (2.1.02 "Lucros acumulados" existe no plano — planoDeContasErp.ts L41 — mas nunca era
+ *    creditada por nada; `encerrarPeriodo` em ledger.ts fechava o período e gravava o
+ *    snapshot/hash, mas não lançava essa transferência). Por isso o Patrimônio Líquido do
+ *    Balanço nunca se movia com o resultado operacional: a variação do PL entre o início e
+ *    o fim de um período dava R$ 0,00 mesmo quando a DRE do mesmo período apontava um
+ *    resultado de R$ 1.700,00. Corrigido em ledger.ts::fecharContasDeResultado(), chamada
+ *    por encerrarPeriodo() — ver ATUALIZAÇÃO 2 acima.
  *
  * Como reproduzir: `npx vitest run src/domain/erp/__tests__/reconstituicao-golden-path.test.ts`.
  *
- * Onde corrigir (fora do escopo desta tarefa, que é só escrever e fazer passar o teste):
- *   - A: trocar o CASE por SUM(valor_debito) - SUM(valor_credito) (ativo) / SUM(valor_credito)
+ * A, B, C e D — todos corrigidos:
+ *   - A: trocado o CASE por SUM(valor_debito) - SUM(valor_credito) (ativo) / SUM(valor_credito)
  *     - SUM(valor_debito) (passivo/PL), sempre líquido, nunca picking um lado só.
- *   - B: acumular saldo_inicial por todos os períodos <= o anterior (mesma
+ *   - B: saldo_inicial passou a acumular todos os períodos <= o anterior (mesma
  *     `condicaoAcumulada` que gerarBalanco já usa), com o mesmo netting do item A.
- *   - C: subtrair estornos — SUM(valor_debito) - SUM(valor_credito) por conta em vez de só
- *     a coluna do lado nominal, OU excluir da soma qualquer lançamento com
- *     estornado_por_id IS NOT NULL e excluir o próprio estorno.
- *   - D: em encerrarPeriodo, lançar a transferência de resultado do período para 2.1.02.
+ *   - C: estornos passaram a ser subtraídos — SUM(valor_debito) - SUM(valor_credito) por
+ *     conta em vez de só a coluna do lado nominal.
+ *   - D: encerrarPeriodo (ledger.ts) agora lança a transferência de resultado do período
+ *     para 2.1.02 — ver ATUALIZAÇÃO 2 acima.
  */
 describe("Reconstituição contábil — golden path de 1 ano (2025)", () => {
   let db: Database;
@@ -415,7 +423,7 @@ describe("Reconstituição contábil — golden path de 1 ano (2025)", () => {
 
     // ACHADO D. Ver comentário no topo do arquivo. Janeiro é o mês mais simples do ano
     // (só aluguel + condomínio) — isola o problema sem a distorção do capex/reclass.
-    it.fails(
+    it(
       "DRE liga com o Balanço: resultado do período = variação do PL entre início e fim do período",
       () => {
         const dreJan = gerarDRE(db, entidade_id, periodoPorMes[1]);
