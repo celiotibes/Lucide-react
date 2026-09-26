@@ -1186,3 +1186,53 @@ CREATE TABLE IF NOT EXISTS sugestoes_classificacao_ia (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sugestoes_classificacao_ia_status ON sugestoes_classificacao_ia(status);
+
+-- Competência de aluguel: uma linha por MÊS DEVIDO de cada contrato de locação — o espelho,
+-- do lado da RECEITA, do que `contas_a_pagar` já resolveu para o lado da despesa (ver o
+-- comentário completo daquela tabela acima). Existe porque `integracao-inadimplencia.ts`
+-- (apurarInadimplenciaContrato) recalculava o vencimento a partir do MÊS DA PRÓPRIA data de
+-- referência a cada chamada, em vez de fixá-lo no mês em que a inadimplência de fato
+-- começou — resultado: `dias_atraso` nunca ultrapassava ~30 dias, tornando os estados
+-- em_cobranca/litigioso IMPOSSÍVEIS de produzir, para qualquer entrada (ver o `it.fails`
+-- correspondente em integracao-inadimplencia.test.ts). Aqui, cada competência tem seu
+-- PRÓPRIO vencimento — fixado uma vez, na geração (gerarCompetenciasPendentes), nunca
+-- recalculado depois — e seu próprio status de recebimento, agregável em aging por
+-- contrato exatamente como gerarRelatorioAging() faz para contas_a_pagar. Ver
+-- src/domain/erp/aluguel-competencias.ts.
+--
+-- `imovel_id` é herdado do contrato (contratos_locacao.imovel_id) e duplicado aqui de
+-- propósito, não por normalização ruim — mesmo motivo de contas_a_pagar.imovel_id: consulta
+-- direta por imóvel sem precisar de JOIN em contratos_locacao.
+--
+-- `status` só grava o que é FATO: 'pendente', 'recebido' ou 'cancelado' (competência
+-- anulada — ex.: contrato encerrado antes do mês vencer). 'atrasado' NUNCA é gravado aqui —
+-- é sempre CALCULADO comparando `data_vencimento` com uma data de referência, mesmo
+-- espírito de contas_a_pagar.status (nunca congelar um dado que muda sozinho com o
+-- calendário).
+--
+-- `ledger_entry_id_baixa` só é preenchida na baixa (recebimento) — prova de que o
+-- recebimento virou um lançamento real no razão (baixarCompetencia), pela MESMA rota que
+-- `baixarContaAPagar` usa (nova linha em `transacoes` + duas pernas via
+-- registrarLancamentoContabil com origem_modulo='transacoes'), só que invertida: débito em
+-- Caixa (entrada) e crédito em Receita de Aluguel, não o contrário.
+--
+-- UNIQUE(contrato_id, ano, mes): uma competência por contrato por mês, nunca duplicada —
+-- é o que torna gerarCompetenciasPendentes() idempotente por construção.
+CREATE TABLE IF NOT EXISTS aluguel_competencias (
+    id                      INTEGER PRIMARY KEY,
+    contrato_id             INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    imovel_id               INTEGER NOT NULL REFERENCES imoveis(id),
+    ano                     INTEGER NOT NULL,
+    mes                     INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+    data_vencimento         DATE NOT NULL,          -- vencimento REAL daquele mês; fixado na geração, nunca recalculado
+    valor_devido            REAL NOT NULL CHECK (valor_devido > 0),
+    data_recebimento        DATE,                   -- NULL até ser recebida
+    status                  TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'recebido', 'cancelado')),
+    ledger_entry_id_baixa   INTEGER REFERENCES ledger_entries(id),  -- preenchido só na baixa
+    criado_em               DATE NOT NULL,
+    UNIQUE (contrato_id, ano, mes)
+);
+
+-- Consulta mais comum: aging de um contrato, filtrado/ordenado por status e vencimento —
+-- mesmo padrão de idx_contas_a_pagar_entidade_status_venc.
+CREATE INDEX IF NOT EXISTS idx_aluguel_competencias_contrato_status_venc ON aluguel_competencias(contrato_id, status, data_vencimento);

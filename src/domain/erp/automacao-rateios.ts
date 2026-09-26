@@ -5,7 +5,7 @@
  */
 
 import type { Database } from "sql.js";
-import { consultar } from "../../db/connection";
+import { consultar, executar } from "../../db/connection";
 import { registrarLancamentoContabil } from "./ledger";
 
 /**
@@ -44,12 +44,6 @@ const CONTA_DESPESA_POR_TIPO_RATEIO: Record<string, number> = {
 // "componente de aluguel" (integrarRateioAoAluguel, antigo id 26): o plano real só tem
 // uma conta para esse conceito, não duas.
 const CONTA_RATEIO_RECEITA = 4103;
-
-// Ver ACHADO 2 no comentário de integrarRateioAoAluguel: deslocamento para manter
-// `origem_id` desse evento (por contrato) fora do espaço de `origem_id` usado pelo
-// crédito de processarDocumentoRateio (por imóvel), evitando colisão em
-// idx_ledger_origem_unica quando as duas sequências de id coincidem numericamente.
-const OFFSET_ORIGEM_ALUGUEL = 900_000_000;
 
 export interface RateioDocumento {
   documento_id: number;
@@ -233,8 +227,46 @@ export function processarDocumentoRateio(
   };
 }
 
+interface CreditoRateioAtivo {
+  id: number;
+  entidade_id: number;
+  periodo_id: number;
+  conta_id: number;
+  valor_credito: number | null;
+  data_lancamento: string;
+  descricao: string;
+  referencia_documento: string;
+}
+
+/** O crédito "rateio a receber" (por imóvel) que `processarDocumentoRateio` já lançou
+ * neste período para este imóvel, se ainda estiver vivo (não estornado por uma integração
+ * ao aluguel anterior). É o que `integrarRateioAoAluguel` reclassifica — ver o comentário
+ * dela para o desenho completo. `ORDER BY id DESC LIMIT 1` porque, dentro do período, só
+ * pode haver um vivo por imóvel (a própria unicidade de `processarDocumentoRateio` — ver
+ * comentário dela — garante isso; a limitação residual de repetir para o MESMO imóvel em
+ * períodos diferentes não se aplica aqui porque já filtramos por `periodo_id`). */
+function buscarCreditoRateioAtivoPorImovel(
+  db: Database,
+  periodo_id: number,
+  imovel_id: number,
+): CreditoRateioAtivo | null {
+  return (
+    consultar<CreditoRateioAtivo>(
+      db,
+      `SELECT id, entidade_id, periodo_id, conta_id, valor_credito, data_lancamento,
+              descricao, referencia_documento
+       FROM ledger_entries
+       WHERE origem_modulo = 'rateios' AND origem_id = ? AND conta_id = ?
+         AND periodo_id = ? AND estornado_por_id IS NULL
+       ORDER BY id DESC LIMIT 1`,
+      [imovel_id, CONTA_RATEIO_RECEITA, periodo_id],
+    )[0] ?? null
+  );
+}
+
 /**
- * Integrar rateio ao aluguel esperado (aumenta receita esperada).
+ * Integrar rateio ao aluguel (reclassifica o rateio já lançado por imóvel para
+ * "componente do aluguel" por contrato — não cria receita nova).
  *
  * ACHADO 1 (gravidade GRAVE, corrigido): `entidade_id`/`periodo_id` eram literais fixos
  * (1 e 1, "Padrão; em produção viria de contexto") em vez de parâmetros — qualquer chamada
@@ -244,51 +276,57 @@ export function processarDocumentoRateio(
  * `periodo_id` corretos do chamador — só não os repassava para esta função. Corrigido
  * recebendo os dois como parâmetros, coberto em automacao-rateios.test.ts.
  *
- * ACHADO 2 (gravidade GRAVE, corrigido): `origem_id` gravava `imovel_id` — o MESMO valor
- * que `processarDocumentoRateio` já grava para o crédito de "despesa rateada a receber"
- * NA MESMA CONTA (CONTA_RATEIO_RECEITA). Como `automatizarRateioPorDocumento` chama as
- * duas funções em sequência para o mesmo imóvel, a segunda sempre colidia em
- * `idx_ledger_origem_unica` (mesmo `origem_modulo`+`origem_id`+`conta_id` de uma linha já
- * viva) — o pipeline completo (rateio → alocação → integração ao contrato, a função que dá
- * nome a este achado) nunca terminava para nenhum imóvel com contrato ativo.
+ * ACHADOS 2 e 3 (gravidade GRAVE, agora corrigidos JUNTOS — a raiz era a mesma desenho
+ * errado, não dois defeitos independentes): a versão anterior desta função lançava um
+ * CRÉDITO NOVO em CONTA_RATEIO_RECEITA (mesma conta que `processarDocumentoRateio` já
+ * credita por imóvel), sem nenhuma perna de débito. Isso causava dois problemas ao mesmo
+ * tempo: (2) colisão de `origem_id` em `idx_ledger_origem_unica` quando `contrato_id`
+ * coincidia numericamente com algum `imovel_id` já usado (sequências autoincrement
+ * independentes — reproduzido com um teste de 2 imóveis simples); e (3), mais grave: o
+ * pipeline completo (`automatizarRateioPorDocumento`) credita o MESMO valor DUAS VEZES por
+ * imóvel com contrato ativo — uma vez como "recebível" (`processarDocumentoRateio`), outra
+ * como "componente de aluguel" (esta função) — sem débito de contrapartida na segunda,
+ * desbalanceando o período no valor total rateado (SOMA(débito) ≠ SOMA(crédito), e
+ * `encerrarPeriodo`/`validarBalanceamento` em ledger.ts nunca fecham esse período).
  *
- * Tentativa 1 (insuficiente): trocar para `origem_id: contrato_id`, já que este evento é
- * sobre o CONTRATO, não o imóvel isolado. Continua colidindo na prática: `imoveis` e
- * `contratos_locacao` são sequências autoincrement INDEPENDENTES, e num sistema onde a
- * maioria dos imóveis tem um único contrato (o caso típico deste produto), `contrato_id`
- * e `imovel_id` coincidem numericamente com frequência (ex: os dois primeiros registros
- * de cada tabela são ambos id=1) — reproduzido com um teste de 2 imóveis simples.
+ * DECISÃO DE DESIGN (esta tarefa): as duas funções não descrevem dois eventos econômicos
+ * diferentes — descrevem o MESMO evento visto de dois ângulos. `processarDocumentoRateio`
+ * já lança o par completo e balanceado (débito na despesa + crédito em
+ * CONTA_RATEIO_RECEITA, por imóvel — ver comentário dela). "Integrar ao aluguel" não é
+ * criar receita nova: é RECLASSIFICAR esse crédito já lançado, trocando o rótulo de
+ * "rateio a receber (por imóvel)" para "componente do valor único do aluguel (por
+ * contrato)" — o mesmo dinheiro, a mesma conta (o plano real só tem uma, CONTA_RATEIO_RECEITA
+ * — ver comentário dela), outro recorte. Por isso `integrarRateioAoAluguel` passou a seguir
+ * exatamente o desenho de `reclassificarTransacao.ts` (estorna a perna antiga, relança a
+ * nova, nunca dá UPDATE): 1) busca o crédito vivo de `processarDocumentoRateio` para este
+ * imóvel neste período (`buscarCreditoRateioAtivoPorImovel`); 2) estorna essa linha
+ * (débito = o crédito original, mesma conta); 3) relança um crédito do MESMO valor,
+ * marcado como componente do aluguel deste contrato. O par estorno+relançamento é sempre
+ * balanceado por construção (débito X seguido de crédito X, mesmo valor) — não importa se
+ * o valor absoluto é grande ou pequeno, a soma do período não se move. É o motivo de esta
+ * função agora IGNORAR seu próprio parâmetro `valor_rateio_adicional` como o valor a
+ * creditar: o valor que conta é sempre `credito.valor_credito` (o que já está lançado);
+ * `valor_rateio_adicional` vira só uma validação — se não bater com o que está lançado
+ * (dentro de 1 centavo), a chamada é recusada (`false`), para nunca reclassificar o valor
+ * errado silenciosamente.
  *
- * Correção efetiva: somar um deslocamento fixo (`OFFSET_ORIGEM_ALUGUEL`) bem acima de
- * qualquer id real que este sistema de uso pessoal chegue a ter, criando um espaço de
- * `origem_id` disjunto do usado por `processarDocumentoRateio`. `origem_id` não tem FK
- * (é convenção, não `REFERENCES` — ver comentário de `ledger_entries` em schema.sql: "PK
- * da tabela de origem", sem constraint), então isso não quebra nenhuma leitura que já
- * existe; e este é o único lugar do arquivo que credita nesta conta a partir de um
- * contrato (em vez de um imóvel), então o deslocamento não precisa ser desfeito em
- * nenhuma outra query. É um contorno, não uma modelagem definitiva — a solução correta
- * seria dar a este evento sua própria conta no plano compartilhado ou incluir
- * `periodo_id`/um discriminador na chave do índice, mudança fora do escopo isolado
- * destes 2 arquivos (ver ACHADO 3).
+ * Como o estorno e o relançamento usam `origem_modulo: 'manual'`, e `idx_ledger_origem_unica`
+ * (schema.sql) exclui QUALQUER linha com `origem_modulo = 'manual'` da checagem de
+ * unicidade, o ACHADO 2 (colisão `contrato_id`/`imovel_id`) desaparece por construção — não
+ * precisa mais de `OFFSET_ORIGEM_ALUGUEL` (removido). Por não competir com a faixa de
+ * `origem_id` de 'rateios', as duas pernas de reclassificação usam `origem_id: imovel_id`
+ * (não `contrato_id`) — o contrato fica registrado em `descricao`/`referencia_documento`,
+ * e isso é o que permite ao relatório (`relatorioRateiosRealizados`, ver comentário dela)
+ * encontrar a perna de débito por imóvel para popular `valor_rateio_recebido` (ACHADO
+ * daquela função, corrigido junto nesta tarefa).
  *
- * ACHADO 3 (gravidade GRAVE, NÃO corrigido — decisão de produto fora deste escopo): esta
- * função grava só a perna de CRÉDITO (`valor_credito`), sem nenhuma perna de débito
- * correspondente. `validarBalanceamento`/`encerrarPeriodo` (ledger.ts) exigem SOMA(débito)
- * = SOMA(crédito) do período inteiro para fechar — todo período com uma integração de
- * rateio ao aluguel fica desbalanceado por este valor e nunca fecha. Pior: como
- * `automatizarRateioPorDocumento` chama esta função LOGO DEPOIS de
- * `processarDocumentoRateio` já ter creditado o mesmo `rateio.valor_rateado` (na conta de
- * "despesa rateada a receber", por imóvel), o pipeline completo credita o MESMO valor
- * DUAS VEZES por imóvel com contrato ativo — uma vez como "recebível" (origem_id=imóvel),
- * outra como "componente de aluguel" (origem_id=contrato) — sem nenhum débito ou reversão
- * ligando as duas. Corrigir de verdade exige decidir: (a) se a segunda perna deveria
- * RECLASSIFICAR/reverter a primeira em vez de somar um crédito novo, e (b) qual conta de
- * contrapartida (débito) fecha o par — nos dois casos, uma decisão de modelagem contábil
- * que toca o plano de contas COMPARTILHADO (contas_plano_contas/planoDeContasErp.ts, em
- * edição por outros agentes agora), não uma correção isolada destes 2 arquivos.
- * Documentado e coberto por um teste `it.fails` em automacao-rateios.test.ts que prova o
- * desbalanceamento e a duplicidade, para não regredir silenciosamente se alguém "corrigir"
- * só a superfície.
+ * CONSEQUÊNCIA DO DESENHO: esta função deixou de poder criar um crédito "do nada" — só
+ * reclassifica um crédito que `processarDocumentoRateio` já lançou. Chamá-la para um
+ * imóvel/período sem esse crédito vivo (ex: antes de rodar `processarDocumentoRateio`, ou
+ * depois de já ter reclassificado o mesmo crédito uma vez) retorna `false` sem gravar
+ * nada — não é um evento novo por si só, então não há o que fazer sem o crédito de origem.
+ * Coberto em automacao-rateios.test.ts, junto com a prova de balanceamento (antigo
+ * `it.fails`, promovido a `it` nesta correção).
  */
 export function integrarRateioAoAluguel(
   db: Database,
@@ -309,17 +347,48 @@ export function integrarRateioAoAluguel(
 
   if (!contrato) return false;
 
-  // Registrar crédito adicional ao aluguel (rateio como componente do valor único mensal)
+  const credito = buscarCreditoRateioAtivoPorImovel(db, periodo_id, imovel_id);
+  if (!credito) return false;
+
+  const valorCreditado = credito.valor_credito ?? 0;
+  if (Math.abs(valorCreditado - valor_rateio_adicional) > 0.01) return false;
+
+  // 1) Estornar o crédito "rateio a receber" original (mesma conta, débito ↔ crédito
+  //    invertidos) — mesmo padrão de reclassificarTransacao.ts: nunca UPDATE num
+  //    lançamento existente.
+  const estorno_id = registrarLancamentoContabil(db, {
+    entidade_id: credito.entidade_id,
+    periodo_id: credito.periodo_id,
+    conta_id: credito.conta_id,
+    data_lancamento: credito.data_lancamento,
+    valor_debito: valorCreditado,
+    descricao: `ESTORNO (reclassificação p/ componente de aluguel, contrato ${contrato_id}): ${credito.descricao}`,
+    origem_modulo: "manual",
+    origem_id: imovel_id,
+    referencia_documento: `${credito.referencia_documento}-RECLASS-EST`,
+  });
+  executar(
+    db,
+    "UPDATE ledger_entries SET estornado_por_id = ?, motivo_estorno = ? WHERE id = ?",
+    [
+      estorno_id,
+      `Reclassificado como componente do aluguel do contrato ${contrato_id}`,
+      credito.id,
+    ],
+  );
+
+  // 2) Relançar o MESMO valor como componente de aluguel do contrato — o par
+  //    estorno+relançamento fecha balanceado por construção (débito X, crédito X).
   registrarLancamentoContabil(db, {
     entidade_id,
     periodo_id,
-    conta_id: CONTA_RATEIO_RECEITA, // Despesa Rateada Componente de Aluguel
-    data_lancamento: new Date().toISOString().split("T")[0],
-    valor_credito: valor_rateio_adicional,
+    conta_id: CONTA_RATEIO_RECEITA,
+    data_lancamento: credito.data_lancamento,
+    valor_credito: valorCreditado,
     descricao: `${descricao_rateio} - Contrato ${contrato_id}`,
-    origem_modulo: "rateios",
-    origem_id: OFFSET_ORIGEM_ALUGUEL + contrato_id,
-    referencia_documento: `CT-${contrato_id}-RAT-ADD`,
+    origem_modulo: "manual",
+    origem_id: imovel_id,
+    referencia_documento: `${credito.referencia_documento}-RECLASS-CT${contrato_id}`,
   });
 
   return true;
@@ -328,22 +397,32 @@ export function integrarRateioAoAluguel(
 /**
  * Relatório: Rateios realizados vs esperados (reconciliação).
  *
- * ACHADO (gravidade GRAVE, parcialmente corrigido): o lado "esperado" referenciava
+ * ACHADO (gravidade GRAVE, corrigido nesta tarefa): o lado "esperado" referenciava
  * `conta_id IN (25, 26)`, os mesmos ids fictícios corrigidos no topo do arquivo — corrigido
- * aqui para `CONTA_RATEIO_RECEITA` (4103), a mesma conta que `processarDocumentoRateio`
- * e `integrarRateioAoAluguel` agora gravam de fato.
+ * para `CONTA_RATEIO_RECEITA` (4103), a mesma conta que `processarDocumentoRateio` e
+ * `integrarRateioAoAluguel` gravam de fato — e ganhou o filtro `origem_modulo = 'rateios'`
+ * (ver abaixo o motivo).
  *
- * O lado "recebido" (`valor_rateio_recebido`) permanece NÃO corrigido: buscava débito em
- * `conta_id = 2`, que também não existe em `contas_plano_contas` — mas trocar o id sozinho
- * não teria efeito real, porque NENHUMA função deste módulo (nem de nenhum outro, hoje)
- * grava uma perna de DÉBITO com `referencia_documento LIKE 'DOC-%RAT-%'`: as duas únicas
- * gravações com esse padrão de referência são de CRÉDITO (passo 5 de
- * processarDocumentoRateio). Ou seja, `valor_rateio_recebido` é sempre 0 e `divergencia`
- * sempre igual a `valor_rateio_esperado`, qualquer que seja a conta usada — não é só um id
- * errado, é uma metade do relatório sem nenhum evento real que a alimente (precisaria de
- * uma decisão de produto: qual evento — conciliação bancária? confirmação de pagamento? —
- * conta como "rateio efetivamente recebido"). Documentado e coberto por um teste
- * `it.fails` em automacao-rateios.test.ts.
+ * O lado "recebido" (`valor_rateio_recebido`) buscava débito em `conta_id = 2` (também
+ * fictícia) com `referencia_documento LIKE 'DOC-%RAT-%'` — um padrão que NENHUMA função
+ * gravava: as únicas linhas com essa referência eram de CRÉDITO (processarDocumentoRateio),
+ * então `valor_rateio_recebido` era sempre 0 e `divergencia` sempre igual a
+ * `valor_rateio_esperado`. Faltava o próprio EVENTO "recebido", não só o id da conta —
+ * ver ACHADO 3 do comentário de `integrarRateioAoAluguel`.
+ *
+ * Corrigido junto com aquele achado, pela mesma causa: agora que `integrarRateioAoAluguel`
+ * reclassifica (estorna o crédito "a receber" por imóvel e relança como "componente de
+ * aluguel", ambas as pernas com `origem_modulo: 'manual'` e `origem_id: imovel_id` — ver
+ * comentário dela), a perna de ESTORNO é literalmente um débito em CONTA_RATEIO_RECEITA
+ * marcado por imóvel: o evento "recebido" que faltava. `valor_rateio_recebido` passou a
+ * somar esse débito (`origem_modulo = 'manual'`), e `valor_rateio_esperado` ganhou o filtro
+ * `origem_modulo = 'rateios'` para não somar de volta o crédito de relançamento (que usa o
+ * mesmo `origem_id` por construção, mas é 'manual', não 'rateios' — sem esse filtro,
+ * `esperado` dobraria de valor depois de toda integração ao aluguel). Com isso:
+ * `valor_rateio_esperado` = total historicamente rateado a este imóvel (não muda com a
+ * reclassificação); `valor_rateio_recebido` = quanto desse total já foi absorvido no
+ * aluguel do contrato; `divergencia` = o que ainda está "solto" como rateio a receber,
+ * ainda não integrado a nenhum contrato. Antigo teste `it.fails` promovido a `it`.
  */
 export function relatorioRateiosRealizados(
   db: Database,
@@ -370,24 +449,24 @@ export function relatorioRateiosRealizados(
         SELECT SUM(valor_credito)
         FROM ledger_entries
         WHERE periodo_id = ? AND conta_id = ${CONTA_RATEIO_RECEITA}
-          AND origem_id = i.id
+          AND origem_modulo = 'rateios' AND origem_id = i.id
       ), 0) as valor_rateio_esperado,
       COALESCE((
         SELECT SUM(valor_debito)
         FROM ledger_entries
-        WHERE periodo_id = ? AND conta_id = 2
-          AND referencia_documento LIKE 'DOC-%RAT-%'
+        WHERE periodo_id = ? AND conta_id = ${CONTA_RATEIO_RECEITA}
+          AND origem_modulo = 'manual' AND origem_id = i.id
       ), 0) as valor_rateio_recebido,
       (COALESCE((
         SELECT SUM(valor_credito)
         FROM ledger_entries
         WHERE periodo_id = ? AND conta_id = ${CONTA_RATEIO_RECEITA}
-          AND origem_id = i.id
+          AND origem_modulo = 'rateios' AND origem_id = i.id
       ), 0) - COALESCE((
         SELECT SUM(valor_debito)
         FROM ledger_entries
-        WHERE periodo_id = ? AND conta_id = 2
-          AND referencia_documento LIKE 'DOC-%RAT-%'
+        WHERE periodo_id = ? AND conta_id = ${CONTA_RATEIO_RECEITA}
+          AND origem_modulo = 'manual' AND origem_id = i.id
       ), 0)) as divergencia
      FROM imoveis i
      WHERE i.uso_pessoal = 0 AND i.financiado = 0
