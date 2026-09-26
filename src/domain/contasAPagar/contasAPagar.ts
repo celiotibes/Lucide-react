@@ -53,6 +53,11 @@ export interface ContaAPagar {
   status: StatusGravadoContaAPagar;
   plano_conta_codigo: string | null;
   imovel_id: number | null;
+  /** NULL = despesa não ligada a um processo judicial. Preenchido por
+   * `registrarDespesaProcesso` (src/domain/advocacia/advocacia.ts) — despesa jurídica é
+   * uma linha comum desta tabela, não uma tabela `despesas_legais` paralela (ver
+   * comentário do bloco ADVOCACIA em schema.sql). */
+  processo_id: number | null;
   ledger_entry_id_baixa: number | null;
   criado_em: string;
 }
@@ -78,6 +83,8 @@ export interface NovaContaAPagar {
   data_vencimento: string;
   plano_conta_codigo?: string;
   imovel_id?: number;
+  /** Despesa jurídica vinculada a um processo — ver `processo_id` em `ContaAPagar`. */
+  processo_id?: number;
 }
 
 export interface ResultadoContaAPagar {
@@ -160,8 +167,8 @@ export function registrarContaAPagar(db: Database, dados: NovaContaAPagar): Resu
     db,
     `INSERT INTO contas_a_pagar (
       entidade_id, documento_id, fornecedor_nome, fornecedor_cnpj_cpf, descricao,
-      valor, data_vencimento, status, plano_conta_codigo, imovel_id, criado_em
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?)`,
+      valor, data_vencimento, status, plano_conta_codigo, imovel_id, processo_id, criado_em
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?)`,
     [
       dados.entidade_id,
       dados.documento_id ?? null,
@@ -172,6 +179,7 @@ export function registrarContaAPagar(db: Database, dados: NovaContaAPagar): Resu
       dados.data_vencimento,
       plano_conta_codigo ?? null,
       dados.imovel_id ?? null,
+      dados.processo_id ?? null,
       hoje(),
     ],
   );
