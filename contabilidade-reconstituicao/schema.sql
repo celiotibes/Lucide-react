@@ -678,19 +678,21 @@ CREATE TABLE IF NOT EXISTS ledger_encerramentos (
     observacoes     TEXT
 );
 
--- Regras de mapeamento automático: quando uma transação chega de um módulo,
--- qual conta do plano recebe o lançamento contábil?
-CREATE TABLE IF NOT EXISTS regras_contabilizacao (
-    id              INTEGER PRIMARY KEY,
-    entidade_id     INTEGER NOT NULL REFERENCES entidades_legais(id),
-    origem_modulo   TEXT NOT NULL,
-    tipo_operacao   TEXT NOT NULL,  -- ex: "aluguel_recebido", "aluguel_esperado", "rateio_recebido"
-    conta_debito_id INTEGER REFERENCES contas_plano_contas(id),
-    conta_credito_id INTEGER REFERENCES contas_plano_contas(id),
-    descricao       TEXT,
-    UNIQUE (entidade_id, origem_modulo, tipo_operacao)
-);
-
+-- REMOVIDA: `regras_contabilizacao` (mapeamento módulo/operação → conta débito/crédito).
+-- Tabela morta — nunca teve uma linha de código lendo ou escrevendo nela
+-- (`grep -rn "regras_contabilizacao" src/` não retorna nada). O mapeamento que ela
+-- deveria tornar configurável existe de fato, mas hardcoded em
+-- src/domain/erp/mapeamentoPlanoApp.ts (MAPA_APP_PARA_ERP): ~32 entradas fixas,
+-- código do plano do app → conta de contrapartida no razão, consumidas por 6+ módulos
+-- (livroRazao, reclassificarTransacao, contasAPagar, migracao-ledger, aluguel-competencias).
+-- Tornar isso configurável via banco exigiria bem mais que criar a tabela: trocar toda
+-- leitura síncrona de MAPA_APP_PARA_ERP por consulta ao banco (ou cache invalidável) em
+-- cada um desses call sites, decidir fallback quando uma regra não existir (hoje é
+-- CONTA_CLASSIFICACAO_PENDENTE, comportamento que precisaria sobreviver), migrar as ~32
+-- linhas hardcoded como seed, e alguma tela de administração para editar regra por
+-- entidade/módulo/operação sem quebrar a paridade débito=crédito. Isso é trabalho de
+-- verdade, não uma tarefa de <1h — fica como recomendação futura, não implementada aqui.
+--
 -- Índices para o ledger (performance crítica)
 CREATE INDEX IF NOT EXISTS idx_ledger_periodo ON ledger_entries(periodo_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_conta ON ledger_entries(conta_id);
