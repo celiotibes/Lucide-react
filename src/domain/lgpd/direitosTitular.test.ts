@@ -96,6 +96,34 @@ describe("direitosTitular: buscarDadosPessoaisPorCpf — dado REAL espalhado pel
     const tabelas = registros.map((r) => r.tabela).sort();
     expect(tabelas).toEqual(["partes_processo", "pessoas"]);
   });
+
+  // ACHADO (revisão cruzada desta sessão): o teste acima já provava 2 dos 3 domínios
+  // irmãos reconstruídos em paralelo (Contas Pessoais e Advocacia) com dado real, mas
+  // NENHUM teste deste arquivo tocava `pagamentos_iniciados` (Open Banking/Pagamentos) —
+  // o código em buscarDadosPessoaisPorCpf/avaliarRetencao/anonimizarRegistro/
+  // FONTES_CORRECAO já tratava essa tabela (inclusive com `tabelaExiste`), mas a
+  // integração nunca tinha sido CONFIRMADA rodando, só lida. Fechado abaixo com dado real
+  // nas três funções (busca, exclusão e correção).
+  it("encontra dado pessoal em pagamentos_iniciados (Open Banking/Pagamentos), o terceiro domínio irmão", async () => {
+    const db = await criarBancoDeTeste();
+    expect(consultar(db, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pagamentos_iniciados'").length).toBeGreaterThan(0);
+
+    executar(db, "INSERT INTO entidades_legais (id, tipo, cpf_cnpj, nome) VALUES (1, 'pessoa_fisica', '222.222.222-22', 'Titular do Sistema')");
+    executar(
+      db,
+      "INSERT INTO contas_bancarias (id, banco, agencia, numero, titular, tipo) VALUES (1, 'Banco 1', '0001', '11111', 'Titular', 'corrente')",
+    );
+    executar(
+      db,
+      `INSERT INTO pagamentos_iniciados (id, entidade_id, conta_bancaria_id, tipo, valor, destinatario_nome, destinatario_documento, status, data_solicitacao)
+       VALUES (1, 1, 1, 'ted', 500, 'Fulano de Tal', ?, 'solicitado', '2025-06-01')`,
+      [CPF_TITULAR],
+    );
+
+    const registros = buscarDadosPessoaisPorCpf(db, CPF_TITULAR);
+    expect(registros.map((r) => r.tabela)).toEqual(["pagamentos_iniciados"]);
+    expect(registros[0].campos.destinatario_nome).toBe("Fulano de Tal");
+  });
 });
 
 describe("direitosTitular: atenderAcesso / atenderPortabilidade", () => {
@@ -231,6 +259,56 @@ describe("direitosTitular: atenderExclusao — a tensão retenção legal x excl
     expect(resultado.aceita).toBe(true);
     expect(resultado.registros_anonimizados).toEqual([]);
   });
+
+  it("RECUSA a exclusão quando há um pagamento iniciado (pagamentos_iniciados) dentro do prazo de retenção de 7 anos", async () => {
+    const db = await criarBancoDeTeste();
+    executar(db, "INSERT INTO entidades_legais (id, tipo, cpf_cnpj, nome) VALUES (1, 'pessoa_fisica', '222.222.222-22', 'Titular do Sistema')");
+    executar(
+      db,
+      "INSERT INTO contas_bancarias (id, banco, agencia, numero, titular, tipo) VALUES (1, 'Banco 1', '0001', '11111', 'Titular', 'corrente')",
+    );
+    executar(
+      db,
+      `INSERT INTO pagamentos_iniciados (id, entidade_id, conta_bancaria_id, tipo, valor, destinatario_nome, destinatario_documento, status, data_solicitacao)
+       VALUES (1, 1, 1, 'ted', 500, 'Fulano de Tal', ?, 'solicitado', '2025-06-01')`,
+      [CPF_TITULAR],
+    );
+    const solicitacao = registrarSolicitacao(db, { titular_nome: "Fulano de Tal", titular_cpf: CPF_TITULAR, tipo: "exclusao" });
+
+    const resultado = atenderExclusao(db, solicitacao.id, CPF_TITULAR);
+    expect(resultado.aceita).toBe(false);
+    expect(resultado.motivo_recusa).toMatch(/pagamentos_iniciados#1/);
+  });
+
+  it("ACEITA e ANONIMIZA um pagamento iniciado antigo (fora do prazo de retenção), preservando valor/status", async () => {
+    const db = await criarBancoDeTeste();
+    executar(db, "INSERT INTO entidades_legais (id, tipo, cpf_cnpj, nome) VALUES (1, 'pessoa_fisica', '222.222.222-22', 'Titular do Sistema')");
+    executar(
+      db,
+      "INSERT INTO contas_bancarias (id, banco, agencia, numero, titular, tipo) VALUES (1, 'Banco 1', '0001', '11111', 'Titular', 'corrente')",
+    );
+    executar(
+      db,
+      `INSERT INTO pagamentos_iniciados (id, entidade_id, conta_bancaria_id, tipo, valor, destinatario_nome, destinatario_documento, status, data_solicitacao)
+       VALUES (1, 1, 1, 'ted', 500, 'Fulano de Tal', ?, 'conciliado', '2010-01-01')`,
+      [CPF_TITULAR],
+    );
+    const solicitacao = registrarSolicitacao(db, { titular_nome: "Fulano de Tal", titular_cpf: CPF_TITULAR, tipo: "exclusao" });
+
+    const resultado = atenderExclusao(db, solicitacao.id, CPF_TITULAR);
+    expect(resultado.aceita).toBe(true);
+    expect(resultado.registros_anonimizados).toEqual([{ tabela: "pagamentos_iniciados", registro_id: 1 }]);
+
+    const [pagamento] = consultar<{ destinatario_nome: string; destinatario_documento: string; valor: number; status: string }>(
+      db,
+      "SELECT destinatario_nome, destinatario_documento, valor, status FROM pagamentos_iniciados WHERE id = 1",
+    );
+    expect(pagamento.destinatario_nome).not.toBe("Fulano de Tal");
+    expect(pagamento.destinatario_documento).not.toBe(CPF_TITULAR);
+    // Valor e status (dado financeiro/operacional) permanecem intactos — só a identidade some.
+    expect(pagamento.valor).toBe(500);
+    expect(pagamento.status).toBe("conciliado");
+  });
 });
 
 describe("direitosTitular: atenderCorrecao — nunca muda dado sem deixar rastro em log_alteracoes", () => {
@@ -270,6 +348,31 @@ describe("direitosTitular: atenderCorrecao — nunca muda dado sem deixar rastro
 
     const [locatario] = consultar<{ telefone: string }>(db, "SELECT telefone FROM contrato_locatarios WHERE id = 1");
     expect(locatario.telefone).toBe("48988887777");
+  });
+
+  it("corrige 'destinatario_nome' em pagamentos_iniciados, o terceiro domínio irmão, com rastro em log_alteracoes", async () => {
+    const db = await criarBancoDeTeste();
+    executar(db, "INSERT INTO entidades_legais (id, tipo, cpf_cnpj, nome) VALUES (1, 'pessoa_fisica', '222.222.222-22', 'Titular do Sistema')");
+    executar(
+      db,
+      "INSERT INTO contas_bancarias (id, banco, agencia, numero, titular, tipo) VALUES (1, 'Banco 1', '0001', '11111', 'Titular', 'corrente')",
+    );
+    executar(
+      db,
+      `INSERT INTO pagamentos_iniciados (id, entidade_id, conta_bancaria_id, tipo, valor, destinatario_nome, destinatario_documento, status, data_solicitacao)
+       VALUES (1, 1, 1, 'ted', 500, 'Fulano de Tal', ?, 'solicitado', '2025-06-01')`,
+      [CPF_TITULAR],
+    );
+    const solicitacao = registrarSolicitacao(db, { titular_nome: "Fulano de Tal", titular_cpf: CPF_TITULAR, tipo: "correcao" });
+
+    const resultado = atenderCorrecao(db, solicitacao.id, CPF_TITULAR, "destinatario_nome", "Fulano da Silva");
+    expect(resultado.registros_corrigidos).toEqual([{ tabela: "pagamentos_iniciados", registro_id: 1 }]);
+
+    const [pagamento] = consultar<{ destinatario_nome: string }>(db, "SELECT destinatario_nome FROM pagamentos_iniciados WHERE id = 1");
+    expect(pagamento.destinatario_nome).toBe("Fulano da Silva");
+
+    const historico = listarHistoricoDoRegistro(db, "pagamentos_iniciados", 1);
+    expect(historico).toHaveLength(1);
   });
 
   it("campo válido no sistema, mas sem nenhum registro deste CPF que o tenha, lança erro claro (nunca um no-op silencioso)", async () => {

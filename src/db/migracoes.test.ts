@@ -34,6 +34,18 @@ describe("parseTabelasDoSchema — contra o schema.sql real", () => {
       "inquilinos",
       "manutencoes",
       "pagamentos_iniciados",
+      // ACHADO (esta revisão cruzada): o comentário logo acima já documentava estas 7
+      // tabelas do balde B (contas pessoais, advocacia, LGPD) como "as mais novas a
+      // entrar", mas o array abaixo delas só verificava 'pagamentos_iniciados' — as
+      // outras 6 nunca foram checadas de fato, um teste que parecia cobrir os 4 domínios
+      // reconstruídos nesta sessão mas só cobria 1. Corrigido para checar todas.
+      "pessoas",
+      "contas_pessoais",
+      "movimentos_pessoais",
+      "processos_legais",
+      "partes_processo",
+      "solicitacoes_lgpd",
+      "politica_rotacao_chave",
     ]) {
       expect(tabelas.has(nova)).toBe(true);
     }

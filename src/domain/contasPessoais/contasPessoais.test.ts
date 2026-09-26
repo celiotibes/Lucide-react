@@ -272,6 +272,50 @@ describe("contasPessoais — registrarMovimentoPessoal", () => {
     expect(validarBalanceamento(db, periodo_id).balanceado).toBe(true);
   });
 
+  it("ACHADO (revisão cruzada — verificado, NÃO reproduz o bug antigo de automacao-rateios.ts/integracao-patrimonio.ts): duas transferências DIFERENTES da MESMA pessoa, mesma categoria e mesmas duas contas de contrapartida (Caixa + Capital Social), não colidem em idx_ledger_origem_unica (UNIQUE em origem_modulo+origem_id+conta_id) — porque origem_id aqui é o id recém-gerado do PRÓPRIO movimento pessoal (nunca um id estável como pessoa_id/conta_pessoal_id reaproveitado entre chamadas), o mesmo desenho que corrigiu o ACHADO 2 de automacao-rateios.ts", async () => {
+    const { db, entidade_id, periodo_id } = await montarBase();
+    const pessoa = cadastrarPessoa(db, { nome: "João Titular", tipo_relacao: "titular" });
+    const conta = cadastrarContaPessoal(db, {
+      pessoa_id: pessoa.id!,
+      banco: "Banco X",
+      numero: "1",
+      tipo: "corrente",
+    });
+
+    // Duas chamadas de registrarMovimentoPessoal, mesma pessoa, mesma conta pessoal,
+    // mesma categoria — cada uma toca as MESMAS duas contas do razão (1101 e 2101).
+    const primeira = registrarMovimentoPessoal(db, {
+      conta_pessoal_id: conta.id!,
+      data: "2025-01-05",
+      valor: -1000,
+      descricao: "Primeiro aporte do mês",
+      categoria: "aporte_capital",
+      transferencia: { entidade_id, periodo_id },
+    });
+    expect(() =>
+      registrarMovimentoPessoal(db, {
+        conta_pessoal_id: conta.id!,
+        data: "2025-01-20",
+        valor: -1500,
+        descricao: "Segundo aporte do mês",
+        categoria: "aporte_capital",
+        transferencia: { entidade_id, periodo_id },
+      }),
+    ).not.toThrow();
+
+    // Ambos os movimentos têm espelho próprio (transferencia_entidade_id distintos), e o
+    // saldo agregado das duas contas reflete as DUAS transferências, não uma sobrescrita.
+    const [m1] = consultar<{ transferencia_entidade_id: number }>(
+      db,
+      "SELECT transferencia_entidade_id FROM movimentos_pessoais WHERE id = ?",
+      [primeira],
+    );
+    expect(m1.transferencia_entidade_id).not.toBeNull();
+    expect(saldoConta(db, periodo_id, 1101)).toBe(2500); // 1000 + 1500, débito em Caixa
+    expect(saldoConta(db, periodo_id, CONTA_CAPITAL_SOCIAL_ERP)).toBe(-2500); // crédito em Capital Social
+    expect(validarBalanceamento(db, periodo_id).balanceado).toBe(true);
+  });
+
   it("devolução de empréstimo (entidade→pessoa) reduz o passivo de Empréstimo de Sócio", async () => {
     const { db, entidade_id, periodo_id } = await montarBase();
     const pessoa = cadastrarPessoa(db, { nome: "Sócio Financiador", tipo_relacao: "socio" });

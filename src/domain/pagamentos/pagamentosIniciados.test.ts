@@ -3,7 +3,8 @@ import type { Database } from "sql.js";
 import { criarBancoDeTeste } from "../../test/fixtureDb";
 import { executar, consultar } from "../../db/connection";
 import { criarEntidadeLegal } from "../erp/entidadeLegal";
-import { registrarContaAPagar } from "../contasAPagar/contasAPagar";
+import { registrarContaAPagar, baixarContaAPagar } from "../contasAPagar/contasAPagar";
+import { criarProcesso, registrarDespesaProcesso } from "../advocacia/advocacia";
 import {
   solicitarPagamento,
   confirmarPagamento,
@@ -339,6 +340,74 @@ describe("conciliarPagamentoComTransacao", () => {
     const transacao_id = inserirTransacaoDeTeste(-300);
     const conciliado = conciliarPagamentoComTransacao(db, 999999, transacao_id);
     expect(conciliado.sucesso).toBe(false);
+  });
+});
+
+describe("integração com Advocacia: pagar uma despesa jurídica via contas_a_pagar_id", () => {
+  it("solicita, confirma e concilia o pagamento de uma despesa de processo sem nenhum atrito — mesma FK (contas_a_pagar), mesmo fluxo de qualquer outra obrigação", () => {
+    const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
+    const despesa = registrarDespesaProcesso(db, {
+      processo_id: processo_id!,
+      entidade_id,
+      fornecedor_nome: "Escritório Advocacia & Associados",
+      valor: 1200,
+      data_vencimento: "2025-06-20",
+    });
+    expect(despesa.sucesso).toBe(true);
+
+    // pagamentosIniciados não sabe (nem precisa saber) que esta contas_a_pagar tem
+    // processo_id preenchido — valida a mesma coisa que validaria para qualquer outra
+    // conta a pagar: existe e está pendente.
+    const solicitado = solicitarPagamento(db, {
+      entidade_id,
+      conta_bancaria_id,
+      tipo: "ted",
+      valor: 1200,
+      destinatario_nome: "Escritório Advocacia & Associados",
+      destinatario_documento: "12345678000199",
+      contas_a_pagar_id: despesa.id!,
+      data_solicitacao: "2025-06-19",
+    });
+    expect(solicitado.sucesso).toBe(true);
+
+    const confirmado = confirmarPagamento(db, solicitado.id!, "2025-06-20");
+    expect(confirmado.sucesso).toBe(true);
+
+    const transacao_id = inserirTransacaoDeTeste(-1200, "2025-06-20");
+    const conciliado = conciliarPagamentoComTransacao(db, solicitado.id!, transacao_id);
+    expect(conciliado.sucesso).toBe(true);
+    expect(obterPagamento(db, solicitado.id!)?.status).toBe("conciliado");
+
+    // A conta a pagar em si continua sendo baixada pelo fluxo próprio de contasAPagar
+    // (registrarLancamentoContabil) — pagamentosIniciados só registra o STATUS do envio
+    // eletrônico, nunca substitui a baixa contábil real.
+    const baixa = baixarContaAPagar(db, despesa.id!, conta_bancaria_id, "2025-06-20");
+    expect(baixa.sucesso).toBe(true);
+  });
+
+  it("recusa solicitar pagamento de uma despesa de processo já paga (mesma regra que qualquer outra conta a pagar)", () => {
+    const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
+    const despesa = registrarDespesaProcesso(db, {
+      processo_id: processo_id!,
+      entidade_id,
+      fornecedor_nome: "Cartório Central",
+      valor: 300,
+      data_vencimento: "2025-06-10",
+    });
+    baixarContaAPagar(db, despesa.id!, conta_bancaria_id, "2025-06-10");
+
+    const solicitado = solicitarPagamento(db, {
+      entidade_id,
+      conta_bancaria_id,
+      tipo: "ted",
+      valor: 300,
+      destinatario_nome: "Cartório Central",
+      destinatario_documento: "12345678000199",
+      contas_a_pagar_id: despesa.id!,
+      data_solicitacao: "2025-06-11",
+    });
+    expect(solicitado.sucesso).toBe(false);
+    expect(solicitado.mensagem).toMatch(/já está paga/i);
   });
 });
 
