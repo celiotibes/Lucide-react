@@ -1,11 +1,34 @@
 import { Fragment, useMemo, useState } from "react";
 import type { Database } from "sql.js";
-import { AlertTriangle, ClipboardCheck, ClipboardList, FileDown, Loader2, Pencil, Wrench } from "lucide-react";
+import {
+  AlertTriangle,
+  ClipboardCheck,
+  ClipboardList,
+  FileCheck2,
+  FileDown,
+  Loader2,
+  Pencil,
+  RefreshCw,
+  ShieldAlert,
+  Wallet,
+  Wrench,
+  XCircle,
+} from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
 import { calcularCaucao } from "../domain/caucao/calculoCaucao";
 import { calcularSaldoCaixaAtual } from "../domain/patrimonio/balancoPatrimonial";
 import { baixarRadPdf } from "../domain/laudo/gerarRadPdf";
+import {
+  aplicarDeducaoNaCaucao,
+  contestarRadAvaliacao,
+  emitirRadAvaliacao,
+  gerarRadAvaliacao,
+  obterRadAvaliacaoAtual,
+  rejeitarItemRad,
+  supersederRadAvaliacao,
+  type RadAvaliacaoComItens,
+} from "../domain/laudo/radAvaliacao";
 import type { Caucao, ContratoLocacao, Imovel, ItemInventarioBem } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { registrarLog, resumirDiferenca } from "../domain/auditoria/logAlteracoes";
@@ -90,6 +113,15 @@ export function CaucaoView() {
   const [formEdicao, setFormEdicao] = useState<FormEdicaoCaucao | null>(null);
   const [vistoriaExpandidaId, setVistoriaExpandidaId] = useState<number | null>(null);
   const [provisionandoVistoriaId, setProvisionandoVistoriaId] = useState<number | null>(null);
+  const [radExpandidoId, setRadExpandidoId] = useState<number | null>(null);
+  // Uma única chave { tipo, id } para todas as ações do RAD, em vez de um useState por botão —
+  // mesma ideia de gerandoRadId/provisionandoVistoriaId acima, só que aqui várias ações (gerar,
+  // emitir, aplicar dedução, contestar, superseder, rejeitar item) podem coexistir na mesma
+  // avaliação expandida, então o id sozinho não bastaria para saber qual botão está ocupado.
+  const [radOcupadoPor, setRadOcupadoPor] = useState<{ tipo: string; id: number } | null>(null);
+  function radOcupado(tipo: string, id: number) {
+    return radOcupadoPor?.tipo === tipo && radOcupadoPor?.id === id;
+  }
 
   const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
   const caucoes = useMemo<Caucao[]>(() => (db ? consultar<Caucao>(db, "SELECT * FROM caucoes ORDER BY data_deposito DESC") : []), [db, versao]);
@@ -98,6 +130,20 @@ export function CaucaoView() {
     [db, versao],
   );
   const imoveis = useMemo(() => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])), [db, versao]);
+
+  // Avaliação RAD vigente (obterRadAvaliacaoAtual: maior versão que não esteja 'superado') de
+  // cada contrato que aparece nesta tela — recalculado a cada nova versão do banco (persistir()
+  // muda `versao`), mesmo padrão de recomputação dos demais mapas acima.
+  const radAtualPorContrato = useMemo(() => {
+    const mapa = new Map<number, RadAvaliacaoComItens | null>();
+    if (!db) return mapa;
+    for (const c of caucoes) {
+      if (!mapa.has(c.contrato_id)) {
+        mapa.set(c.contrato_id, obterRadAvaliacaoAtual(db, c.contrato_id));
+      }
+    }
+    return mapa;
+  }, [db, versao, caucoes]);
 
   const calculos = useMemo(() => {
     if (!db) return [];
@@ -176,6 +222,110 @@ export function CaucaoView() {
       avisar("good", `Dano da vistoria ${vistoriaId} provisionado no razão.`);
     } finally {
       setProvisionandoVistoriaId(null);
+    }
+  }
+
+  // gerarRadAvaliacao/supersederRadAvaliacao aceitam vistoriaEntradaId/vistoriaSaidaId, mas esta
+  // tela não tem como saber qual vistoria (de `vistorias`, sem coluna que marque "entrada" ou
+  // "saída") corresponde à entrada/saída deste contrato — só sabe quais têm item de dano. Por
+  // isso os dois ficam sempre undefined aqui: o domínio já trata isso como NULL (deprecia até
+  // hoje em vez de até a data da vistoria de saída — ver `obterDataReferencia` em radAvaliacao.ts).
+  async function gerarNovaAvaliacaoRad(contratoId: number) {
+    if (!db) return;
+    setRadOcupadoPor({ tipo: "gerar", id: contratoId });
+    try {
+      gerarRadAvaliacao(db, { contratoId });
+      await persistir();
+      avisar("good", "Avaliação RAD gerada em rascunho.");
+    } catch (erro) {
+      avisar("critical", `Não foi possível gerar a avaliação RAD: ${(erro as Error).message}`);
+    } finally {
+      setRadOcupadoPor(null);
+    }
+  }
+
+  async function rejeitarItemDaAvaliacaoRad(itemId: number) {
+    if (!db) return;
+    const motivo = prompt("Motivo da rejeição deste item do RAD (obrigatório):");
+    if (motivo === null) return;
+    if (!motivo.trim()) {
+      avisar("critical", "Item não pode ser rejeitado sem motivo.");
+      return;
+    }
+    setRadOcupadoPor({ tipo: "rejeitar-item", id: itemId });
+    try {
+      rejeitarItemRad(db, itemId, motivo);
+      await persistir();
+      avisar("good", "Item rejeitado — não entra mais na dedução apurada.");
+    } catch (erro) {
+      avisar("critical", `Não foi possível rejeitar o item: ${(erro as Error).message}`);
+    } finally {
+      setRadOcupadoPor(null);
+    }
+  }
+
+  async function emitirAvaliacaoRad(radAvaliacaoId: number) {
+    if (!db) return;
+    setRadOcupadoPor({ tipo: "emitir", id: radAvaliacaoId });
+    try {
+      const valorTotal = emitirRadAvaliacao(db, radAvaliacaoId);
+      await persistir();
+      avisar("good", `Avaliação RAD emitida — dedução apurada de ${formatarMoeda(valorTotal)}.`);
+    } catch (erro) {
+      avisar("critical", `Não foi possível emitir a avaliação: ${(erro as Error).message}`);
+    } finally {
+      setRadOcupadoPor(null);
+    }
+  }
+
+  async function aplicarDeducaoRadNaCaucao(radAvaliacaoId: number, caucaoId: number) {
+    if (!db) return;
+    setRadOcupadoPor({ tipo: "aplicar-deducao", id: radAvaliacaoId });
+    try {
+      const resultado = aplicarDeducaoNaCaucao(db, radAvaliacaoId, caucaoId);
+      await persistir();
+      avisar("good", `Dedução aplicada na caução — total de deduções agora ${formatarMoeda(resultado.deducoesValor)}.`);
+    } catch (erro) {
+      avisar("critical", `Não foi possível aplicar a dedução na caução: ${(erro as Error).message}`);
+    } finally {
+      setRadOcupadoPor(null);
+    }
+  }
+
+  async function contestarAvaliacaoRad(radAvaliacaoId: number) {
+    if (!db) return;
+    const motivo = prompt(
+      "Motivo da contestação (obrigatório). Este texto não fica gravado em campo próprio da " +
+        "avaliação (limitação do schema atual) — registre-o também nas observações do contrato/imóvel se quiser mantê-lo:",
+    );
+    if (motivo === null) return;
+    if (!motivo.trim()) {
+      avisar("critical", "Contestação exige motivo.");
+      return;
+    }
+    setRadOcupadoPor({ tipo: "contestar", id: radAvaliacaoId });
+    try {
+      contestarRadAvaliacao(db, radAvaliacaoId, motivo);
+      await persistir();
+      avisar("good", "Avaliação RAD marcada como contestada.");
+    } catch (erro) {
+      avisar("critical", `Não foi possível contestar a avaliação: ${(erro as Error).message}`);
+    } finally {
+      setRadOcupadoPor(null);
+    }
+  }
+
+  async function supersederAvaliacaoRad(radAvaliacaoIdAntigo: number, contratoId: number) {
+    if (!db) return;
+    setRadOcupadoPor({ tipo: "superseder", id: radAvaliacaoIdAntigo });
+    try {
+      supersederRadAvaliacao(db, radAvaliacaoIdAntigo, contratoId);
+      await persistir();
+      avisar("good", "Nova versão da avaliação RAD gerada — a anterior foi marcada como superada.");
+    } catch (erro) {
+      avisar("critical", `Não foi possível gerar a nova versão: ${(erro as Error).message}`);
+    } finally {
+      setRadOcupadoPor(null);
     }
   }
 
@@ -394,6 +544,14 @@ export function CaucaoView() {
                           />
                         )}
                       </button>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 7px" }}
+                        title="RAD — Relatório de Apuração de Débitos (versionado)"
+                        onClick={() => setRadExpandidoId((atual) => (atual === c.id ? null : c.id))}
+                      >
+                        <FileCheck2 size={13} />
+                      </button>
                     </td>
                   </tr>
                   {vistoriaExpandidaId === c.id && (
@@ -507,6 +665,187 @@ export function CaucaoView() {
                       </td>
                     </tr>
                   )}
+                  {radExpandidoId === c.id &&
+                    (() => {
+                      const radAtual = radAtualPorContrato.get(c.contrato_id) ?? null;
+                      return (
+                        <tr>
+                          <td colSpan={10} style={{ background: "var(--surface-2)" }}>
+                            <div style={{ padding: "12px 4px" }}>
+                              <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                                <FileCheck2 size={15} /> RAD — Relatório de Apuração de Débitos
+                                {contrato && <span style={{ fontWeight: 400, color: "var(--ink-soft)" }}>— {contrato.locatario}</span>}
+                              </strong>
+
+                              {!radAtual ? (
+                                <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "0 0 12px", maxWidth: "68ch" }}>
+                                  Nenhuma avaliação RAD gerada ainda para este contrato. "Gerar avaliação RAD" busca o
+                                  inventário atual do imóvel, deprecia cada item linearmente (mesma regra usada em
+                                  Patrimônio) e grava um rascunho — sem vistoria de entrada/saída vinculada, pois esta
+                                  tela não sabe identificar qual vistoria cadastrada corresponde a cada uma (o domínio
+                                  trata isso como não informado e deprecia até hoje).
+                                </p>
+                              ) : (
+                                <>
+                                  <div className="kpi-grid" style={{ marginBottom: 10 }}>
+                                    <KpiTile label="Versão" value={`v${radAtual.versao}`} />
+                                    <KpiTile
+                                      label="Status"
+                                      value={radAtual.status}
+                                      variant={radAtual.status === "emitido" ? "good" : radAtual.status === "contestado" ? "critical" : undefined}
+                                    />
+                                    <KpiTile
+                                      label="Valor total de dedução"
+                                      value={radAtual.valor_total_deducao != null ? formatarMoeda(radAtual.valor_total_deducao) : "— (ainda em rascunho)"}
+                                    />
+                                  </div>
+                                  <div className="table-wrap" style={{ marginBottom: 12 }}>
+                                    <table className="data-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Item</th>
+                                          <th className="num">Valor de referência</th>
+                                          <th className="num">Valor depreciado</th>
+                                          <th>Situação</th>
+                                          <th></th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {radAtual.itens.map((item) => (
+                                          <tr key={item.id}>
+                                            <td>{item.descricao}</td>
+                                            <td className="num">{formatarMoeda(item.valor_referencia)}</td>
+                                            <td className="num">{formatarMoeda(item.valor_depreciado)}</td>
+                                            <td>
+                                              {item.aceito ? (
+                                                <span className="pill good">aceito</span>
+                                              ) : (
+                                                <span className="pill critical" title={item.motivo ?? undefined}>
+                                                  rejeitado{item.motivo ? ` — ${item.motivo}` : ""}
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td>
+                                              {item.aceito === 1 && radAtual.status === "rascunho" && (
+                                                <button
+                                                  className="btn"
+                                                  style={{ padding: "4px 8px", fontSize: 12 }}
+                                                  disabled={radOcupado("rejeitar-item", item.id)}
+                                                  title="Rejeitar este item (exige motivo) — só possível enquanto a avaliação está em rascunho"
+                                                  onClick={() => rejeitarItemDaAvaliacaoRad(item.id)}
+                                                >
+                                                  {radOcupado("rejeitar-item", item.id) ? (
+                                                    <Loader2 size={12} className="spin" />
+                                                  ) : (
+                                                    <XCircle size={12} />
+                                                  )}{" "}
+                                                  Rejeitar
+                                                </button>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                        {radAtual.itens.length === 0 && (
+                                          <tr>
+                                            <td colSpan={5} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 12 }}>
+                                              Nenhum item de inventário encontrado para o imóvel deste contrato.
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </>
+                              )}
+
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {!radAtual && (
+                                  <button
+                                    className="btn primary"
+                                    style={{ padding: "6px 10px", fontSize: 12.5 }}
+                                    disabled={radOcupado("gerar", c.contrato_id)}
+                                    onClick={() => gerarNovaAvaliacaoRad(c.contrato_id)}
+                                  >
+                                    {radOcupado("gerar", c.contrato_id) ? (
+                                      <Loader2 size={13} className="spin" />
+                                    ) : (
+                                      <FileCheck2 size={13} />
+                                    )}{" "}
+                                    Gerar avaliação RAD
+                                  </button>
+                                )}
+                                {radAtual && (
+                                  <>
+                                    <button
+                                      className="btn primary"
+                                      style={{ padding: "6px 10px", fontSize: 12.5 }}
+                                      disabled={radAtual.status !== "rascunho" || radOcupado("emitir", radAtual.id)}
+                                      title={
+                                        radAtual.status !== "rascunho"
+                                          ? "Só uma avaliação em rascunho pode ser emitida"
+                                          : "Emitir avaliação (trava o valor total de dedução apurado)"
+                                      }
+                                      onClick={() => emitirAvaliacaoRad(radAtual.id)}
+                                    >
+                                      {radOcupado("emitir", radAtual.id) ? <Loader2 size={13} className="spin" /> : <FileCheck2 size={13} />}{" "}
+                                      Emitir
+                                    </button>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: "6px 10px", fontSize: 12.5 }}
+                                      disabled={radAtual.status !== "emitido" || radOcupado("aplicar-deducao", radAtual.id)}
+                                      title={
+                                        radAtual.status !== "emitido"
+                                          ? "Só uma avaliação emitida pode ter a dedução aplicada na caução"
+                                          : "Soma o valor total de dedução apurado à dedução já registrada nesta caução"
+                                      }
+                                      onClick={() => aplicarDeducaoRadNaCaucao(radAtual.id, c.id)}
+                                    >
+                                      {radOcupado("aplicar-deducao", radAtual.id) ? (
+                                        <Loader2 size={13} className="spin" />
+                                      ) : (
+                                        <Wallet size={13} />
+                                      )}{" "}
+                                      Aplicar dedução na caução
+                                    </button>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: "6px 10px", fontSize: 12.5 }}
+                                      disabled={radAtual.status !== "emitido" || radOcupado("contestar", radAtual.id)}
+                                      title={radAtual.status !== "emitido" ? "Só uma avaliação emitida pode ser contestada" : "Contestar avaliação (exige motivo)"}
+                                      onClick={() => contestarAvaliacaoRad(radAtual.id)}
+                                    >
+                                      {radOcupado("contestar", radAtual.id) ? <Loader2 size={13} className="spin" /> : <ShieldAlert size={13} />}{" "}
+                                      Contestar
+                                    </button>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: "6px 10px", fontSize: 12.5 }}
+                                      disabled={radAtual.status !== "emitido" || radOcupado("superseder", radAtual.id)}
+                                      title={
+                                        radAtual.status === "contestado"
+                                          ? "supersederRadAvaliacao só permite superar uma avaliação 'emitido' — uma já contestada não pode ser superada por esta função (regra do domínio, não desta tela)."
+                                          : radAtual.status !== "emitido"
+                                          ? "Só uma avaliação emitida pode ser superada por uma nova versão"
+                                          : "Gera uma nova versão (nova vistoria/reavaliação) e marca esta como superada"
+                                      }
+                                      onClick={() => supersederAvaliacaoRad(radAtual.id, c.contrato_id)}
+                                    >
+                                      {radOcupado("superseder", radAtual.id) ? (
+                                        <Loader2 size={13} className="spin" />
+                                      ) : (
+                                        <RefreshCw size={13} />
+                                      )}{" "}
+                                      Gerar nova versão (supersedendo)
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
                 </Fragment>
               );
             })}
