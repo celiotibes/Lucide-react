@@ -28,10 +28,24 @@
  * processo ativo); só quando NENHUM registro estiver retido é que os campos de IDENTIDADE
  * (nome, CPF, telefone, e-mail) são anonimizados — nunca os valores/lançamentos contábeis
  * em si, que continuam íntegros no razão, só descolados da identidade da pessoa.
+ *
+ * PRAZO DE RETENÇÃO — de constante fixa a política consultável: o prazo em si (antes um
+ * `RETENCAO_ANOS = 7` fixo neste arquivo) e o legal hold ad-hoc (antes só os dois casos
+ * binários "contrato vigente"/"processo em curso") agora vêm de `compliance/retencao.ts`
+ * (`podeExcluirOuAnonimizar`, sobre as tabelas `politicas_retencao`/`retencoes_legais`) —
+ * ver o comentário daquele módulo para o desenho completo. `avaliarRetencao` abaixo só
+ * decide QUAL data de referência e QUAL domínio passar para cada tipo de registro; quem
+ * decide "está ou não dentro do prazo" é aquele módulo. Os dois casos binários sem data de
+ * referência (contrato sem `data_fim`, processo com status 'ativo'/'suspenso') continuam
+ * checados diretamente aqui — não são "prazo vencido", são "ainda em curso", o que
+ * `podeExcluirOuAnonimizar` não modela (ver seu comentário). `garantirPoliticasRetencaoPadrao`
+ * roda no início de `atenderExclusao` para garantir que as políticas padrão (equivalentes
+ * ao antigo `RETENCAO_ANOS`) existam mesmo num banco que nunca as cadastrou explicitamente.
  */
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import { registrarLog, resumirDiferenca } from "../auditoria/logAlteracoes";
+import { garantirPoliticasRetencaoPadrao, podeExcluirOuAnonimizar } from "../compliance/retencao";
 
 export type TipoSolicitacaoLGPD = "acesso" | "portabilidade" | "exclusao" | "correcao";
 export type StatusSolicitacaoLGPD = "pendente" | "atendida" | "recusada";
@@ -61,22 +75,11 @@ export interface ResultadoExclusaoLGPD {
   registros_anonimizados?: { tabela: string; registro_id: number }[];
 }
 
-// Prazo de guarda obrigatória de documento/lançamento contábil (Lei 6404/76) — mesmo
-// valor usado em compliance-audit-log.ts para `retencao_ate`. Repetido aqui (não
-// importado de lá) porque aquele módulo é sobre OUTRA coisa (log de acesso/API), não
-// sobre dado pessoal de titular; a constante é a mesma por serem a mesma lei, não porque
-// os módulos dependam um do outro.
-const RETENCAO_ANOS = 7;
-
 const NOME_ANONIMIZADO = "[titular removido — LGPD]";
 const CPF_ANONIMIZADO = "ANONIMIZADO";
 
 function tabelaExiste(db: Database, nome: string): boolean {
   return consultar(db, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [nome]).length > 0;
-}
-
-function anosDesde(dataISO: string, referencia: Date = new Date()): number {
-  return (referencia.getTime() - new Date(dataISO).getTime()) / (365.25 * 24 * 3600 * 1000);
 }
 
 function buscarSolicitacao(db: Database, id: number): SolicitacaoLGPD {
@@ -303,9 +306,13 @@ function avaliarRetencao(db: Database, tabela: string, registroId: number): Aval
       if (!d || d.data_documento == null) {
         return { retida: true, motivo: "documento sem data conhecida — retenção não pode ser confirmada como expirada." };
       }
-      if (anosDesde(d.data_documento) < RETENCAO_ANOS) {
-        return { retida: true, motivo: `documento de ${d.data_documento}, dentro do prazo de retenção contábil de ${RETENCAO_ANOS} anos (Lei 6404/76).` };
-      }
+      const avaliacao = podeExcluirOuAnonimizar(db, {
+        entidadeTipo: "documentos",
+        entidadeId: registroId,
+        dominio: "contabil",
+        dataReferenciaDoRegistro: d.data_documento,
+      });
+      if (!avaliacao.permitido) return { retida: true, motivo: `documento de ${d.data_documento}, ${avaliacao.motivo}` };
       return { retida: false };
     }
 
@@ -316,18 +323,26 @@ function avaliarRetencao(db: Database, tabela: string, registroId: number): Aval
         [registroId],
       );
       if (!c || c.data_fim == null) return { retida: true, motivo: "contrato de locação ainda vigente (sem data_fim)." };
-      if (anosDesde(c.data_fim) < RETENCAO_ANOS) {
-        return { retida: true, motivo: `contrato encerrado em ${c.data_fim}, dentro do prazo de retenção de ${RETENCAO_ANOS} anos.` };
-      }
+      const avaliacao = podeExcluirOuAnonimizar(db, {
+        entidadeTipo: "contrato_locatarios",
+        entidadeId: registroId,
+        dominio: "contrato_locacao",
+        dataReferenciaDoRegistro: c.data_fim,
+      });
+      if (!avaliacao.permitido) return { retida: true, motivo: `contrato encerrado em ${c.data_fim}, ${avaliacao.motivo}` };
       return { retida: false };
     }
 
     case "prestadores": {
       const [t] = consultar<{ ultima: string | null }>(db, "SELECT MAX(data) as ultima FROM transacoes WHERE prestador_id = ?", [registroId]);
       if (!t?.ultima) return { retida: false }; // nunca movimentou financeiramente — cadastro solto, sem tensão de retenção
-      if (anosDesde(t.ultima) < RETENCAO_ANOS) {
-        return { retida: true, motivo: `última transação vinculada em ${t.ultima}, dentro do prazo de retenção de ${RETENCAO_ANOS} anos.` };
-      }
+      const avaliacao = podeExcluirOuAnonimizar(db, {
+        entidadeTipo: "prestadores",
+        entidadeId: registroId,
+        dominio: "contabil",
+        dataReferenciaDoRegistro: t.ultima,
+      });
+      if (!avaliacao.permitido) return { retida: true, motivo: `última transação vinculada em ${t.ultima}, ${avaliacao.motivo}` };
       return { retida: false };
     }
 
@@ -343,9 +358,13 @@ function avaliarRetencao(db: Database, tabela: string, registroId: number): Aval
         [registroId],
       );
       if (!m?.ultima) return { retida: false };
-      if (anosDesde(m.ultima) < RETENCAO_ANOS) {
-        return { retida: true, motivo: `último movimento financeiro pessoal em ${m.ultima}, dentro do prazo de retenção de ${RETENCAO_ANOS} anos.` };
-      }
+      const avaliacao = podeExcluirOuAnonimizar(db, {
+        entidadeTipo: "pessoas",
+        entidadeId: registroId,
+        dominio: "contabil",
+        dataReferenciaDoRegistro: m.ultima,
+      });
+      if (!avaliacao.permitido) return { retida: true, motivo: `último movimento financeiro pessoal em ${m.ultima}, ${avaliacao.motivo}` };
       return { retida: false };
     }
 
@@ -360,11 +379,17 @@ function avaliarRetencao(db: Database, tabela: string, registroId: number): Aval
       if (p.status === "ativo" || p.status === "suspenso") {
         return { retida: true, motivo: `processo judicial ainda em curso (status='${p.status}').` };
       }
-      if (p.data_encerramento == null || anosDesde(p.data_encerramento) < RETENCAO_ANOS) {
-        return {
-          retida: true,
-          motivo: `processo encerrado/arquivado em ${p.data_encerramento ?? "data desconhecida"}, dentro do prazo de retenção de ${RETENCAO_ANOS} anos.`,
-        };
+      if (p.data_encerramento == null) {
+        return { retida: true, motivo: "processo encerrado/arquivado em data desconhecida — retenção não pode ser confirmada como expirada." };
+      }
+      const avaliacao = podeExcluirOuAnonimizar(db, {
+        entidadeTipo: "partes_processo",
+        entidadeId: registroId,
+        dominio: "processo_legal",
+        dataReferenciaDoRegistro: p.data_encerramento,
+      });
+      if (!avaliacao.permitido) {
+        return { retida: true, motivo: `processo encerrado/arquivado em ${p.data_encerramento}, ${avaliacao.motivo}` };
       }
       return { retida: false };
     }
@@ -372,9 +397,13 @@ function avaliarRetencao(db: Database, tabela: string, registroId: number): Aval
     case "pagamentos_iniciados": {
       const [pg] = consultar<{ data_solicitacao: string }>(db, "SELECT data_solicitacao FROM pagamentos_iniciados WHERE id = ?", [registroId]);
       if (!pg) return { retida: false };
-      if (anosDesde(pg.data_solicitacao) < RETENCAO_ANOS) {
-        return { retida: true, motivo: `pagamento solicitado em ${pg.data_solicitacao}, dentro do prazo de retenção de ${RETENCAO_ANOS} anos.` };
-      }
+      const avaliacao = podeExcluirOuAnonimizar(db, {
+        entidadeTipo: "pagamentos_iniciados",
+        entidadeId: registroId,
+        dominio: "contabil",
+        dataReferenciaDoRegistro: pg.data_solicitacao,
+      });
+      if (!avaliacao.permitido) return { retida: true, motivo: `pagamento solicitado em ${pg.data_solicitacao}, ${avaliacao.motivo}` };
       return { retida: false };
     }
 
@@ -462,6 +491,11 @@ function anonimizarRegistro(db: Database, tabela: string, registroId: number): v
 export function atenderExclusao(db: Database, solicitacao_id: number, cpf: string): ResultadoExclusaoLGPD {
   const solicitacao = buscarSolicitacao(db, solicitacao_id);
   validarSolicitacaoPendente(solicitacao, "exclusao", cpf);
+
+  // Garante que as políticas padrão (equivalentes ao antigo RETENCAO_ANOS=7 hardcoded)
+  // existam antes de avaliar retenção — idempotente, ver compliance/retencao.ts. Chamado
+  // aqui (e não no bootstrap do banco) porque este é o único fluxo hoje que depende delas.
+  garantirPoliticasRetencaoPadrao(db);
 
   const registros = buscarDadosPessoaisPorCpf(db, cpf);
   const avaliados = registros.map((r) => ({ registro: r, retencao: avaliarRetencao(db, r.tabela, r.registro_id) }));
