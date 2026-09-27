@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState, type FormEvent } from "react";
 import {
   ShieldCheck, ShieldAlert, KeyRound, FileJson, UserCheck, Trash2, Pencil, ClipboardList, Eye, Download, Clock,
+  CalendarClock, Lock, Ban,
 } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
@@ -9,7 +10,35 @@ import {
   type SolicitacaoLGPD, type TipoSolicitacaoLGPD, type RegistroPessoalEncontrado, type ResultadoExclusaoLGPD,
 } from "../domain/lgpd/direitosTitular";
 import { registrarRotacao, listarRotacoes, proximaRotacaoDevida } from "../domain/lgpd/rotacaoChave";
+import {
+  cadastrarPoliticaRetencao, obterPoliticaVigente, registrarRetencaoLegal, encerrarRetencaoLegal,
+  type PoliticaRetencao, type RetencaoLegal,
+} from "../domain/compliance/retencao";
 import { useToast } from "../ui/useToast";
+
+// Valores de `entidade_tipo` — DECISÃO: em vez das opções sugeridas na tarefa
+// (documento/transacao/pessoa/contrato/processo), usa-se exatamente as strings de tabela
+// já aceitas como `entidadeTipo` pelas chamadas de `podeExcluirOuAnonimizar` dentro de
+// `avaliarRetencao` em domain/lgpd/direitosTitular.ts ("documentos", "contrato_locatarios",
+// "prestadores", "pessoas", "partes_processo", "pagamentos_iniciados"). Um legal hold só
+// bloqueia a exclusão de um registro se `entidade_tipo`+`entidade_id` bater exatamente com
+// o que aquele fluxo consulta — um rótulo mais "amigável" (ex.: "documento") não casaria
+// com a string real e o hold registrado aqui ficaria invisível para o fluxo de exclusão.
+const OPCOES_ENTIDADE_TIPO: { valor: string; rotulo: string }[] = [
+  { valor: "documentos", rotulo: "Documento contábil" },
+  { valor: "contrato_locatarios", rotulo: "Locatário de contrato" },
+  { valor: "prestadores", rotulo: "Prestador de serviço" },
+  { valor: "pessoas", rotulo: "Pessoa física (conta pessoal)" },
+  { valor: "partes_processo", rotulo: "Parte de processo judicial" },
+  { valor: "pagamentos_iniciados", rotulo: "Pagamento iniciado" },
+];
+const ROTULO_ENTIDADE_TIPO: Record<string, string> = Object.fromEntries(
+  OPCOES_ENTIDADE_TIPO.map((o) => [o.valor, o.rotulo]),
+);
+
+function hojeISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const ROTULO_TIPO: Record<TipoSolicitacaoLGPD, string> = {
   acesso: "Acesso", portabilidade: "Portabilidade", exclusao: "Exclusão", correcao: "Correção",
@@ -190,6 +219,108 @@ export function LgpdView() {
       setRotForm({ responsavel: "", motivo: "", chave_anterior_hash: "", observacoes: "" });
     } catch (erro) {
       avisar("critical", `Não foi possível registrar a rotação: ${(erro as Error).message}`);
+    }
+  }
+
+  // --- Seção 3: políticas de retenção e retenção legal (legal hold) -----------------
+  // `obterPoliticaVigente` só retorna a versão vigente de UM domínio por vez — para listar
+  // TODAS as políticas cadastradas (todas as versões, todos os domínios) na tela, a leitura
+  // é direto na tabela via `consultar()`, como o comentário da tarefa autoriza (o módulo de
+  // domínio não expõe um "listar todas" porque nenhum fluxo de negócio precisava disso até
+  // agora — só a tela, para dar visibilidade ao usuário).
+  const politicas = useMemo(
+    () =>
+      db
+        ? consultar<PoliticaRetencao>(db, "SELECT * FROM politicas_retencao ORDER BY dominio ASC, vigente_desde DESC, versao DESC")
+        : [],
+    [db, versao],
+  );
+  const dominiosDistintos = useMemo(() => Array.from(new Set(politicas.map((p) => p.dominio))), [politicas]);
+  // Marca, entre as várias versões listadas de um domínio, qual é a vigente hoje — mesma
+  // regra de `obterPoliticaVigente` (maior vigente_desde <= hoje), só para destaque visual.
+  const idsPoliticaVigente = useMemo(() => {
+    if (!db) return new Set<number>();
+    const ids = new Set<number>();
+    for (const dominio of dominiosDistintos) {
+      const vigente = obterPoliticaVigente(db, dominio);
+      if (vigente) ids.add(vigente.id);
+    }
+    return ids;
+  }, [db, versao, dominiosDistintos]);
+
+  const retencoesLegaisAtivas = useMemo(
+    () =>
+      db
+        ? consultar<RetencaoLegal>(db, "SELECT * FROM retencoes_legais WHERE ativo = 1 ORDER BY criado_em DESC")
+        : [],
+    [db, versao],
+  );
+
+  const [novaPolitica, setNovaPolitica] = useState({ dominio: "", prazoAnos: "", baseLegal: "", vigenteDesde: hojeISO(), observacoes: "" });
+  const [novoHold, setNovoHold] = useState({ entidadeTipo: OPCOES_ENTIDADE_TIPO[0].valor, entidadeId: "", motivo: "" });
+  const [encerrandoHoldId, setEncerrandoHoldId] = useState<number | null>(null);
+
+  async function cadastrarNovaPolitica(e: FormEvent) {
+    e.preventDefault();
+    if (!db) return;
+    const prazoAnos = Number(novaPolitica.prazoAnos);
+    if (!novaPolitica.dominio.trim() || !novaPolitica.baseLegal.trim() || !novaPolitica.vigenteDesde) {
+      avisar("warning", "Preencha domínio, base legal e vigente desde.");
+      return;
+    }
+    if (!Number.isFinite(prazoAnos) || prazoAnos <= 0) {
+      avisar("warning", "Prazo (anos) deve ser um número maior que zero.");
+      return;
+    }
+    try {
+      cadastrarPoliticaRetencao(db, {
+        dominio: novaPolitica.dominio.trim(),
+        prazoAnos,
+        baseLegal: novaPolitica.baseLegal.trim(),
+        vigenteDesde: novaPolitica.vigenteDesde,
+        observacoes: novaPolitica.observacoes.trim() || undefined,
+      });
+      await persistir();
+      avisar("good", `Política de retenção cadastrada para o domínio '${novaPolitica.dominio.trim()}'.`);
+      setNovaPolitica({ dominio: "", prazoAnos: "", baseLegal: "", vigenteDesde: hojeISO(), observacoes: "" });
+    } catch (erro) {
+      avisar("critical", `Não foi possível cadastrar a política: ${(erro as Error).message}`);
+    }
+  }
+
+  async function registrarNovoHold(e: FormEvent) {
+    e.preventDefault();
+    if (!db) return;
+    const entidadeId = Number(novoHold.entidadeId);
+    if (!novoHold.motivo.trim()) {
+      avisar("warning", "Preencha o motivo da retenção legal.");
+      return;
+    }
+    if (!Number.isFinite(entidadeId) || entidadeId <= 0) {
+      avisar("warning", "ID da entidade deve ser um número válido.");
+      return;
+    }
+    try {
+      registrarRetencaoLegal(db, { entidadeTipo: novoHold.entidadeTipo, entidadeId, motivo: novoHold.motivo.trim() });
+      await persistir();
+      avisar("good", `Retenção legal registrada para ${ROTULO_ENTIDADE_TIPO[novoHold.entidadeTipo] ?? novoHold.entidadeTipo} #${entidadeId}.`);
+      setNovoHold({ entidadeTipo: OPCOES_ENTIDADE_TIPO[0].valor, entidadeId: "", motivo: "" });
+    } catch (erro) {
+      avisar("critical", `Não foi possível registrar a retenção legal: ${(erro as Error).message}`);
+    }
+  }
+
+  async function encerrarHold(r: RetencaoLegal) {
+    if (!db) return;
+    setEncerrandoHoldId(r.id);
+    try {
+      encerrarRetencaoLegal(db, r.id);
+      await persistir();
+      avisar("good", `Retenção legal de ${ROTULO_ENTIDADE_TIPO[r.entidade_tipo] ?? r.entidade_tipo} #${r.entidade_id} encerrada.`);
+    } catch (erro) {
+      avisar("critical", `Não foi possível encerrar a retenção legal: ${(erro as Error).message}`);
+    } finally {
+      setEncerrandoHoldId(null);
     }
   }
 
@@ -484,6 +615,175 @@ export function LgpdView() {
                     <td>{r.motivo}</td>
                     <td style={{ fontSize: 12, fontFamily: "monospace" }}>{r.chave_anterior_hash}</td>
                     <td style={{ fontSize: 12 }}>{r.observacoes ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ===================== SEÇÃO 3 — POLÍTICAS DE RETENÇÃO E RETENÇÃO LEGAL (LEGAL HOLD) ===================== */}
+      <h2 className="section-title" style={{ marginTop: 32 }}>
+        <Lock size={16} /> Políticas de retenção e retenção legal (legal hold)
+      </h2>
+      <p style={{ maxWidth: "72ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 20 }}>
+        Prazo de guarda por domínio de dado (política geral) e retenções ad-hoc sobre um registro específico
+        (legal hold — ex.: processo em curso, notificação de auditoria). Esta é a mesma informação que já
+        condiciona o atendimento de exclusão na seção acima, exposta aqui para consulta e cadastro.
+      </p>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="section-title"><CalendarClock size={14} /> Cadastrar nova política de retenção</div>
+        <form onSubmit={cadastrarNovaPolitica}>
+          <div className="form-grid" style={{ maxWidth: 720 }}>
+            <label>
+              Domínio
+              <input
+                type="text"
+                list="dominios-retencao-existentes"
+                value={novaPolitica.dominio}
+                onChange={(e) => setNovaPolitica((f) => ({ ...f, dominio: e.target.value }))}
+                placeholder="ex.: contabil, contrato_locacao, processo_legal"
+              />
+              <datalist id="dominios-retencao-existentes">
+                {dominiosDistintos.map((d) => (
+                  <option key={d} value={d} />
+                ))}
+              </datalist>
+            </label>
+            <label>
+              Prazo (anos)
+              <input
+                type="number"
+                min={1}
+                value={novaPolitica.prazoAnos}
+                onChange={(e) => setNovaPolitica((f) => ({ ...f, prazoAnos: e.target.value }))}
+              />
+            </label>
+            <label>
+              Base legal
+              <input
+                type="text"
+                value={novaPolitica.baseLegal}
+                onChange={(e) => setNovaPolitica((f) => ({ ...f, baseLegal: e.target.value }))}
+                placeholder="ex.: Lei 6.404/76 art. 177"
+              />
+            </label>
+            <label>
+              Vigente desde
+              <input
+                type="date"
+                value={novaPolitica.vigenteDesde}
+                onChange={(e) => setNovaPolitica((f) => ({ ...f, vigenteDesde: e.target.value }))}
+              />
+            </label>
+            <label>
+              Observações (opcional)
+              <input
+                type="text"
+                value={novaPolitica.observacoes}
+                onChange={(e) => setNovaPolitica((f) => ({ ...f, observacoes: e.target.value }))}
+              />
+            </label>
+          </div>
+          <button className="btn primary" type="submit">Cadastrar nova política</button>
+        </form>
+      </div>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="section-title">Políticas de retenção cadastradas ({politicas.length})</div>
+        {politicas.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhuma política de retenção cadastrada ainda.</p>
+        ) : (
+          <div className="table-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>
+            <table className="data-table">
+              <thead>
+                <tr><th>Domínio</th><th>Prazo</th><th>Base legal</th><th>Versão</th><th>Vigente desde</th><th>Observações</th><th></th></tr>
+              </thead>
+              <tbody>
+                {politicas.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.dominio}</td>
+                    <td>{p.prazo_anos} ano(s)</td>
+                    <td style={{ fontSize: 12.5 }}>{p.base_legal}</td>
+                    <td>v{p.versao}</td>
+                    <td>{p.vigente_desde}</td>
+                    <td style={{ fontSize: 12 }}>{p.observacoes ?? "—"}</td>
+                    <td>{idsPoliticaVigente.has(p.id) && <span className="pill good">Vigente</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="section-title"><Lock size={14} /> Registrar retenção legal (legal hold)</div>
+        <form onSubmit={registrarNovoHold}>
+          <div className="form-grid" style={{ maxWidth: 640 }}>
+            <label>
+              Tipo de entidade
+              <select
+                value={novoHold.entidadeTipo}
+                onChange={(e) => setNovoHold((f) => ({ ...f, entidadeTipo: e.target.value }))}
+              >
+                {OPCOES_ENTIDADE_TIPO.map((o) => (
+                  <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              ID da entidade
+              <input
+                type="number"
+                min={1}
+                value={novoHold.entidadeId}
+                onChange={(e) => setNovoHold((f) => ({ ...f, entidadeId: e.target.value }))}
+              />
+            </label>
+            <label>
+              Motivo
+              <input
+                type="text"
+                value={novoHold.motivo}
+                onChange={(e) => setNovoHold((f) => ({ ...f, motivo: e.target.value }))}
+                placeholder="ex.: Processo nº ... em curso"
+              />
+            </label>
+          </div>
+          <button className="btn primary" type="submit">Registrar retenção legal</button>
+        </form>
+      </div>
+
+      <div className="card">
+        <div className="section-title">Retenções legais ativas ({retencoesLegaisAtivas.length})</div>
+        {retencoesLegaisAtivas.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhuma retenção legal ativa no momento.</p>
+        ) : (
+          <div className="table-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>
+            <table className="data-table">
+              <thead>
+                <tr><th>Tipo de entidade</th><th>ID</th><th>Motivo</th><th>Criado em</th><th></th></tr>
+              </thead>
+              <tbody>
+                {retencoesLegaisAtivas.map((r) => (
+                  <tr key={r.id}>
+                    <td>{ROTULO_ENTIDADE_TIPO[r.entidade_tipo] ?? r.entidade_tipo}</td>
+                    <td>#{r.entidade_id}</td>
+                    <td style={{ fontSize: 12.5 }}>{r.motivo}</td>
+                    <td>{formatarData(r.criado_em)}</td>
+                    <td>
+                      <button
+                        className="btn danger"
+                        style={{ padding: "3px 8px", fontSize: 12 }}
+                        disabled={encerrandoHoldId === r.id}
+                        onClick={() => encerrarHold(r)}
+                      >
+                        <Ban size={12} /> Encerrar
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
