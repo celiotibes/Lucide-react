@@ -9,6 +9,13 @@ import {
   FlaskConical,
   CircleCheck,
   CircleX,
+  RotateCcw,
+  PlusCircle,
+  PlayCircle,
+  UserCheck,
+  Upload,
+  Ban,
+  FileArchive,
 } from "lucide-react";
 import { useToast } from "./useToast";
 import { KpiTile } from "../components/KpiTile";
@@ -27,6 +34,27 @@ import {
 } from "../domain/erp/audit-logging-imutavel";
 import { TipoBackup, type BackupExecution } from "../domain/erp/strategy-backup";
 import type { CenarioDesastre, TestedrpRegistro } from "../domain/erp/plano-recuperacao-desastres";
+import {
+  planejarExercicio,
+  iniciarExecucao,
+  concluirExecucaoComSucesso,
+  concluirExecucaoComFalha,
+  revisarExercicio,
+  listarExercicios,
+  obterExercicioComExecucoes,
+  relatorioConformidadeRestauracao,
+  type StatusExercicio,
+  type ExercicioRestauracao,
+  type ExercicioComExecucoes,
+  type AchadoConformidade,
+} from "../domain/backup/exercicioRestauracao";
+import {
+  listarExportacoes,
+  listarAcessosDeExportacao,
+  revogarExportacao,
+  type ExportacaoGerada,
+  type ExportacaoAcesso,
+} from "../domain/exportacao/exportacaoControlada";
 
 const ROTULO_OPERACAO: Record<TipoOperacao, string> = {
   [TipoOperacao.LEITURA]: "Leitura",
@@ -71,6 +99,20 @@ function hashCurto(hash: string): string {
   return hash.length > 16 ? `${hash.slice(0, 16)}…` : hash;
 }
 
+/** `planejado_para` é uma data pura ("AAAA-MM-DD", o mesmo formato de `<input type="date">"),
+ * não um timestamp — formata sem passar por `new Date()` para não sofrer o deslocamento de
+ * fuso horário que empurraria a data exibida um dia para trás. */
+function formatarDataCurta(isoData: string): string {
+  const [ano, mes, dia] = isoData.split("-");
+  return dia && mes && ano ? `${dia}/${mes}/${ano}` : isoData;
+}
+
+const ROTULO_STATUS_EXERCICIO: Record<StatusExercicio, { texto: string; pill: string }> = {
+  planejado: { texto: "planejado", pill: "" },
+  executado: { texto: "executado", pill: "warning" },
+  revisado: { texto: "revisado", pill: "good" },
+};
+
 /** Painel de Auditoria e Continuidade — a tela que dá acesso real aos módulos de
  * segurança/auditoria que hoje existem no domínio (`src/domain/erp/`) mas não são
  * chamados por nenhuma outra tela do app:
@@ -105,6 +147,31 @@ export function PainelAuditoria() {
   const [verificando, setVerificando] = useState(false);
   const [executandoBackup, setExecutandoBackup] = useState(false);
   const [testandoDrpId, setTestandoDrpId] = useState<string | null>(null);
+
+  // ── Exercícios de restauração ──────────────────────────────────────────────────────────
+  const [mostrarFormExercicio, setMostrarFormExercicio] = useState(false);
+  const [descricaoExercicio, setDescricaoExercicio] = useState("");
+  const [rpoAlvoInput, setRpoAlvoInput] = useState("");
+  const [rtoAlvoInput, setRtoAlvoInput] = useState("");
+  const [planejadoParaInput, setPlanejadoParaInput] = useState("");
+  const [planejandoExercicio, setPlanejandoExercicio] = useState(false);
+
+  const [exercicioAbertoId, setExercicioAbertoId] = useState<number | null>(null);
+  const [iniciandoExecucaoId, setIniciandoExecucaoId] = useState<number | null>(null);
+  const [revisandoExercicioId, setRevisandoExercicioId] = useState<number | null>(null);
+  // Qual execução (id) está com o mini-formulário de "concluir com sucesso" aberto — só um
+  // por vez, então um único id (em vez de um Set) já resolve.
+  const [execucaoConcluindoId, setExecucaoConcluindoId] = useState<number | null>(null);
+  const [arquivoRestauradoNome, setArquivoRestauradoNome] = useState<string | null>(null);
+  const [arquivoRestauradoBytes, setArquivoRestauradoBytes] = useState<Uint8Array | null>(null);
+  const [dataUltimoBackupInput, setDataUltimoBackupInput] = useState("");
+  // Cobre tanto "concluir com sucesso" quanto "marcar como falha" — as duas mutam a mesma
+  // execução e nunca rodam ao mesmo tempo para o mesmo id.
+  const [processandoExecucaoId, setProcessandoExecucaoId] = useState<number | null>(null);
+
+  // ── Exportações controladas ────────────────────────────────────────────────────────────
+  const [exportacaoAbertaId, setExportacaoAbertaId] = useState<number | null>(null);
+  const [processandoExportacaoId, setProcessandoExportacaoId] = useState<number | null>(null);
 
   // Liga o gerenciador de auditoria ao banco real assim que ele estiver disponível (o App
   // só renderiza esta tela depois que `db` deixa de ser null, ver App.tsx). A partir daqui
@@ -178,6 +245,31 @@ export function PainelAuditoria() {
   const testesDrp: TestedrpRegistro[] = useMemo(() => planoRecuperacaoDesastres.obterHistoricoTestes(), [tick]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const metricasDrp = useMemo(() => planoRecuperacaoDesastres.obterMetricasDRP(), [tick]);
+
+  // `exercicios_restauracao`/`exercicios_restauracao_execucoes` e `exportacoes_geradas`/
+  // `exportacoes_acessos` vivem no mesmo banco .sqlite persistido que `auditoria_log` — por
+  // isso essas leituras dependem de `db` e `tick`, igual ao resto do painel, e não de um
+  // objeto singleton em memória como os três módulos acima.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const exercicios: ExercicioRestauracao[] = useMemo(() => (db ? listarExercicios(db) : []), [db, tick]);
+  const exercicioAberto: ExercicioComExecucoes | null = useMemo(
+    () => (db && exercicioAbertoId !== null ? obterExercicioComExecucoes(db, exercicioAbertoId) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [db, exercicioAbertoId, tick],
+  );
+  const achadosConformidade: AchadoConformidade[] = useMemo(
+    () => (db ? relatorioConformidadeRestauracao(db) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [db, tick],
+  );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const exportacoes: ExportacaoGerada[] = useMemo(() => (db ? listarExportacoes(db) : []), [db, tick]);
+  const acessosExportacaoAberta: ExportacaoAcesso[] = useMemo(
+    () => (db && exportacaoAbertaId !== null ? listarAcessosDeExportacao(db, exportacaoAbertaId) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [db, exportacaoAbertaId, tick],
+  );
 
   const verificarCadeia = useCallback(async () => {
     setVerificando(true);
@@ -279,6 +371,194 @@ export function PainelAuditoria() {
       }
     },
     [avisar, forcarAtualizacao, persistir],
+  );
+
+  const planejarNovoExercicio = useCallback(async () => {
+    if (!db) return;
+    const descricao = descricaoExercicio.trim();
+    const rpo = Number(rpoAlvoInput);
+    const rto = Number(rtoAlvoInput);
+    if (!descricao || !planejadoParaInput || !Number.isFinite(rpo) || rpo <= 0 || !Number.isFinite(rto) || rto <= 0) {
+      avisar("warning", "Preencha descrição, RPO alvo (h), RTO alvo (h) e a data planejada — os dois alvos maiores que zero.");
+      return;
+    }
+    setPlanejandoExercicio(true);
+    try {
+      const exercicio = planejarExercicio(db, {
+        descricao,
+        rpoHorasAlvo: rpo,
+        rtoHorasAlvo: rto,
+        planejadoPara: planejadoParaInput,
+      });
+      await persistir();
+      avisar("good", `Exercício de restauração #${exercicio.id} planejado para ${formatarDataCurta(planejadoParaInput)}.`);
+      setDescricaoExercicio("");
+      setRpoAlvoInput("");
+      setRtoAlvoInput("");
+      setPlanejadoParaInput("");
+      setMostrarFormExercicio(false);
+      forcarAtualizacao();
+    } catch (erro) {
+      avisar("critical", `Falha ao planejar exercício de restauração: ${erro instanceof Error ? erro.message : "erro desconhecido"}`);
+    } finally {
+      setPlanejandoExercicio(false);
+    }
+  }, [db, descricaoExercicio, rpoAlvoInput, rtoAlvoInput, planejadoParaInput, persistir, avisar, forcarAtualizacao]);
+
+  const iniciarNovaExecucao = useCallback(
+    async (exercicioId: number) => {
+      if (!db) return;
+      setIniciandoExecucaoId(exercicioId);
+      try {
+        iniciarExecucao(db, exercicioId);
+        await persistir();
+        avisar("good", "Execução do exercício de restauração iniciada.");
+        forcarAtualizacao();
+      } catch (erro) {
+        avisar("critical", `Falha ao iniciar execução: ${erro instanceof Error ? erro.message : "erro desconhecido"}`);
+      } finally {
+        setIniciandoExecucaoId(null);
+      }
+    },
+    [db, avisar, forcarAtualizacao, persistir],
+  );
+
+  // Lê o arquivo .sqlite escolhido como bytes assim que ele é selecionado — evita segurar
+  // uma referência ao `File`/input (que o navegador pode invalidar) até o momento de
+  // confirmar, e deixa o botão de confirmar já saber se há conteúdo pronto para enviar.
+  const selecionarArquivoRestaurado = useCallback(
+    async (arquivo: File | null) => {
+      if (!arquivo) {
+        setArquivoRestauradoNome(null);
+        setArquivoRestauradoBytes(null);
+        return;
+      }
+      try {
+        const buffer = await arquivo.arrayBuffer();
+        setArquivoRestauradoBytes(new Uint8Array(buffer));
+        setArquivoRestauradoNome(arquivo.name);
+      } catch {
+        avisar("critical", "Não foi possível ler o arquivo selecionado.");
+      }
+    },
+    [avisar],
+  );
+
+  const confirmarConclusaoComSucesso = useCallback(
+    async (execucaoId: number) => {
+      if (!db) return;
+      if (!arquivoRestauradoBytes) {
+        avisar("warning", "Selecione o arquivo .sqlite restaurado antes de confirmar.");
+        return;
+      }
+      if (!dataUltimoBackupInput) {
+        avisar("warning", "Informe a data do último backup conhecido antes de confirmar.");
+        return;
+      }
+      setProcessandoExecucaoId(execucaoId);
+      try {
+        // `concluirExecucaoComSucesso` RODA a verificação real do arquivo enviado — o
+        // resultado gravado (sucesso ou falha) reflete o que a verificação encontrou, não a
+        // intenção de quem clicou neste botão. Ver o aviso na própria tela.
+        const execucao = await concluirExecucaoComSucesso(db, execucaoId, {
+          conteudoSqliteRestaurado: arquivoRestauradoBytes,
+          dataUltimoBackupConhecido: new Date(dataUltimoBackupInput).toISOString(),
+        });
+        await persistir();
+        if (execucao.resultado === "sucesso") {
+          avisar(
+            "good",
+            `Execução concluída com sucesso — RPO real ${execucao.rpo_horas_real?.toFixed(1)}h, RTO real ${execucao.rto_horas_real?.toFixed(1)}h.`,
+          );
+        } else {
+          avisar(
+            "critical",
+            `A verificação do arquivo restaurado encontrou problema(s) — a execução foi registrada como FALHA, não sucesso. Veja as observações na execução.`,
+          );
+        }
+        setExecucaoConcluindoId(null);
+        setArquivoRestauradoBytes(null);
+        setArquivoRestauradoNome(null);
+        setDataUltimoBackupInput("");
+        forcarAtualizacao();
+      } catch (erro) {
+        avisar("critical", `Falha ao concluir a execução: ${erro instanceof Error ? erro.message : "erro desconhecido"}`);
+      } finally {
+        setProcessandoExecucaoId(null);
+      }
+    },
+    [db, arquivoRestauradoBytes, dataUltimoBackupInput, persistir, avisar, forcarAtualizacao],
+  );
+
+  const marcarExecucaoComoFalha = useCallback(
+    async (execucaoId: number) => {
+      if (!db) return;
+      const motivo = prompt(
+        "Por que esta execução do exercício de restauração falhou?\n(Ex.: backup indisponível no armazenamento externo, arquivo corrompido antes mesmo de tentar abrir — a verificação nunca chegou a rodar.)",
+      );
+      if (motivo === null) return;
+      if (!motivo.trim()) {
+        avisar("warning", "Informe um motivo para registrar a falha.");
+        return;
+      }
+      setProcessandoExecucaoId(execucaoId);
+      try {
+        concluirExecucaoComFalha(db, execucaoId, motivo.trim());
+        await persistir();
+        avisar("warning", "Execução registrada como falha, com o motivo informado.");
+        forcarAtualizacao();
+      } catch (erro) {
+        avisar("critical", `Falha ao registrar a falha da execução: ${erro instanceof Error ? erro.message : "erro desconhecido"}`);
+      } finally {
+        setProcessandoExecucaoId(null);
+      }
+    },
+    [db, avisar, forcarAtualizacao, persistir],
+  );
+
+  const revisarExercicioAtual = useCallback(
+    async (exercicioId: number) => {
+      if (!db) return;
+      const revisadoPor = prompt("Quem está revisando este exercício de restauração?", OPERADOR_LOCAL_EMAIL);
+      if (revisadoPor === null) return;
+      if (!revisadoPor.trim()) {
+        avisar("warning", "Informe quem está revisando.");
+        return;
+      }
+      setRevisandoExercicioId(exercicioId);
+      try {
+        revisarExercicio(db, exercicioId, revisadoPor.trim());
+        await persistir();
+        avisar("good", "Exercício de restauração revisado.");
+        forcarAtualizacao();
+      } catch (erro) {
+        avisar("critical", `Falha ao revisar exercício: ${erro instanceof Error ? erro.message : "erro desconhecido"}`);
+      } finally {
+        setRevisandoExercicioId(null);
+      }
+    },
+    [db, avisar, forcarAtualizacao, persistir],
+  );
+
+  const revogarExportacaoAtual = useCallback(
+    async (exportacaoId: number) => {
+      if (!db) return;
+      if (!confirm("Revogar esta exportação? Acessos futuros a ela serão bloqueados. O conteúdo já entregue antes não é apagado nem desfeito.")) {
+        return;
+      }
+      setProcessandoExportacaoId(exportacaoId);
+      try {
+        revogarExportacao(db, exportacaoId);
+        await persistir();
+        avisar("good", "Exportação revogada.");
+        forcarAtualizacao();
+      } catch (erro) {
+        avisar("critical", `Falha ao revogar exportação: ${erro instanceof Error ? erro.message : "erro desconhecido"}`);
+      } finally {
+        setProcessandoExportacaoId(null);
+      }
+    },
+    [db, avisar, forcarAtualizacao, persistir],
   );
 
   return (
@@ -535,6 +815,330 @@ export function PainelAuditoria() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* ── Exercícios de restauração ──────────────────────────────────────────── */}
+      <div className="card" style={{ marginTop: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+          <div className="section-title" style={{ margin: 0 }}><RotateCcw size={14} /> Exercícios de restauração</div>
+          <button className="btn primary" onClick={() => setMostrarFormExercicio((v) => !v)}>
+            <PlusCircle size={14} /> {mostrarFormExercicio ? "Cancelar" : "Planejar novo exercício"}
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12, maxWidth: "72ch" }}>
+          Formaliza como programa (planejado → executado → revisado, com RPO/RTO medidos de verdade) o que a
+          verificação de backup já faz tecnicamente por trás — restaurar um <code>.sqlite</code> e conferir as
+          invariantes contábeis. Sem isto, nunca fica registrado que o backup foi de fato EXERCITADO, com data,
+          execução e revisão humana; só que o código de verificação existe e passa em teste.
+        </p>
+
+        {mostrarFormExercicio && (
+          <div className="card" style={{ padding: 14, boxShadow: "none", marginBottom: 16 }}>
+            <div className="form-grid">
+              <label>
+                <span>Descrição</span>
+                <input
+                  value={descricaoExercicio}
+                  onChange={(e) => setDescricaoExercicio(e.target.value)}
+                  placeholder="Ex.: Restauração do backup semanal completo"
+                />
+              </label>
+              <label>
+                <span>RPO alvo (horas)</span>
+                <input type="number" min="0" step="0.5" value={rpoAlvoInput} onChange={(e) => setRpoAlvoInput(e.target.value)} placeholder="Ex.: 24" />
+              </label>
+              <label>
+                <span>RTO alvo (horas)</span>
+                <input type="number" min="0" step="0.5" value={rtoAlvoInput} onChange={(e) => setRtoAlvoInput(e.target.value)} placeholder="Ex.: 4" />
+              </label>
+              <label>
+                <span>Planejado para</span>
+                <input type="date" value={planejadoParaInput} onChange={(e) => setPlanejadoParaInput(e.target.value)} />
+              </label>
+            </div>
+            <button className="btn primary" onClick={planejarNovoExercicio} disabled={planejandoExercicio}>
+              <PlusCircle size={14} /> {planejandoExercicio ? "Planejando…" : "Confirmar planejamento"}
+            </button>
+          </div>
+        )}
+
+        {/* Achado de conformidade em destaque — o que este módulo existe para mostrar. */}
+        <div style={{ marginBottom: 18 }}>
+          <div className="kpi-grid" style={{ marginBottom: achadosConformidade.length > 0 ? 10 : 0 }}>
+            <KpiTile label="Exercícios revisados e medidos" value={achadosConformidade.length} />
+            <KpiTile
+              label="Dentro da meta (RPO e RTO)"
+              value={achadosConformidade.filter((a) => !a.nao_conformidade).length}
+              variant={achadosConformidade.length > 0 ? "good" : undefined}
+            />
+            <KpiTile
+              label="Fora da meta"
+              value={achadosConformidade.filter((a) => a.nao_conformidade).length}
+              variant={achadosConformidade.some((a) => a.nao_conformidade) ? "critical" : undefined}
+            />
+          </div>
+          {achadosConformidade.length === 0 ? (
+            <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>
+              Nenhum exercício revisado com execução de sucesso ainda — o relatório de conformidade aparece aqui
+              assim que houver ao menos um exercício "Iniciar execução" → "Marcar como concluída com sucesso" →
+              "Revisar".
+            </p>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Exercício</th>
+                    <th className="num">RPO alvo</th>
+                    <th className="num">RPO real</th>
+                    <th className="num">RTO alvo</th>
+                    <th className="num">RTO real</th>
+                    <th>Conformidade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {achadosConformidade.map((a) => (
+                    <tr key={a.exercicio_id}>
+                      <td>#{a.exercicio_id} — {a.descricao}</td>
+                      <td className="num">{a.rpo_horas_alvo}h</td>
+                      <td className="num">{a.rpo_horas_real.toFixed(1)}h</td>
+                      <td className="num">{a.rto_horas_alvo}h</td>
+                      <td className="num">{a.rto_horas_real.toFixed(1)}h</td>
+                      <td>
+                        {a.nao_conformidade ? (
+                          <span className="pill critical"><CircleX size={11} /> fora da meta</span>
+                        ) : (
+                          <span className="pill good"><CircleCheck size={11} /> dentro da meta</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {exercicios.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhum exercício de restauração planejado ainda.</p>
+        ) : (
+          exercicios.map((ex) => {
+            const aberto = exercicioAbertoId === ex.id;
+            const rotulo = ROTULO_STATUS_EXERCICIO[ex.status];
+            const detalhe = aberto && exercicioAberto?.id === ex.id ? exercicioAberto : null;
+            const temExecucaoAberta = detalhe?.execucoes.some((e) => e.concluido_em === null) ?? false;
+            return (
+              <div key={ex.id} className="card" style={{ padding: 14, boxShadow: "none", marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+                  <div>
+                    <strong>#{ex.id} — {ex.descricao}</strong>{" "}
+                    <span className={`pill ${rotulo.pill}`}>{rotulo.texto}</span>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 4 }}>
+                      RPO alvo {ex.rpo_horas_alvo}h · RTO alvo {ex.rto_horas_alvo}h · planejado para {formatarDataCurta(ex.planejado_para)}
+                    </div>
+                  </div>
+                  <button className="btn" onClick={() => setExercicioAbertoId(aberto ? null : ex.id)}>
+                    {aberto ? "Fechar execuções" : "Ver execuções"}
+                  </button>
+                </div>
+
+                {aberto && (
+                  <div style={{ marginTop: 14 }}>
+                    <div className="toolbar-actions" style={{ marginBottom: 12 }}>
+                      <button
+                        className="btn primary"
+                        onClick={() => iniciarNovaExecucao(ex.id)}
+                        disabled={iniciandoExecucaoId === ex.id || temExecucaoAberta}
+                        title={temExecucaoAberta ? "Já existe uma execução em andamento para este exercício" : undefined}
+                      >
+                        <PlayCircle size={14} /> {iniciandoExecucaoId === ex.id ? "Iniciando…" : "Iniciar execução"}
+                      </button>
+                      {ex.status === "executado" && (
+                        <button className="btn" onClick={() => revisarExercicioAtual(ex.id)} disabled={revisandoExercicioId === ex.id}>
+                          <UserCheck size={14} /> {revisandoExercicioId === ex.id ? "Revisando…" : "Revisar"}
+                        </button>
+                      )}
+                    </div>
+
+                    {!detalhe || detalhe.execucoes.length === 0 ? (
+                      <p style={{ color: "var(--ink-soft)", fontSize: 13 }}>Nenhuma execução registrada ainda.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {detalhe.execucoes.map((exec) => {
+                          const emAndamento = exec.concluido_em === null;
+                          const formSucessoAberto = execucaoConcluindoId === exec.id;
+                          return (
+                            <div key={exec.id} className="card" style={{ padding: 12, boxShadow: "none", background: "var(--surface-2)" }}>
+                              <div style={{ fontSize: 12.5 }}>
+                                iniciada em {formatarQuando(new Date(exec.iniciado_em))}
+                                {exec.concluido_em && <> · concluída em {formatarQuando(new Date(exec.concluido_em))}</>}
+                              </div>
+                              {exec.resultado && (
+                                <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  <span className={`pill ${exec.resultado === "sucesso" ? "good" : "critical"}`}>{exec.resultado}</span>
+                                  {exec.rpo_horas_real !== null && exec.rto_horas_real !== null && (
+                                    <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                                      RPO real {exec.rpo_horas_real.toFixed(1)}h · RTO real {exec.rto_horas_real.toFixed(1)}h
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {exec.observacoes && (
+                                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4, whiteSpace: "pre-wrap" }}>{exec.observacoes}</div>
+                              )}
+                              {exec.revisado_por && (
+                                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
+                                  revisado por {exec.revisado_por}{exec.revisado_em ? ` em ${formatarQuando(new Date(exec.revisado_em))}` : ""}
+                                </div>
+                              )}
+
+                              {emAndamento && (
+                                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                                  <div className="toolbar-actions">
+                                    <button
+                                      className="btn primary"
+                                      onClick={() => setExecucaoConcluindoId(formSucessoAberto ? null : exec.id)}
+                                    >
+                                      <CircleCheck size={13} /> Marcar como concluída com sucesso
+                                    </button>
+                                    <button
+                                      className="btn danger"
+                                      onClick={() => marcarExecucaoComoFalha(exec.id)}
+                                      disabled={processandoExecucaoId === exec.id}
+                                    >
+                                      <CircleX size={13} /> Marcar como falha
+                                    </button>
+                                  </div>
+
+                                  {formSucessoAberto && (
+                                    <div className="card" style={{ padding: 12, boxShadow: "none" }}>
+                                      <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 0, marginBottom: 10, maxWidth: "60ch" }}>
+                                        Como esta tela não restaura um <code>.sqlite</code> de verdade sozinha (isso é feito
+                                        fora dela, pelo operador testando manualmente), a conclusão precisa do arquivo
+                                        restaurado e roda sobre ele a mesma verificação real usada no backup do
+                                        cabeçalho do app. Se a verificação encontrar qualquer problema, a execução é
+                                        registrada como <strong>falha</strong> automaticamente, mesmo confirmando aqui — o
+                                        resultado reflete o que foi de fato verificado, não a intenção de quem clicou.
+                                      </p>
+                                      <div className="form-grid">
+                                        <label>
+                                          <span>Arquivo .sqlite restaurado</span>
+                                          <input
+                                            type="file"
+                                            accept=".sqlite,.db"
+                                            onChange={(e) => selecionarArquivoRestaurado(e.target.files?.[0] ?? null)}
+                                          />
+                                        </label>
+                                        <label>
+                                          <span>Data do último backup conhecido</span>
+                                          <input type="date" value={dataUltimoBackupInput} onChange={(e) => setDataUltimoBackupInput(e.target.value)} />
+                                        </label>
+                                      </div>
+                                      {arquivoRestauradoNome && (
+                                        <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: -6, marginBottom: 10 }}>
+                                          Selecionado: {arquivoRestauradoNome}
+                                        </p>
+                                      )}
+                                      <button
+                                        className="btn primary"
+                                        onClick={() => confirmarConclusaoComSucesso(exec.id)}
+                                        disabled={processandoExecucaoId === exec.id}
+                                      >
+                                        <Upload size={13} /> {processandoExecucaoId === exec.id ? "Verificando…" : "Confirmar e verificar"}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ── Exportações controladas ────────────────────────────────────────────── */}
+      <div className="card">
+        <div className="section-title"><FileArchive size={14} /> Exportações controladas</div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12, maxWidth: "72ch" }}>
+          Envelope de controle das exportações já geradas pelo laudo pericial, RAD e ECD: hash SHA-256 do conteúdo
+          exato entregue, quem gerou, validade opcional e uma trilha append-only de cada acesso. Gerar uma
+          exportação nova acontece nas telas de origem (laudo, RAD, ECD) — aqui só se gerencia o que já existe.
+        </p>
+        {exportacoes.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)", fontSize: 13.5 }}>Nenhuma exportação registrada ainda.</p>
+        ) : (
+          exportacoes.map((exp) => {
+            const aberta = exportacaoAbertaId === exp.id;
+            const expirada = exp.expira_em !== null && exp.expira_em < new Date().toISOString();
+            return (
+              <div key={exp.id} className="card" style={{ padding: 14, boxShadow: "none", marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <strong>#{exp.id} — {exp.tipo}</strong>{" "}
+                    <span className="pill">{exp.formato.toUpperCase()}</span>{" "}
+                    {exp.revogado === 1 && <span className="pill critical">revogada</span>}
+                    {exp.revogado !== 1 && expirada && <span className="pill warning">expirada</span>}
+                    <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 4 }}>
+                      gerado por {exp.gerado_por} em {formatarQuando(new Date(exp.gerado_em))}
+                      {exp.expira_em && <> · expira em {formatarQuando(new Date(exp.expira_em))}</>}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
+                      <code title={exp.arquivo_hash} style={{ fontSize: 11 }}>{hashCurto(exp.arquivo_hash)}</code>
+                    </div>
+                  </div>
+                  <div className="toolbar-actions">
+                    <button className="btn" onClick={() => setExportacaoAbertaId(aberta ? null : exp.id)}>
+                      {aberta ? "Fechar acessos" : "Ver acessos"}
+                    </button>
+                    {exp.revogado !== 1 && (
+                      <button
+                        className="btn danger"
+                        onClick={() => revogarExportacaoAtual(exp.id)}
+                        disabled={processandoExportacaoId === exp.id}
+                      >
+                        <Ban size={13} /> {processandoExportacaoId === exp.id ? "Revogando…" : "Revogar"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {aberta && (
+                  <div style={{ marginTop: 12 }}>
+                    {acessosExportacaoAberta.length === 0 ? (
+                      <p style={{ color: "var(--ink-soft)", fontSize: 13 }}>Nenhum acesso registrado ainda.</p>
+                    ) : (
+                      <div className="table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Quando</th>
+                              <th>Quem</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {acessosExportacaoAberta.map((a) => (
+                              <tr key={a.id}>
+                                <td>{formatarQuando(new Date(a.acessado_em))}</td>
+                                <td>{a.ator}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>
