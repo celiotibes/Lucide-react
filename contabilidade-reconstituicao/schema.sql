@@ -1750,3 +1750,84 @@ CREATE TABLE IF NOT EXISTS fatos_financeiros_links (
 
 CREATE INDEX IF NOT EXISTS idx_fatos_links_a ON fatos_financeiros_links(fato_a_id);
 CREATE INDEX IF NOT EXISTS idx_fatos_links_b ON fatos_financeiros_links(fato_b_id);
+
+-- =====================================================================================
+-- CRM LEVE — leads, funil e propostas (captação de novo inquilino/comprador)
+-- =====================================================================================
+-- Auditoria comparativa com ERP de referência: eles têm CRM completo (crm_leads,
+-- crm_lead_stage_events, crm_lead_proposals) com a regra de ouro "nenhuma criação
+-- automática de contrato" — proposta aceita muda o lead para 'convertido', mas o
+-- contrato em contratos_locacao continua sendo criado manualmente pelo usuário.
+CREATE TABLE IF NOT EXISTS leads (
+    id              INTEGER PRIMARY KEY,
+    imovel_id       INTEGER REFERENCES imoveis(id),        -- NULL = interesse ainda não ligado a um imóvel específico
+    nome            TEXT NOT NULL,
+    contato         TEXT,                                  -- telefone/e-mail em texto livre
+    fonte           TEXT,                                  -- ex: 'indicacao', 'site', 'portal'
+    interesse       TEXT,
+    etapa           TEXT NOT NULL DEFAULT 'novo' CHECK (etapa IN ('novo', 'contatado', 'visita_agendada', 'proposta', 'convertido', 'perdido')),
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_leads_etapa ON leads(etapa);
+
+-- Histórico append-only do funil — nunca UPDATE apagando a etapa anterior.
+CREATE TABLE IF NOT EXISTS lead_etapa_eventos (
+    id              INTEGER PRIMARY KEY,
+    lead_id         INTEGER NOT NULL REFERENCES leads(id),
+    etapa_anterior  TEXT NOT NULL,
+    etapa_nova      TEXT NOT NULL,
+    ator            TEXT NOT NULL,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_etapa_eventos_lead ON lead_etapa_eventos(lead_id);
+
+CREATE TABLE IF NOT EXISTS lead_propostas (
+    id              INTEGER PRIMARY KEY,
+    lead_id         INTEGER NOT NULL REFERENCES leads(id),
+    imovel_id       INTEGER NOT NULL REFERENCES imoveis(id),
+    valor_proposto  REAL NOT NULL CHECK (valor_proposto > 0),
+    condicoes       TEXT,
+    status          TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'enviada', 'aceita', 'recusada')),
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decidido_em     DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_propostas_lead ON lead_propostas(lead_id);
+
+-- =====================================================================================
+-- EXERCÍCIO DE RESTAURAÇÃO — formaliza o que verificarBackup.ts já confere
+-- =====================================================================================
+-- `verificarBackup.ts` já restaura um .sqlite em memória e confere invariantes contábeis,
+-- mas isso nunca ficou registrado como um PROGRAMA (planejado, executado, revisado, com
+-- RTO/RPO medido) — auditoria comparativa com ERP de referência: eles têm
+-- `restore_exercise_plans/_executions/_evidence/_reviews` justamente para provar que a
+-- restauração foi EXERCITADA de verdade, não só que o código de verificação existe.
+CREATE TABLE IF NOT EXISTS exercicios_restauracao (
+    id                  INTEGER PRIMARY KEY,
+    descricao           TEXT NOT NULL,
+    rpo_horas_alvo      REAL NOT NULL CHECK (rpo_horas_alvo >= 0),
+    rto_horas_alvo      REAL NOT NULL CHECK (rto_horas_alvo >= 0),
+    planejado_para      DATE NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'planejado' CHECK (status IN ('planejado', 'executado', 'revisado')),
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_exercicios_restauracao_status ON exercicios_restauracao(status);
+
+CREATE TABLE IF NOT EXISTS exercicios_restauracao_execucoes (
+    id                  INTEGER PRIMARY KEY,
+    exercicio_id        INTEGER NOT NULL REFERENCES exercicios_restauracao(id),
+    iniciado_em         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    concluido_em        DATETIME,
+    rpo_horas_real      REAL,
+    rto_horas_real      REAL,
+    resultado           TEXT CHECK (resultado IN ('sucesso', 'falha')),
+    evidencia_hash      TEXT,               -- SHA-256 do relatório de verificarBackup gerado nesta execução
+    observacoes         TEXT,
+    revisado_por        TEXT,
+    revisado_em         DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_exercicios_execucoes_exercicio ON exercicios_restauracao_execucoes(exercicio_id);
