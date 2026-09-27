@@ -1536,3 +1536,217 @@ CREATE TABLE IF NOT EXISTS partes_processo (
 );
 
 CREATE INDEX IF NOT EXISTS idx_partes_processo_processo ON partes_processo(processo_id);
+
+-- =====================================================================================
+-- ORDENS DE SERVIÇO — fluxo de manutenção/reparo com aprovação por alçada
+-- =====================================================================================
+-- Auditoria comparativa com um ERP de referência (CRMT — ver docs/): lá, toda despesa de
+-- ordem de serviço acima de um limite exige DOIS aprovadores distintos (quórum) antes de
+-- virar título financeiro. `gestaoOperacionalImovel.ts` só tinha manutenção agendada
+-- simples, sem workflow de aprovação nem trilha de eventos — este bloco formaliza isso.
+CREATE TABLE IF NOT EXISTS ordens_servico (
+    id                  INTEGER PRIMARY KEY,
+    imovel_id           INTEGER NOT NULL REFERENCES imoveis(id),
+    prestador_id        INTEGER REFERENCES prestadores(id),         -- NULL até atribuir
+    origem_vistoria_id  INTEGER REFERENCES vistorias(id),           -- NULL = criada manualmente, não a partir de diferença de vistoria
+    titulo              TEXT NOT NULL,
+    descricao           TEXT,
+    prioridade          TEXT NOT NULL DEFAULT 'normal' CHECK (prioridade IN ('baixa', 'normal', 'alta', 'urgente')),
+    status              TEXT NOT NULL DEFAULT 'aberta' CHECK (status IN ('aberta', 'atribuida', 'em_andamento', 'concluida', 'impedida', 'cancelada')),
+    sla_data_limite     DATE,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    encerrado_em        DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_ordens_servico_imovel_status ON ordens_servico(imovel_id, status);
+
+-- Trilha append-only de eventos (atribuição/aceite/início/progresso/conclusão/
+-- impedimento) — nunca UPDATE para reescrever histórico; só o campo `status` da ordem
+-- muda, o evento em si fica registrado para sempre.
+CREATE TABLE IF NOT EXISTS ordens_servico_eventos (
+    id                  INTEGER PRIMARY KEY,
+    ordem_servico_id    INTEGER NOT NULL REFERENCES ordens_servico(id),
+    tipo_evento         TEXT NOT NULL CHECK (tipo_evento IN ('atribuida', 'aceita', 'iniciada', 'progresso', 'concluida', 'impedida', 'cancelada', 'reaberta')),
+    ator                TEXT NOT NULL,
+    detalhes            TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_os_eventos_ordem ON ordens_servico_eventos(ordem_servico_id);
+
+-- Solicitação de despesa da OS com aprovação por alçada (quórum): valor acima do limite
+-- definido no domínio (não no schema) exige aprovador_2 diferente de aprovador_1 — nunca
+-- a mesma pessoa autoaprovando os dois papéis. Só gera `contas_a_pagar` (idempotente, via
+-- `contas_a_pagar_id`) quando o quórum necessário estiver satisfeito.
+CREATE TABLE IF NOT EXISTS ordens_servico_despesas (
+    id                  INTEGER PRIMARY KEY,
+    ordem_servico_id    INTEGER NOT NULL REFERENCES ordens_servico(id),
+    valor_solicitado    REAL NOT NULL CHECK (valor_solicitado > 0),
+    valor_aprovado      REAL,
+    status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'aprovada', 'rejeitada')),
+    aprovador_1         TEXT,
+    aprovador_2         TEXT,               -- NULL quando o valor está abaixo do limite de alçada dupla
+    contas_a_pagar_id   INTEGER REFERENCES contas_a_pagar(id),      -- preenchido só quando o quórum aprova
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decidido_em         DATETIME,
+    CHECK (aprovador_2 IS NULL OR aprovador_1 IS NULL OR aprovador_2 <> aprovador_1)
+);
+
+CREATE INDEX IF NOT EXISTS idx_os_despesas_ordem ON ordens_servico_despesas(ordem_servico_id);
+
+-- Avaliação do prestador (1 a 5) por ordem de serviço concluída — histórico de qualidade.
+CREATE TABLE IF NOT EXISTS avaliacoes_prestador (
+    id                  INTEGER PRIMARY KEY,
+    prestador_id        INTEGER NOT NULL REFERENCES prestadores(id),
+    ordem_servico_id    INTEGER NOT NULL REFERENCES ordens_servico(id),
+    nota                INTEGER NOT NULL CHECK (nota BETWEEN 1 AND 5),
+    comentario          TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (ordem_servico_id)
+);
+
+-- =====================================================================================
+-- RAD — Relatório de Apuração de Débitos, como entidade versionada
+-- =====================================================================================
+-- Até aqui, `laudo/gerarRadPdf.ts` calculava o RAD "on the fly" a cada exportação, sem
+-- persistir o resultado. Formaliza como entidade (auditoria comparativa com ERP de
+-- referência): versão, supersessão de versão anterior e item aceito/rejeitado
+-- individualmente com motivo — mesma disciplina que já existe em `vistoria_item`, agora
+-- aplicada ao cálculo final de dedução de caução.
+CREATE TABLE IF NOT EXISTS rad_avaliacoes (
+    id                      INTEGER PRIMARY KEY,
+    contrato_id             INTEGER NOT NULL REFERENCES contratos_locacao(id),
+    vistoria_entrada_id     INTEGER REFERENCES vistorias(id),
+    vistoria_saida_id       INTEGER REFERENCES vistorias(id),
+    versao                  INTEGER NOT NULL DEFAULT 1,
+    status                  TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'emitido', 'superado', 'contestado')),
+    superado_por_id         INTEGER REFERENCES rad_avaliacoes(id),   -- aponta para a versão que a substituiu
+    valor_total_deducao     REAL,
+    criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    emitido_em              DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_rad_avaliacoes_contrato ON rad_avaliacoes(contrato_id);
+
+CREATE TABLE IF NOT EXISTS rad_avaliacao_itens (
+    id                  INTEGER PRIMARY KEY,
+    rad_avaliacao_id    INTEGER NOT NULL REFERENCES rad_avaliacoes(id),
+    inventario_bem_id   INTEGER REFERENCES imovel_inventario_bens(id),
+    descricao           TEXT NOT NULL,
+    valor_referencia    REAL NOT NULL,          -- valor de reposição original
+    valor_depreciado    REAL NOT NULL,          -- referência depreciada linear aplicada a este item
+    aceito              INTEGER NOT NULL DEFAULT 1 CHECK (aceito IN (0, 1)),
+    motivo              TEXT                    -- obrigatório na prática quando aceito = 0 (não pode ser cobrado)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rad_itens_avaliacao ON rad_avaliacao_itens(rad_avaliacao_id);
+
+-- =====================================================================================
+-- RETENÇÃO E RETENÇÃO LEGAL (LEGAL HOLD) — generaliza a regra hoje fixa em direitosTitular.ts
+-- =====================================================================================
+-- Antes, o prazo de retenção (7 anos contábil, contrato vigente, processo em curso) estava
+-- embutido como regra fixa dentro de `lgpd/direitosTitular.ts`. Formaliza como tabela
+-- versionada (auditoria comparativa com ERP de referência: eles têm `retention_policies`
+-- versionadas + `legal_hold` por entidade) — permite mudar prazo por lei nova sem alterar
+-- código, e registrar uma retenção EXCEPCIONAL (legal hold) ligada a um registro
+-- específico, independente da política geral do domínio.
+CREATE TABLE IF NOT EXISTS politicas_retencao (
+    id              INTEGER PRIMARY KEY,
+    dominio         TEXT NOT NULL,          -- ex: 'contabil', 'contrato_locacao', 'processo_legal', 'documento_fiscal'
+    prazo_anos      INTEGER NOT NULL CHECK (prazo_anos > 0),
+    base_legal      TEXT NOT NULL,          -- ex: 'Lei 6.404/76 art. 177' — nunca um prazo sem fundamento citável
+    versao          INTEGER NOT NULL DEFAULT 1,
+    vigente_desde   DATE NOT NULL,
+    observacoes     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_politicas_retencao_dominio ON politicas_retencao(dominio, vigente_desde);
+
+-- Retenção legal (legal hold) sobre um registro específico — independe da política geral:
+-- mesmo com o prazo padrão vencido, um registro sob hold ativo não pode ser excluído/
+-- anonimizado. `entidade_tipo`+`entidade_id` é referência genérica (mesmo padrão de
+-- `documento_imoveis`/`documento_transacoes`), porque o alvo pode ser qualquer tabela com
+-- dado pessoal (documento, transação, pessoa, contrato).
+CREATE TABLE IF NOT EXISTS retencoes_legais (
+    id              INTEGER PRIMARY KEY,
+    entidade_tipo   TEXT NOT NULL,
+    entidade_id     INTEGER NOT NULL,
+    motivo          TEXT NOT NULL,          -- ex: "Processo nº ... em curso"
+    ativo           INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    encerrado_em    DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_retencoes_legais_entidade ON retencoes_legais(entidade_tipo, entidade_id, ativo);
+
+-- =====================================================================================
+-- EXPORTAÇÃO CONTROLADA — checksum, expiração e auditoria de acesso
+-- =====================================================================================
+-- Hoje cada exportação (laudo PDF, RAD, ECD/SPED) é gerada e entregue sem registro
+-- central de quem gerou, quando expira e quem acessou depois. Formaliza um envelope
+-- comum (auditoria comparativa com ERP de referência: `report_export_requests`/
+-- `_artifacts`/`_access_audit`) por cima das exportações que já existem, sem alterar a
+-- lógica de geração de cada uma.
+CREATE TABLE IF NOT EXISTS exportacoes_geradas (
+    id              INTEGER PRIMARY KEY,
+    tipo            TEXT NOT NULL,          -- ex: 'laudo_pericial', 'rad', 'ecd', 'dre'
+    formato         TEXT NOT NULL CHECK (formato IN ('pdf', 'csv', 'json', 'txt', 'xlsx')),
+    arquivo_hash    TEXT NOT NULL,          -- SHA-256 do conteúdo exportado
+    gerado_por      TEXT NOT NULL,
+    gerado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expira_em       DATETIME,               -- NULL = sem expiração definida
+    revogado        INTEGER NOT NULL DEFAULT 0 CHECK (revogado IN (0, 1))
+);
+
+CREATE INDEX IF NOT EXISTS idx_exportacoes_tipo ON exportacoes_geradas(tipo, gerado_em);
+
+-- Cada acesso/reabertura de uma exportação já gerada — append-only.
+CREATE TABLE IF NOT EXISTS exportacoes_acessos (
+    id              INTEGER PRIMARY KEY,
+    exportacao_id   INTEGER NOT NULL REFERENCES exportacoes_geradas(id),
+    acessado_em     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ator            TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_exportacoes_acessos_exportacao ON exportacoes_acessos(exportacao_id);
+
+-- =====================================================================================
+-- HUB DE CONSOLIDAÇÃO FINANCEIRA — fatos canônicos com links entre fontes
+-- =====================================================================================
+-- Camada de EVIDÊNCIA acima do razão (não substitui `ledger_entries`, não tem débito/
+-- crédito): reúne, de várias fontes (banco, competência, contas a pagar, ordem de
+-- serviço), um "fato" canônico idempotente e permite ligar dois fatos que representam o
+-- mesmo evento econômico visto por ângulos diferentes (ex: competência de aluguel ↔
+-- recebimento bancário; despesa de OS aprovada ↔ título a pagar). Auditoria comparativa
+-- com ERP de referência: eles têm exatamente essa camada (`financial_consolidation_
+-- facts`/`_fact_links`) como fronteira deliberada antes do lançamento contábil — aqui o
+-- razão já existe, então o hub serve para reforçar rastreabilidade cruzada entre módulos,
+-- não para "propor" o lançamento em si.
+CREATE TABLE IF NOT EXISTS fatos_financeiros (
+    id                  INTEGER PRIMARY KEY,
+    entidade_id         INTEGER NOT NULL REFERENCES entidades_legais(id),
+    tipo_origem         TEXT NOT NULL CHECK (tipo_origem IN ('banco', 'competencia', 'contas_a_pagar', 'ordem_servico', 'vistoria', 'historico')),
+    origem_id           INTEGER NOT NULL,          -- id na tabela de origem (transacoes/aluguel_competencias/contas_a_pagar/...)
+    data_fato           DATE NOT NULL,
+    valor               REAL NOT NULL,
+    chave_idempotencia  TEXT NOT NULL UNIQUE,      -- ex: 'competencia:123', 'banco:456' — impede duplicar o mesmo fato
+    estado_revisao      TEXT NOT NULL DEFAULT 'pendente' CHECK (estado_revisao IN ('pendente', 'revisado', 'rejeitado')),
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fatos_financeiros_origem ON fatos_financeiros(tipo_origem, origem_id);
+
+-- Ligação entre dois fatos que representam o mesmo evento por ângulos diferentes. Nunca
+-- liga um fato a si mesmo; começa pendente; nunca apaga nenhum dos dois fatos.
+CREATE TABLE IF NOT EXISTS fatos_financeiros_links (
+    id              INTEGER PRIMARY KEY,
+    fato_a_id       INTEGER NOT NULL REFERENCES fatos_financeiros(id),
+    fato_b_id       INTEGER NOT NULL REFERENCES fatos_financeiros(id),
+    tipo_relacao    TEXT NOT NULL,          -- ex: 'competencia_recebimento', 'os_titulo_debito'
+    status          TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'confirmado', 'rejeitado')),
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (fato_a_id <> fato_b_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fatos_links_a ON fatos_financeiros_links(fato_a_id);
+CREATE INDEX IF NOT EXISTS idx_fatos_links_b ON fatos_financeiros_links(fato_b_id);
