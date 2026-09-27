@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2 } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -58,17 +58,22 @@ const AdvocaciaView = lazy(() => import("./components/AdvocaciaView").then((m) =
 const ContasPessoaisView = lazy(() => import("./components/ContasPessoaisView").then((m) => ({ default: m.ContasPessoaisView })));
 const PagamentosView = lazy(() => import("./components/PagamentosView").then((m) => ({ default: m.PagamentosView })));
 const LgpdView = lazy(() => import("./components/LgpdView").then((m) => ({ default: m.LgpdView })));
+const CrmLeadsView = lazy(() => import("./components/CrmLeadsView").then((m) => ({ default: m.CrmLeadsView })));
+const OperacoesView = lazy(() => import("./components/OperacoesView").then((m) => ({ default: m.OperacoesView })));
+const HubConsolidacaoView = lazy(() => import("./components/HubConsolidacaoView").then((m) => ({ default: m.HubConsolidacaoView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
-  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd";
+  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
   { id: "pendencias", rotulo: "Pendências", icone: ListTodo },
   { id: "imoveis", rotulo: "Imóveis", icone: Building2 },
+  { id: "crm", rotulo: "CRM — Leads e propostas", icone: UserPlus },
+  { id: "operacoes", rotulo: "Operações — Ordens de serviço", icone: Wrench },
   { id: "cadastros", rotulo: "Cadastros", icone: ClipboardList },
   { id: "importar", rotulo: "Importar documentos", icone: UploadCloud },
   { id: "triagem", rotulo: "Triagem de importação", icone: ListChecks },
@@ -83,6 +88,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
   { id: "analytics", rotulo: "Analytics integrados", icone: TrendingUp },
   { id: "integridade", rotulo: "Sincronização e integridade", icone: ShieldAlert },
+  { id: "hubconsolidacao", rotulo: "Hub de consolidação financeira", icone: Link2 },
   { id: "budget", rotulo: "Budget vs Realizado", icone: Banknote },
   { id: "forecast", rotulo: "Projeção de Caixa (12m)", icone: LineChart },
   { id: "ecd", rotulo: "Exportação ECD (Fiscal)", icone: Download },
@@ -412,6 +418,8 @@ function Conteudo() {
             {aba === "dashboard" && <Dashboard aoDrillDown={aoDrillDownTransacoes} />}
             {aba === "pendencias" && <PendenciasView aoNavegar={(destino) => navegarParaAba(destino as Aba)} />}
             {aba === "imoveis" && <ImoveisView />}
+            {aba === "crm" && <CrmLeadsView />}
+            {aba === "operacoes" && <OperacoesView />}
             {aba === "cadastros" && <CadastrosView />}
             {aba === "importar" && <ImportarView />}
             {aba === "triagem" && <TriagemImportacao />}
@@ -426,6 +434,7 @@ function Conteudo() {
             {aba === "relatorios" && <RelatoriosIntegradosView />}
             {aba === "analytics" && <AnalyticsIntegradosView />}
             {aba === "integridade" && <SincronizacaoIntegridadeView />}
+            {aba === "hubconsolidacao" && <HubConsolidacaoView />}
             {aba === "budget" && <BudgetVarianceView />}
             {aba === "forecast" && <CashForecastView />}
             {aba === "ecd" && <ECDExportView />}
