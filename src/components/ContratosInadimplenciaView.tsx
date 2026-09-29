@@ -12,6 +12,11 @@ import {
   type InadimplenciaPorCompetencia,
   type Competencia,
 } from "../domain/erp/aluguel-competencias";
+import {
+  provisarJurosMora,
+  reverterProvisaoJurosMora,
+  PERCENTUAL_PERDA_ESPERADA_PADRAO,
+} from "../domain/erp/integracao-inadimplencia";
 import { detectarMesesSemReceitaAirbnb } from "../domain/reconcile/airbnb";
 import { listarPartes } from "../domain/contratos/locatarios";
 import type { ContratoLocacao, Imovel } from "../domain/types";
@@ -67,6 +72,10 @@ export function ContratosInadimplenciaView() {
   const [baixandoCompetenciaId, setBaixandoCompetenciaId] = useState<number | null>(null);
   const [contaBancariaBaixa, setContaBancariaBaixa] = useState<string>("");
   const [dataRecebimentoBaixa, setDataRecebimentoBaixa] = useState<string>("");
+  const [provisionandoCompetenciaId, setProvisionandoCompetenciaId] = useState<number | null>(null);
+  const [percentualPerdaInput, setPercentualPerdaInput] = useState<string>(String(PERCENTUAL_PERDA_ESPERADA_PADRAO * 100));
+  const [revertendoCompetenciaId, setRevertendoCompetenciaId] = useState<number | null>(null);
+  const [motivoReversao, setMotivoReversao] = useState<string>("");
 
   const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
   const contasBancarias = useMemo(() => (db ? listarContasBancarias(db) : []), [db, versao]);
@@ -118,6 +127,28 @@ export function ContratosInadimplenciaView() {
     return mapa;
   }, [db, versao, statusPorContrato]);
 
+  // Competências (dentre as pendentes acima) que já têm provisão de juros/multa de mora VIVA
+  // no razão (provisarJurosMora, integracao-inadimplencia.ts) — mesma condição do índice
+  // idx_ledger_origem_unica (schema.sql): estorno_de_id/estornado_por_id nulos. Usado só para
+  // decidir, por competência, entre mostrar "Provisionar juros de mora" ou o badge +
+  // "Reverter provisão".
+  const competenciasProvisionadas = useMemo(() => {
+    if (!db) return new Set<number>();
+    const ids = Array.from(competenciasPendentesPorContrato.values())
+      .flat()
+      .map((c) => c.id);
+    if (ids.length === 0) return new Set<number>();
+    const placeholders = ids.map(() => "?").join(",");
+    const linhas = consultar<{ origem_id: number }>(
+      db,
+      `SELECT DISTINCT origem_id FROM ledger_entries
+       WHERE origem_modulo = 'inadimplencia_juros' AND origem_id IN (${placeholders})
+         AND estorno_de_id IS NULL AND estornado_por_id IS NULL`,
+      ids,
+    );
+    return new Set(linhas.map((l) => l.origem_id));
+  }, [db, versao, competenciasPendentesPorContrato]);
+
   // Airbnb/temporada não entra em apurarInadimplenciaContratoPorCompetencia (não tem
   // dia_vencimento nem valor mensal fixo — gerarCompetenciasPendentes recusa gerar linha pra
   // esse tipo) — sem essa checagem dedicada, um contrato Airbnb ficava sem nenhum controle
@@ -168,6 +199,62 @@ export function ContratosInadimplenciaView() {
     await persistir();
     setBaixandoCompetenciaId(null);
     avisar("good", resultado.mensagem);
+  }
+
+  function abrirProvisionarJuros(competenciaId: number) {
+    setProvisionandoCompetenciaId(competenciaId);
+    setPercentualPerdaInput(String(PERCENTUAL_PERDA_ESPERADA_PADRAO * 100));
+  }
+
+  async function confirmarProvisionarJuros() {
+    if (!db || provisionandoCompetenciaId === null || !entidade) return;
+    const percentual = Number(percentualPerdaInput);
+    if (!Number.isFinite(percentual) || percentual < 0 || percentual > 100) {
+      avisar("critical", "Informe um percentual de perda esperada entre 0 e 100.");
+      return;
+    }
+    try {
+      const resultado = provisarJurosMora(db, provisionandoCompetenciaId, entidade.id, {
+        percentualPerdaEsperada: percentual / 100,
+      });
+      if (!resultado.sucesso) {
+        avisar("critical", resultado.mensagem);
+        return;
+      }
+      await persistir();
+      setProvisionandoCompetenciaId(null);
+      avisar(resultado.jaProvisionado ? "warning" : "good", resultado.mensagem);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : String(erro));
+    }
+  }
+
+  function abrirReverterProvisao(competenciaId: number) {
+    setRevertendoCompetenciaId(competenciaId);
+    setMotivoReversao("");
+  }
+
+  async function confirmarReverterProvisao() {
+    if (!db || revertendoCompetenciaId === null) return;
+    if (!motivoReversao.trim()) {
+      avisar("critical", "Informe o motivo da reversão da provisão.");
+      return;
+    }
+    if (!confirm("Reverter a provisão de juros/multa de mora lançada para esta competência? Os lançamentos originais ficam no histórico, estornados.")) {
+      return;
+    }
+    try {
+      const resultado = reverterProvisaoJurosMora(db, revertendoCompetenciaId, motivoReversao.trim());
+      if (!resultado.sucesso) {
+        avisar("critical", resultado.mensagem);
+        return;
+      }
+      await persistir();
+      setRevertendoCompetenciaId(null);
+      avisar("good", resultado.mensagem);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : String(erro));
+    }
   }
 
   return (
@@ -294,10 +381,18 @@ export function ContratosInadimplenciaView() {
                                 <th>Vencimento</th>
                                 <th className="num">Valor</th>
                                 <th></th>
+                                <th>Provisão de mora</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {pendentes.map((comp) => (
+                              {pendentes.map((comp) => {
+                                // Provisionar juros/multa de mora só faz sentido a partir de
+                                // em_cobranca/litigioso — a mesma escalada de severidade que já
+                                // colore a linha do contrato (COR_SEVERIDADE) acima; com_atraso
+                                // (≤30 dias) fica só na cobrança amigável, sem provisão contábil.
+                                const podeProvisionar = s.status === "em_cobranca" || s.status === "litigioso";
+                                const jaProvisionado = competenciasProvisionadas.has(comp.id);
+                                return (
                                 <Fragment key={comp.id}>
                                   <tr>
                                     <td>{String(comp.mes).padStart(2, "0")}/{comp.ano}</td>
@@ -313,10 +408,87 @@ export function ContratosInadimplenciaView() {
                                         Baixar
                                       </button>
                                     </td>
+                                    <td>
+                                      {!podeProvisionar ? (
+                                        <span style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>—</span>
+                                      ) : jaProvisionado ? (
+                                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                          <span className="pill good" style={{ fontSize: 11 }}>Provisionado</span>
+                                          <button
+                                            className="btn"
+                                            style={{ padding: "4px 8px", fontSize: 12 }}
+                                            onClick={() => abrirReverterProvisao(comp.id)}
+                                          >
+                                            Reverter provisão
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          className="btn"
+                                          style={{ padding: "4px 8px", fontSize: 12 }}
+                                          disabled={!entidade}
+                                          onClick={() => abrirProvisionarJuros(comp.id)}
+                                        >
+                                          Provisionar juros de mora
+                                        </button>
+                                      )}
+                                    </td>
                                   </tr>
+                                  {provisionandoCompetenciaId === comp.id && (
+                                    <tr>
+                                      <td colSpan={5}>
+                                        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", padding: "8px 4px", flexWrap: "wrap" }}>
+                                          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                                            % de perda esperada
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              max={100}
+                                              step={1}
+                                              className="btn"
+                                              style={{ width: 90, marginTop: 4 }}
+                                              value={percentualPerdaInput}
+                                              onChange={(e) => setPercentualPerdaInput(e.target.value)}
+                                            />
+                                          </label>
+                                          <button className="btn primary" onClick={confirmarProvisionarJuros}>
+                                            <Check size={13} /> Confirmar provisão
+                                          </button>
+                                          <button className="btn" onClick={() => setProvisionandoCompetenciaId(null)}>
+                                            <X size={13} /> Cancelar
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {revertendoCompetenciaId === comp.id && (
+                                    <tr>
+                                      <td colSpan={5}>
+                                        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", padding: "8px 4px", flexWrap: "wrap" }}>
+                                          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                                            Motivo da reversão
+                                            <input
+                                              type="text"
+                                              className="btn"
+                                              style={{ width: 280, marginTop: 4 }}
+                                              value={motivoReversao}
+                                              onChange={(e) => setMotivoReversao(e.target.value)}
+                                              placeholder="ex.: juros pagos integralmente pelo locatário"
+                                            />
+                                          </label>
+                                          <button className="btn primary" onClick={confirmarReverterProvisao}>
+                                            <Check size={13} /> Confirmar reversão
+                                          </button>
+                                          <button className="btn" onClick={() => setRevertendoCompetenciaId(null)}>
+                                            <X size={13} /> Cancelar
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
                                   {baixandoCompetenciaId === comp.id && (
                                     <tr>
-                                      <td colSpan={4}>
+                                      <td colSpan={5}>
                                         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", padding: "8px 4px", flexWrap: "wrap" }}>
                                           <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
                                             Conta bancária
@@ -358,10 +530,11 @@ export function ContratosInadimplenciaView() {
                                     </tr>
                                   )}
                                 </Fragment>
-                              ))}
+                                );
+                              })}
                               {pendentes.length === 0 && (
                                 <tr>
-                                  <td colSpan={4} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 12 }}>
+                                  <td colSpan={5} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 12 }}>
                                     Nenhuma competência pendente encontrada para este contrato.
                                   </td>
                                 </tr>
