@@ -51,23 +51,21 @@ describe("ordensServico", () => {
 
   describe("ciclo de vida completo", () => {
     it("cria, atribui, inicia e conclui uma ordem de serviço", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Vazamento no banheiro" });
-      expect(criada.sucesso).toBe(true);
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Vazamento no banheiro" });
+      expect(osId).toBeGreaterThan(0);
 
       const ordemInicial = obterOrdemServicoComHistorico(db, osId)!;
       expect(ordemInicial.ordem.status).toBe("aberta");
       expect(ordemInicial.ordem.prestador_id).toBeNull();
       expect(ordemInicial.eventos).toHaveLength(0);
 
-      const atribuicao = atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
-      expect(atribuicao.sucesso).toBe(true);
+      atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
-      const inicio = registrarEventoOS(db, osId, "iniciada", "João Reparos Ltda");
-      expect(inicio.sucesso).toBe(true);
+      const statusAposIniciar = registrarEventoOS(db, osId, "iniciada", "João Reparos Ltda");
+      expect(statusAposIniciar).toBe("em_andamento");
 
-      const conclusao = registrarEventoOS(db, osId, "concluida", "João Reparos Ltda", "Vazamento consertado.");
-      expect(conclusao.sucesso).toBe(true);
+      const statusAposConcluir = registrarEventoOS(db, osId, "concluida", "João Reparos Ltda", "Vazamento consertado.");
+      expect(statusAposConcluir).toBe("concluida");
 
       const historico = obterOrdemServicoComHistorico(db, osId)!;
       expect(historico.ordem.status).toBe("concluida");
@@ -79,13 +77,10 @@ describe("ordensServico", () => {
 
   describe("transições inválidas", () => {
     it("recusa concluir uma ordem que ainda não foi iniciada", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Pintura" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Pintura" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
-      const resultado = registrarEventoOS(db, osId, "concluida", "João Reparos Ltda");
-      expect(resultado.sucesso).toBe(false);
-      expect(resultado.mensagem).toMatch(/transição inválida/i);
+      expect(() => registrarEventoOS(db, osId, "concluida", "João Reparos Ltda")).toThrow(/transição inválida/i);
 
       // Nada foi gravado: nem status, nem evento.
       const historico = obterOrdemServicoComHistorico(db, osId)!;
@@ -94,54 +89,44 @@ describe("ordensServico", () => {
     });
 
     it("recusa o evento 'atribuida' via registrarEventoOS (rota exclusiva de atribuirPrestador)", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Troca de fechadura" });
-      const resultado = registrarEventoOS(db, criada.id!, "atribuida", "Síndico");
-      expect(resultado.sucesso).toBe(false);
-      expect(resultado.mensagem).toMatch(/atribuirPrestador/);
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Troca de fechadura" });
+      expect(() => registrarEventoOS(db, osId, "atribuida", "Síndico")).toThrow(/atribuirPrestador/);
     });
 
     it("permite reabrir uma ordem impedida e depois concluí-la", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Reforma elétrica" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Reforma elétrica" });
       atribuirPrestador(db, osId, PRESTADOR_2, "Síndico");
       registrarEventoOS(db, osId, "iniciada", "Maria Elétrica ME");
       registrarEventoOS(db, osId, "impedida", "Maria Elétrica ME", "Falta de material.");
 
       expect(obterOrdemServicoComHistorico(db, osId)!.ordem.status).toBe("impedida");
 
-      const reabertura = registrarEventoOS(db, osId, "reaberta", "Síndico", "Material chegou.");
-      expect(reabertura.sucesso).toBe(true);
+      const statusAposReabrir = registrarEventoOS(db, osId, "reaberta", "Síndico", "Material chegou.");
+      expect(statusAposReabrir).toBe("em_andamento");
       expect(obterOrdemServicoComHistorico(db, osId)!.ordem.status).toBe("em_andamento");
 
-      const conclusao = registrarEventoOS(db, osId, "concluida", "Maria Elétrica ME");
-      expect(conclusao.sucesso).toBe(true);
+      expect(() => registrarEventoOS(db, osId, "concluida", "Maria Elétrica ME")).not.toThrow();
     });
   });
 
   describe("avaliação de prestador", () => {
     it("bloqueia avaliação se a ordem não estiver concluída", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Jardinagem" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Jardinagem" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
-      const avaliacao = avaliarPrestador(db, osId, PRESTADOR_1, 5, "Ótimo serviço");
-      expect(avaliacao.sucesso).toBe(false);
-      expect(avaliacao.mensagem).toMatch(/concluida/);
+      expect(() => avaliarPrestador(db, osId, PRESTADOR_1, 5, "Ótimo serviço")).toThrow(/concluida/);
     });
 
     it("permite avaliar após conclusão e impede duplicar", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Dedetização" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Dedetização" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
       registrarEventoOS(db, osId, "iniciada", "João Reparos Ltda");
       registrarEventoOS(db, osId, "concluida", "João Reparos Ltda");
 
-      const primeira = avaliarPrestador(db, osId, PRESTADOR_1, 4, "Bom, mas atrasou.");
-      expect(primeira.sucesso).toBe(true);
+      const avaliacaoId = avaliarPrestador(db, osId, PRESTADOR_1, 4, "Bom, mas atrasou.");
+      expect(avaliacaoId).toBeGreaterThan(0);
 
-      const duplicada = avaliarPrestador(db, osId, PRESTADOR_1, 5);
-      expect(duplicada.sucesso).toBe(false);
-      expect(duplicada.mensagem).toMatch(/já foi avaliada/i);
+      expect(() => avaliarPrestador(db, osId, PRESTADOR_1, 5)).toThrow(/já foi avaliada/i);
 
       const historico = obterOrdemServicoComHistorico(db, osId)!;
       expect(historico.avaliacao?.nota).toBe(4);
@@ -150,18 +135,15 @@ describe("ordensServico", () => {
 
   describe("despesas da OS — aprovação por alçada", () => {
     it("aprova despesa abaixo do limite com um único aprovador e gera contas_a_pagar", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Troca de torneira" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Troca de torneira" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
       const valorBaixo = LIMITE_APROVACAO_DUPLA - 100;
-      const solicitacao = solicitarDespesaOS(db, osId, valorBaixo, "Síndico");
-      expect(solicitacao.sucesso).toBe(true);
-      const despesaId = solicitacao.id!;
+      const despesaId = solicitarDespesaOS(db, osId, valorBaixo, "Síndico");
 
       const aprovacao = aprovarDespesaOS(db, despesaId, "Síndico");
-      expect(aprovacao.sucesso).toBe(true);
-      expect(aprovacao.mensagem).toMatch(/conta a pagar/i);
+      expect(aprovacao.status).toBe("aprovada");
+      expect(aprovacao.contasAPagarId).not.toBeNull();
 
       const [despesa] = consultar<{ status: string; contas_a_pagar_id: number | null; valor_aprovado: number }>(
         db,
@@ -184,18 +166,17 @@ describe("ordensServico", () => {
     });
 
     it("exige quórum duplo acima do limite: dois aprovadores diferentes geram contas_a_pagar", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Reforma do telhado" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Reforma do telhado" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
       const valorAlto = LIMITE_APROVACAO_DUPLA + 500;
-      const solicitacao = solicitarDespesaOS(db, osId, valorAlto, "Síndico");
-      const despesaId = solicitacao.id!;
+      const despesaId = solicitarDespesaOS(db, osId, valorAlto, "Síndico");
 
       // Solicitante já ocupa aprovador_1 (ver decisão de design); primeira aprovação real
       // precisa vir de alguém diferente.
       const primeiraAprovacao = aprovarDespesaOS(db, despesaId, "Contador");
-      expect(primeiraAprovacao.sucesso).toBe(true);
+      expect(primeiraAprovacao.status).toBe("aprovada");
+      expect(primeiraAprovacao.contasAPagarId).not.toBeNull();
 
       const [aindaPendente] = consultar<{ status: string; contas_a_pagar_id: number | null }>(
         db,
@@ -207,18 +188,14 @@ describe("ordensServico", () => {
     });
 
     it("recusa quórum duplo quando o segundo aprovador é o mesmo do primeiro (autoaprovação)", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Reforma da fachada" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Reforma da fachada" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
       const valorAlto = LIMITE_APROVACAO_DUPLA + 500;
-      const solicitacao = solicitarDespesaOS(db, osId, valorAlto, "Contador");
-      const despesaId = solicitacao.id!;
+      const despesaId = solicitarDespesaOS(db, osId, valorAlto, "Contador");
 
       // aprovador_1 já é "Contador" (do solicitante); a mesma pessoa tenta aprovar de novo.
-      const tentativa = aprovarDespesaOS(db, despesaId, "Contador");
-      expect(tentativa.sucesso).toBe(false);
-      expect(tentativa.mensagem).toMatch(/autoaprovação/i);
+      expect(() => aprovarDespesaOS(db, despesaId, "Contador")).toThrow(/autoaprovação/i);
 
       const [despesa] = consultar<{ status: string }>(db, "SELECT status FROM ordens_servico_despesas WHERE id = ?", [
         despesaId,
@@ -227,19 +204,16 @@ describe("ordensServico", () => {
     });
 
     it("é idempotente: não duplica contas_a_pagar ao tentar aprovar uma despesa já aprovada", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Troca de bomba d'água" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Troca de bomba d'água" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
       const valorBaixo = LIMITE_APROVACAO_DUPLA - 200;
-      const solicitacao = solicitarDespesaOS(db, osId, valorBaixo, "Síndico");
-      const despesaId = solicitacao.id!;
+      const despesaId = solicitarDespesaOS(db, osId, valorBaixo, "Síndico");
 
       aprovarDespesaOS(db, despesaId, "Síndico");
       // Segunda chamada sobre despesa já aprovada é recusada explicitamente (não pode
       // aprovar de novo), então não há novo INSERT em contas_a_pagar de qualquer forma.
-      const segunda = aprovarDespesaOS(db, despesaId, "Síndico");
-      expect(segunda.sucesso).toBe(false);
+      expect(() => aprovarDespesaOS(db, despesaId, "Síndico")).toThrow(/já está 'aprovada'/i);
 
       const totalContas = consultar<{ total: number }>(
         db,
@@ -249,15 +223,12 @@ describe("ordensServico", () => {
     });
 
     it("rejeita despesa pendente sem gerar contas_a_pagar", () => {
-      const criada = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Pintura externa" });
-      const osId = criada.id!;
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Pintura externa" });
       atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
 
-      const solicitacao = solicitarDespesaOS(db, osId, 300, "Síndico");
-      const despesaId = solicitacao.id!;
+      const despesaId = solicitarDespesaOS(db, osId, 300, "Síndico");
 
-      const rejeicao = rejeitarDespesaOS(db, despesaId, "Fora do escopo do contrato.");
-      expect(rejeicao.sucesso).toBe(true);
+      expect(() => rejeitarDespesaOS(db, despesaId, "Fora do escopo do contrato.")).not.toThrow();
 
       const [despesa] = consultar<{ status: string; contas_a_pagar_id: number | null }>(
         db,
@@ -274,8 +245,8 @@ describe("ordensServico", () => {
 
   describe("listagem", () => {
     it("filtra ordens de serviço por imóvel, status e prestador", () => {
-      const os1 = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "OS 1" }).id!;
-      const os2 = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "OS 2" }).id!;
+      const os1 = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "OS 1" });
+      const os2 = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "OS 2" });
       atribuirPrestador(db, os2, PRESTADOR_1, "Síndico");
 
       const todas = listarOrdensServico(db, { imovelId: IMOVEL_1 });

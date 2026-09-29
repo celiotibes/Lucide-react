@@ -218,22 +218,18 @@ export function OperacoesView() {
       return;
     }
     try {
-      const resultado = criarOrdemServico(db, {
+      const novaOrdemId = criarOrdemServico(db, {
         imovelId,
         titulo: rascunhoOS.titulo,
         descricao: rascunhoOS.descricao.trim() || undefined,
         prioridade: rascunhoOS.prioridade,
         slaDataLimite: rascunhoOS.slaDataLimite || undefined,
       });
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
       await persistir();
       setRascunhoOS(RASCUNHO_OS_VAZIO);
       setMostrarFormNovaOS(false);
-      avisar("good", resultado.mensagem);
-      if (resultado.id !== undefined) setOrdemSelecionadaId(resultado.id);
+      avisar("good", "Ordem de serviço criada.");
+      setOrdemSelecionadaId(novaOrdemId);
     } catch (erro) {
       avisar("critical", erro instanceof Error ? erro.message : "Erro ao criar ordem de serviço.");
     }
@@ -262,14 +258,10 @@ export function OperacoesView() {
       return;
     }
     try {
-      const resultado = atribuirPrestador(db, ordemSelecionadaId, prestadorId, ator);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      atribuirPrestador(db, ordemSelecionadaId, prestadorId, ator);
       await persistir();
       setPrestadorParaAtribuir("");
-      avisar("good", resultado.mensagem);
+      avisar("good", "Prestador atribuído.");
     } catch (erro) {
       avisar("critical", erro instanceof Error ? erro.message : "Erro ao atribuir prestador.");
     }
@@ -282,14 +274,10 @@ export function OperacoesView() {
       return;
     }
     try {
-      const resultado = registrarEventoOS(db, ordemSelecionadaId, tipoEvento, ator, detalhesEvento.trim() || undefined);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      const novoStatus = registrarEventoOS(db, ordemSelecionadaId, tipoEvento, ator, detalhesEvento.trim() || undefined);
       await persistir();
       setDetalhesEvento("");
-      avisar("good", resultado.mensagem);
+      avisar("good", `Evento '${ROTULO_EVENTO[tipoEvento]}' registrado — ordem agora '${ROTULO_STATUS_OS[novoStatus]}'.`);
     } catch (erro) {
       avisar("critical", erro instanceof Error ? erro.message : "Erro ao registrar evento.");
     }
@@ -303,15 +291,11 @@ export function OperacoesView() {
       return;
     }
     try {
-      const resultado = solicitarDespesaOS(db, ordemSelecionadaId, valor, rascunhoDespesa.solicitante);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      solicitarDespesaOS(db, ordemSelecionadaId, valor, rascunhoDespesa.solicitante);
       await persistir();
       setRascunhoDespesa(RASCUNHO_DESPESA_VAZIO);
       setMostrarFormDespesa(false);
-      avisar("good", resultado.mensagem);
+      avisar("good", "Despesa solicitada.");
     } catch (erro) {
       avisar("critical", erro instanceof Error ? erro.message : "Erro ao solicitar despesa.");
     }
@@ -328,14 +312,17 @@ export function OperacoesView() {
     const valorAprovado = valorTexto.trim() === "" ? undefined : Number.parseFloat(valorTexto.replace(",", "."));
     try {
       const resultado = aprovarDespesaOS(db, despesaId, aprovador, valorAprovado);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
       await persistir();
       setAprovadorPorDespesa((atual) => ({ ...atual, [despesaId]: "" }));
       setValorAprovadoPorDespesa((atual) => ({ ...atual, [despesaId]: "" }));
-      avisar("good", resultado.mensagem);
+      avisar(
+        "good",
+        resultado.status === "pendente"
+          ? "Primeira aprovação registrada — aguardando um segundo aprovador diferente (quórum duplo)."
+          : resultado.contasAPagarId
+            ? `Despesa aprovada — conta a pagar #${resultado.contasAPagarId} gerada.`
+            : "Despesa aprovada, mas não foi possível gerar a conta a pagar (verifique se há entidade legal cadastrada).",
+      );
     } catch (erro) {
       avisar("critical", erro instanceof Error ? erro.message : "Erro ao aprovar despesa.");
     }
@@ -349,14 +336,10 @@ export function OperacoesView() {
       return;
     }
     try {
-      const resultado = rejeitarDespesaOS(db, despesaId, motivo);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      rejeitarDespesaOS(db, despesaId, motivo);
       await persistir();
       setMotivoRejeicaoPorDespesa((atual) => ({ ...atual, [despesaId]: "" }));
-      avisar("good", resultado.mensagem);
+      avisar("good", "Despesa rejeitada.");
     } catch (erro) {
       avisar("critical", erro instanceof Error ? erro.message : "Erro ao rejeitar despesa.");
     }
@@ -370,14 +353,10 @@ export function OperacoesView() {
       return;
     }
     try {
-      const resultado = avaliarPrestador(db, ordemSelecionadaId, prestadorId, notaAvaliacao, comentarioAvaliacao.trim() || undefined);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      avaliarPrestador(db, ordemSelecionadaId, prestadorId, notaAvaliacao, comentarioAvaliacao.trim() || undefined);
       await persistir();
       setComentarioAvaliacao("");
-      avisar("good", resultado.mensagem);
+      avisar("good", "Avaliação registrada.");
     } catch (erro) {
       avisar("critical", erro instanceof Error ? erro.message : "Erro ao registrar avaliação.");
     }

@@ -64,6 +64,13 @@
  *    ("Prestador de serviço não identificado (OS #<id>)"). A geração reusa
  *    `registrarContaAPagar` (contasAPagar.ts) em vez de fazer INSERT direto, para herdar
  *    as mesmas validações e não duplicar lógica.
+ *
+ * 8) Toda operação inválida é rejeitada via `throw new Error(mensagem)` — nunca por um
+ *    retorno `{ sucesso: false, ... }` a ser checado pelo chamador. Segue o mesmo padrão de
+ *    `radAvaliacao.ts` (módulo irmão criado na mesma rodada): quem chama uma função deste
+ *    domínio pode assumir que, se ela retornou normalmente, a operação foi bem-sucedida — o
+ *    caminho de sucesso devolve diretamente o valor útil (o id criado, o status resultante,
+ *    ou nada, quando o chamador já sabe tudo que precisa saber).
  */
 
 import type { Database } from "sql.js";
@@ -128,12 +135,6 @@ export interface AvaliacaoPrestador {
   criado_em: string;
 }
 
-export interface ResultadoOperacaoOS {
-  sucesso: boolean;
-  mensagem: string;
-  id?: number;
-}
-
 /** Valor de exemplo (R$ 1.000,00) acima do qual uma despesa de OS exige DOIS aprovadores
  * distintos — configurável (ver decisão de design nº 5 no cabeçalho do arquivo). */
 export const LIMITE_APROVACAO_DUPLA = 1000;
@@ -186,17 +187,18 @@ export interface NovaOrdemServico {
 
 /** Cria uma ordem de serviço — nasce sempre 'aberta', sem prestador atribuído e sem
  * evento inicial (ver decisão de design nº 1 no cabeçalho do arquivo). Atribuir prestador
- * é sempre um passo separado, via `atribuirPrestador`. */
-export function criarOrdemServico(db: Database, dados: NovaOrdemServico): ResultadoOperacaoOS {
+ * é sempre um passo separado, via `atribuirPrestador`. Retorna o id da ordem criada; lança
+ * se os dados forem inválidos. */
+export function criarOrdemServico(db: Database, dados: NovaOrdemServico): number {
   if (!imovelExiste(db, dados.imovelId)) {
-    return { sucesso: false, mensagem: `Imóvel ${dados.imovelId} não encontrado.` };
+    throw new Error(`Imóvel ${dados.imovelId} não encontrado.`);
   }
   if (!dados.titulo || !dados.titulo.trim()) {
-    return { sucesso: false, mensagem: "Informe o título da ordem de serviço." };
+    throw new Error("Informe o título da ordem de serviço.");
   }
   if (dados.origemVistoriaId !== undefined) {
     const [vistoria] = consultar<{ id: number }>(db, "SELECT id FROM vistorias WHERE id = ?", [dados.origemVistoriaId]);
-    if (!vistoria) return { sucesso: false, mensagem: `Vistoria ${dados.origemVistoriaId} não encontrada.` };
+    if (!vistoria) throw new Error(`Vistoria ${dados.origemVistoriaId} não encontrada.`);
   }
 
   executar(
@@ -214,7 +216,7 @@ export function criarOrdemServico(db: Database, dados: NovaOrdemServico): Result
     ],
   );
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Ordem de serviço criada.", id };
+  return id;
 }
 
 // ============================================================================
@@ -227,20 +229,19 @@ const STATUS_TERMINAIS: StatusOS[] = ["concluida", "cancelada"];
  * 'atribuida'`, com o evento correspondente gravado atomicamente (ver decisão de design
  * nº 2). Recusa ordens já encerradas ('concluida'/'cancelada'): reatribuir uma ordem
  * encerrada não faz sentido — reabra primeiro (`registrarEventoOS` com `'reaberta'`). */
-export function atribuirPrestador(db: Database, ordemServicoId: number, prestadorId: number, ator: string): ResultadoOperacaoOS {
+export function atribuirPrestador(db: Database, ordemServicoId: number, prestadorId: number, ator: string): void {
   const ordem = obterOrdemBruta(db, ordemServicoId);
-  if (!ordem) return { sucesso: false, mensagem: `Ordem de serviço ${ordemServicoId} não encontrada.` };
+  if (!ordem) throw new Error(`Ordem de serviço ${ordemServicoId} não encontrada.`);
   if (STATUS_TERMINAIS.includes(ordem.status)) {
-    return {
-      sucesso: false,
-      mensagem: `Ordem de serviço já está '${ordem.status}' — não pode receber atribuição de prestador. Reabra a ordem primeiro, se for o caso.`,
-    };
+    throw new Error(
+      `Ordem de serviço já está '${ordem.status}' — não pode receber atribuição de prestador. Reabra a ordem primeiro, se for o caso.`,
+    );
   }
   if (!prestadorExiste(db, prestadorId)) {
-    return { sucesso: false, mensagem: `Prestador ${prestadorId} não encontrado.` };
+    throw new Error(`Prestador ${prestadorId} não encontrado.`);
   }
   if (!ator || !ator.trim()) {
-    return { sucesso: false, mensagem: "Informe o ator responsável pela atribuição." };
+    throw new Error("Informe o ator responsável pela atribuição.");
   }
 
   executar(db, "UPDATE ordens_servico SET prestador_id = ?, status = 'atribuida' WHERE id = ?", [
@@ -248,7 +249,6 @@ export function atribuirPrestador(db: Database, ordemServicoId: number, prestado
     ordemServicoId,
   ]);
   inserirEvento(db, ordemServicoId, "atribuida", ator.trim(), `Prestador #${prestadorId} atribuído.`);
-  return { sucesso: true, mensagem: "Prestador atribuído.", id: ordemServicoId };
 }
 
 // ============================================================================
@@ -292,27 +292,28 @@ function calcularTransicao(
 /** Registra um evento de trilha e atualiza `ordens_servico.status` conforme a máquina de
  * estados (ver decisão de design nº 3). Rejeita `tipo_evento = 'atribuida'` (use
  * `atribuirPrestador`) e qualquer transição fora da tabela permitida — nesses casos nada é
- * gravado (nem o evento, nem o status), a chamada é toda-ou-nada. */
+ * gravado (nem o evento, nem o status), a chamada é toda-ou-nada. Retorna o novo status da
+ * ordem (única informação que o chamador não tinha de antemão — é calculada pela máquina
+ * de estados, não escolhida por ele). */
 export function registrarEventoOS(
   db: Database,
   ordemServicoId: number,
   tipoEvento: TipoEventoOS,
   ator: string,
   detalhes?: string,
-): ResultadoOperacaoOS {
+): StatusOS {
   if (tipoEvento === "atribuida") {
-    return { sucesso: false, mensagem: "Use atribuirPrestador() para o evento 'atribuida' — ele também define o prestador." };
+    throw new Error("Use atribuirPrestador() para o evento 'atribuida' — ele também define o prestador.");
   }
   const ordem = obterOrdemBruta(db, ordemServicoId);
-  if (!ordem) return { sucesso: false, mensagem: `Ordem de serviço ${ordemServicoId} não encontrada.` };
-  if (!ator || !ator.trim()) return { sucesso: false, mensagem: "Informe o ator responsável pelo evento." };
+  if (!ordem) throw new Error(`Ordem de serviço ${ordemServicoId} não encontrada.`);
+  if (!ator || !ator.trim()) throw new Error("Informe o ator responsável pelo evento.");
 
   const transicao = calcularTransicao(tipoEvento, ordem.status, ordem.prestador_id !== null);
   if (!transicao) {
-    return {
-      sucesso: false,
-      mensagem: `Transição inválida: não é possível registrar o evento '${tipoEvento}' com a ordem no status '${ordem.status}'.`,
-    };
+    throw new Error(
+      `Transição inválida: não é possível registrar o evento '${tipoEvento}' com a ordem no status '${ordem.status}'.`,
+    );
   }
 
   if (transicao.novoStatus !== ordem.status || transicao.encerra || transicao.reabre) {
@@ -323,7 +324,7 @@ export function registrarEventoOS(
     );
   }
   inserirEvento(db, ordemServicoId, tipoEvento, ator.trim(), detalhes);
-  return { sucesso: true, mensagem: `Evento '${tipoEvento}' registrado — ordem agora '${transicao.novoStatus}'.`, id: ordemServicoId };
+  return transicao.novoStatus;
 }
 
 // ============================================================================
@@ -331,20 +332,20 @@ export function registrarEventoOS(
 // ============================================================================
 
 /** Solicita uma despesa para a ordem — nasce 'pendente' com `aprovador_1` já preenchido
- * pelo solicitante (ver decisão de design nº 4). */
+ * pelo solicitante (ver decisão de design nº 4). Retorna o id da despesa criada. */
 export function solicitarDespesaOS(
   db: Database,
   ordemServicoId: number,
   valorSolicitado: number,
   aprovador1: string,
-): ResultadoOperacaoOS {
+): number {
   const ordem = obterOrdemBruta(db, ordemServicoId);
-  if (!ordem) return { sucesso: false, mensagem: `Ordem de serviço ${ordemServicoId} não encontrada.` };
+  if (!ordem) throw new Error(`Ordem de serviço ${ordemServicoId} não encontrada.`);
   if (!(valorSolicitado > 0)) {
-    return { sucesso: false, mensagem: "Informe um valor solicitado positivo." };
+    throw new Error("Informe um valor solicitado positivo.");
   }
   if (!aprovador1 || !aprovador1.trim()) {
-    return { sucesso: false, mensagem: "Informe o solicitante/primeiro aprovador." };
+    throw new Error("Informe o solicitante/primeiro aprovador.");
   }
 
   executar(
@@ -354,7 +355,7 @@ export function solicitarDespesaOS(
     [ordemServicoId, valorSolicitado, aprovador1.trim(), agora()],
   );
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Despesa solicitada.", id };
+  return id;
 }
 
 /** Gera a `contas_a_pagar` correspondente a uma despesa de OS aprovada — idempotente: só
@@ -383,6 +384,16 @@ function gerarContaAPagarDaDespesa(db: Database, despesa: DespesaOS, ordem: Orde
   return resultado.sucesso ? resultado.id ?? null : null;
 }
 
+/** Resultado útil de uma chamada de `aprovarDespesaOS` — o status resultante da despesa
+ * (`'pendente'` quando ainda aguarda um segundo aprovador no quórum duplo, `'aprovada'`
+ * quando já foi finalizada) e o id da `contas_a_pagar` gerada, quando a despesa foi
+ * finalizada (`null` enquanto pendente, ou se não houver entidade legal cadastrada para
+ * gerar o título — ver `gerarContaAPagarDaDespesa`). */
+export interface ResultadoAprovacaoDespesaOS {
+  status: StatusDespesaOS;
+  contasAPagarId: number | null;
+}
+
 /** Aprova uma despesa de OS — regra de quórum (ver decisão de design nº 4-5 e comentário
  * de `ordens_servico_despesas` em schema.sql):
  *   - valor < LIMITE_APROVACAO_DUPLA: um único aprovador libera (preenche `aprovador_1` se
@@ -392,21 +403,21 @@ function gerarContaAPagarDaDespesa(db: Database, despesa: DespesaOS, ordem: Orde
  *     `aprovador` diferente de `aprovador_1`, preenche `aprovador_2`, aprova e gera
  *     `contas_a_pagar`. A mesma pessoa tentando ocupar os dois papéis é recusada
  *     (autoaprovação). */
-export function aprovarDespesaOS(db: Database, despesaId: number, aprovador: string, valorAprovado?: number): ResultadoOperacaoOS {
+export function aprovarDespesaOS(db: Database, despesaId: number, aprovador: string, valorAprovado?: number): ResultadoAprovacaoDespesaOS {
   const despesa = obterDespesaBruta(db, despesaId);
-  if (!despesa) return { sucesso: false, mensagem: `Despesa ${despesaId} não encontrada.` };
+  if (!despesa) throw new Error(`Despesa ${despesaId} não encontrada.`);
   if (despesa.status !== "pendente") {
-    return { sucesso: false, mensagem: `Despesa já está '${despesa.status}' — não pode ser aprovada novamente.` };
+    throw new Error(`Despesa já está '${despesa.status}' — não pode ser aprovada novamente.`);
   }
   if (!aprovador || !aprovador.trim()) {
-    return { sucesso: false, mensagem: "Informe o aprovador." };
+    throw new Error("Informe o aprovador.");
   }
   const ator = aprovador.trim();
   const valor = valorAprovado ?? despesa.valor_solicitado;
-  if (!(valor > 0)) return { sucesso: false, mensagem: "Valor aprovado deve ser positivo." };
+  if (!(valor > 0)) throw new Error("Valor aprovado deve ser positivo.");
 
   const ordem = obterOrdemBruta(db, despesa.ordem_servico_id);
-  if (!ordem) return { sucesso: false, mensagem: `Ordem de serviço ${despesa.ordem_servico_id} não encontrada.` };
+  if (!ordem) throw new Error(`Ordem de serviço ${despesa.ordem_servico_id} não encontrada.`);
 
   const exigeQuorumDuplo = valor >= LIMITE_APROVACAO_DUPLA;
 
@@ -414,27 +425,26 @@ export function aprovarDespesaOS(db: Database, despesaId: number, aprovador: str
     // Abaixo do limite: uma única aprovação libera, preenchendo aprovador_1 quando ainda
     // vazio ou apenas confirmando quando já preenchido (ver decisão de design nº 4).
     const aprovador1Final = despesa.aprovador_1 ?? ator;
-    return finalizarAprovacao(db, despesa, ordem, aprovador1Final, despesa.aprovador_2, valor);
+    const contasAPagarId = finalizarAprovacao(db, despesa, ordem, aprovador1Final, despesa.aprovador_2, valor);
+    return { status: "aprovada", contasAPagarId };
   }
 
   // Quórum duplo (>= LIMITE_APROVACAO_DUPLA).
   if (despesa.aprovador_1 === null) {
     executar(db, "UPDATE ordens_servico_despesas SET aprovador_1 = ? WHERE id = ?", [ator, despesaId]);
-    return {
-      sucesso: true,
-      mensagem: "Primeira aprovação registrada — aguardando um segundo aprovador diferente (quórum duplo).",
-      id: despesaId,
-    };
+    return { status: "pendente", contasAPagarId: null };
   }
   if (despesa.aprovador_1 === ator) {
-    return {
-      sucesso: false,
-      mensagem: "Autoaprovação não permitida: acima do limite de alçada, o segundo aprovador precisa ser diferente do primeiro.",
-    };
+    throw new Error("Autoaprovação não permitida: acima do limite de alçada, o segundo aprovador precisa ser diferente do primeiro.");
   }
-  return finalizarAprovacao(db, despesa, ordem, despesa.aprovador_1, ator, valor);
+  const contasAPagarId = finalizarAprovacao(db, despesa, ordem, despesa.aprovador_1, ator, valor);
+  return { status: "aprovada", contasAPagarId };
 }
 
+/** Finaliza a aprovação de uma despesa (status -> 'aprovada', gera `contas_a_pagar` se
+ * ainda não houver uma vinculada) e retorna o id da conta a pagar gerada (`null` se já
+ * existia uma vinculada e permaneceu a mesma, ou se não foi possível gerar — ver
+ * `gerarContaAPagarDaDespesa`). */
 function finalizarAprovacao(
   db: Database,
   despesa: DespesaOS,
@@ -442,7 +452,7 @@ function finalizarAprovacao(
   aprovador1: string,
   aprovador2: string | null,
   valorAprovado: number,
-): ResultadoOperacaoOS {
+): number | null {
   let contasAPagarId = despesa.contas_a_pagar_id;
   if (contasAPagarId === null) {
     // Idempotência: só gera contas_a_pagar quando a despesa ainda não tinha uma vinculada
@@ -457,26 +467,20 @@ function finalizarAprovacao(
      WHERE id = ?`,
     [valorAprovado, aprovador1, aprovador2, contasAPagarId, agora(), despesa.id],
   );
-  return {
-    sucesso: true,
-    mensagem: contasAPagarId
-      ? `Despesa aprovada — conta a pagar #${contasAPagarId} gerada.`
-      : "Despesa aprovada, mas não foi possível gerar a conta a pagar (verifique se há entidade legal cadastrada).",
-    id: despesa.id,
-  };
+  return contasAPagarId;
 }
 
 /** Rejeita uma despesa pendente — nunca gera `contas_a_pagar`. O motivo é gravado como
  * evento na trilha da ordem dona da despesa (ver decisão de design nº 6, já que a tabela
  * não tem coluna de texto própria). */
-export function rejeitarDespesaOS(db: Database, despesaId: number, motivo: string): ResultadoOperacaoOS {
+export function rejeitarDespesaOS(db: Database, despesaId: number, motivo: string): void {
   const despesa = obterDespesaBruta(db, despesaId);
-  if (!despesa) return { sucesso: false, mensagem: `Despesa ${despesaId} não encontrada.` };
+  if (!despesa) throw new Error(`Despesa ${despesaId} não encontrada.`);
   if (despesa.status !== "pendente") {
-    return { sucesso: false, mensagem: `Despesa já está '${despesa.status}' — não pode ser rejeitada.` };
+    throw new Error(`Despesa já está '${despesa.status}' — não pode ser rejeitada.`);
   }
   if (!motivo || !motivo.trim()) {
-    return { sucesso: false, mensagem: "Informe o motivo da rejeição." };
+    throw new Error("Informe o motivo da rejeição.");
   }
 
   executar(db, "UPDATE ordens_servico_despesas SET status = 'rejeitada', decidido_em = ? WHERE id = ?", [
@@ -490,7 +494,6 @@ export function rejeitarDespesaOS(db: Database, despesaId: number, motivo: strin
     "sistema-despesa",
     `Despesa #${despesaId} (R$ ${despesa.valor_solicitado.toFixed(2)}) rejeitada: ${motivo.trim()}`,
   );
-  return { sucesso: true, mensagem: "Despesa rejeitada.", id: despesaId };
 }
 
 // ============================================================================
@@ -500,34 +503,33 @@ export function rejeitarDespesaOS(db: Database, despesaId: number, motivo: strin
 /** Avalia o prestador de uma ordem já concluída — recusa se a ordem não estiver
  * 'concluida' e se o prestador informado não for o mesmo atribuído à ordem (não faz
  * sentido avaliar quem não executou o serviço). `UNIQUE(ordem_servico_id)` no schema
- * impede duplicar; aqui a duplicidade é verificada antes, para devolver mensagem clara em
- * vez de deixar o INSERT estourar a constraint. */
+ * impede duplicar; aqui a duplicidade é verificada antes, para lançar uma mensagem clara
+ * em vez de deixar o INSERT estourar a constraint. Retorna o id da avaliação criada. */
 export function avaliarPrestador(
   db: Database,
   ordemServicoId: number,
   prestadorId: number,
   nota: number,
   comentario?: string,
-): ResultadoOperacaoOS {
+): number {
   const ordem = obterOrdemBruta(db, ordemServicoId);
-  if (!ordem) return { sucesso: false, mensagem: `Ordem de serviço ${ordemServicoId} não encontrada.` };
+  if (!ordem) throw new Error(`Ordem de serviço ${ordemServicoId} não encontrada.`);
   if (ordem.status !== "concluida") {
-    return { sucesso: false, mensagem: `Ordem de serviço ainda não está 'concluida' (está '${ordem.status}') — avaliação recusada.` };
+    throw new Error(`Ordem de serviço ainda não está 'concluida' (está '${ordem.status}') — avaliação recusada.`);
   }
   if (ordem.prestador_id !== prestadorId) {
-    return {
-      sucesso: false,
-      mensagem: `Prestador ${prestadorId} não é o prestador atribuído a esta ordem (é o #${ordem.prestador_id ?? "nenhum"}).`,
-    };
+    throw new Error(
+      `Prestador ${prestadorId} não é o prestador atribuído a esta ordem (é o #${ordem.prestador_id ?? "nenhum"}).`,
+    );
   }
   if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
-    return { sucesso: false, mensagem: "Nota deve ser um inteiro entre 1 e 5." };
+    throw new Error("Nota deve ser um inteiro entre 1 e 5.");
   }
   const jaAvaliada = consultar<{ id: number }>(db, "SELECT id FROM avaliacoes_prestador WHERE ordem_servico_id = ?", [
     ordemServicoId,
   ]);
   if (jaAvaliada.length > 0) {
-    return { sucesso: false, mensagem: "Esta ordem de serviço já foi avaliada." };
+    throw new Error("Esta ordem de serviço já foi avaliada.");
   }
 
   executar(
@@ -537,7 +539,7 @@ export function avaliarPrestador(
     [prestadorId, ordemServicoId, nota, comentario?.trim() || null, agora()],
   );
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Avaliação registrada.", id };
+  return id;
 }
 
 // ============================================================================
