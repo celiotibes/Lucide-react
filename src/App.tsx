@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -62,12 +62,13 @@ const CrmLeadsView = lazy(() => import("./components/CrmLeadsView").then((m) => 
 const OperacoesView = lazy(() => import("./components/OperacoesView").then((m) => ({ default: m.OperacoesView })));
 const HubConsolidacaoView = lazy(() => import("./components/HubConsolidacaoView").then((m) => ({ default: m.HubConsolidacaoView })));
 const AvaliacaoMercadoView = lazy(() => import("./components/AvaliacaoMercadoView").then((m) => ({ default: m.AvaliacaoMercadoView })));
+const IndicadoresGestaoView = lazy(() => import("./components/IndicadoresGestaoView").then((m) => ({ default: m.IndicadoresGestaoView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
-  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado";
+  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -87,6 +88,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
   { id: "patrimonio", rotulo: "Patrimônio e alavancagem", icone: Scale },
   { id: "avaliacaomercado", rotulo: "Avaliação de mercado (gerencial)", icone: CircleDollarSign },
+  { id: "indicadoresgestao", rotulo: "Indicadores de gestão financeira", icone: Gauge },
   { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
   { id: "analytics", rotulo: "Analytics integrados", icone: TrendingUp },
   { id: "integridade", rotulo: "Sincronização e integridade", icone: ShieldAlert },
@@ -434,6 +436,7 @@ function Conteudo() {
             {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
             {aba === "patrimonio" && <PatrimonioView />}
             {aba === "avaliacaomercado" && <AvaliacaoMercadoView />}
+            {aba === "indicadoresgestao" && <IndicadoresGestaoView />}
             {aba === "relatorios" && <RelatoriosIntegradosView />}
             {aba === "analytics" && <AnalyticsIntegradosView />}
             {aba === "integridade" && <SincronizacaoIntegridadeView />}
