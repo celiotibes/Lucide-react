@@ -39,51 +39,45 @@ describe("leads (CRM leve)", () => {
 
   describe("criarLead", () => {
     it("cria um lead sempre em etapa 'novo'", () => {
-      const r = criarLead(db, { nome: "Fulano de Tal", imovelId: IMOVEL_1, contato: "11999998888", fonte: "site" });
-      expect(r.sucesso).toBe(true);
-      const lead = obterLeadComHistorico(db, r.id!)!;
+      const id = criarLead(db, { nome: "Fulano de Tal", imovelId: IMOVEL_1, contato: "11999998888", fonte: "site" });
+      const lead = obterLeadComHistorico(db, id)!;
       expect(lead.etapa).toBe("novo");
       expect(lead.eventos).toHaveLength(0);
     });
 
     it("recusa lead sem nome", () => {
-      const r = criarLead(db, { nome: "   " });
-      expect(r.sucesso).toBe(false);
+      expect(() => criarLead(db, { nome: "   " })).toThrow(/informe o nome/i);
     });
 
     it("recusa lead com imóvel inexistente", () => {
-      const r = criarLead(db, { nome: "Fulano", imovelId: 999 });
-      expect(r.sucesso).toBe(false);
+      expect(() => criarLead(db, { nome: "Fulano", imovelId: 999 })).toThrow(/não encontrado/i);
     });
 
     it("aceita lead sem imóvel vinculado (interesse ainda não ligado a imóvel específico)", () => {
-      const r = criarLead(db, { nome: "Fulano" });
-      expect(r.sucesso).toBe(true);
+      expect(() => criarLead(db, { nome: "Fulano" })).not.toThrow();
     });
   });
 
   describe("ciclo completo do funil até convertido", () => {
     it("avança novo -> contatado -> visita_agendada -> proposta -> convertido, com proposta aceita, e NÃO cria contrato automaticamente", () => {
-      const { id: leadId } = criarLead(db, { nome: "Maria Compradora", imovelId: IMOVEL_1 });
+      const leadId = criarLead(db, { nome: "Maria Compradora", imovelId: IMOVEL_1 });
 
-      expect(moverEtapaLead(db, leadId!, "contatado", "Operador A").sucesso).toBe(true);
-      expect(moverEtapaLead(db, leadId!, "visita_agendada", "Operador A").sucesso).toBe(true);
-      expect(moverEtapaLead(db, leadId!, "proposta", "Operador A").sucesso).toBe(true);
+      moverEtapaLead(db, leadId, "contatado", "Operador A");
+      moverEtapaLead(db, leadId, "visita_agendada", "Operador A");
+      moverEtapaLead(db, leadId, "proposta", "Operador A");
 
-      const antesConverter = obterLeadComHistorico(db, leadId!)!;
+      const antesConverter = obterLeadComHistorico(db, leadId)!;
       expect(antesConverter.etapa).toBe("proposta");
       expect(antesConverter.eventos.map((e) => e.etapa_nova)).toEqual(["contatado", "visita_agendada", "proposta"]);
       expect(antesConverter.eventos.every((e) => e.etapa_anterior && e.ator === "Operador A")).toBe(true);
 
-      const proposta = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 280000 });
-      expect(proposta.sucesso).toBe(true);
+      const propostaId = criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 280000 });
 
-      expect(enviarProposta(db, proposta.id!).sucesso).toBe(true);
+      enviarProposta(db, propostaId);
 
-      const decisao = decidirProposta(db, proposta.id!, true, "Operador B");
-      expect(decisao.sucesso).toBe(true);
+      decidirProposta(db, propostaId, true, "Operador B");
 
-      const leadFinal = obterLeadComHistorico(db, leadId!)!;
+      const leadFinal = obterLeadComHistorico(db, leadId)!;
       expect(leadFinal.etapa).toBe("convertido");
       expect(leadFinal.eventos.at(-1)).toMatchObject({
         etapa_anterior: "proposta",
@@ -102,11 +96,9 @@ describe("leads (CRM leve)", () => {
 
   describe("moverEtapaLead — máquina de estados", () => {
     it("recusa pular etapa (novo direto para proposta)", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      const r = moverEtapaLead(db, leadId!, "proposta", "Operador A");
-      expect(r.sucesso).toBe(false);
-      expect(r.mensagem).toMatch(/inválida/i);
-      expect(obterLeadComHistorico(db, leadId!)!.etapa).toBe("novo");
+      const leadId = criarLead(db, { nome: "Fulano" });
+      expect(() => moverEtapaLead(db, leadId, "proposta", "Operador A")).toThrow(/inválida/i);
+      expect(obterLeadComHistorico(db, leadId)!.etapa).toBe("novo");
     });
 
     it("permite ir para 'perdido' a partir de qualquer etapa não-terminal", () => {
@@ -122,146 +114,124 @@ describe("leads (CRM leve)", () => {
         keyof typeof passosAte,
         readonly EtapaLead[],
       ][]) {
-        const { id: leadId } = criarLead(db, { nome: `Lead ${etapaAlvo}` });
+        const leadId = criarLead(db, { nome: `Lead ${etapaAlvo}` });
         for (const passo of passos) {
-          moverEtapaLead(db, leadId!, passo, "Operador A");
+          moverEtapaLead(db, leadId, passo, "Operador A");
         }
-        expect(obterLeadComHistorico(db, leadId!)!.etapa).toBe(etapaAlvo);
+        expect(obterLeadComHistorico(db, leadId)!.etapa).toBe(etapaAlvo);
 
-        const r = moverEtapaLead(db, leadId!, "perdido", "Operador A");
-        expect(r.sucesso).toBe(true);
-        expect(obterLeadComHistorico(db, leadId!)!.etapa).toBe("perdido");
+        expect(() => moverEtapaLead(db, leadId, "perdido", "Operador A")).not.toThrow();
+        expect(obterLeadComHistorico(db, leadId)!.etapa).toBe("perdido");
       }
     });
 
     it("nenhuma transição é aceita a partir de 'convertido' (estado terminal)", () => {
-      const { id: leadId } = criarLead(db, { nome: "Lead Convertido" });
-      moverEtapaLead(db, leadId!, "contatado", "A");
-      moverEtapaLead(db, leadId!, "visita_agendada", "A");
-      moverEtapaLead(db, leadId!, "proposta", "A");
-      moverEtapaLead(db, leadId!, "convertido", "A");
+      const leadId = criarLead(db, { nome: "Lead Convertido" });
+      moverEtapaLead(db, leadId, "contatado", "A");
+      moverEtapaLead(db, leadId, "visita_agendada", "A");
+      moverEtapaLead(db, leadId, "proposta", "A");
+      moverEtapaLead(db, leadId, "convertido", "A");
 
-      const r1 = moverEtapaLead(db, leadId!, "perdido", "A");
-      expect(r1.sucesso).toBe(false);
-      expect(r1.mensagem).toMatch(/terminal/i);
-
-      const r2 = moverEtapaLead(db, leadId!, "contatado", "A");
-      expect(r2.sucesso).toBe(false);
+      expect(() => moverEtapaLead(db, leadId, "perdido", "A")).toThrow(/terminal/i);
+      expect(() => moverEtapaLead(db, leadId, "contatado", "A")).toThrow();
     });
 
     it("nenhuma transição é aceita a partir de 'perdido' (estado terminal)", () => {
-      const { id: leadId } = criarLead(db, { nome: "Lead Perdido" });
-      moverEtapaLead(db, leadId!, "perdido", "A");
+      const leadId = criarLead(db, { nome: "Lead Perdido" });
+      moverEtapaLead(db, leadId, "perdido", "A");
 
-      const r1 = moverEtapaLead(db, leadId!, "contatado", "A");
-      expect(r1.sucesso).toBe(false);
-      expect(r1.mensagem).toMatch(/terminal/i);
-
-      const r2 = moverEtapaLead(db, leadId!, "convertido", "A");
-      expect(r2.sucesso).toBe(false);
+      expect(() => moverEtapaLead(db, leadId, "contatado", "A")).toThrow(/terminal/i);
+      expect(() => moverEtapaLead(db, leadId, "convertido", "A")).toThrow();
     });
 
     it("recusa lead inexistente", () => {
-      const r = moverEtapaLead(db, 999, "contatado", "A");
-      expect(r.sucesso).toBe(false);
+      expect(() => moverEtapaLead(db, 999, "contatado", "A")).toThrow(/não encontrado/i);
     });
 
     it("exige ator não vazio", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      const r = moverEtapaLead(db, leadId!, "contatado", "  ");
-      expect(r.sucesso).toBe(false);
+      const leadId = criarLead(db, { nome: "Fulano" });
+      expect(() => moverEtapaLead(db, leadId, "contatado", "  ")).toThrow(/informe o ator/i);
     });
   });
 
   describe("propostas", () => {
     it("criarPropostaLead nasce em 'rascunho' e não muda a etapa do lead sozinho", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      const r = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 100000 });
-      expect(r.sucesso).toBe(true);
-      const lead = obterLeadComHistorico(db, leadId!)!;
+      const leadId = criarLead(db, { nome: "Fulano" });
+      expect(() => criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 100000 })).not.toThrow();
+      const lead = obterLeadComHistorico(db, leadId)!;
       expect(lead.etapa).toBe("novo");
       expect(lead.propostas[0].status).toBe("rascunho");
     });
 
     it("recusa criar proposta para lead em etapa terminal (convertido/perdido)", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      moverEtapaLead(db, leadId!, "perdido", "A");
-      const r = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 100000 });
-      expect(r.sucesso).toBe(false);
-      expect(r.mensagem).toMatch(/terminal/i);
+      const leadId = criarLead(db, { nome: "Fulano" });
+      moverEtapaLead(db, leadId, "perdido", "A");
+      expect(() => criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 100000 })).toThrow(/terminal/i);
     });
 
     it("recusa proposta com valor não positivo", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      const r = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 0 });
-      expect(r.sucesso).toBe(false);
+      const leadId = criarLead(db, { nome: "Fulano" });
+      expect(() => criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 0 })).toThrow(/valor proposto/i);
     });
 
     it("enviarProposta só a partir de 'rascunho'", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      const { id: propostaId } = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 100000 });
-      expect(enviarProposta(db, propostaId!).sucesso).toBe(true);
+      const leadId = criarLead(db, { nome: "Fulano" });
+      const propostaId = criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 100000 });
+      expect(() => enviarProposta(db, propostaId)).not.toThrow();
       // já enviada — não pode enviar de novo
-      const r = enviarProposta(db, propostaId!);
-      expect(r.sucesso).toBe(false);
+      expect(() => enviarProposta(db, propostaId)).toThrow(/rascunho/i);
     });
 
     it("decidirProposta recusa decidir proposta ainda 'rascunho' (precisa enviar antes)", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      const { id: propostaId } = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 100000 });
-      const r = decidirProposta(db, propostaId!, true, "Operador A");
-      expect(r.sucesso).toBe(false);
+      const leadId = criarLead(db, { nome: "Fulano" });
+      const propostaId = criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 100000 });
+      expect(() => decidirProposta(db, propostaId, true, "Operador A")).toThrow(/enviarProposta/i);
     });
 
     it("decidirProposta(aceita=false) marca 'recusada' e NÃO mexe na etapa do lead", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      moverEtapaLead(db, leadId!, "contatado", "A");
-      moverEtapaLead(db, leadId!, "visita_agendada", "A");
-      moverEtapaLead(db, leadId!, "proposta", "A");
-      const { id: propostaId } = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 100000 });
-      enviarProposta(db, propostaId!);
+      const leadId = criarLead(db, { nome: "Fulano" });
+      moverEtapaLead(db, leadId, "contatado", "A");
+      moverEtapaLead(db, leadId, "visita_agendada", "A");
+      moverEtapaLead(db, leadId, "proposta", "A");
+      const propostaId = criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 100000 });
+      enviarProposta(db, propostaId);
 
-      const r = decidirProposta(db, propostaId!, false, "Operador B");
-      expect(r.sucesso).toBe(true);
+      expect(() => decidirProposta(db, propostaId, false, "Operador B")).not.toThrow();
 
-      const lead = obterLeadComHistorico(db, leadId!)!;
+      const lead = obterLeadComHistorico(db, leadId)!;
       expect(lead.etapa).toBe("proposta");
       expect(lead.propostas[0].status).toBe("recusada");
       expect(lead.propostas[0].decidido_em).not.toBeNull();
     });
 
     it("decidirProposta falha se aceitar quando o lead não está em etapa 'proposta' (tudo ou nada)", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
+      const leadId = criarLead(db, { nome: "Fulano" });
       // proposta criada cedo, lead ainda em 'novo' (permitido, ver decisão de design nº 2)
-      const { id: propostaId } = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 100000 });
-      enviarProposta(db, propostaId!);
+      const propostaId = criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 100000 });
+      enviarProposta(db, propostaId);
 
-      const r = decidirProposta(db, propostaId!, true, "Operador A");
-      expect(r.sucesso).toBe(false);
+      expect(() => decidirProposta(db, propostaId, true, "Operador A")).toThrow(/não foi possível converter o lead/i);
 
       // nada foi gravado: proposta continua 'enviada', lead continua 'novo'
-      const lead = obterLeadComHistorico(db, leadId!)!;
+      const lead = obterLeadComHistorico(db, leadId)!;
       expect(lead.etapa).toBe("novo");
       expect(lead.propostas[0].status).toBe("enviada");
     });
 
     it("proposta não pode ser decidida duas vezes", () => {
-      const { id: leadId } = criarLead(db, { nome: "Fulano" });
-      moverEtapaLead(db, leadId!, "contatado", "A");
-      moverEtapaLead(db, leadId!, "visita_agendada", "A");
-      moverEtapaLead(db, leadId!, "proposta", "A");
-      const { id: propostaId } = criarPropostaLead(db, { leadId: leadId!, imovelId: IMOVEL_1, valorProposto: 100000 });
-      enviarProposta(db, propostaId!);
+      const leadId = criarLead(db, { nome: "Fulano" });
+      moverEtapaLead(db, leadId, "contatado", "A");
+      moverEtapaLead(db, leadId, "visita_agendada", "A");
+      moverEtapaLead(db, leadId, "proposta", "A");
+      const propostaId = criarPropostaLead(db, { leadId, imovelId: IMOVEL_1, valorProposto: 100000 });
+      enviarProposta(db, propostaId);
 
-      const primeira = decidirProposta(db, propostaId!, true, "Operador B");
-      expect(primeira.sucesso).toBe(true);
+      expect(() => decidirProposta(db, propostaId, true, "Operador B")).not.toThrow();
 
-      const segunda = decidirProposta(db, propostaId!, false, "Operador C");
-      expect(segunda.sucesso).toBe(false);
-      expect(segunda.mensagem).toMatch(/já foi decidida/i);
+      expect(() => decidirProposta(db, propostaId, false, "Operador C")).toThrow(/já foi decidida/i);
 
       // status permanece o da primeira decisão, não foi sobrescrito
-      const lead = obterLeadComHistorico(db, leadId!)!;
+      const lead = obterLeadComHistorico(db, leadId)!;
       expect(lead.propostas[0].status).toBe("aceita");
     });
   });
@@ -271,18 +241,18 @@ describe("leads (CRM leve)", () => {
       const a = criarLead(db, { nome: "Lead A", imovelId: IMOVEL_1 });
       const b = criarLead(db, { nome: "Lead B", imovelId: IMOVEL_2 });
       const c = criarLead(db, { nome: "Lead C", imovelId: IMOVEL_1 });
-      moverEtapaLead(db, a.id!, "contatado", "X");
+      moverEtapaLead(db, a, "contatado", "X");
 
       expect(listarLeads(db)).toHaveLength(3);
-      expect(listarLeads(db, { etapa: "contatado" }).map((l) => l.id)).toEqual([a.id]);
-      expect(listarLeads(db, { etapa: "novo" }).map((l) => l.id).sort()).toEqual([b.id, c.id].sort());
-      expect(listarLeads(db, { imovelId: IMOVEL_1 }).map((l) => l.id).sort()).toEqual([a.id, c.id].sort());
+      expect(listarLeads(db, { etapa: "contatado" }).map((l) => l.id)).toEqual([a]);
+      expect(listarLeads(db, { etapa: "novo" }).map((l) => l.id).sort()).toEqual([b, c].sort());
+      expect(listarLeads(db, { imovelId: IMOVEL_1 }).map((l) => l.id).sort()).toEqual([a, c].sort());
     });
 
     it("funilResumo conta leads por etapa, incluindo etapas com zero leads", () => {
       const a = criarLead(db, { nome: "Lead A" });
       criarLead(db, { nome: "Lead B" });
-      moverEtapaLead(db, a.id!, "contatado", "X");
+      moverEtapaLead(db, a, "contatado", "X");
 
       const resumo = funilResumo(db);
       expect(resumo).toEqual({

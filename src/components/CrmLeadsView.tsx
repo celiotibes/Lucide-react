@@ -139,24 +139,20 @@ export function CrmLeadsView() {
   async function registrarNovoLead() {
     if (!db) return;
     try {
-      const resultado = criarLead(db, {
+      const id = criarLead(db, {
         nome: rascunhoLead.nome,
         imovelId: rascunhoLead.imovelId ? Number(rascunhoLead.imovelId) : undefined,
         contato: rascunhoLead.contato.trim() || undefined,
         fonte: rascunhoLead.fonte.trim() || undefined,
         interesse: rascunhoLead.interesse.trim() || undefined,
       });
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
       await persistir();
       setRascunhoLead(rascunhoLeadVazio());
       setMostrarFormNovoLead(false);
-      avisar("good", resultado.mensagem);
-      if (resultado.id !== undefined) setLeadSelecionadoId(resultado.id);
+      avisar("good", "Lead criado.");
+      setLeadSelecionadoId(id);
     } catch (erro) {
-      avisar("critical", erro instanceof Error ? erro.message : "Erro inesperado ao criar lead.");
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
   }
 
@@ -168,15 +164,11 @@ export function CrmLeadsView() {
   async function moverEtapa(novaEtapa: EtapaLead) {
     if (!db || leadSelecionadoId === null) return;
     try {
-      const resultado = moverEtapaLead(db, leadSelecionadoId, novaEtapa, ator);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      moverEtapaLead(db, leadSelecionadoId, novaEtapa, ator);
       await persistir();
-      avisar("good", resultado.mensagem);
+      avisar("good", `Lead movido para '${ROTULO_ETAPA[novaEtapa]}'.`);
     } catch (erro) {
-      avisar("critical", erro instanceof Error ? erro.message : "Erro inesperado ao mover etapa do lead.");
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
   }
 
@@ -193,59 +185,47 @@ export function CrmLeadsView() {
     if (!db || leadSelecionadoId === null) return;
     try {
       const valorProposto = Number.parseFloat(rascunhoProposta.valorProposto.replace(",", "."));
-      const resultado = criarPropostaLead(db, {
+      criarPropostaLead(db, {
         leadId: leadSelecionadoId,
         imovelId: Number(rascunhoProposta.imovelId),
         valorProposto,
         condicoes: rascunhoProposta.condicoes.trim() || undefined,
       });
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
       await persistir();
       setRascunhoProposta(rascunhoPropostaVazio());
       setMostrarFormProposta(false);
-      avisar("good", resultado.mensagem);
+      avisar("good", "Proposta criada (rascunho).");
     } catch (erro) {
-      avisar("critical", erro instanceof Error ? erro.message : "Erro inesperado ao criar proposta.");
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
   }
 
   async function enviarPropostaAction(propostaId: number) {
     if (!db) return;
     try {
-      const resultado = enviarProposta(db, propostaId);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      enviarProposta(db, propostaId);
       await persistir();
-      avisar("good", resultado.mensagem);
+      avisar("good", "Proposta enviada.");
     } catch (erro) {
-      avisar("critical", erro instanceof Error ? erro.message : "Erro inesperado ao enviar proposta.");
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
   }
 
   async function decidirPropostaAction(propostaId: number, aceita: boolean) {
     if (!db) return;
     try {
-      const resultado = decidirProposta(db, propostaId, aceita, ator);
-      if (!resultado.sucesso) {
-        avisar("critical", resultado.mensagem);
-        return;
-      }
+      decidirProposta(db, propostaId, aceita, ator);
       await persistir();
       if (aceita) {
         avisar(
           "good",
-          `${resultado.mensagem} Lead convertido — mas NENHUM contrato foi criado automaticamente. Se for seguir adiante, crie o contrato manualmente na tela de Contratos.`,
+          "Proposta 'aceita'. Lead convertido — mas NENHUM contrato foi criado automaticamente. Se for seguir adiante, crie o contrato manualmente na tela de Contratos.",
         );
       } else {
-        avisar("good", resultado.mensagem);
+        avisar("good", "Proposta 'recusada'.");
       }
     } catch (erro) {
-      avisar("critical", erro instanceof Error ? erro.message : "Erro inesperado ao decidir proposta.");
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
   }
 

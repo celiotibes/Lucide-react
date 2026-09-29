@@ -44,9 +44,11 @@
  *    chama internamente `moverEtapaLead(db, lead_id, 'convertido', ator)`, e essa função
  *    só permite proposta→convertido (ver decisão 1). Se o operador aceitar uma proposta
  *    de um lead que ainda está em 'contatado' (proposta criada cedo, ver decisão 2), a
- *    chamada falha com mensagem clara pedindo para mover o lead para 'proposta' primeiro
- *    — e a atualização de `lead_propostas.status` NÃO é feita (tudo ou nada: nunca fica
- *    uma proposta marcada 'aceita' com o lead preso numa etapa anterior).
+ *    chamada a `moverEtapaLead` lança (`throw new Error`), `decidirProposta` captura essa
+ *    exceção num try/catch, encapsula a mensagem original e relança — pedindo para mover o
+ *    lead para 'proposta' primeiro — SEM chegar até o UPDATE de `lead_propostas.status`
+ *    (tudo ou nada: nunca fica uma proposta marcada 'aceita' com o lead preso numa etapa
+ *    anterior).
  *
  * 4) `ator` em `decidirProposta` é um PARÂMETRO EXPLÍCITO da função (não inferido de
  *    sessão/autenticação — este é um app single-user, sem backend de aplicação, sem
@@ -98,12 +100,6 @@ export interface LeadProposta {
   decidido_em: string | null;
 }
 
-export interface ResultadoOperacaoLead {
-  sucesso: boolean;
-  mensagem: string;
-  id?: number;
-}
-
 /** Etapas em que o lead está encerrado — nenhuma transição nova é aceita a partir delas
  * (ver decisão de design nº 1 no cabeçalho do arquivo). */
 const ETAPAS_TERMINAIS: ReadonlySet<EtapaLead> = new Set(["convertido", "perdido"]);
@@ -148,12 +144,12 @@ export interface NovoLead {
 /** Cria um lead — nasce sempre 'novo', sem evento inicial (mesmo espírito de
  * `criarOrdemServico`: a ENTIDADE nasce, o EVENTO só existe a partir da primeira
  * transição de etapa real, via `moverEtapaLead`). */
-export function criarLead(db: Database, dados: NovoLead): ResultadoOperacaoLead {
+export function criarLead(db: Database, dados: NovoLead): number {
   if (!dados.nome || !dados.nome.trim()) {
-    return { sucesso: false, mensagem: "Informe o nome do lead." };
+    throw new Error("Informe o nome do lead.");
   }
   if (dados.imovelId !== undefined && !imovelExiste(db, dados.imovelId)) {
-    return { sucesso: false, mensagem: `Imóvel ${dados.imovelId} não encontrado.` };
+    throw new Error(`Imóvel ${dados.imovelId} não encontrado.`);
   }
 
   executar(
@@ -170,7 +166,7 @@ export function criarLead(db: Database, dados: NovoLead): ResultadoOperacaoLead 
     ],
   );
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Lead criado.", id };
+  return id;
 }
 
 // ============================================================================
@@ -183,28 +179,24 @@ export function criarLead(db: Database, dados: NovoLead): ResultadoOperacaoLead 
  * 'perdido' (etapas terminais), nenhuma transição nova é aceita. Toda transição
  * bem-sucedida grava um evento append-only em `lead_etapa_eventos` e atualiza
  * `leads.etapa` atomicamente — nada é gravado em caso de rejeição. */
-export function moverEtapaLead(db: Database, leadId: number, novaEtapa: EtapaLead, ator: string): ResultadoOperacaoLead {
+export function moverEtapaLead(db: Database, leadId: number, novaEtapa: EtapaLead, ator: string): void {
   const lead = obterLeadBruto(db, leadId);
   if (!lead) {
-    return { sucesso: false, mensagem: `Lead ${leadId} não encontrado.` };
+    throw new Error(`Lead ${leadId} não encontrado.`);
   }
   if (!ator || !ator.trim()) {
-    return { sucesso: false, mensagem: "Informe o ator responsável pela mudança de etapa." };
+    throw new Error("Informe o ator responsável pela mudança de etapa.");
   }
   if (ETAPAS_TERMINAIS.has(lead.etapa)) {
-    return {
-      sucesso: false,
-      mensagem: `Lead já está em etapa terminal ('${lead.etapa}') — nenhuma transição nova é permitida.`,
-    };
+    throw new Error(`Lead já está em etapa terminal ('${lead.etapa}') — nenhuma transição nova é permitida.`);
   }
 
   const proximaEtapaValida = PROXIMA_ETAPA_FUNIL[lead.etapa as Exclude<EtapaLead, "convertido" | "perdido">];
   const transicaoValida = novaEtapa === "perdido" || novaEtapa === proximaEtapaValida;
   if (!transicaoValida) {
-    return {
-      sucesso: false,
-      mensagem: `Transição inválida: lead está em '${lead.etapa}', só pode avançar para '${proximaEtapaValida}' ou ir para 'perdido'.`,
-    };
+    throw new Error(
+      `Transição inválida: lead está em '${lead.etapa}', só pode avançar para '${proximaEtapaValida}' ou ir para 'perdido'.`,
+    );
   }
 
   executar(
@@ -214,7 +206,6 @@ export function moverEtapaLead(db: Database, leadId: number, novaEtapa: EtapaLea
     [leadId, lead.etapa, novaEtapa, ator.trim(), agora()],
   );
   executar(db, "UPDATE leads SET etapa = ? WHERE id = ?", [novaEtapa, leadId]);
-  return { sucesso: true, mensagem: `Lead movido de '${lead.etapa}' para '${novaEtapa}'.`, id: leadId };
 }
 
 // ============================================================================
@@ -232,22 +223,19 @@ export interface NovaPropostaLead {
  * terminal ('convertido'/'perdido'); não exige que o lead já esteja exatamente em etapa
  * 'proposta' (ver decisão de design nº 2 no cabeçalho do arquivo). Quem move o lead para
  * 'proposta' é `moverEtapaLead`, chamado separadamente pelo operador. */
-export function criarPropostaLead(db: Database, dados: NovaPropostaLead): ResultadoOperacaoLead {
+export function criarPropostaLead(db: Database, dados: NovaPropostaLead): number {
   const lead = obterLeadBruto(db, dados.leadId);
   if (!lead) {
-    return { sucesso: false, mensagem: `Lead ${dados.leadId} não encontrado.` };
+    throw new Error(`Lead ${dados.leadId} não encontrado.`);
   }
   if (ETAPAS_TERMINAIS.has(lead.etapa)) {
-    return {
-      sucesso: false,
-      mensagem: `Lead já está em etapa terminal ('${lead.etapa}') — não é possível criar proposta nova.`,
-    };
+    throw new Error(`Lead já está em etapa terminal ('${lead.etapa}') — não é possível criar proposta nova.`);
   }
   if (!imovelExiste(db, dados.imovelId)) {
-    return { sucesso: false, mensagem: `Imóvel ${dados.imovelId} não encontrado.` };
+    throw new Error(`Imóvel ${dados.imovelId} não encontrado.`);
   }
   if (!(dados.valorProposto > 0)) {
-    return { sucesso: false, mensagem: "Valor proposto deve ser maior que zero." };
+    throw new Error("Valor proposto deve ser maior que zero.");
   }
 
   executar(
@@ -257,20 +245,19 @@ export function criarPropostaLead(db: Database, dados: NovaPropostaLead): Result
     [dados.leadId, dados.imovelId, dados.valorProposto, dados.condicoes?.trim() || null, agora()],
   );
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Proposta criada (rascunho).", id };
+  return id;
 }
 
 /** Envia a proposta ao lead — só a partir de 'rascunho'. */
-export function enviarProposta(db: Database, propostaId: number): ResultadoOperacaoLead {
+export function enviarProposta(db: Database, propostaId: number): void {
   const proposta = obterPropostaBruta(db, propostaId);
   if (!proposta) {
-    return { sucesso: false, mensagem: `Proposta ${propostaId} não encontrada.` };
+    throw new Error(`Proposta ${propostaId} não encontrada.`);
   }
   if (proposta.status !== "rascunho") {
-    return { sucesso: false, mensagem: `Proposta já está '${proposta.status}' — só é possível enviar uma proposta em 'rascunho'.` };
+    throw new Error(`Proposta já está '${proposta.status}' — só é possível enviar uma proposta em 'rascunho'.`);
   }
   executar(db, "UPDATE lead_propostas SET status = 'enviada' WHERE id = ?", [propostaId]);
-  return { sucesso: true, mensagem: "Proposta enviada.", id: propostaId };
 }
 
 /** Decide uma proposta já enviada — 'aceita' ou 'recusada', preenchendo `decidido_em`.
@@ -281,31 +268,35 @@ export function enviarProposta(db: Database, propostaId: number): ResultadoOpera
  * transição falha e a proposta permanece 'enviada' (tudo ou nada, ver decisão de design
  * nº 3). REGRA DE OURO: aceitar não cria linha nenhuma em `contratos_locacao` — a
  * conversão em contrato continua sendo ação manual e separada do usuário. */
-export function decidirProposta(db: Database, propostaId: number, aceita: boolean, ator: string): ResultadoOperacaoLead {
+export function decidirProposta(db: Database, propostaId: number, aceita: boolean, ator: string): void {
   const proposta = obterPropostaBruta(db, propostaId);
   if (!proposta) {
-    return { sucesso: false, mensagem: `Proposta ${propostaId} não encontrada.` };
+    throw new Error(`Proposta ${propostaId} não encontrada.`);
   }
   if (proposta.status === "aceita" || proposta.status === "recusada") {
-    return {
-      sucesso: false,
-      mensagem: `Proposta já foi decidida (status '${proposta.status}' em ${proposta.decidido_em}) — não pode ser decidida de novo.`,
-    };
+    throw new Error(
+      `Proposta já foi decidida (status '${proposta.status}' em ${proposta.decidido_em}) — não pode ser decidida de novo.`,
+    );
   }
   if (proposta.status !== "enviada") {
-    return { sucesso: false, mensagem: `Proposta está '${proposta.status}' — envie com enviarProposta antes de decidir.` };
+    throw new Error(`Proposta está '${proposta.status}' — envie com enviarProposta antes de decidir.`);
   }
 
   if (aceita) {
-    const conversao = moverEtapaLead(db, proposta.lead_id, "convertido", ator);
-    if (!conversao.sucesso) {
-      return { sucesso: false, mensagem: `Não foi possível converter o lead: ${conversao.mensagem}` };
+    // "Tudo ou nada": se a conversão do lead falhar, a exceção é relançada (com a
+    // mensagem original encapsulada) e a linha abaixo — que marcaria a proposta como
+    // decidida — nunca é executada. Nenhuma proposta fica 'aceita' com o lead preso
+    // numa etapa anterior (ver decisão de design nº 3 no cabeçalho do arquivo).
+    try {
+      moverEtapaLead(db, proposta.lead_id, "convertido", ator);
+    } catch (erro) {
+      const mensagem = erro instanceof Error ? erro.message : "erro desconhecido";
+      throw new Error(`Não foi possível converter o lead: ${mensagem}`);
     }
   }
 
   const novoStatus: StatusPropostaLead = aceita ? "aceita" : "recusada";
   executar(db, "UPDATE lead_propostas SET status = ?, decidido_em = ? WHERE id = ?", [novoStatus, agora(), propostaId]);
-  return { sucesso: true, mensagem: `Proposta '${novoStatus}'.`, id: propostaId };
 }
 
 // ============================================================================
