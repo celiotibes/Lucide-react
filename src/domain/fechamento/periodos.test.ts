@@ -77,10 +77,9 @@ describe("encerrarPeriodo (via tela de fechamento)", () => {
     expect(validacao.balanceado).toBe(false);
     expect(validacao.diferenca).toBeCloseTo(500, 2);
 
-    const r = await encerrarPeriodo(db, periodo_id, 1, "Tentativa de fechamento desbalanceado");
-
-    expect(r.sucesso).toBe(false);
-    expect(r.mensagem).toContain("500.00");
+    await expect(
+      encerrarPeriodo(db, periodo_id, 1, "Tentativa de fechamento desbalanceado"),
+    ).rejects.toThrow("500.00");
 
     // Nem o registro de encerramento nem a mudança de status podem sobrar de uma
     // tentativa recusada — senão um período desbalanceado pareceria fechado depois.
@@ -95,8 +94,8 @@ describe("encerrarPeriodo (via tela de fechamento)", () => {
 
     expect(validarBalanceamento(db, periodo_id).balanceado).toBe(true);
 
-    const r = await encerrarPeriodo(db, periodo_id, 1, "Fechamento mensal de teste");
-    expect(r.sucesso).toBe(true);
+    const balancete = await encerrarPeriodo(db, periodo_id, 1, "Fechamento mensal de teste");
+    expect(balancete.balanceado).toBe(true);
 
     const encerramento = obterUltimoEncerramento(db, periodo_id);
     expect(encerramento).not.toBeNull();
@@ -119,8 +118,7 @@ describe("encerrarPeriodo (via tela de fechamento)", () => {
     lancarDebito(CONTA_CAIXA, 1000, 1);
     lancarCredito(CONTA_BANCO, 1000, 2);
 
-    const r = await encerrarPeriodo(db, periodo_id, 1, "Fechamento");
-    expect(r.sucesso).toBe(true);
+    await encerrarPeriodo(db, periodo_id, 1, "Fechamento");
 
     expect(() => lancarDebito(CONTA_CAIXA, 50, 3)).toThrow(PeriodoFechadoError);
   });

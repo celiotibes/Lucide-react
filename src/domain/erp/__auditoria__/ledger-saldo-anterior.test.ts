@@ -47,7 +47,7 @@ describe("ledger: gerarBalancete nunca lê o saldo_anterior que criarSaldosProxi
     });
 
     const fechamento = await encerrarPeriodo(db, periodo1, 1, "fechamento de teste");
-    expect(fechamento.sucesso).toBe(true);
+    expect(fechamento.balanceado).toBe(true);
 
     const periodo2 = consultar<{ id: number }>(db, "SELECT id FROM periodos_contabeis WHERE ano=2025 AND mes=2")[0].id;
 

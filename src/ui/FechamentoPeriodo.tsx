@@ -107,15 +107,13 @@ export function FechamentoPeriodo() {
     if (!db || !periodoSelecionado || motivo.trim().length === 0) return;
     setEncerrando(true);
     try {
-      const r = await encerrarPeriodo(db, periodoSelecionado.id, ENCERRADO_POR, motivo.trim());
-      if (!r.sucesso) {
-        avisar("critical", r.mensagem);
-        return;
-      }
+      await encerrarPeriodo(db, periodoSelecionado.id, ENCERRADO_POR, motivo.trim());
       await persistir();
       setMotivo("");
       setTick((t) => t + 1);
-      avisar("good", `${descricaoPeriodo(periodoSelecionado)} encerrado. ${r.mensagem}`);
+      avisar("good", `${descricaoPeriodo(periodoSelecionado)} encerrado com sucesso.`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     } finally {
       setEncerrando(false);
     }

@@ -3,7 +3,7 @@ import type { Database } from "sql.js";
 import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { consultar, executar } from "../../../db/connection";
 import { criarEntidadeLegal, sincronizarRazao } from "../entidadeLegal";
-import { encerrarPeriodo, validarBalanceamento } from "../ledger";
+import { encerrarPeriodo, validarBalanceamento, type BalancetePeriodo } from "../ledger";
 import { gerarDRE, gerarBalanco, gerarFluxoCaixa, type LinhasDRE, type LinhasBalancete } from "../relatorios-integrados";
 import { CONTA_CAIXA_ERP } from "../mapeamentoPlanoApp";
 import { historicoRazaoDaTransacao, reclassificarTransacao } from "../../reclassificacao/reclassificarTransacao";
@@ -134,7 +134,7 @@ describe("Reconstituição contábil — golden path de 1 ano (2025)", () => {
   let balancoMarDepois: LinhasBalancete;
   let resultadoReclassificacao: ReturnType<typeof reclassificarTransacao>;
 
-  let fechamentoJaneiro: { sucesso: boolean; mensagem: string };
+  let fechamentoJaneiro: BalancetePeriodo;
 
   beforeAll(async () => {
     db = await criarBancoDeTeste();
@@ -277,7 +277,7 @@ describe("Reconstituição contábil — golden path de 1 ano (2025)", () => {
   });
 
   it("o fechamento de janeiro foi aceito", () => {
-    expect(fechamentoJaneiro.sucesso).toBe(true);
+    expect(fechamentoJaneiro.balanceado).toBe(true);
     const [periodo] = consultar<{ status: string }>(
       db,
       "SELECT status FROM periodos_contabeis WHERE id = ?",

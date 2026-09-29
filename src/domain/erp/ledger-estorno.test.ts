@@ -55,7 +55,7 @@ describe("estorno contra o schema real", () => {
     expect(pernas).toHaveLength(2); // débito no caixa, crédito na contrapartida
 
     for (const perna of pernas) {
-      expect(estornarLancamento(db, perna.id, "teste de regressão", 1)).toBe(true);
+      expect(estornarLancamento(db, perna.id, "teste de regressão", 1)).toBeGreaterThan(0);
     }
 
     const [total] = consultar<{ n: number }>(db, "SELECT COUNT(*) AS n FROM ledger_entries");
@@ -133,10 +133,10 @@ describe("estorno contra o schema real", () => {
     expect(duplicar).toThrow(/UNIQUE/i);
   });
 
-  it("estorno de lançamento inexistente devolve false em vez de gravar lixo", async () => {
+  it("estorno de lançamento inexistente lança Error em vez de gravar lixo", async () => {
     const { db } = await bancoComRazao();
     const [antes] = consultar<{ n: number }>(db, "SELECT COUNT(*) AS n FROM ledger_entries");
-    expect(estornarLancamento(db, 999999, "não existe", 1)).toBe(false);
+    expect(() => estornarLancamento(db, 999999, "não existe", 1)).toThrow(/não encontrado/);
     const [depois] = consultar<{ n: number }>(db, "SELECT COUNT(*) AS n FROM ledger_entries");
     expect(depois.n).toBe(antes.n);
   });

@@ -209,7 +209,6 @@ describe("Retificação com Mecanismo de Reversão", () => {
       retificada_por: 1,
     });
 
-    expect(resultado.sucesso).toBe(true);
     expect(resultado.ledger_reverso_id).toBeDefined();
     expect(resultado.ledger_novo_id).toBeDefined();
 
@@ -254,8 +253,6 @@ describe("Retificação com Mecanismo de Reversão", () => {
       motivo_retificacao: "Correção",
       retificada_por: 1,
     });
-
-    expect(resultado.sucesso).toBe(true);
 
     // Verificar se mapping foi criado (se tabela existir)
     if (resultado.ledger_reverso_id && resultado.ledger_novo_id) {
@@ -307,28 +304,27 @@ describe("Retificação com Mecanismo de Reversão", () => {
     // Fechar período. A precondição é verificada, não presumida: se o fechamento não
     // acontecer, o que vem depois não testa bloqueio nenhum.
     expect(validarBalanceamento(db, periodo_id).balanceado).toBe(true);
-    expect((await encerrarPeriodo(db, periodo_id, 1, "Teste")).sucesso).toBe(true);
+    await encerrarPeriodo(db, periodo_id, 1, "Teste");
 
     // Tentar retificação em período fechado
-    const resultado = registrarRetificacao(db, {
-      retificacao_id: 102,
-      apontamento_id: 3,
-      conta_id,
-      valor_anterior: 100,
-      valor_novo: 150,
-      entidade_id,
-      periodo_id,
-      data_lancamento: "2026-01-10",
-      origem_modulo: "manual",
-      motivo_retificacao: "Ajuste",
-      retificada_por: 1,
-    });
-
-    expect(resultado.sucesso).toBe(false);
-    expect(resultado.mensagem).toContain("fechado");
+    expect(() =>
+      registrarRetificacao(db, {
+        retificacao_id: 102,
+        apontamento_id: 3,
+        conta_id,
+        valor_anterior: 100,
+        valor_novo: 150,
+        entidade_id,
+        periodo_id,
+        data_lancamento: "2026-01-10",
+        origem_modulo: "manual",
+        motivo_retificacao: "Ajuste",
+        retificada_por: 1,
+      }),
+    ).toThrow(/fechado/);
   });
 
-  it("deve calcular mensagem de retificação corretamente", () => {
+  it("registra o reverso do valor anterior e o novo lançamento com os valores certos", () => {
     if (!conta_id) {
       console.log("Conta não encontrado, pulando teste");
       return;
@@ -336,7 +332,7 @@ describe("Retificação com Mecanismo de Reversão", () => {
 
     // Retificar pressupõe algo a retificar: sem o lançamento de 500,50 no período, não
     // há o que reverter e a operação falha legitimamente. O teste antes não o criava e
-    // só verificava a mensagem de erro que voltava, sem exercitar a retificação.
+    // só verificava a mensagem de sucesso que voltava, sem exercitar a retificação.
     registrarLancamentoContabil(db, {
       entidade_id,
       periodo_id,
@@ -363,7 +359,18 @@ describe("Retificação com Mecanismo de Reversão", () => {
       retificada_por: 1,
     });
 
-    expect(resultado.mensagem).toContain("500.50");
-    expect(resultado.mensagem).toContain("750.75");
+    // Não há mais campo `mensagem` no retorno (convenção de throw): a prova de que os
+    // valores certos foram usados é o que ficou gravado nos dois lançamentos.
+    const [reverso] = db.exec(
+      `SELECT valor_credito FROM ledger_entries WHERE id = ?`,
+      [resultado.ledger_reverso_id],
+    )[0].values[0];
+    expect(reverso).toBeCloseTo(500.50, 2);
+
+    const [novo] = db.exec(
+      `SELECT valor_debito FROM ledger_entries WHERE id = ?`,
+      [resultado.ledger_novo_id],
+    )[0].values[0];
+    expect(novo).toBeCloseTo(750.75, 2);
   });
 });

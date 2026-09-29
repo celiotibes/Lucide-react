@@ -240,13 +240,20 @@ export function validarBalanceamento(
   };
 }
 
-/** Encerrar um período contábil (período fechado, não pode ser alterado) */
+/** Encerrar um período contábil (período fechado, não pode ser alterado).
+ *
+ * Lança `Error` em vez de retornar `{ sucesso, mensagem }` — mesma convenção de
+ * `registrarLancamentoContabil` (a função mais chamada do sistema). Em caso de sucesso,
+ * retorna o `BalancetePeriodo` final (o mesmo que `gerarBalancete` produziria logo depois):
+ * é o dado mais útil para quem acabou de fechar o período (a tela de fechamento já o exibe
+ * na mesma chamada), e evita obrigar todo chamador a fazer uma segunda consulta só para
+ * saber o que o encerramento gravou. */
 export async function encerrarPeriodo(
   db: Database,
   periodo_id: number,
   encerrado_por: number,
   motivo: string,
-): Promise<{ sucesso: boolean; mensagem: string }> {
+): Promise<BalancetePeriodo> {
   // 1. Validar que o período está aberto
   const [periodo] = consultar<{ status: string; entidade_id: number }>(
     db,
@@ -255,7 +262,7 @@ export async function encerrarPeriodo(
   );
 
   if (!periodo) {
-    return { sucesso: false, mensagem: "Período não encontrado" };
+    throw new Error("Período não encontrado");
   }
 
   // Esta checagem também é a garantia de idempotência do lançamento de encerramento
@@ -264,16 +271,13 @@ export async function encerrarPeriodo(
   // Rodar encerrarPeriodo de novo no mesmo período cai aqui e nunca duplica a
   // transferência — não precisa de nenhuma checagem extra por referencia_documento.
   if (periodo.status !== "aberto") {
-    return { sucesso: false, mensagem: "Período já está fechado" };
+    throw new Error("Período já está fechado");
   }
 
   // 2. Validar balanceamento (do movimento lançado pelos módulos, antes do encerramento)
   const balancete = validarBalanceamento(db, periodo_id);
   if (!balancete.balanceado) {
-    return {
-      sucesso: false,
-      mensagem: `Ledger desbalanceado. Diferença: R$ ${balancete.diferenca.toFixed(2)}`,
-    };
+    throw new Error(`Ledger desbalanceado. Diferença: R$ ${balancete.diferenca.toFixed(2)}`);
   }
 
   // 2.5. Lançamento de encerramento: fecha as contas de resultado (receita/despesa)
@@ -321,7 +325,7 @@ export async function encerrarPeriodo(
   // 7. Criar cache de saldos para próximo período
   criarSaldosProximoPeriodo(db, periodo_id);
 
-  return { sucesso: true, mensagem: "Período encerrado com sucesso" };
+  return balancete_completo;
 }
 
 /**
@@ -536,13 +540,21 @@ function criarSaldosProximoPeriodo(
   });
 }
 
-/** Registrar estorno de lançamento (lançamento reverso com trilha de auditoria) */
+/** Registrar estorno de lançamento (lançamento reverso com trilha de auditoria).
+ *
+ * Lança `Error` em vez de devolver `boolean` puro — o `boolean` antigo nem sequer dizia
+ * por que a operação falhou, o pior caso das três convenções que este arquivo misturava.
+ * Retorna o id do lançamento reverso (em vez de `void`): é o mesmo dado que a função já
+ * calcula para gravar `estornado_por_id`, e é útil para quem chama poder referenciar ou
+ * exibir o lançamento de estorno recém-criado sem uma consulta extra (nenhum call site de
+ * produção usa esse retorno hoje, só os testes deste arquivo — mas é dado que já existe na
+ * função e não vale jogar fora). */
 export function estornarLancamento(
   db: Database,
   lancamento_id: number,
   motivo_estorno: string,
   estornado_por: number,
-): boolean {
+): number {
   // Obter lançamento original
   const [original] = consultar<{
     valor_debito: number;
@@ -553,7 +565,9 @@ export function estornarLancamento(
     [lancamento_id],
   );
 
-  if (!original) return false;
+  if (!original) {
+    throw new Error(`Lançamento ${lancamento_id} não encontrado — nada para estornar`);
+  }
 
   // Criar lançamento reverso primeiro (débito ↔ crédito invertido): o id dele é o que
   // o original precisa guardar para a trilha de auditoria ligar um ao outro.
@@ -592,15 +606,48 @@ export function estornarLancamento(
     [reverso.id, motivo_estorno, lancamento_id],
   );
 
-  return true;
+  return reverso.id;
 }
 
-/** Auditoria: aprovar lançamentos para finalizar processamento contábil */
+/** Auditoria: aprovar lançamentos para finalizar processamento contábil.
+ *
+ * DEFEITO CORRIGIDO: `aprovados++` rodava incondicionalmente por id da lista, mesmo quando
+ * o UPDATE não afetava nenhuma linha (id inexistente) — o retorno mentia sobre quantos
+ * lançamentos foram de fato aprovados.
+ *
+ * DECISÃO (pensada para o contexto de auditoria, onde saber exatamente o que NÃO foi
+ * aprovado importa tanto quanto saber o que foi): valida TODOS os ids ANTES de aplicar
+ * qualquer UPDATE e lança `Error` listando os que não existem, sem aprovar nem um só da
+ * lista. Descartei pular o id inexistente em silêncio (sem contar, sem lançar) porque quem
+ * chama em lote pode não conferir o número de retorno contra o tamanho da lista enviada e
+ * concluir, errado, que tudo foi aprovado. Validar tudo antes de escrever (em vez de
+ * lançar no meio do laço) evita aprovação parcial — metade da lista aprovada e a outra
+ * rejeitada silenciosamente —, que seria um rastro de auditoria pior do que recusar o lote
+ * inteiro de uma vez. `db.getRowsModified()` (mesmo padrão de `persistirTransacoes.ts`)
+ * ainda guarda a contagem final contra qualquer condição de corrida entre a validação e o
+ * UPDATE (ex.: lançamento apagado por outra rotina nesse intervalo). */
 export function aprovarLancamentos(
   db: Database,
   lancamento_ids: number[],
   auditado_por: number,
 ): number {
+  if (lancamento_ids.length === 0) return 0;
+
+  const placeholders = lancamento_ids.map(() => "?").join(", ");
+  const existentes = consultar<{ id: number }>(
+    db,
+    `SELECT id FROM ledger_entries WHERE id IN (${placeholders})`,
+    lancamento_ids,
+  );
+  const idsExistentes = new Set(existentes.map((e) => e.id));
+  const inexistentes = lancamento_ids.filter((id) => !idsExistentes.has(id));
+
+  if (inexistentes.length > 0) {
+    throw new Error(
+      `Lançamento(s) não encontrado(s), aprovação recusada para o lote inteiro: ${inexistentes.join(", ")}`,
+    );
+  }
+
   let aprovados = 0;
 
   lancamento_ids.forEach((id) => {
@@ -611,7 +658,7 @@ export function aprovarLancamentos(
        WHERE id = ?`,
       [auditado_por, id],
     );
-    aprovados++;
+    aprovados += db.getRowsModified();
   });
 
   return aprovados;
@@ -651,116 +698,110 @@ export interface RetificacaoContabil {
  *
  * Resultado: débito original REVERSADO + novo lançamento = valor final correto
  * (não duplicado, sim corrigido)
+ *
+ * Lança `Error` em vez de devolver `{ sucesso, mensagem }` — mesma convenção de
+ * `registrarLancamentoContabil`. Não há mais try/catch envolvendo a função inteira: os
+ * erros de `assegurarPeriodoAberto` (`PeriodoFechadoError`) e de
+ * `registrarLancamentoSemValidacao` já vêm com mensagem própria e descritiva, então só
+ * propagam — envolvê-los de novo em "Erro ao registrar retificação: ..." só duplicava a
+ * informação sem agregar nada.
  */
 export function registrarRetificacao(
   db: Database,
   retificacao: RetificacaoContabil,
-): { sucesso: boolean; ledger_reverso_id?: number; ledger_novo_id?: number; mensagem: string } {
-  try {
-    // VALIDAÇÃO: Período deve estar aberto
-    assegurarPeriodoAberto(db, retificacao.periodo_id);
+): { ledger_reverso_id?: number; ledger_novo_id: number } {
+  // VALIDAÇÃO: Período deve estar aberto
+  assegurarPeriodoAberto(db, retificacao.periodo_id);
 
-    // PASSO 1: Se havia valor anterior, reverter o lançamento original
-    let ledger_reverso_id: number | undefined;
+  // PASSO 1: Se havia valor anterior, reverter o lançamento original
+  let ledger_reverso_id: number | undefined;
 
-    if (retificacao.valor_anterior > 0) {
-      // Encontrar lançamento original
-      const [original] = consultar<{
-        id: number;
-        valor_debito: number;
-        valor_credito: number;
-      }>(
-        db,
-        `SELECT id, valor_debito, valor_credito FROM ledger_entries
-         WHERE conta_id = ? AND periodo_id = ? AND (valor_debito = ? OR valor_credito = ?)
-         ORDER BY id DESC LIMIT 1`,
-        [
-          retificacao.conta_id,
-          retificacao.periodo_id,
-          retificacao.valor_anterior,
-          retificacao.valor_anterior,
-        ]
-      );
+  if (retificacao.valor_anterior > 0) {
+    // Encontrar lançamento original
+    const [original] = consultar<{
+      id: number;
+      valor_debito: number;
+      valor_credito: number;
+    }>(
+      db,
+      `SELECT id, valor_debito, valor_credito FROM ledger_entries
+       WHERE conta_id = ? AND periodo_id = ? AND (valor_debito = ? OR valor_credito = ?)
+       ORDER BY id DESC LIMIT 1`,
+      [
+        retificacao.conta_id,
+        retificacao.periodo_id,
+        retificacao.valor_anterior,
+        retificacao.valor_anterior,
+      ]
+    );
 
-      // Sem o original não há o que reverter. Antes o código seguia em frente e montava
-      // um reverso com débito e crédito indefinidos, que morria lá na frente com
-      // "Lançamento deve ter débito ou crédito" — mensagem que aponta para o lugar
-      // errado e esconde a causa (valor_anterior que não casa com nenhum lançamento).
-      if (!original) {
-        return {
-          sucesso: false,
-          mensagem: `Erro ao registrar retificação: nenhum lançamento de R$${retificacao.valor_anterior.toFixed(2)} encontrado na conta ${retificacao.conta_id} do período ${retificacao.periodo_id} para reverter`,
-        };
-      }
-
-      // PASSO 1a: Criar lançamento reverso (inverte débito ↔ crédito)
-      const lancamento_reverso: LancamentoContabil = {
-        entidade_id: retificacao.entidade_id,
-        periodo_id: retificacao.periodo_id,
-        conta_id: retificacao.conta_id,
-        data_lancamento: retificacao.data_lancamento,
-        // Inverter: se original era débito, reverso é crédito
-        valor_debito: original.valor_credito || undefined,
-        valor_credito: original.valor_debito || undefined,
-        descricao: `RETIFICAÇÃO REVERSO: ${retificacao.motivo_retificacao}`,
-        origem_modulo: retificacao.origem_modulo,
-        origem_id: retificacao.retificacao_id || retificacao.apontamento_id || 0,
-        referencia_documento: `RETIF-${retificacao.retificacao_id || "MANUAL"}-REV`,
-        criado_por: retificacao.retificada_por,
-      };
-
-      // Registrar sem validação (já validamos período acima)
-      ledger_reverso_id = registrarLancamentoSemValidacao(
-        db,
-        lancamento_reverso
+    // Sem o original não há o que reverter. Antes o código seguia em frente e montava
+    // um reverso com débito e crédito indefinidos, que morria lá na frente com
+    // "Lançamento deve ter débito ou crédito" — mensagem que aponta para o lugar
+    // errado e esconde a causa (valor_anterior que não casa com nenhum lançamento).
+    if (!original) {
+      throw new Error(
+        `Erro ao registrar retificação: nenhum lançamento de R$${retificacao.valor_anterior.toFixed(2)} encontrado na conta ${retificacao.conta_id} do período ${retificacao.periodo_id} para reverter`,
       );
     }
 
-    // PASSO 2: Registrar novo lançamento com valor correto
-    const lancamento_novo: LancamentoContabil = {
+    // PASSO 1a: Criar lançamento reverso (inverte débito ↔ crédito)
+    const lancamento_reverso: LancamentoContabil = {
       entidade_id: retificacao.entidade_id,
       periodo_id: retificacao.periodo_id,
       conta_id: retificacao.conta_id,
       data_lancamento: retificacao.data_lancamento,
-      // Manter natureza da conta: se débito era débito, continua débito
-      valor_debito:
-        retificacao.valor_novo > 0
-          ? retificacao.valor_novo
-          : undefined,
-      valor_credito:
-        retificacao.valor_novo > 0 ? undefined : Math.abs(retificacao.valor_novo),
-      descricao: `RETIFICAÇÃO: ${retificacao.motivo_retificacao}`,
+      // Inverter: se original era débito, reverso é crédito
+      valor_debito: original.valor_credito || undefined,
+      valor_credito: original.valor_debito || undefined,
+      descricao: `RETIFICAÇÃO REVERSO: ${retificacao.motivo_retificacao}`,
       origem_modulo: retificacao.origem_modulo,
       origem_id: retificacao.retificacao_id || retificacao.apontamento_id || 0,
-      referencia_documento: `RETIF-${retificacao.retificacao_id || "MANUAL"}`,
+      referencia_documento: `RETIF-${retificacao.retificacao_id || "MANUAL"}-REV`,
       criado_por: retificacao.retificada_por,
     };
 
-    const ledger_novo_id = registrarLancamentoSemValidacao(db, lancamento_novo);
-
-    // PASSO 3: Registrar rastreamento (se tabela existir)
-    if (ledger_reverso_id && retificacao.retificacao_id) {
-      executar(
-        db,
-        `INSERT OR IGNORE INTO retificacao_ledger_mapping
-         (retificacao_id, ledger_entry_reverso_id, ledger_entry_novo_id)
-         VALUES (?, ?, ?)`,
-        [retificacao.retificacao_id, ledger_reverso_id, ledger_novo_id]
-      );
-    }
-
-    return {
-      sucesso: true,
-      ledger_reverso_id,
-      ledger_novo_id,
-      mensagem: `Retificação registrada: R$${retificacao.valor_anterior.toFixed(2)} → R$${retificacao.valor_novo.toFixed(2)}`,
-    };
-  } catch (erro) {
-    return {
-      sucesso: false,
-      mensagem: `Erro ao registrar retificação: ${erro instanceof Error ? erro.message : String(erro)}`,
-    };
+    // Registrar sem validação (já validamos período acima)
+    ledger_reverso_id = registrarLancamentoSemValidacao(
+      db,
+      lancamento_reverso
+    );
   }
+
+  // PASSO 2: Registrar novo lançamento com valor correto
+  const lancamento_novo: LancamentoContabil = {
+    entidade_id: retificacao.entidade_id,
+    periodo_id: retificacao.periodo_id,
+    conta_id: retificacao.conta_id,
+    data_lancamento: retificacao.data_lancamento,
+    // Manter natureza da conta: se débito era débito, continua débito
+    valor_debito:
+      retificacao.valor_novo > 0
+        ? retificacao.valor_novo
+        : undefined,
+    valor_credito:
+      retificacao.valor_novo > 0 ? undefined : Math.abs(retificacao.valor_novo),
+    descricao: `RETIFICAÇÃO: ${retificacao.motivo_retificacao}`,
+    origem_modulo: retificacao.origem_modulo,
+    origem_id: retificacao.retificacao_id || retificacao.apontamento_id || 0,
+    referencia_documento: `RETIF-${retificacao.retificacao_id || "MANUAL"}`,
+    criado_por: retificacao.retificada_por,
+  };
+
+  const ledger_novo_id = registrarLancamentoSemValidacao(db, lancamento_novo);
+
+  // PASSO 3: Registrar rastreamento (se tabela existir)
+  if (ledger_reverso_id && retificacao.retificacao_id) {
+    executar(
+      db,
+      `INSERT OR IGNORE INTO retificacao_ledger_mapping
+       (retificacao_id, ledger_entry_reverso_id, ledger_entry_novo_id)
+       VALUES (?, ?, ?)`,
+      [retificacao.retificacao_id, ledger_reverso_id, ledger_novo_id]
+    );
+  }
+
+  return { ledger_reverso_id, ledger_novo_id };
 }
 
 /**

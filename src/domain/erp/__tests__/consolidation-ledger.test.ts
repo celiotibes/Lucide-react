@@ -230,14 +230,14 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
           referencia_documento: "CONS-TEST-006",
         });
 
-        const estornado = estornarLancamento(
+        const reverso_id = estornarLancamento(
           db,
           lancamento_id,
           "Consolidation test: reversal",
           1
         );
 
-        expect(estornado).toBe(true);
+        expect(reverso_id).toBeGreaterThan(0);
 
         // O estorno cria o lançamento reverso e grava o id dele em estornado_por_id do
         // ORIGINAL ("estornado por"). O teste antes procurava o reverso carregando
