@@ -104,7 +104,12 @@ CREATE TABLE IF NOT EXISTS dividas_consumo (
     saldo_devedor_atual     REAL NOT NULL,
     parcela_mensal          REAL NOT NULL,
     data_referencia_saldo   DATE NOT NULL,      -- data em que saldo_devedor_atual foi apurado (ex: data do Registrato)
-    observacoes             TEXT
+    observacoes             TEXT,
+    -- Não existia antes porque a fonte típica (Registrato/SCR) só dá saldo devedor
+    -- periódico, sem taxa. Quando preenchida, permite estimar juro implícito pela
+    -- variação do saldo entre apurações — decisão do usuário (2026-09-29): sempre
+    -- rotulado como estimativa, nunca como valor exato.
+    taxa_juros_mensal_estimada REAL
 );
 
 CREATE TABLE IF NOT EXISTS obras (
@@ -1870,3 +1875,92 @@ CREATE TABLE IF NOT EXISTS imovel_avaliacoes_mercado (
 );
 
 CREATE INDEX IF NOT EXISTS idx_imovel_avaliacoes_mercado_imovel ON imovel_avaliacoes_mercado(imovel_id, data_avaliacao);
+
+-- =====================================================================================
+-- RATEIO DE DESTINO (PF × empresa de fato × advocacia) DE DÍVIDAS — decisão do usuário
+-- =====================================================================================
+-- `dividas_consumo` e `financiamentos` não tinham nenhum campo indicando a que parte da
+-- vida/atividade uma dívida pertence. Decisão do usuário (2026-09-29): em vez de um
+-- campo único PF/PJ, uma mesma dívida pode ser rateada por PERCENTUAL entre vários
+-- destinos (ex: 60% empresa de fato dos imóveis de locação/Airbnb, 20% vida pessoal, 20%
+-- advocacia) — cada linha leva sua própria observação/justificativa, e o usuário pode
+-- abrir quantas linhas precisar para segregar mais. `destino` é texto livre (a UI sugere
+-- valores comuns) para não travar numa lista fixa que não cubra um caso novo. Referência
+-- polimórfica (`divida_tipo`+`divida_id`, sem FK) — mesmo padrão já usado em
+-- `retencoes_legais(entidade_tipo, entidade_id)` — porque o alvo pode ser uma linha de
+-- `dividas_consumo` OU de `financiamentos`.
+CREATE TABLE IF NOT EXISTS divida_rateio_destinos (
+    id              INTEGER PRIMARY KEY,
+    divida_tipo     TEXT NOT NULL CHECK (divida_tipo IN ('divida_consumo', 'financiamento')),
+    divida_id       INTEGER NOT NULL,
+    destino         TEXT NOT NULL,          -- texto livre; sugestões na UI: 'pessoal', 'imoveis_locacao', 'advocacia', 'outro'
+    percentual      REAL NOT NULL CHECK (percentual > 0 AND percentual <= 100),
+    observacoes     TEXT,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_divida_rateio_destinos_divida ON divida_rateio_destinos(divida_tipo, divida_id);
+
+-- =====================================================================================
+-- UPLOAD DE CONTRATO/HISTÓRICO DE PAGAMENTOS DE DÍVIDA + EXTRAÇÃO POR IA
+-- =====================================================================================
+-- Decisão do usuário (2026-09-29): além da taxa estimada acima, permitir subir o
+-- contrato/extrato de pagamentos e deixar a IA tentar extrair os dados mais exatos —
+-- SEMPRE como sugestão sujeita a confirmação humana (regra de ouro do sistema: IA nunca
+-- decide/lança sozinha), nunca aplicado automaticamente.
+CREATE TABLE IF NOT EXISTS documento_dividas (
+    id              INTEGER PRIMARY KEY,
+    documento_id    INTEGER NOT NULL REFERENCES documentos(id),
+    divida_tipo     TEXT NOT NULL CHECK (divida_tipo IN ('divida_consumo', 'financiamento')),
+    divida_id       INTEGER NOT NULL,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_documento_dividas_divida ON documento_dividas(divida_tipo, divida_id);
+
+-- Histórico de pagamentos (decompostos em juros/amortização quando possível) de uma
+-- dívida sem cronograma de partida dobrada exato (dívida de consumo, ou financiamento
+-- 'OUTRO'). É a fonte de dado real para o relatório de juros pagos mês a mês dessas
+-- dívidas — financiamentos SAC/PRICE continuam usando o cronograma calculado em
+-- `financiamento/amortizacao.ts`, que já é exato, e não precisam desta tabela.
+CREATE TABLE IF NOT EXISTS divida_pagamentos_historico (
+    id                      INTEGER PRIMARY KEY,
+    divida_tipo             TEXT NOT NULL CHECK (divida_tipo IN ('divida_consumo', 'financiamento')),
+    divida_id               INTEGER NOT NULL,
+    data_pagamento          DATE NOT NULL,
+    valor_pago              REAL NOT NULL CHECK (valor_pago > 0),
+    valor_juros             REAL,           -- NULL se não decomposto (nem toda fonte separa juros de amortização)
+    valor_amortizacao       REAL,
+    origem                  TEXT NOT NULL CHECK (origem IN ('extraido_ia', 'manual')),
+    -- Regra de ouro: um valor com origem='extraido_ia' só entra nos relatórios depois de
+    -- confirmado_por_usuario=1 — extração de IA é sempre candidata, nunca fato até
+    -- confirmação humana (mesmo padrão de documentos/matching.ts).
+    confirmado_por_usuario  INTEGER NOT NULL DEFAULT 0 CHECK (confirmado_por_usuario IN (0, 1)),
+    documento_id            INTEGER REFERENCES documentos(id),  -- proveniência, se veio de upload
+    observacoes             TEXT,
+    criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_divida_pagamentos_historico_divida ON divida_pagamentos_historico(divida_tipo, divida_id, data_pagamento);
+
+-- =====================================================================================
+-- PROJETOS DE EXPANSÃO/AMPLIAÇÃO — calculadora de viabilidade (decisão do usuário)
+-- =====================================================================================
+-- Calculadora completa: usuário entra manualmente com custo de obra e receita/despesa
+-- adicional esperada (o sistema não tem — e não deveria inventar — nenhuma base de custo
+-- de construção); o módulo de domínio calcula payback/ROI a partir disso. `imovel_id`
+-- nulo = unidade nova hipotética, não ampliação de um imóvel já cadastrado.
+CREATE TABLE IF NOT EXISTS projetos_expansao (
+    id                                  INTEGER PRIMARY KEY,
+    imovel_id                           INTEGER REFERENCES imoveis(id),
+    descricao                           TEXT NOT NULL,
+    custo_obra_estimado                 REAL NOT NULL CHECK (custo_obra_estimado > 0),
+    receita_adicional_mensal_estimada   REAL NOT NULL CHECK (receita_adicional_mensal_estimada >= 0),
+    despesa_adicional_mensal_estimada   REAL NOT NULL DEFAULT 0 CHECK (despesa_adicional_mensal_estimada >= 0),
+    data_estimativa                     DATE NOT NULL,
+    status                              TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'em_analise', 'aprovado', 'descartado')),
+    observacoes                         TEXT,
+    criado_em                           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_projetos_expansao_status ON projetos_expansao(status);
