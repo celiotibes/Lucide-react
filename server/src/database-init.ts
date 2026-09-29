@@ -136,70 +136,23 @@ function runMigrations(db: Database.Database): void {
 }
 
 /**
- * Seed initial test data (admin, gestor, prestador users)
- * Uses placeholder password hashes - in production these should be set properly
+ * Seed initial data.
+ *
+ * Fase 1 (auth real): este arquivo já criou aqui 3 usuários demo
+ * (admin/gestor/prestador) com um hash placeholder que nunca foi
+ * criptograficamente válido (o código antigo comparava a senha em texto
+ * puro contra a constante "senha123", nunca esta coluna). Removido de
+ * propósito — ver a mesma nota em migrations-phase2-auth.sql: seedar um
+ * usuário titular com senha pública e conhecida em TODA instalação nova
+ * (inclusive produção) seria recriar o mesmo problema que esta fase
+ * corrigiu, só que na semente em vez do comparador. O primeiro usuário
+ * titular agora nasce via `POST /api/auth/bootstrap`
+ * (`AuthServiceDB.bootstrapTitular`), que só funciona uma vez e exige senha
+ * escolhida por quem instala. Os parâmetros de contrato padrão abaixo não
+ * são dado de autenticação — continuam sendo seedados normalmente.
  */
 function seedInitialData(db: Database.Database): void {
   try {
-    // Check if test users already exist
-    const checkStmt = db.prepare("SELECT COUNT(*) as count FROM usuarios");
-    const result = checkStmt.get() as { count: number };
-
-    if (result.count > 0) {
-      console.log("[Database] Users already seeded");
-      return;
-    }
-
-    // Insert test users (with placeholder hashes - should be bcrypt in production)
-    const insertUserStmt = db.prepare(
-      `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
-       VALUES (?, ?, ?, ?, ?, true, '2026-01-01')`
-    );
-
-    // Password: senha123 (placeholder)
-    insertUserStmt.run(
-      "user_admin_1",
-      "Admin User",
-      "admin@example.com",
-      "$2b$12$placeholder_hash_admin",
-      "admin"
-    );
-
-    insertUserStmt.run(
-      "user_gestor_1",
-      "Gestor User",
-      "gestor@example.com",
-      "$2b$12$placeholder_hash_gestor",
-      "gestor"
-    );
-
-    insertUserStmt.run(
-      "user_prestador_1",
-      "Paulo Bruxel",
-      "paulo@example.com",
-      "$2b$12$placeholder_hash_paulo",
-      "prestador"
-    );
-
-    // Insert prestador
-    const insertPrestadorStmt = db.prepare(
-      `INSERT INTO prestadores (id, usuario_id, nome, email, ativo, data_criacao)
-       VALUES (?, ?, ?, ?, true, '2026-01-01')`
-    );
-
-    insertPrestadorStmt.run(
-      1,
-      "user_prestador_1",
-      "Paulo Bruxel",
-      "paulo@example.com"
-    );
-
-    // Update prestador_id for prestador user
-    const updateStmt = db.prepare(
-      "UPDATE usuarios SET prestador_id = 1 WHERE id = 'user_prestador_1'"
-    );
-    updateStmt.run();
-
     // Insert default contract parameters for current month
     const now = new Date();
     const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -218,9 +171,7 @@ function seedInitialData(db: Database.Database): void {
       now.toISOString().split("T")[0]
     );
 
-    console.log(
-      "[Database] Seeded initial test data (3 users, 1 prestador, contract params)"
-    );
+    console.log("[Database] Seeded default contract parameters");
   } catch (erro) {
     throw new Error(
       `Seed data insertion failed: ${erro instanceof Error ? erro.message : String(erro)}`

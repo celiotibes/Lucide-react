@@ -54,6 +54,25 @@ function createTestDatabase(): Database.Database {
   // CREATE TABLE inteiras (era exatamente o caso da tabela "sessoes").
   db.exec(schema);
 
+  // A migration não seeda mais usuários/prestadores demo (ver nota em
+  // migrations-phase2-auth.sql). pagamentos_apontamentos tem FOREIGN KEY
+  // para usuarios(id) (usuario_submissao_id e usuario_aprovacao_id) e para
+  // prestadores(id) — os registros usados pelos testes deste arquivo
+  // precisam existir de verdade. Hash de senha é irrelevante aqui (nenhum
+  // teste deste arquivo faz login).
+  db.prepare(
+    `INSERT INTO prestadores (id, usuario_id, nome, email, ativo, data_criacao)
+     VALUES (1, NULL, 'Paulo Bruxel', 'paulo@example.com', true, '2026-01-01'),
+            (2, NULL, 'Outro Prestador', 'outro@example.com', true, '2026-01-01')`,
+  ).run();
+  const inserirUsuario = db.prepare(
+    `INSERT INTO usuarios (id, nome, email, senha_hash, role, prestador_id, ativo, data_criacao)
+     VALUES (?, ?, ?, 'hash_de_teste_nao_usado', ?, ?, true, '2026-01-01')`,
+  );
+  inserirUsuario.run("user_prestador_1", "Paulo Bruxel", "paulo@example.com", "perito", 1);
+  inserirUsuario.run("user_prestador_2", "Other", "other@example.com", "perito", 2);
+  inserirUsuario.run("user_admin_1", "Admin User", "admin@example.com", "titular", null);
+
   return db;
 }
 
@@ -76,14 +95,13 @@ const testContexto: ContextoAutenticacao = {
     id: "user_prestador_1",
     nome: "Paulo Bruxel",
     email: "paulo@example.com",
-    role: "prestador",
+    role: "perito",
     prestador_id: 1,
     ativo: true,
     data_criacao: "2026-01-01",
-    senha_hash: "hash",
   } as Usuario,
   autenticado: true,
-  role: "prestador",
+  role: "perito",
   prestador_id: 1,
 };
 
@@ -164,14 +182,13 @@ describe("DuplicatePaymentGuardDB (Phase 2)", () => {
           id: "user_prestador_2",
           nome: "Other",
           email: "other@example.com",
-          role: "prestador",
+          role: "perito",
           prestador_id: 2,
           ativo: true,
           data_criacao: "2026-01-01",
-          senha_hash: "hash",
         } as Usuario,
         autenticado: true,
-        role: "prestador",
+        role: "perito",
         prestador_id: 2,
       };
 

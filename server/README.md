@@ -39,6 +39,39 @@ limite de 100 requisições por IP a cada 15 minutos (`express-rate-limit`),
 para conter força bruta de `itemId`/`accountId` e evitar estourar a cota
 paga da API da Pluggy.
 
+### Autenticação de usuário (Fase 1 — ver `docs/viabilidade-backend-pagamentos.md`)
+
+Login real por usuário, separado da `API_KEY` compartilhada acima (que só
+autoriza "é este app", não "é este usuário"). Papéis do produto: `titular`,
+`contador`, `perito`, `advogado` — ver `server/src/domain/auth/auth-service.ts`.
+
+- `POST /api/auth/bootstrap` — `{ nome, email, senha }` → cria o primeiro
+  usuário `titular`. Só funciona uma vez (enquanto não existir nenhum
+  `titular` no banco); depois disso responde 403. É a porta de entrada da
+  primeira instalação — não existe rota alguma para criar usuário depois
+  disso nesta fase (ver limitações abaixo).
+- `POST /api/auth/login` — `{ email, senha }` → `{ token, usuario }`.
+  Credencial errada (e-mail inexistente OU senha errada) sempre devolve a
+  mesma mensagem genérica 401 — nunca revela qual das duas errou. Rate limit
+  próprio e mais agressivo que o geral (8 tentativas / 15 min por IP).
+- `GET /api/auth/me` — header `Authorization: Bearer <token>` → dados do
+  usuário autenticado.
+- `POST /api/auth/logout` — header `Authorization: Bearer <token>` → invalida
+  a sessão no servidor (é stateful, não é "só o cliente esquecer o token";
+  o mesmo token para de funcionar imediatamente).
+
+Toda tentativa de login (sucesso e falha) e o bootstrap geram um registro na
+trilha de auditoria (`auditoria`, ver `audit-trail-db.ts`), com IP e
+user-agent. Senha é armazenada com hash `scrypt` (nunca em texto puro nem
+logada); o token de sessão é assinado com HMAC-SHA256 usando `SESSION_SECRET`
+(ver `.env.example` e `server/src/domain/auth/token.ts`).
+
+**Limitação conhecida desta fase**: não existe rota para um `titular`
+convidar/criar contas de `contador`/`perito`/`advogado` depois do bootstrap —
+`AuthServiceDB.criarUsuario` existe e funciona, mas só é chamável de dentro
+do processo Node (por outro código do servidor), não por HTTP. Ver
+`docs/viabilidade-backend-pagamentos.md` para o que falta.
+
 ## Testando webhooks localmente
 
 A Pluggy precisa de uma URL pública para chamar seu webhook. Para testar sem

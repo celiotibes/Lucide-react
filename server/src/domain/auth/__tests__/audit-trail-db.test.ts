@@ -52,6 +52,16 @@ function createTestDatabase(): Database.Database {
   // CREATE TABLE inteiras (era exatamente o caso da tabela "sessoes").
   db.exec(schema);
 
+  // A migration não seeda mais usuários demo (ver nota em
+  // migrations-phase2-auth.sql). A tabela `auditoria` tem FOREIGN KEY para
+  // usuarios(id), então o usuário referenciado pelos testes deste arquivo
+  // precisa existir de verdade — hash de senha é irrelevante aqui (nenhum
+  // teste deste arquivo faz login), por isso um valor fixo qualquer serve.
+  db.prepare(
+    `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
+     VALUES ('user_admin_1', 'Admin User', 'admin@example.com', 'hash_de_teste_nao_usado', 'titular', true, '2026-01-01')`,
+  ).run();
+
   return db;
 }
 
@@ -59,7 +69,7 @@ const adminUser: Usuario = {
   id: "user_admin_1",
   nome: "Admin User",
   email: "admin@example.com",
-  role: "admin",
+  role: "titular",
   ativo: true,
   data_criacao: "2026-01-01",
 };
@@ -67,7 +77,7 @@ const adminUser: Usuario = {
 const adminContexto: ContextoAutenticacao = {
   usuario: adminUser,
   autenticado: true,
-  role: "admin",
+  role: "titular",
 };
 
 describe("AuditTrailServiceDB (Phase 2)", () => {

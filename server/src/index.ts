@@ -7,6 +7,8 @@ import { initializeDatabase, getDatabase, closeDatabase } from "./database-init.
 import { AuthServiceDB } from "../src/domain/auth/auth-service-db.js";
 import { AuditTrailServiceDB } from "../src/domain/auth/audit-trail-db.js";
 import { DuplicatePaymentGuardDB } from "../src/domain/erp/duplicate-payment-guard-db.js";
+import { avisarSeSegredoForTemporario } from "../src/domain/auth/token.js";
+import { criarRotasAuth } from "../src/routes/auth-routes.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -27,6 +29,11 @@ const paymentGuard = new DuplicatePaymentGuardDB(db);
 
 console.log("[Server] Database and services initialized");
 
+// Fase 1 (auth real): avisa alto no boot se o segredo de assinatura de
+// sessão foi gerado só para este processo (SESSION_SECRET/JWT_SECRET
+// ausente) — ver token.ts para o que isso significa na prática.
+avisarSeSegredoForTemporario();
+
 const app = express();
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN ?? "http://localhost:5173" }));
 app.use(express.json());
@@ -40,6 +47,13 @@ app.locals.db = db;
 // Limite de requisições por IP — protege contra força bruta de itemId/accountId (agravaria o
 // achado abaixo se não houvesse chave) e contra estourar a cota paga da API da Pluggy.
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 }));
+
+/** Rotas de autenticação real (Fase 1) — POST /api/auth/login, GET /api/auth/me,
+ * POST /api/auth/logout, POST /api/auth/bootstrap. Ver auth-routes.ts: têm
+ * rate limit próprio (mais agressivo que o geral acima, só para login e
+ * bootstrap) e herdam a mesma política de CORS já configurada acima —
+ * nenhuma configuração de CORS adicional é feita para elas. */
+app.use("/api/auth", criarRotasAuth({ authService, auditService }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET

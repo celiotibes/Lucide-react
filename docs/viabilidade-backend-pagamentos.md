@@ -1,5 +1,11 @@
 # Viabilidade: backend real para iniciar pagamento PIX (e login/multiusuário)
 
+> **Status: Fase 1 (auth real) implementada.** Ver `server/README.md` seção
+> "Autenticação de usuário" para os endpoints, e a nota ao final deste
+> documento (seção 9) para decisões técnicas, o que ficou de fora de
+> propósito e pontos que pedem decisão humana antes da Fase 2. Fases 2 e 3
+> continuam não implementadas.
+
 > Documento de análise arquitetural, não uma especificação pronta para implementar. Nenhum
 > código deste documento move dinheiro real. Ver `server/src/domain/pagamentos/payment-provider.ts`
 > para um stub de **interface** (contrato de código) que ilustra o desenho sem falar com rede
@@ -226,3 +232,88 @@ sem prometer Fase 2 ainda.** Três razões:
    iniciar pagamento "só vale reconstruir se o produto for de fato iniciar pagamentos, não
    apenas reconciliar extrato — decisão de produto, não técnica". Essa decisão fica mais fácil
    de tomar com login real já funcionando do que especulando sobre as duas coisas juntas.
+
+## 9. Fase 1 — o que foi implementado e o que ficou de propósito de fora
+
+Implementado em `server/` (nada em `src/` foi tocado — o app client-side
+continua 100% funcional sem backend nenhum, como a seção 3 exige):
+
+- **Hash de senha**: `crypto.scrypt` (nativo do Node, não bcrypt — evita
+  dependência com compilação nativa via node-gyp). Salt aleatório por senha,
+  comparação em tempo constante, parâmetros de custo documentados e
+  autodescritos no próprio hash armazenado. Ver `server/src/domain/auth/password.ts`.
+- **Token de sessão**: o desenho pré-existente (tabela `sessoes`, validado a
+  cada requisição) já era um session token opaco, não um JWT stateless — o
+  comentário antigo `FIXME: usar JWT` presumia um desenho que o código nunca
+  teve. Mantido esse desenho (evita reescrever revogação/expiração já
+  testadas), mas com `Math.random()` trocado por `crypto.randomBytes` e uma
+  assinatura HMAC-SHA256 sobre a parte aleatória, chave em `SESSION_SECRET`
+  (ou `JWT_SECRET`) — sem isso configurado, gera um segredo aleatório por
+  processo com aviso alto no boot. Ver `server/src/domain/auth/token.ts`.
+- **Papéis**: `admin/gestor/prestador` (do módulo interno de pagamento a
+  prestadores) trocados por `titular/contador/perito/advogado` (papéis reais
+  do produto) em `UserRole`. RBAC granular entre os 4 continua raso de
+  propósito — nenhuma tela real consome diferenciação ainda; só gestão de
+  usuários e leitura de auditoria ficam reservadas a `titular`. **Decisão
+  que merece revisão humana**: o módulo de pagamento a prestadores
+  (`duplicate-payment-guard-db.ts`) tinha autorização amarrada ao papel
+  `"prestador"` (self-service, só vê o próprio registro) — como esse papel
+  não existe mais, a restrição foi desacoplada do nome do papel e passou a
+  depender só da presença de `Usuario.prestador_id` (qualquer um dos 4
+  papéis pode ou não estar vinculado a um prestador). Isso preserva o
+  comportamento testado antes, mas é uma reinterpretação minha de como
+  esse módulo (que não foi pedido nesta fase, só precisou compilar) deveria
+  funcionar sob os novos papéis — vale confirmar com quem decide o produto
+  se esse módulo de pagamento a prestadores ainda é relevante, e se sim, se
+  esse desenho faz sentido.
+- **Rotas**: `POST /api/auth/login`, `GET /api/auth/me`,
+  `POST /api/auth/logout` (invalida sessão de verdade no servidor — o
+  desenho é stateful, não client-side-only) e `POST /api/auth/bootstrap`
+  (cria o primeiro `titular`; trava depois). Rate limit dedicado e mais
+  agressivo no login (8/15min/IP) e no bootstrap (5/hora/IP), separado do
+  rate limit geral já existente. Timing de "e-mail inexistente" e "senha
+  errada" igualado (scrypt sempre roda, real ou contra hash dummy). CORS
+  herdado do já configurado em `index.ts` — nenhuma política nova. Toda
+  tentativa de login e o bootstrap geram evento em `auditoria`, com
+  `usuario_id` real quando a conta existe (mesmo em falha) e `null` (nunca
+  uma string inventada) quando não — a resposta HTTP nunca carrega esse
+  detalhe. Ver `server/src/routes/auth-routes.ts` e `server/README.md`.
+- **Seed inseguro removido**: a migration e `database-init.ts` seedavam,
+  em TODA instalação nova (inclusive produção), usuários demo com senha
+  fixa conhecida (`"senha123"`, nunca de fato validada contra hash antes
+  desta fase). Removido — o primeiro usuário agora só nasce via bootstrap,
+  com senha escolhida por quem instala.
+- **Código morto removido**: a classe `AuthService` em memória (com o
+  singleton `authService`), que tinha a senha hardcoded e o token sem
+  assinatura, nunca foi importada por nenhuma rota nem teste — removida em
+  vez de corrigida, para não deixar uma segunda implementação insegura ao
+  lado da corrigida (`AuthServiceDB`).
+
+**Ficou de fora de propósito (Fase 1 não pediu, não inventei)**:
+
+- **Convidar/criar usuário por HTTP**: `AuthServiceDB.criarUsuario` existe,
+  hashea senha de verdade, mas só é chamável de dentro do processo Node —
+  não há rota. Depois do bootstrap, um `titular` não tem hoje como criar
+  conta para um `contador`/`perito`/`advogado` sem acesso direto ao banco.
+  Fica para quando isso for pedido.
+- **RBAC granular por papel profissional**: ver acima — os 4 papéis são
+  hoje equivalentes, exceto gestão de usuários/auditoria (reservada a
+  `titular`). Não inventei diferenciação sem tela real para validar.
+- **Contador em memória de força bruta é por processo**: `tentativasFalhas`
+  (bloqueio após 5 tentativas por e-mail) vive em `Map` na instância de
+  `AuthServiceDB` — reinicia a zero a cada restart do servidor, e não é
+  compartilhado entre réplicas se este backend algum dia rodar em mais de
+  um processo. O rate limit por IP (`express-rate-limit`, na rota) é
+  independente disso e não tem essa limitação. Comportamento herdado de
+  antes desta fase, não é novo, mas vale registrar.
+- **Timing do caminho "bloqueado por tentativas"**: esse caminho retorna
+  antes de qualquer hash (nem real, nem dummy), então é mensuravelmente
+  mais rápido que os outros dois (e-mail inexistente / senha errada, que
+  levam o mesmo tempo entre si). Isso só revela "esta conta já levou 5
+  tentativas recentes", não qual e-mail existe no sistema em geral — risco
+  residual baixo, mas não foi eliminado.
+- **`SESSION_SECRET` por processo, sem rotação nem fallback multi-réplica**:
+  suficiente para um backend de instância única (o desenho atual do
+  projeto); se este servidor algum dia rodar em mais de uma réplica atrás
+  de um load balancer, cada uma precisa do MESMO `SESSION_SECRET` (variável
+  de ambiente compartilhada) — não é algo que o código resolve sozinho.

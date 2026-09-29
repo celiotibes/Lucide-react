@@ -18,12 +18,16 @@ export type TipoAcao =
   | "modificar_parametro"
   | "login"
   | "logout"
+  | "criar_usuario"
   | "acesso_negado";
 
 export interface RegistroAuditoria {
   id: string;
   timestamp: string;
-  usuario_id: string;
+  /** null quando a ação não tem usuário autenticado associado (ex: login
+   * que falhou porque o e-mail nem existe) — nunca uma string inventada
+   * tipo "sistema", que violaria a FOREIGN KEY para usuarios(id). */
+  usuario_id: string | null;
   usuario_nome: string;
   usuario_email: string;
   usuario_role: string;
@@ -80,7 +84,13 @@ export class AuditTrailServiceDB {
     const registro: RegistroAuditoria = {
       id: `audit_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       timestamp: new Date().toISOString(),
-      usuario_id: contexto.usuario?.id || "sistema",
+      // null (não uma string tipo "sistema"): a coluna usuario_id tem
+      // FOREIGN KEY para usuarios(id) — uma string inventada que não é PK
+      // de nenhum usuário derrubaria o INSERT com "FOREIGN KEY constraint
+      // failed" sempre que a ação não tiver usuário autenticado (ex: login
+      // que falhou porque o e-mail nem existe). NULL é exatamente o que a
+      // constraint já prevê (ON DELETE SET NULL).
+      usuario_id: contexto.usuario?.id ?? null,
       usuario_nome: contexto.usuario?.nome || "Sistema",
       usuario_email: contexto.usuario?.email || "sistema@local",
       usuario_role: contexto.usuario?.role || "guest",

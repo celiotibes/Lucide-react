@@ -1,15 +1,31 @@
 /**
  * Authentication and Authorization Service
- * Gerencia autenticação de usuários, roles e permissões para o módulo de prestadores
+ * Gerencia autenticação de usuários, roles e permissões
  *
- * Roles:
- * - admin: Acesso total, pode gerenciar usuários e permissões
- * - gestor: Pode aprovar/rejeitar pagamentos, visualizar auditoria
- * - prestador: Pode preencher seus próprios apontamentos
- * - guest: Sem acesso (login necessário)
+ * Roles (Fase 1 — ver docs/viabilidade-backend-pagamentos.md):
+ * - titular: dono(a) da conta/escritório — papel mais próximo de "admin"
+ * - contador: profissional contábil
+ * - perito: perito(a) — inclui quem também é rastreado no módulo de
+ *   pagamento a prestadores (diária + km) para viagens/vistorias, via
+ *   `Usuario.prestador_id` (ver nota abaixo)
+ * - advogado: advogado(a)
+ *
+ * Estes são os papéis REAIS do produto (não os do antigo módulo interno de
+ * pagamento a prestadores de serviço — admin/gestor/prestador — que foi
+ * removido daqui; ver commit `926e8cf` e a análise de viabilidade). RBAC
+ * granular por papel profissional (titular vs. contador vs. perito vs.
+ * advogado) ainda não existe porque nenhuma tela real consome essa
+ * diferenciação ainda — os quatro têm hoje as mesmas permissões, exceto
+ * gestão de usuários e leitura de auditoria, reservadas ao titular por ser
+ * o papel mais próximo de "dono da conta". Ver PERMISSOES_POR_ROLE abaixo.
+ *
+ * O módulo de pagamento a prestadores (`duplicate-payment-guard-db.ts`) não
+ * usa mais nome de papel nenhum para decidir quem só vê os próprios dados —
+ * usa a presença de `Usuario.prestador_id` (ver `podeAcessarPrestador`
+ * abaixo), independente de qual dos 4 papéis o usuário tem.
  */
 
-export type UserRole = "admin" | "gestor" | "prestador";
+export type UserRole = "titular" | "contador" | "perito" | "advogado";
 
 export interface Usuario {
   id: string;
@@ -38,263 +54,146 @@ export interface PermissaoOperacao {
 
 /**
  * Mapa de permissões por role
- * Define quem pode fazer o quê no sistema
+ *
+ * Fase 1: nenhuma tela real ainda consome diferença de permissão entre
+ * titular/contador/perito/advogado — por isso os quatro têm exatamente o
+ * mesmo conjunto de permissões sobre os recursos do (pré-existente) módulo
+ * de pagamento a prestadores, EXCETO gestão de usuários e leitura de
+ * auditoria, que ficam só com titular (o papel mais próximo de "dono da
+ * conta"). Isto é proposital, não um esquecimento: inventar diferenciação
+ * de permissão para contador/perito/advogado sem nenhuma tela que a use
+ * seria criar regra que ninguém pode validar. Quando telas reais do produto
+ * precisarem de RBAC granular por papel profissional, este mapa é o lugar
+ * certo para crescer.
  */
-const PERMISSOES_POR_ROLE: Record<UserRole, PermissaoOperacao[]> = {
-  admin: [
-    // Admin pode tudo
-    { recurso: "prestador_contrato", operacao: "criar", roles: ["admin"] },
-    { recurso: "prestador_contrato", operacao: "ler", roles: ["admin"] },
-    { recurso: "prestador_contrato", operacao: "atualizar", roles: ["admin"] },
-    { recurso: "prestador_contrato", operacao: "deletar", roles: ["admin"] },
-    { recurso: "prestador_apontamento", operacao: "criar", roles: ["admin"] },
-    { recurso: "prestador_apontamento", operacao: "ler", roles: ["admin"] },
-    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["admin"] },
-    { recurso: "prestador_apontamento", operacao: "deletar", roles: ["admin"] },
-    { recurso: "prestador_pagamento", operacao: "criar", roles: ["admin"] },
-    { recurso: "prestador_pagamento", operacao: "ler", roles: ["admin"] },
-    { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["admin"] },
-    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["admin"] },
-    { recurso: "auditoria", operacao: "ler", roles: ["admin"] },
-    { recurso: "usuario", operacao: "criar", roles: ["admin"] },
-    { recurso: "usuario", operacao: "atualizar", roles: ["admin"] },
+export const PERMISSOES_POR_ROLE: Record<UserRole, PermissaoOperacao[]> = {
+  titular: [
+    { recurso: "prestador_contrato", operacao: "criar", roles: ["titular"] },
+    { recurso: "prestador_contrato", operacao: "ler", roles: ["titular"] },
+    { recurso: "prestador_contrato", operacao: "atualizar", roles: ["titular"] },
+    { recurso: "prestador_contrato", operacao: "deletar", roles: ["titular"] },
+    { recurso: "prestador_apontamento", operacao: "criar", roles: ["titular"] },
+    { recurso: "prestador_apontamento", operacao: "ler", roles: ["titular"] },
+    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["titular"] },
+    { recurso: "prestador_apontamento", operacao: "deletar", roles: ["titular"] },
+    { recurso: "prestador_pagamento", operacao: "criar", roles: ["titular"] },
+    { recurso: "prestador_pagamento", operacao: "ler", roles: ["titular"] },
+    { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["titular"] },
+    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["titular"] },
+    { recurso: "auditoria", operacao: "ler", roles: ["titular"] },
+    { recurso: "usuario", operacao: "criar", roles: ["titular"] },
+    { recurso: "usuario", operacao: "atualizar", roles: ["titular"] },
   ],
-  gestor: [
-    // Gestor pode gerenciar pagamentos mas não criar contratos
-    { recurso: "prestador_contrato", operacao: "ler", roles: ["gestor"] },
-    { recurso: "prestador_apontamento", operacao: "ler", roles: ["gestor"] },
-    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["gestor"] },
-    { recurso: "prestador_pagamento", operacao: "ler", roles: ["gestor"] },
-    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["gestor"] },
-    { recurso: "auditoria", operacao: "ler", roles: ["gestor"] },
+  contador: [
+    { recurso: "prestador_contrato", operacao: "criar", roles: ["contador"] },
+    { recurso: "prestador_contrato", operacao: "ler", roles: ["contador"] },
+    { recurso: "prestador_contrato", operacao: "atualizar", roles: ["contador"] },
+    { recurso: "prestador_contrato", operacao: "deletar", roles: ["contador"] },
+    { recurso: "prestador_apontamento", operacao: "criar", roles: ["contador"] },
+    { recurso: "prestador_apontamento", operacao: "ler", roles: ["contador"] },
+    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["contador"] },
+    { recurso: "prestador_apontamento", operacao: "deletar", roles: ["contador"] },
+    { recurso: "prestador_pagamento", operacao: "criar", roles: ["contador"] },
+    { recurso: "prestador_pagamento", operacao: "ler", roles: ["contador"] },
+    { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["contador"] },
+    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["contador"] },
   ],
-  prestador: [
-    // Prestador pode apenas preencher seus apontamentos
-    { recurso: "prestador_contrato", operacao: "ler", roles: ["prestador"] },
-    { recurso: "prestador_apontamento", operacao: "criar", roles: ["prestador"] },
-    { recurso: "prestador_apontamento", operacao: "ler", roles: ["prestador"] },
-    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["prestador"] },
+  perito: [
+    { recurso: "prestador_contrato", operacao: "criar", roles: ["perito"] },
+    { recurso: "prestador_contrato", operacao: "ler", roles: ["perito"] },
+    { recurso: "prestador_contrato", operacao: "atualizar", roles: ["perito"] },
+    { recurso: "prestador_contrato", operacao: "deletar", roles: ["perito"] },
+    { recurso: "prestador_apontamento", operacao: "criar", roles: ["perito"] },
+    { recurso: "prestador_apontamento", operacao: "ler", roles: ["perito"] },
+    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["perito"] },
+    { recurso: "prestador_apontamento", operacao: "deletar", roles: ["perito"] },
+    { recurso: "prestador_pagamento", operacao: "criar", roles: ["perito"] },
+    { recurso: "prestador_pagamento", operacao: "ler", roles: ["perito"] },
+    { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["perito"] },
+    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["perito"] },
+  ],
+  advogado: [
+    { recurso: "prestador_contrato", operacao: "criar", roles: ["advogado"] },
+    { recurso: "prestador_contrato", operacao: "ler", roles: ["advogado"] },
+    { recurso: "prestador_contrato", operacao: "atualizar", roles: ["advogado"] },
+    { recurso: "prestador_contrato", operacao: "deletar", roles: ["advogado"] },
+    { recurso: "prestador_apontamento", operacao: "criar", roles: ["advogado"] },
+    { recurso: "prestador_apontamento", operacao: "ler", roles: ["advogado"] },
+    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["advogado"] },
+    { recurso: "prestador_apontamento", operacao: "deletar", roles: ["advogado"] },
+    { recurso: "prestador_pagamento", operacao: "criar", roles: ["advogado"] },
+    { recurso: "prestador_pagamento", operacao: "ler", roles: ["advogado"] },
+    { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["advogado"] },
+    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["advogado"] },
   ],
 };
 
-/**
- * Service de Autenticação
- * Valida credenciais, gerencia sessões e verifica permissões
- */
-export class AuthService {
-  private usuariosAutenticados: Map<string, Usuario> = new Map();
-  private sessoes: Map<string, ContextoAutenticacao> = new Map();
-  private tentativasFalhas: Map<string, number> = new Map(); // Contador para brute force protection
-
-  /**
-   * Autentica um usuário com email e senha
-   * NOTA: Em produção, usar bcrypt e hash de senha!
-   * Para testes: senha padrão é "senha123"
-   */
-  autenticar(
-    email: string,
-    senha: string,
-    usuarios: Usuario[]
-  ): { sucesso: boolean; token?: string; erro?: string } {
-    // Proteção contra brute force
-    const tentativas = this.tentativasFalhas.get(email) || 0;
-    if (tentativas >= 5) {
-      return {
-        sucesso: false,
-        erro: "Muitas tentativas falhadas. Tente novamente em 15 minutos.",
-      };
-    }
-
-    const usuario = usuarios.find((u) => u.email === email && u.ativo);
-    if (!usuario) {
-      this.tentativasFalhas.set(email, tentativas + 1);
-      return {
-        sucesso: false,
-        erro: "Email ou senha inválidos",
-      };
-    }
-
-    // FIXME: Em produção, usar bcrypt.compare(senha, usuario.senha_hash)
-    // Para testes/dev, validar contra senha padrão "senha123"
-    const senhaValida = senha === "senha123";
-    if (!senhaValida) {
-      this.tentativasFalhas.set(email, tentativas + 1);
-      return {
-        sucesso: false,
-        erro: "Email ou senha inválidos",
-      };
-    }
-
-    // Sucesso - gerar token
-    const token = this.gerarToken();
-    const contexto: ContextoAutenticacao = {
-      usuario: { ...usuario, ultimo_login: new Date().toISOString() },
-      autenticado: true,
-      role: usuario.role,
-      prestador_id: usuario.prestador_id,
-      token,
-    };
-
-    this.sessoes.set(token, contexto);
-    this.usuariosAutenticados.set(usuario.id, usuario);
-    this.tentativasFalhas.delete(email); // Resetar contador de falhas
-
-    return { sucesso: true, token };
-  }
-
-  /**
-   * Valida um token de sessão
-   */
-  validarToken(token: string): ContextoAutenticacao | null {
-    return this.sessoes.get(token) || null;
-  }
-
-  /**
-   * Verifica se um usuário tem permissão para uma operação
-   */
-  temPermissao(
-    contexto: ContextoAutenticacao,
-    recurso: string,
-    operacao: "criar" | "ler" | "atualizar" | "deletar" | "aprovar"
-  ): boolean {
-    if (!contexto.autenticado || !contexto.usuario) {
-      return false;
-    }
-
-    const role = contexto.usuario.role;
-    const permissoes = PERMISSOES_POR_ROLE[role];
-
-    return permissoes.some(
-      (p) => p.recurso === recurso && p.operacao === operacao
-    );
-  }
-
-  /**
-   * Verifica se o usuário pode acessar dados de um prestador específico
-   * Prestadores só podem acessar seus próprios dados
-   */
-  podeLerPrestador(
-    contexto: ContextoAutenticacao,
-    prestador_id: number
-  ): boolean {
-    if (!contexto.autenticado || !contexto.usuario) {
-      return false;
-    }
-
-    // Admin e gestor podem ler qualquer prestador
-    if (
-      contexto.usuario.role === "admin" ||
-      contexto.usuario.role === "gestor"
-    ) {
-      return true;
-    }
-
-    // Prestador só pode ler seus próprios dados
-    if (contexto.usuario.role === "prestador") {
-      return contexto.usuario.prestador_id === prestador_id;
-    }
-
-    return false;
-  }
-
-  /**
-   * Verifica se o usuário pode modificar apontamentos de um prestador
-   */
-  podeModificarApontamentos(
-    contexto: ContextoAutenticacao,
-    prestador_id: number
-  ): boolean {
-    if (!contexto.autenticado || !contexto.usuario) {
-      return false;
-    }
-
-    // Admin pode modificar qualquer coisa
-    if (contexto.usuario.role === "admin") {
-      return true;
-    }
-
-    // Gestor pode modificar qualquer prestador
-    if (contexto.usuario.role === "gestor") {
-      return true;
-    }
-
-    // Prestador só pode modificar seus próprios apontamentos
-    if (contexto.usuario.role === "prestador") {
-      return contexto.usuario.prestador_id === prestador_id;
-    }
-
-    return false;
-  }
-
-  /**
-   * Verifica se o usuário pode aprovar pagamentos
-   */
-  podeAprovarPagamento(contexto: ContextoAutenticacao): boolean {
-    if (!contexto.autenticado || !contexto.usuario) {
-      return false;
-    }
-
-    return (
-      contexto.usuario.role === "admin" ||
-      contexto.usuario.role === "gestor"
-    );
-  }
-
-  /**
-   * Logout - invalida a sessão
-   */
-  logout(token: string): void {
-    this.sessoes.delete(token);
-  }
-
-  /**
-   * Gera um token aleatório
-   * FIXME: Em produção, usar JWT com assinatura
-   */
-  private gerarToken(): string {
-    return (
-      "token_" +
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
-    );
-  }
-
-  /**
-   * Cria um novo usuário (apenas para admins)
-   */
-  criarUsuario(
-    novo_usuario: Omit<Usuario, "id" | "data_criacao">,
-    contexto: ContextoAutenticacao
-  ): { sucesso: boolean; usuario?: Usuario; erro?: string } {
-    if (!this.temPermissao(contexto, "usuario", "criar")) {
-      return {
-        sucesso: false,
-        erro: "Sem permissão para criar usuários",
-      };
-    }
-
-    const usuario: Usuario = {
-      ...novo_usuario,
-      id: `user_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      data_criacao: new Date().toISOString(),
-    };
-
-    this.usuariosAutenticados.set(usuario.id, usuario);
-
-    return { sucesso: true, usuario };
-  }
-
-  /**
-   * Retorna todos os usuários (apenas para admins)
-   */
-  obterUsuarios(contexto: ContextoAutenticacao): Usuario[] {
-    if (!this.temPermissao(contexto, "usuario", "ler")) {
-      return [];
-    }
-
-    return Array.from(this.usuariosAutenticados.values());
-  }
+/** true se o usuário é um "profissional interno" com acesso amplo ao módulo
+ * de pagamento a prestadores — ou seja, não está ele mesmo vinculado a um
+ * único prestador via `prestador_id`. Esta é a única distinção estrutural
+ * que hoje decide algo nesse módulo (ver nota em PERMISSOES_POR_ROLE); não
+ * depende de qual dos 4 papéis do produto o usuário tem. */
+export function usuarioTemAcessoAmploAPrestadores(usuario: Usuario | null | undefined): boolean {
+  return !!usuario && usuario.prestador_id == null;
 }
 
-// Singleton global
-export const authService = new AuthService();
+/** true se `contexto` pode ler/modificar dados do prestador `prestador_id`:
+ * usuários sem vínculo próprio (`prestador_id` nulo) têm acesso amplo;
+ * usuários vinculados só acessam o próprio registro. Usado tanto pelo
+ * AuthService (podeLerPrestador/podeModificarApontamentos) quanto pelo
+ * DuplicatePaymentGuardDB (bloqueio de submissão para outro prestador) —
+ * fonte única da regra, para não divergir entre os dois lugares. */
+export function podeAcessarPrestador(
+  contexto: ContextoAutenticacao,
+  prestador_id: number,
+): boolean {
+  if (!contexto.autenticado || !contexto.usuario) {
+    return false;
+  }
+  if (usuarioTemAcessoAmploAPrestadores(contexto.usuario)) {
+    return true;
+  }
+  return contexto.usuario.prestador_id === prestador_id;
+}
+
+/** true se `contexto` pode aprovar pagamento a prestadores — mesma regra de
+ * "acesso amplo" acima: quem está vinculado ao próprio prestador_id não
+ * aprova (nem o próprio pagamento). */
+export function podeAprovarPagamentoPrestador(contexto: ContextoAutenticacao): boolean {
+  if (!contexto.autenticado || !contexto.usuario) {
+    return false;
+  }
+  return usuarioTemAcessoAmploAPrestadores(contexto.usuario);
+}
+
+/**
+ * Verifica se um usuário tem permissão para uma operação, segundo
+ * PERMISSOES_POR_ROLE. Função pura (não depende de banco nem de estado) —
+ * usada tanto por `AuthServiceDB` quanto pelos testes.
+ */
+export function temPermissao(
+  contexto: ContextoAutenticacao,
+  recurso: string,
+  operacao: "criar" | "ler" | "atualizar" | "deletar" | "aprovar",
+): boolean {
+  if (!contexto.autenticado || !contexto.usuario) {
+    return false;
+  }
+
+  const permissoes = PERMISSOES_POR_ROLE[contexto.usuario.role];
+  return permissoes.some((p) => p.recurso === recurso && p.operacao === operacao);
+}
+
+// NOTA: este arquivo já teve uma classe `AuthService` em memória, com
+// singleton exportado (`authService`), que validava senha contra a
+// constante fixa "senha123" e gerava token com `Math.random()`. Ela nunca
+// foi importada por nenhum outro módulo (nem rota HTTP, nem teste próprio)
+// — código morto desde que `AuthServiceDB` (auth-service-db.ts, com
+// persistência em banco) foi escrito para substituí-la. Removida aqui em
+// vez de corrigida, junto com os dois problemas reais que a motivaram esta
+// fase (senha hardcoded, token sem assinatura): manter uma segunda
+// implementação insegura ao lado da corrigida (`AuthServiceDB`) só criaria
+// risco de alguém importar a errada por engano. As funções puras acima
+// (temPermissao, podeAcessarPrestador, podeAprovarPagamentoPrestador) são
+// o que efetivamente sobrevive e é reaproveitado pelas duas classes que
+// usavam esta lógica antes.

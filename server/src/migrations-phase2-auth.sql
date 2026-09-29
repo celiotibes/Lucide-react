@@ -18,7 +18,14 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nome TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   senha_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('admin', 'gestor', 'prestador')),
+  -- Papéis REAIS do produto (Fase 1 — ver docs/viabilidade-backend-pagamentos.md
+  -- e server/src/domain/auth/auth-service.ts). Não são mais os papéis do
+  -- antigo módulo interno de pagamento a prestadores (admin/gestor/prestador).
+  role TEXT NOT NULL CHECK(role IN ('titular', 'contador', 'perito', 'advogado')),
+  -- prestador_id agora é só um vínculo de identidade opcional com o módulo
+  -- de pagamento a prestadores (qualquer um dos 4 papéis pode tê-lo ou não —
+  -- não existe mais checagem "papel X exige prestador_id"; ver
+  -- podeAcessarPrestador em auth-service.ts).
   prestador_id INTEGER,
   ativo BOOLEAN NOT NULL DEFAULT true,
   data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -27,9 +34,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   bloqueado_ate TIMESTAMP,
 
   -- Constraints
-  CONSTRAINT email_format CHECK(email LIKE '%@%.%'),
-  CONSTRAINT prestador_id_required_for_prestador
-    CHECK(role != 'prestador' OR prestador_id IS NOT NULL)
+  CONSTRAINT email_format CHECK(email LIKE '%@%.%')
 );
 
 -- Indexes
@@ -81,6 +86,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
       'modificar_parametro',
       'login',
       'logout',
+      'criar_usuario',
       'acesso_negado'
     )
   ),
@@ -242,41 +248,22 @@ CREATE INDEX idx_prestadores_email ON prestadores(email);
 CREATE INDEX idx_prestadores_ativo ON prestadores(ativo);
 
 -- ============================================================
--- Initial Test Data
--- ============================================================
-
--- Hash of 'senha123' would go here in production
--- For now, using a placeholder that will be replaced with bcrypt hash
-
--- Ordem importa: usuarios.prestador_id exige (via CHECK
--- prestador_id_required_for_prestador) que todo usuário 'prestador' já
--- nasça com prestador_id preenchido — não dá para inserir o usuário antes
--- e "completar" depois com UPDATE, porque o INSERT com prestador_id NULL
--- falharia a CHECK (e INSERT OR IGNORE engoliria essa falha em silêncio,
--- deixando o usuário 'user_prestador_1' de fora e quebrando o INSERT
--- seguinte em prestadores por violação de FOREIGN KEY). Por isso o
--- prestador é criado primeiro (sem usuario_id, que é nullable), depois o
--- usuário já referenciando esse prestador, e só então o prestador é
--- ligado de volta ao usuário.
-INSERT OR IGNORE INTO prestadores (id, usuario_id, nome, email, ativo, data_criacao)
-VALUES
-  (1, NULL, 'Paulo Bruxel', 'paulo@example.com', true, '2026-01-01');
-
-INSERT OR IGNORE INTO usuarios (id, nome, email, senha_hash, role, prestador_id, ativo, data_criacao)
-VALUES
-  ('user_admin_1', 'Admin User', 'admin@example.com',
-   '$2b$12$placeholder_hash_admin', 'admin', NULL, true, '2026-01-01'),
-  ('user_gestor_1', 'Gestor User', 'gestor@example.com',
-   '$2b$12$placeholder_hash_gestor', 'gestor', NULL, true, '2026-01-01'),
-  ('user_prestador_1', 'Paulo Bruxel', 'paulo@example.com',
-   '$2b$12$placeholder_hash_paulo', 'prestador', 1, true, '2026-01-01');
-
--- Liga o prestador de volta ao usuário
-UPDATE prestadores SET usuario_id = 'user_prestador_1' WHERE id = 1;
-
--- ============================================================
 -- Views for Common Queries
 -- ============================================================
+--
+-- NOTA (Fase 1): este arquivo já teve, aqui, um bloco "Initial Test Data"
+-- que criava usuários demo (admin/gestor/prestador) com senha fixa
+-- "senha123" (hash placeholder, nunca de verdade validado — o código antigo
+-- comparava a senha em texto puro contra a constante "senha123", ignorando
+-- esta coluna). Removido de propósito: como este .sql roda por inteiro em
+-- QUALQUER banco novo — inclusive uma instalação de produção, via
+-- database-init.ts — manter esse bloco significaria criar, toda vez, uma
+-- conta titular com senha pública e conhecida. O caminho de entrada correto
+-- para o primeiro usuário agora é o bootstrap
+-- (`AuthServiceDB.bootstrapTitular`, exposto em `POST /api/auth/bootstrap`),
+-- que só funciona uma vez e exige que quem instala escolha a própria senha.
+-- Testes que precisam de usuários fixos os inserem explicitamente no setup
+-- do próprio arquivo de teste (ver server/src/domain/auth/__tests__/).
 
 -- Active sessions with user info
 CREATE VIEW IF NOT EXISTS v_sessoes_ativas AS

@@ -7,7 +7,7 @@
  */
 
 import type Database from "better-sqlite3";
-import { ContextoAutenticacao } from "../auth/auth-service";
+import { ContextoAutenticacao, podeAcessarPrestador } from "../auth/auth-service";
 
 export interface PagamentoSubmetido {
   id: string;
@@ -52,11 +52,10 @@ export class DuplicatePaymentGuardDB {
       };
     }
 
-    // Verificar autorização - prestador só pode submeter seus dados
-    if (
-      contexto.usuario.role === "prestador" &&
-      contexto.usuario.prestador_id !== prestador_id
-    ) {
+    // Verificar autorização - usuário vinculado a um prestador_id só pode
+    // submeter dados do próprio registro (independente de qual dos 4 papéis
+    // do produto ele tem — ver podeAcessarPrestador em auth-service.ts).
+    if (!podeAcessarPrestador(contexto, prestador_id)) {
       return {
         duplicado: true,
         motivo: "Prestador tentando submeter dados de outro prestador",
