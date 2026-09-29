@@ -6,6 +6,7 @@ import { registrarLog, resumirDiferenca } from "../../domain/auditoria/logAltera
 import type { Imovel } from "../../domain/types";
 import { useToast } from "../../ui/useToast";
 import { RateioDestinoDivida } from "./RateioDestinoDivida";
+import { HistoricoPagamentosDivida } from "./HistoricoPagamentosDivida";
 
 type Sistema = "SAC" | "PRICE" | "OUTRO";
 
@@ -199,9 +200,14 @@ export function FinanciamentosForm() {
           )}
 
           {form.id !== null && <RateioDestinoDivida dividaTipo="financiamento" dividaId={form.id} />}
+          {/* Só faz sentido pedir upload/extração de pagamentos para sistema='OUTRO': SAC e
+              Price já têm cronograma exato calculado (financiamento/amortizacao.ts) — não
+              precisam (e não deveriam) de um histórico de pagamentos lido de contrato por IA. */}
+          {form.id !== null && form.sistema === "OUTRO" && <HistoricoPagamentosDivida dividaTipo="financiamento" dividaId={form.id} />}
           {form.id === null && (
             <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "0 0 12px" }}>
-              Salve o financiamento primeiro para poder classificar o rateio de destino (PF / empresa / advocacia).
+              Salve o financiamento primeiro para poder classificar o rateio de destino (PF / empresa / advocacia)
+              {" "}e, se o sistema for "Outro", registrar o histórico de pagamentos.
             </p>
           )}
 

@@ -7,6 +7,7 @@ import type { DividaConsumo, TipoDividaConsumo } from "../../domain/types";
 import { formatarMoeda } from "../../domain/formatarMoeda";
 import { useToast } from "../../ui/useToast";
 import { RateioDestinoDivida } from "./RateioDestinoDivida";
+import { HistoricoPagamentosDivida } from "./HistoricoPagamentosDivida";
 
 interface Formulario {
   id: number | null;
@@ -131,9 +132,11 @@ export function DividasConsumoForm() {
           </label>
 
           {form.id !== null && <RateioDestinoDivida dividaTipo="divida_consumo" dividaId={form.id} />}
+          {form.id !== null && <HistoricoPagamentosDivida dividaTipo="divida_consumo" dividaId={form.id} />}
           {form.id === null && (
             <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "0 0 12px" }}>
-              Salve a dívida primeiro para poder classificar o rateio de destino (PF / empresa / advocacia).
+              Salve a dívida primeiro para poder classificar o rateio de destino (PF / empresa / advocacia) e
+              registrar o histórico de pagamentos.
             </p>
           )}
 
