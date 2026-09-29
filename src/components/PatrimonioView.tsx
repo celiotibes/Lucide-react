@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import { useDb } from "../db/useDb";
 import {
   calcularPatrimonioLiquido,
@@ -8,8 +8,22 @@ import {
   calcularLiquidezCorrente,
   calcularVPLDoEndividamento,
 } from "../domain/patrimonio/balancoPatrimonial";
+import { calcularIndicadoresHistoricoPortfolio, type IndicadorNumerico } from "../domain/patrimonio/indicadoresHistorico";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
+
+/** Célula de indicador: valor (ou "—" com motivo, quando null) + legenda explicativa
+ * (fórmula/fonte) num tooltip nativo sobre o ícone "i" — a legenda pedida para cada
+ * indicador, sem poluir a tabela com texto. */
+function CelulaIndicador({ indicador, sufixo = "" }: { indicador: IndicadorNumerico; sufixo?: string }) {
+  const titulo = `Fórmula: ${indicador.formula}\n\nFonte: ${indicador.fonteDados}${indicador.motivoNulo ? `\n\nNão calculado: ${indicador.motivoNulo}` : ""}`;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }} title={titulo}>
+      {indicador.valor !== null ? `${indicador.valor.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}${sufixo}` : "—"}
+      <Info size={13} style={{ flexShrink: 0, color: "var(--ink-soft)", cursor: "help" }} />
+    </span>
+  );
+}
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -33,6 +47,10 @@ export function PatrimonioView() {
   const comprometimento = useMemo(
     () => (db ? calcularComprometimentoRenda(db, hoje, Number.parseFloat(salarioMensal.replace(",", ".")) || 0) : null),
     [db, versao, hoje, salarioMensal],
+  );
+  const indicadoresHistorico = useMemo(
+    () => (db ? calcularIndicadoresHistoricoPortfolio(db, new Date(hoje).getFullYear(), hoje) : null),
+    [db, versao, hoje],
   );
 
   return (
@@ -208,6 +226,58 @@ export function PatrimonioView() {
           </tbody>
         </table>
       </div>
+
+      <h3 style={{ fontSize: 15, marginBottom: 10, marginTop: 32 }}>Indicadores de investimento (valor histórico)</h3>
+      <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 16 }}>
+        <Info size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+        <span>
+          Estes indicadores usam valor de aquisição (custo histórico) para análise de investimento — não são os
+          relatórios contábeis oficiais (DRE/Balanço), que seguem o mesmo padrão de valor histórico mas para fins
+          fiscais/periciais. Passe o mouse sobre o ícone <Info size={11} style={{ verticalAlign: "middle" }} /> de
+          cada coluna para ver a fórmula e a fonte do dado. Ano-base: {indicadoresHistorico?.ano ?? "—"} · saldo
+          devedor/LTV apurados em {indicadoresHistorico?.dataReferencia ?? "—"}.
+        </span>
+      </div>
+      <div className="table-wrap" style={{ marginBottom: 12 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Imóvel</th>
+              <th className="num">Yield bruto</th>
+              <th className="num">Yield líquido</th>
+              <th className="num">GRM</th>
+              <th className="num">Payback (anos)</th>
+              <th className="num">Cash-on-Cash</th>
+              <th className="num">LTV</th>
+              <th className="num">DSCR</th>
+              <th className="num">Debt Yield</th>
+            </tr>
+          </thead>
+          <tbody>
+            {indicadoresHistorico?.imoveis.map((i) => (
+              <tr key={i.imovelId}>
+                <td>{i.apelido}</td>
+                <td className="num"><CelulaIndicador indicador={i.yieldBruto} sufixo="%" /></td>
+                <td className="num"><CelulaIndicador indicador={i.yieldLiquido} sufixo="%" /></td>
+                <td className="num"><CelulaIndicador indicador={i.grm} sufixo="x" /></td>
+                <td className="num"><CelulaIndicador indicador={i.paybackSimplesAnos} /></td>
+                <td className="num"><CelulaIndicador indicador={i.cashOnCashReturn} sufixo="%" /></td>
+                <td className="num"><CelulaIndicador indicador={i.ltv} sufixo="%" /></td>
+                <td className="num"><CelulaIndicador indicador={i.dscr} sufixo="x" /></td>
+                <td className="num"><CelulaIndicador indicador={i.debtYield} sufixo="%" /></td>
+              </tr>
+            ))}
+            {(!indicadoresHistorico || indicadoresHistorico.imoveis.length === 0) && (
+              <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum imóvel de investimento cadastrado.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontSize: 12, color: "var(--ink-soft)", maxWidth: "70ch" }}>
+        "—" com o ícone de informação indica que o indicador não pôde ser calculado (ex: imóvel sem valor de
+        aquisição cadastrado, ou sem financiamento vinculado, no caso de LTV/DSCR/Debt Yield) — o motivo exato está
+        no tooltip do ícone, nunca um zero fabricado.
+      </p>
     </div>
   );
 }
