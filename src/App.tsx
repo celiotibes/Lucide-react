@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -64,12 +64,13 @@ const HubConsolidacaoView = lazy(() => import("./components/HubConsolidacaoView"
 const AvaliacaoMercadoView = lazy(() => import("./components/AvaliacaoMercadoView").then((m) => ({ default: m.AvaliacaoMercadoView })));
 const IndicadoresGestaoView = lazy(() => import("./components/IndicadoresGestaoView").then((m) => ({ default: m.IndicadoresGestaoView })));
 const GerenciamentoPermissoesView = lazy(() => import("./components/GerenciamentoPermissoesView").then((m) => ({ default: m.GerenciamentoPermissoesView })));
+const ProjetosExpansaoView = lazy(() => import("./components/ProjetosExpansaoView").then((m) => ({ default: m.ProjetosExpansaoView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
-  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes";
+  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes" | "expansao";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -88,6 +89,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
   { id: "patrimonio", rotulo: "Patrimônio e alavancagem", icone: Scale },
+  { id: "expansao", rotulo: "Projetos de expansão", icone: Hammer },
   { id: "avaliacaomercado", rotulo: "Avaliação de mercado (gerencial)", icone: CircleDollarSign },
   { id: "indicadoresgestao", rotulo: "Indicadores de gestão financeira", icone: Gauge },
   { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
@@ -437,6 +439,7 @@ function Conteudo() {
             {aba === "caucao" && <CaucaoView />}
             {aba === "financiamentos" && <FinanciamentosView aoDrillDown={aoDrillDownTransacoes} />}
             {aba === "patrimonio" && <PatrimonioView />}
+            {aba === "expansao" && <ProjetosExpansaoView />}
             {aba === "avaliacaomercado" && <AvaliacaoMercadoView />}
             {aba === "indicadoresgestao" && <IndicadoresGestaoView />}
             {aba === "relatorios" && <RelatoriosIntegradosView />}
