@@ -286,6 +286,50 @@ describe("hubConsolidacao: sugerirLigacoesCompetenciaRecebimento", () => {
     const total = consultar<{ total: number }>(db, "SELECT COUNT(*) AS total FROM fatos_financeiros_links")[0].total;
     expect(total).toBe(1);
   });
+
+  it("nunca sugere ligar o MESMO fato bancário a duas competências diferentes ao mesmo tempo (evita ilusão de recebido em dobro)", () => {
+    // Duas competências de mesmo valor, vencimentos próximos — ambas dentro da tolerância
+    // do ÚNICO recebimento bancário abaixo.
+    const competenciaId1 = criarCompetencia(1000, "2025-06-10", 6);
+    const competenciaId2 = criarCompetencia(1000, "2025-06-12", 7);
+    const transacaoId = criarTransacao(1000, "2025-06-11");
+    registrarFatoDeCompetencia(db, entidade_id, competenciaId1);
+    registrarFatoDeCompetencia(db, entidade_id, competenciaId2);
+    registrarFatoDoBanco(db, entidade_id, transacaoId);
+
+    const sugestoes = sugerirLigacoesCompetenciaRecebimento(db, entidade_id);
+
+    // O fato bancário único só pode ser sugerido para UMA das duas competências nesta
+    // chamada — nunca as duas ao mesmo tempo (isso permitiria confirmar ambas e criar a
+    // ilusão de dois recebimentos para um único dinheiro que entrou).
+    expect(sugestoes).toHaveLength(1);
+
+    const totalLigacoesDoFatoBanco = consultar<{ total: number }>(
+      db,
+      `SELECT COUNT(*) AS total FROM fatos_financeiros_links l
+       JOIN fatos_financeiros f ON f.id = l.fato_a_id OR f.id = l.fato_b_id
+       WHERE f.tipo_origem = 'banco' AND f.origem_id = ?`,
+      [transacaoId],
+    )[0].total;
+    expect(totalLigacoesDoFatoBanco).toBe(1);
+  });
+
+  it("depois que um humano REJEITA a sugestão, o fato bancário volta a ficar disponível para outra competência", () => {
+    const competenciaId1 = criarCompetencia(1000, "2025-06-10", 6);
+    const competenciaId2 = criarCompetencia(1000, "2025-06-12", 7);
+    const transacaoId = criarTransacao(1000, "2025-06-11");
+    registrarFatoDeCompetencia(db, entidade_id, competenciaId1);
+    registrarFatoDeCompetencia(db, entidade_id, competenciaId2);
+    registrarFatoDoBanco(db, entidade_id, transacaoId);
+
+    const primeira = sugerirLigacoesCompetenciaRecebimento(db, entidade_id);
+    expect(primeira).toHaveLength(1);
+    rejeitarLigacao(db, primeira[0].id);
+
+    const segunda = sugerirLigacoesCompetenciaRecebimento(db, entidade_id);
+    expect(segunda).toHaveLength(1);
+    expect(segunda[0].id).not.toBe(primeira[0].id);
+  });
 });
 
 describe("hubConsolidacao: relatorioCoberturaFatos", () => {

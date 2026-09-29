@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { criarBancoDeTeste } from "../../test/fixtureDb";
+import { consultar } from "../../db/connection";
 import {
   cadastrarPoliticaRetencao,
   obterPoliticaVigente,
@@ -222,6 +223,25 @@ describe("compliance/retencao: garantirPoliticasRetencaoPadrao", () => {
 
     const politica = obterPoliticaVigente(db, "contabil");
     expect(politica?.versao).toBe(1);
+  });
+
+  it("é idempotente de verdade — chamar duas (ou mais) vezes não duplica NENHUMA linha na tabela, para nenhum dos três domínios padrão", async () => {
+    const db = await criarBancoDeTeste();
+    garantirPoliticasRetencaoPadrao(db);
+    garantirPoliticasRetencaoPadrao(db);
+    garantirPoliticasRetencaoPadrao(db);
+
+    const total = consultar<{ total: number }>(db, "SELECT COUNT(*) AS total FROM politicas_retencao")[0].total;
+    expect(total).toBe(3); // contabil + contrato_locacao + processo_legal, uma linha cada — nunca mais
+
+    for (const dominio of ["contabil", "contrato_locacao", "processo_legal"]) {
+      const totalDominio = consultar<{ total: number }>(
+        db,
+        "SELECT COUNT(*) AS total FROM politicas_retencao WHERE dominio = ?",
+        [dominio],
+      )[0].total;
+      expect(totalDominio).toBe(1);
+    }
   });
 
   it("não sobrescreve uma política já cadastrada manualmente antes para o mesmo domínio", async () => {

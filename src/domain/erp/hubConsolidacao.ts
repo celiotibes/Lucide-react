@@ -100,7 +100,30 @@ function registrarFato(db: Database, dados: DadosNovoFato): FatoFinanceiro {
 
 /** Registra (de forma idempotente) o fato canônico de uma transação bancária já classificada.
  * `data_fato` é a data do EXTRATO (`transacoes.data`, quando o dinheiro de fato se moveu) —
- * não `data_competencia`, que é opcional e pode nem existir. */
+ * não `data_competencia`, que é opcional e pode nem existir.
+ *
+ * AUDITORIA DE CORREÇÃO (esta rodada) — transação estornada/reclassificada vs. excluída:
+ * `transacoes` (schema.sql) NÃO tem coluna de status. Uma reclassificação
+ * (`reclassificacao/reclassificarTransacao.ts`) faz estorno+relançamento no RAZÃO
+ * (`ledger_entries`) mas SEMPRE preserva a linha de `transacoes` intacta (mesmo `id`, `data`,
+ * `valor` — só `plano_conta_codigo` muda); o fato aqui registrado continua válido porque
+ * `data_fato`/`valor` não mudam. Confirmado, não é um achado.
+ *
+ * O que de fato pode fazer um `transacoes.id` deixar de existir é `excluirTransacao`/
+ * `dividirTransacao` (transacoes/transacaoManual.ts — fora do escopo de arquivos desta
+ * tarefa) — um DELETE físico da linha, sem cascata para `fatos_financeiros.origem_id` (que
+ * não é FOREIGN KEY, só um INTEGER). Chamar `registrarFatoDoBanco` DEPOIS da exclusão é
+ * seguro (lança "não encontrada", não grava nada — ver teste "origem inexistente..." abaixo).
+ * O risco real é o INVERSO, fora do alcance desta função: um fato JÁ registrado ANTES da
+ * exclusão fica ÓRFÃO (`origem_id` aponta para uma `transacoes` que não existe mais),
+ * inclusive qualquer `fatos_financeiros_links` que o referencie — sem nenhuma limpeza
+ * automática. LIMITAÇÃO CONHECIDA, documentada aqui em vez de corrigida nesta rodada: uma
+ * correção completa exigiria tocar `transacaoManual.ts::excluirTransacao` (fora da lista de
+ * arquivos permitidos desta auditoria) para invalidar/reconciliar o fato correspondente (ex:
+ * marcar `estado_revisao = 'rejeitado'`) no mesmo DELETE. Qualquer leitor de
+ * `fatos_financeiros` que precise de garantia de existência da origem deve fazer o JOIN de
+ * volta em `transacoes` explicitamente (como `sugerirLigacoesCompetenciaRecebimento` já faz
+ * implicitamente, porque só compara fatos já registrados entre si, nunca revalida a origem). */
 export function registrarFatoDoBanco(db: Database, entidadeId: number, transacaoId: number): FatoFinanceiro {
   const transacao = consultar<{ id: number; data: string; valor: number }>(
     db,
@@ -307,7 +330,22 @@ const EPSILON_VALOR = 0.005;
  *
  * Idempotente: se o par (competência, fato bancário) já tiver uma ligação deste tipo (em
  * qualquer status — pendente, confirmada ou já rejeitada por um humano), não sugere de novo;
- * só entram no retorno as ligações efetivamente criadas nesta chamada. */
+ * só entram no retorno as ligações efetivamente criadas nesta chamada.
+ *
+ * AUDITORIA DE CORREÇÃO (esta rodada) — AMBIGUIDADE "recebido em dobro": um fato bancário
+ * dentro da tolerância de valor/data de DUAS competências diferentes (ex: dois aluguéis de
+ * mesmo valor com vencimentos próximos) não pode ficar disponível para ser sugerido — e
+ * depois confirmado por um humano — para as duas ao mesmo tempo; isso criaria a ILUSÃO de
+ * dois recebimentos quando só um dinheiro entrou. O filtro abaixo (`NOT EXISTS` sobre
+ * `fatos_financeiros_links` com status 'pendente' OU 'confirmado') exclui da busca por
+ * candidato bancário qualquer fato que já esteja "reservado" por outra sugestão ainda viva —
+ * uma vez que um humano REJEITE esse link, o fato bancário volta a ficar disponível para ser
+ * sugerido a outra competência (status 'rejeitado' não conta como reserva). Isso NÃO cobre o
+ * caso simétrico de uma mesma competência já ter uma sugestão PENDENTE (não confirmada) para
+ * um banco e ganhar uma segunda sugestão pendente para um banco diferente na mesma chamada —
+ * mostrar duas candidatas pendentes para uma pessoa escolher entre elas é o comportamento
+ * pretendido da heurística (ela nunca confirma sozinha); o risco real está em confirmar as
+ * duas, que é uma decisão humana fora do alcance desta função. */
 export function sugerirLigacoesCompetenciaRecebimento(
   db: Database,
   entidadeId: number,
@@ -340,11 +378,17 @@ export function sugerirLigacoesCompetenciaRecebimento(
   for (const competencia of competenciasPendentes) {
     const candidatosBanco = consultar<{ id: number }>(
       db,
-      `SELECT id FROM fatos_financeiros
-       WHERE entidade_id = ?
-         AND tipo_origem = 'banco'
-         AND ABS(valor - ?) <= ?
-         AND ABS(julianday(data_fato) - julianday(?)) <= ?`,
+      `SELECT id FROM fatos_financeiros f
+       WHERE f.entidade_id = ?
+         AND f.tipo_origem = 'banco'
+         AND ABS(f.valor - ?) <= ?
+         AND ABS(julianday(f.data_fato) - julianday(?)) <= ?
+         AND NOT EXISTS (
+           SELECT 1 FROM fatos_financeiros_links l
+           WHERE l.tipo_relacao = 'competencia_recebimento'
+             AND l.status IN ('pendente', 'confirmado')
+             AND (l.fato_a_id = f.id OR l.fato_b_id = f.id)
+         )`,
       [entidadeId, competencia.valor_devido, toleranciaValor, competencia.data_vencimento, toleranciaDias],
     );
 

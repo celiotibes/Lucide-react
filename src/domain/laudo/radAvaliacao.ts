@@ -12,22 +12,31 @@
 
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
+import { TAXA_DEPRECIACAO_ANUAL_PADRAO } from "../erp/integracao-patrimonio";
 
 const MS_POR_ANO = 365.25 * 24 * 60 * 60 * 1000;
 
-/** Mesma taxa de `integracao-patrimonio.ts::TAXA_DEPRECIACAO_ANUAL_PADRAO` (5% a.a., o
- * padrão real usado para depreciar imóveis via `contabilizarDepreciacaoImovel`). Repetida
- * aqui como constante — não importada de lá — porque esta tarefa foi escopada para tocar só
- * os dois arquivos deste módulo (`radAvaliacao.ts`/`radAvaliacao.test.ts`; ver instrução da
- * tarefa sobre `git add`), e vários outros módulos do domínio estavam sendo alterados em
- * paralelo por outras tarefas no momento desta implementação — exportar a constante de lá
- * squeezaria uma mudança de escopo maior (e um diff concorrente) num arquivo compartilhado.
- * Se `integracao-patrimonio.ts` mudar essa taxa no futuro, quem reaproveitar a MESMA
- * premissa de negócio ("depreciação linear padrão do sistema, 5% a.a.") para o RAD deve
- * atualizar as duas constantes juntas — o valor em si (0.05) é o que é reaproveitado, não a
- * ligação de import.
+/** AUDITORIA DE CORREÇÃO (esta rodada): a versão anterior deste arquivo mantinha uma CÓPIA
+ * LOCAL de `TAXA_DEPRECIACAO_ANUAL_PADRAO` (`const` próprio = 0.05), alegando evitar tocar um
+ * arquivo compartilhado sob edição concorrente por outra tarefa. A concorrência acabou — a
+ * cópia foi substituída por este import de `integracao-patrimonio.ts`, a fonte de verdade
+ * real da taxa (usada por `contabilizarDepreciacaoImovel` para depreciar imóveis). Duas
+ * constantes hardcoded para a mesma regra de negócio ("depreciação linear padrão do sistema")
+ * divergem silenciosamente no dia em que só uma for atualizada — exatamente o tipo de
+ * duplicação que uma perícia contábil não pode aceitar sem alarme.
+ *
+ * O que continua INTENCIONALMENTE diferente entre os dois módulos, e por quê (não é a mesma
+ * classe de problema que a duplicação da taxa): a FORMA DE CALCULAR O TEMPO DECORRIDO.
+ * `contabilizarDepreciacaoImovel` deprecia por PERÍODO CONTÁBIL FECHADO — cada chamada cobre
+ * exatamente um mês calendário inteiro (`valor_aquisicao * taxa_anual / 12`), porque imóveis
+ * têm `periodos_contabeis` fecháveis no razão. Um item de inventário do RAD não tem período
+ * contábil — só duas datas conhecidas (vistoria de entrada, vistoria de saída ou hoje) — por
+ * isso `calcularValorDepreciadoLinear` abaixo usa tempo CONTÍNUO em dias corridos (via
+ * `MS_POR_ANO`, com o ajuste de ano bissexto 365.25) em vez de meses cheios. Para o mesmo
+ * intervalo, os dois métodos podem produzir valores ligeiramente diferentes em meses não
+ * completos (dias corridos vs. mês fechado) — divergência aceita e documentada, decorrente do
+ * modelo de dados de cada domínio, não de uma taxa dessincronizada.
  */
-const TAXA_DEPRECIACAO_ANUAL_PADRAO = 0.05;
 
 /** Depreciação linear de um item de inventário, do valor de referência (reposição) até zero
  * em `1/taxa_anual` anos — mesma REGRA E MESMA TAXA já usadas para depreciar imóveis em

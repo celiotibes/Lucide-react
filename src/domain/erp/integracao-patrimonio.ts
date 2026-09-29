@@ -62,8 +62,16 @@ const CONTA_DEPRECIACAO_ERP = 5301; // Depreciação (despesa)
 /** Taxa de depreciação linear padrão (5% ao ano ≈ 0,4167% ao mês) — mesma taxa do módulo
  * original, mantida como default parametrizável (o módulo original não permitia parametrizar
  * por tipo de imóvel; manter o comportamento observável é o que a tarefa pede, só trocando a
- * escrita). */
-const TAXA_DEPRECIACAO_ANUAL_PADRAO = 0.05;
+ * escrita).
+ *
+ * EXPORTADA (auditoria de correção financeira desta rodada): esta é a ÚNICA fonte de verdade
+ * da taxa padrão de depreciação linear do sistema. `laudo/radAvaliacao.ts` (depreciação de
+ * itens de inventário para o RAD) importa este valor em vez de manter uma cópia local — uma
+ * versão anterior duplicava o literal `0.05` num `const` próprio, alegando escopo de commit
+ * concorrente; a concorrência acabou e a duplicação foi corrigida, porque duas constantes
+ * hardcoded para a "mesma taxa padrão de negócio" divergem silenciosamente no dia em que só
+ * uma das duas for atualizada. */
+export const TAXA_DEPRECIACAO_ANUAL_PADRAO = 0.05;
 
 export interface ResultadoLancamentoPatrimonio {
   sucesso: boolean;
