@@ -677,6 +677,10 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
                                 -- quebrava contra o schema real (CHECK constraint failed), o
                                 -- mesmo defeito que os sete módulos acima já tiveram (ver
                                 -- comentário de origem_modulo em ledger.ts).
+        'inadimplencia_juros',  -- Provisão de juros/multa de mora + perda esperada sobre ela
+                                -- (provisarJurosMora/reverterProvisaoJurosMora,
+                                -- integracao-inadimplencia.ts) — origem_id é o id da
+                                -- competência (aluguel_competencias.id), não do contrato.
         'manual'                -- Lançamento manual (ajuste, acerto)
     )),
     origem_id           INTEGER NOT NULL,  -- PK da tabela de origem (transacao_id, contrato_id, etc.)

@@ -680,7 +680,9 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
         'imovel-gestao', 'apontamento-prestador', 'pagamentos-integracao',
         -- 'fisco' acrescentado — mesmo achado documentado em schema.sql (a fonte SQLite):
         -- registrarImpostoNoLedger (integracao-fisco.ts) gravava 'fisco', ausente aqui.
-        'skillos', 'fisco', 'manual'
+        -- 'inadimplencia_juros' acrescentado — mesmo padrão, para
+        -- provisarJurosMora/reverterProvisaoJurosMora (integracao-inadimplencia.ts).
+        'skillos', 'fisco', 'inadimplencia_juros', 'manual'
     )),
     origem_id           integer NOT NULL,
     referencia_documento text NOT NULL,

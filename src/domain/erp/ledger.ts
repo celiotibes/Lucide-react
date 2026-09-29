@@ -39,7 +39,15 @@ export interface LancamentoContabil {
   valor_debito?: number;
   valor_credito?: number;
   descricao: string;
-  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'apontamento-prestador' | 'pagamentos-integracao' | 'skillos' | 'manual';
+  // 'inadimplencia_juros' acrescentado para provisarJurosMora/reverterProvisaoJurosMora
+  // (integracao-inadimplencia.ts) — deliberadamente distinto de 'contratos' (que já é usado
+  // por contabilizarJurosMora/contabilizarMultaPorAtraso para o RECEBIMENTO efetivo de
+  // juros/multa) porque origem_id aqui é o id da COMPETÊNCIA (aluguel_competencias.id), não
+  // do contrato, e o índice único idx_ledger_origem_unica (schema.sql) precisa dessa chave
+  // (origem_modulo, origem_id, conta_id) para não colidir entre os dois fluxos. Mantenha o
+  // CHECK de origem_modulo em schema.sql/schema.postgres.sql sincronizado com esta união —
+  // ver o comentário lá.
+  origem_modulo: 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'apontamento-prestador' | 'pagamentos-integracao' | 'skillos' | 'inadimplencia_juros' | 'manual';
   origem_id: number;
   referencia_documento: string;
   criado_por?: number;

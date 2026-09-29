@@ -10,18 +10,24 @@ import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { consultar, executar } from "../../../db/connection";
 import { criarEntidadeLegal } from "../entidadeLegal";
 import { CONTA_CAIXA_ERP } from "../mapeamentoPlanoApp";
+import { obterSaldoConta } from "../ledger";
 import {
   apurarInadimplenciaContrato,
   contabilizarJurosMora,
   contabilizarMultaPorAtraso,
-  provisarJurosInadimplencia,
+  provisarJurosMora,
+  reverterProvisaoJurosMora,
   relatorioInadimplenciaDetalhado,
   resumoInadimplenciaTotal,
 } from "../integracao-inadimplencia";
+import { gerarCompetenciasPendentes } from "../aluguel-competencias";
 
 const CPF_TESTE = "52998224725";
 const CONTA_RECEITA_JUROS_ERP = 4201; // "Juros recebidos"
 const CONTA_RECEITA_OUTRAS_ERP = 4301; // "Outras receitas" (usada para multa — sem conta dedicada)
+const CONTA_JUROS_MULTA_MORA_A_RECEBER_ERP = 1104; // "Contas a receber — juros e multa de mora"
+const CONTA_PROVISAO_DEVEDORES_DUVIDOSOS_ERP = 1106; // "(-) Provisão para devedores duvidosos"
+const CONTA_INADIMPLENCIA_PERDAS_LOCATARIO_ERP = 5502; // "Inadimplência e perdas com locatário"
 
 let db: Database;
 let entidade_id: number;
@@ -83,6 +89,22 @@ function registrarRecebimento(contrato_id: number, valor: number, data: string) 
      VALUES (?, ?, ?, 'Recebimento aluguel', ?)`,
     [conta_bancaria_id, data, valor, contrato_id],
   );
+}
+
+/** Gera as competências pendentes do contrato até `ate_data` e retorna o id da competência de
+ * um ano/mês específico — nunca assume que é a primeira do array de
+ * `gerarCompetenciasPendentes` (que vem em ordem cronológica a partir de `data_inicio`, e
+ * `criarContrato` sempre usa '2024-01-01': testar contra "2025-06-30" sempre gera várias
+ * competências anteriores a junho/2025 também). */
+function competenciaId(contrato_id: number, ano: number, mes: number, ate_data: string): number {
+  gerarCompetenciasPendentes(db, contrato_id, ate_data);
+  const [row] = consultar<{ id: number }>(
+    db,
+    "SELECT id FROM aluguel_competencias WHERE contrato_id = ? AND ano = ? AND mes = ?",
+    [contrato_id, ano, mes],
+  );
+  if (!row) throw new Error(`Competência ${mes}/${ano} não encontrada para o contrato ${contrato_id}.`);
+  return row.id;
 }
 
 function saldoLedgerConta(conta_id: number): { debito: number; credito: number } {
@@ -344,16 +366,135 @@ describe("integracao-inadimplencia: contabilização no razão (contas remapeada
   });
 
   /**
-   * NÃO CORRIGIDO (decisão de produto fora de escopo) — ver o comentário "ACHADO" em
-   * provisarJurosInadimplencia (integracao-inadimplencia.ts). Além de usar ids de conta
-   * inexistentes (17, 31), a própria partida dobrada é questionável: debita uma despesa
-   * própria do locador para um evento que não é uma despesa dele, e credita uma conta de
-   * receita para "reduzi-la" — crédito aumenta receita, não reduz. Corrigir só os ids sem
-   * decidir o tratamento contábil correto seria maquiar o defeito, não resolvê-lo.
+   * CORRIGIDO: `provisarJurosInadimplencia` foi reescrita como `provisarJurosMora` +
+   * `reverterProvisaoJurosMora`, a partir da decisão de política contábil do usuário
+   * (2026-09-29, CPC 25/IFRS 9 — reconhecer juros/multa por competência E provisionar perda
+   * esperada simultaneamente). O `it.fails` original documentava o defeito (contas 17/31
+   * inexistentes, partida dobrada questionável); agora que está corrigido, vira `it` normal —
+   * e passa.
    */
-  it.fails("provisarJurosInadimplencia quebra contra o schema real (contas 17/31 inexistentes) — tratamento contábil correto é decisão de produto", () => {
+  it("provisarJurosMora reconhece juros/multa (1104/4201) e provisiona perda esperada (5502/1106) simultaneamente, com lançamentos balanceados", () => {
+    const contrato_id = criarContrato(10, 1000); // defaults: multa 2% até 5 dias, 10% depois, juros 1%/mês
+    const competencia_id = competenciaId(contrato_id, 2025, 6, "2025-06-30");
+
+    const resultado = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-20", percentualPerdaEsperada: 0.6 });
+
+    expect(resultado.sucesso).toBe(true);
+    expect(resultado.jaProvisionado).toBe(false);
+    expect(resultado.diasAtraso).toBe(10);
+    expect(resultado.valorJurosMulta).toBeGreaterThan(0);
+    expect(resultado.valorProvisao).toBeCloseTo(resultado.valorJurosMulta * 0.6, 2);
+    expect(resultado.ledgerEntryIdJuros).toBeDefined();
+    expect(resultado.ledgerEntryIdProvisao).toBeDefined();
+
+    // Lançamento 1: débito 1104 / crédito 4201, pelo valor de juros/multa.
+    expect(saldoLedgerConta(CONTA_JUROS_MULTA_MORA_A_RECEBER_ERP).debito).toBeCloseTo(resultado.valorJurosMulta, 2);
+    expect(saldoLedgerConta(CONTA_RECEITA_JUROS_ERP).credito).toBeCloseTo(resultado.valorJurosMulta, 2);
+
+    // Lançamento 2: débito 5502 / crédito 1106, pelo valor de juros/multa × percentual de perda esperada.
+    expect(saldoLedgerConta(CONTA_INADIMPLENCIA_PERDAS_LOCATARIO_ERP).debito).toBeCloseTo(resultado.valorProvisao, 2);
+    expect(saldoLedgerConta(CONTA_PROVISAO_DEVEDORES_DUVIDOSOS_ERP).credito).toBeCloseTo(resultado.valorProvisao, 2);
+
+    // Período balanceado: os 4 lançamentos (2 débitos + 2 créditos) somam o mesmo total dos dois lados.
+    const totalDebito = resultado.valorJurosMulta + resultado.valorProvisao;
+    const totalCredito = resultado.valorJurosMulta + resultado.valorProvisao;
+    expect(totalDebito).toBeCloseTo(totalCredito, 2);
+  });
+
+  it("provisarJurosMora é idempotente: chamar duas vezes para a mesma competência não duplica lançamentos", () => {
     const contrato_id = criarContrato(10, 1000);
-    const ok = provisarJurosInadimplencia(db, contrato_id, entidade_id, periodo_id);
-    expect(ok).toBe(true);
+    const competencia_id = competenciaId(contrato_id, 2025, 6, "2025-06-30");
+
+    const primeira = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-20" });
+    expect(primeira.jaProvisionado).toBe(false);
+
+    const segunda = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-20" });
+    expect(segunda.sucesso).toBe(true);
+    expect(segunda.jaProvisionado).toBe(true);
+
+    // Só um par de cada — saldo não dobrou.
+    expect(saldoLedgerConta(CONTA_JUROS_MULTA_MORA_A_RECEBER_ERP).debito).toBeCloseTo(primeira.valorJurosMulta, 2);
+    expect(saldoLedgerConta(CONTA_PROVISAO_DEVEDORES_DUVIDOSOS_ERP).credito).toBeCloseTo(primeira.valorProvisao, 2);
+  });
+
+  it("provisarJurosMora com competência sem atraso (dentro do vencimento) não lança nada e informa valor zero, sem erro", () => {
+    const contrato_id = criarContrato(20, 1000);
+    const competencia_id = competenciaId(contrato_id, 2025, 6, "2025-06-30");
+
+    const resultado = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-15" }); // antes do vencimento (dia 20)
+
+    expect(resultado.sucesso).toBe(true);
+    expect(resultado.jaProvisionado).toBe(false);
+    expect(resultado.valorJurosMulta).toBe(0);
+    expect(resultado.valorProvisao).toBe(0);
+    expect(saldoLedgerConta(CONTA_JUROS_MULTA_MORA_A_RECEBER_ERP).debito).toBe(0);
+    expect(saldoLedgerConta(CONTA_PROVISAO_DEVEDORES_DUVIDOSOS_ERP).credito).toBe(0);
+  });
+
+  it("provisarJurosMora usa o percentual de perda esperada informado, não sempre o default", () => {
+    const contrato_id = criarContrato(10, 1000);
+    const competencia_id = competenciaId(contrato_id, 2025, 6, "2025-06-30");
+
+    const resultado = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-20", percentualPerdaEsperada: 0.25 });
+
+    expect(resultado.valorProvisao).toBeCloseTo(resultado.valorJurosMulta * 0.25, 2);
+  });
+
+  it("reverterProvisaoJurosMora estorna os dois lançamentos (juros e provisão) e zera o efeito líquido no razão", () => {
+    const contrato_id = criarContrato(10, 1000);
+    const competencia_id = competenciaId(contrato_id, 2025, 6, "2025-06-30");
+    const provisao = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-20" });
+    expect(provisao.jaProvisionado).toBe(false);
+
+    const reversao = reverterProvisaoJurosMora(db, competencia_id, "juros pagos integralmente pelo locatário", 1);
+
+    expect(reversao.sucesso).toBe(true);
+    expect(reversao.lancamentosEstornados).toBe(4); // 2 pernas de juros + 2 pernas de provisão
+    expect(reversao.ledgerEntryIdsEstorno).toHaveLength(4);
+
+    // Débito = crédito em cada conta afetada (original + reverso) → efeito líquido zero.
+    expect(saldoLedgerConta(CONTA_JUROS_MULTA_MORA_A_RECEBER_ERP).debito).toBeCloseTo(
+      saldoLedgerConta(CONTA_JUROS_MULTA_MORA_A_RECEBER_ERP).credito,
+      2,
+    );
+    expect(saldoLedgerConta(CONTA_RECEITA_JUROS_ERP).debito).toBeCloseTo(saldoLedgerConta(CONTA_RECEITA_JUROS_ERP).credito, 2);
+    expect(saldoLedgerConta(CONTA_INADIMPLENCIA_PERDAS_LOCATARIO_ERP).debito).toBeCloseTo(
+      saldoLedgerConta(CONTA_INADIMPLENCIA_PERDAS_LOCATARIO_ERP).credito,
+      2,
+    );
+    expect(saldoLedgerConta(CONTA_PROVISAO_DEVEDORES_DUVIDOSOS_ERP).debito).toBeCloseTo(
+      saldoLedgerConta(CONTA_PROVISAO_DEVEDORES_DUVIDOSOS_ERP).credito,
+      2,
+    );
+
+    // Depois de revertida, provisionar de novo não colide no índice único (idx_ledger_origem_unica
+    // só considera lançamentos vivos) — e volta a funcionar normalmente.
+    const reprovisionado = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-20" });
+    expect(reprovisionado.jaProvisionado).toBe(false);
+    expect(reprovisionado.sucesso).toBe(true);
+  });
+
+  it("reverterProvisaoJurosMora é idempotente: sem nada provisionado para a competência, não é erro e não estorna nada", () => {
+    const contrato_id = criarContrato(10, 1000);
+    const competencia_id = competenciaId(contrato_id, 2025, 6, "2025-06-30");
+
+    const reversao = reverterProvisaoJurosMora(db, competencia_id, "nunca foi provisionado", 1);
+
+    expect(reversao.sucesso).toBe(true);
+    expect(reversao.lancamentosEstornados).toBe(0);
+    expect(reversao.ledgerEntryIdsEstorno).toEqual([]);
+  });
+
+  it("o saldo da conta 1106 (Provisão para devedores duvidosos) fica corretamente CREDOR, reduzindo o ativo líquido", () => {
+    const contrato_id = criarContrato(10, 1000);
+    const competencia_id = competenciaId(contrato_id, 2025, 6, "2025-06-30");
+    const resultado = provisarJurosMora(db, competencia_id, entidade_id, { data_referencia: "2025-06-20" });
+
+    // obterSaldoConta já inverte o sinal conforme a natureza da conta (ver ledger.ts) — para
+    // uma conta de natureza "credito" como 1106, um saldo positivo aqui É o saldo credor
+    // esperado (contra-ativo, reduz o total do grupo ativo no balancete).
+    const saldo1106 = obterSaldoConta(db, periodo_id, CONTA_PROVISAO_DEVEDORES_DUVIDOSOS_ERP);
+    expect(saldo1106).toBeCloseTo(resultado.valorProvisao, 2);
+    expect(saldo1106).toBeGreaterThan(0);
   });
 });
