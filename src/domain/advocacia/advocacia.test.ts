@@ -312,8 +312,7 @@ describe("advocacia", () => {
         data_vencimento: "2024-04-10",
       });
 
-      const baixa = baixarContaAPagar(db, conta_a_pagar_id!, 1, "2024-04-10");
-      expect(baixa.sucesso).toBe(true);
+      expect(() => baixarContaAPagar(db, conta_a_pagar_id!, 1, "2024-04-10")).not.toThrow();
 
       const contaDespesa = MAPA_APP_PARA_ERP[PLANO_CONTA_DESPESA_JURIDICA_PADRAO];
       expect(saldoLedgerConta(contaDespesa).debito).toBeCloseTo(800, 2);

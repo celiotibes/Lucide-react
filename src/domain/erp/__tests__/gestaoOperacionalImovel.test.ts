@@ -234,7 +234,7 @@ describe("gestaoOperacionalImovel", () => {
         data_vencimento: "2026-02-15",
         imovel_id: IMOVEL_1,
       });
-      cancelarContaAPagar(db, cancelada.id!, "duplicidade");
+      cancelarContaAPagar(db, cancelada, "duplicidade");
       // De outro imóvel — não deve entrar.
       registrarContaAPagar(db, {
         entidade_id,

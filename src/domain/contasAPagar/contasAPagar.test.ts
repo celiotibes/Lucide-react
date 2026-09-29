@@ -75,16 +75,15 @@ describe("contasAPagar", () => {
         plano_conta_codigo: "2.1.01",
       });
 
-      const resultado = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         documento_id,
         data_vencimento: "2024-03-10",
       });
 
-      expect(resultado.sucesso).toBe(true);
-      expect(resultado.id).toBeTruthy();
+      expect(id).toBeTruthy();
 
-      const conta = obterContaAPagar(db, resultado.id!, "2024-03-10");
+      const conta = obterContaAPagar(db, id, "2024-03-10");
       expect(conta).not.toBeNull();
       expect(conta!.fornecedor_nome).toBe("Condomínio Edifício Aurora");
       expect(conta!.fornecedor_cnpj_cpf).toBe("12345678000199");
@@ -102,7 +101,7 @@ describe("contasAPagar", () => {
         plano_conta_codigo: "2.1.01",
       });
 
-      const resultado = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         documento_id,
         fornecedor_nome: "Fornecedor Informado à Mão",
@@ -110,36 +109,37 @@ describe("contasAPagar", () => {
         data_vencimento: "2024-03-10",
       });
 
-      const conta = obterContaAPagar(db, resultado.id!, "2024-03-10");
+      const conta = obterContaAPagar(db, id, "2024-03-10");
       expect(conta!.fornecedor_nome).toBe("Fornecedor Informado à Mão");
       expect(conta!.valor).toBeCloseTo(999, 2);
     });
 
     it("recusa sem fornecedor identificável", () => {
-      const resultado = registrarContaAPagar(db, { entidade_id, valor: 100, data_vencimento: "2024-03-10" });
-      expect(resultado.sucesso).toBe(false);
+      expect(() => registrarContaAPagar(db, { entidade_id, valor: 100, data_vencimento: "2024-03-10" })).toThrow(
+        /informe o nome do fornecedor/i,
+      );
     });
 
     it("recusa sem valor positivo", () => {
-      const resultado = registrarContaAPagar(db, {
-        entidade_id,
-        fornecedor_nome: "Fornecedor X",
-        data_vencimento: "2024-03-10",
-      });
-      expect(resultado.sucesso).toBe(false);
+      expect(() =>
+        registrarContaAPagar(db, {
+          entidade_id,
+          fornecedor_nome: "Fornecedor X",
+          data_vencimento: "2024-03-10",
+        }),
+      ).toThrow(/informe um valor positivo/i);
     });
 
     it("funciona sem imovel_id nem documento_id — nem toda despesa é ligada a um imóvel", () => {
-      const resultado = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Escritório de Advocacia",
         valor: 1200,
         data_vencimento: "2024-04-05",
         plano_conta_codigo: "2.1.11",
       });
-      expect(resultado.sucesso).toBe(true);
 
-      const conta = obterContaAPagar(db, resultado.id!, "2024-04-01");
+      const conta = obterContaAPagar(db, id, "2024-04-01");
       expect(conta!.imovel_id).toBeNull();
       expect(conta!.documento_id).toBeNull();
       expect(conta!.status_calculado).toBe("pendente");
@@ -148,7 +148,7 @@ describe("contasAPagar", () => {
 
   describe("baixarContaAPagar", () => {
     it("gera lançamento real no razão (débito despesa / crédito caixa) e a conta bancária correta perde saldo", () => {
-      const { id } = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Condomínio Edifício Aurora",
         valor: 500,
@@ -156,9 +156,9 @@ describe("contasAPagar", () => {
         plano_conta_codigo: "2.1.01",
       });
 
-      const resultado = baixarContaAPagar(db, id!, 1, "2024-03-10", 7);
+      const resultado = baixarContaAPagar(db, id, 1, "2024-03-10", 7);
 
-      expect(resultado.sucesso).toBe(true);
+      expect(resultado.id).toBe(id);
       expect(resultado.ledger_entry_id_baixa).toBeTruthy();
       expect(resultado.transacao_id).toBeTruthy();
 
@@ -175,7 +175,7 @@ describe("contasAPagar", () => {
       expect(saldoLedgerConta(contaDespesa).credito).toBeCloseTo(0, 2);
 
       // A conta a pagar está marcada como paga, com a prova do lançamento gravada.
-      const conta = obterContaAPagar(db, id!, "2024-03-10");
+      const conta = obterContaAPagar(db, id, "2024-03-10");
       expect(conta!.status).toBe("paga");
       expect(conta!.status_calculado).toBe("paga");
       expect(conta!.data_pagamento).toBe("2024-03-10");
@@ -184,14 +184,14 @@ describe("contasAPagar", () => {
       const [lancamentoBaixa] = consultar<{ conta_id: number; valor_debito: number }>(
         db,
         "SELECT conta_id, valor_debito FROM ledger_entries WHERE id = ?",
-        [resultado.ledger_entry_id_baixa!],
+        [resultado.ledger_entry_id_baixa],
       );
       expect(lancamentoBaixa.conta_id).toBe(contaDespesa);
       expect(lancamentoBaixa.valor_debito).toBeCloseTo(500, 2);
     });
 
     it("recusa baixa dupla (conta já paga)", () => {
-      const { id } = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Fornecedor X",
         valor: 300,
@@ -199,73 +199,62 @@ describe("contasAPagar", () => {
         plano_conta_codigo: "2.1.02",
       });
 
-      const primeira = baixarContaAPagar(db, id!, 1, "2024-03-10");
-      expect(primeira.sucesso).toBe(true);
+      expect(() => baixarContaAPagar(db, id, 1, "2024-03-10")).not.toThrow();
 
-      const segunda = baixarContaAPagar(db, id!, 1, "2024-03-15");
-      expect(segunda.sucesso).toBe(false);
-      expect(segunda.mensagem).toMatch(/já está paga/i);
+      expect(() => baixarContaAPagar(db, id, 1, "2024-03-15")).toThrow(/já está paga/i);
 
       // Nenhum efeito colateral da segunda tentativa: saldo bancário reflete só a primeira baixa.
       expect(saldoBancario(1)).toBeCloseTo(-300, 2);
     });
 
     it("recusa baixar conta inexistente, com mensagem clara", () => {
-      const resultado = baixarContaAPagar(db, 999999, 1, "2024-03-10");
-      expect(resultado.sucesso).toBe(false);
-      expect(resultado.mensagem).toMatch(/não encontrada/i);
+      expect(() => baixarContaAPagar(db, 999999, 1, "2024-03-10")).toThrow(/não encontrada/i);
     });
 
     it("recusa baixar conta cancelada", () => {
-      const { id } = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Fornecedor X",
         valor: 300,
         data_vencimento: "2024-03-10",
       });
-      cancelarContaAPagar(db, id!, "Duplicidade");
+      cancelarContaAPagar(db, id, "Duplicidade");
 
-      const resultado = baixarContaAPagar(db, id!, 1, "2024-03-10");
-      expect(resultado.sucesso).toBe(false);
-      expect(resultado.mensagem).toMatch(/cancelada/i);
+      expect(() => baixarContaAPagar(db, id, 1, "2024-03-10")).toThrow(/cancelada/i);
     });
   });
 
   describe("cancelarContaAPagar", () => {
     it("recusa cancelar uma conta já paga", () => {
-      const { id } = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Fornecedor X",
         valor: 300,
         data_vencimento: "2024-03-10",
       });
-      baixarContaAPagar(db, id!, 1, "2024-03-10");
+      baixarContaAPagar(db, id, 1, "2024-03-10");
 
-      const resultado = cancelarContaAPagar(db, id!, "Tentativa indevida");
-      expect(resultado.sucesso).toBe(false);
-      expect(resultado.mensagem).toMatch(/já paga/i);
+      expect(() => cancelarContaAPagar(db, id, "Tentativa indevida")).toThrow(/já paga/i);
 
-      const conta = obterContaAPagar(db, id!, "2024-03-10");
+      const conta = obterContaAPagar(db, id, "2024-03-10");
       expect(conta!.status).toBe("paga");
     });
 
     it("cancela uma conta pendente e é idempotente ao cancelar de novo", () => {
-      const { id } = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Fornecedor X",
         valor: 300,
         data_vencimento: "2024-03-10",
       });
 
-      const primeira = cancelarContaAPagar(db, id!, "Duplicidade de lançamento");
-      expect(primeira.sucesso).toBe(true);
+      expect(() => cancelarContaAPagar(db, id, "Duplicidade de lançamento")).not.toThrow();
 
-      const conta = obterContaAPagar(db, id!, "2024-03-10");
+      const conta = obterContaAPagar(db, id, "2024-03-10");
       expect(conta!.status).toBe("cancelada");
       expect(conta!.status_calculado).toBe("cancelada");
 
-      const segunda = cancelarContaAPagar(db, id!, "De novo");
-      expect(segunda.sucesso).toBe(true);
+      expect(() => cancelarContaAPagar(db, id, "De novo")).not.toThrow();
     });
   });
 
@@ -277,7 +266,7 @@ describe("contasAPagar", () => {
         valor: 100,
         data_vencimento: "2024-04-01",
       });
-      const { id: idAtrasada } = registrarContaAPagar(db, {
+      const idAtrasada = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Atrasada",
         valor: 100,
@@ -301,13 +290,13 @@ describe("contasAPagar", () => {
     });
 
     it("vencimento HOJE ainda não conta como atrasada", () => {
-      const { id } = registrarContaAPagar(db, {
+      const id = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Vence hoje",
         valor: 50,
         data_vencimento: "2024-03-15",
       });
-      const conta = obterContaAPagar(db, id!, "2024-03-15");
+      const conta = obterContaAPagar(db, id, "2024-03-15");
       expect(conta!.status_calculado).toBe("pendente");
     });
   });
@@ -321,60 +310,60 @@ describe("contasAPagar", () => {
         fornecedor_nome: "A vencer",
         valor: 100,
         data_vencimento: deslocarData(DATA_REF, 10),
-      }).id!;
+      });
       const faixa0a30 = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Faixa 0-30 (10 dias)",
         valor: 200,
         data_vencimento: deslocarData(DATA_REF, -10),
-      }).id!;
+      });
       const limite30 = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Limite exato 30 dias",
         valor: 10,
         data_vencimento: deslocarData(DATA_REF, -30),
-      }).id!;
+      });
       const limite31 = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Limite exato 31 dias",
         valor: 20,
         data_vencimento: deslocarData(DATA_REF, -31),
-      }).id!;
+      });
       const faixa31a60 = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Faixa 31-60 (45 dias)",
         valor: 300,
         data_vencimento: deslocarData(DATA_REF, -45),
-      }).id!;
+      });
       const faixa61a90 = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Faixa 61-90 (75 dias)",
         valor: 400,
         data_vencimento: deslocarData(DATA_REF, -75),
-      }).id!;
+      });
       const faixa90mais = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Faixa 90+ (120 dias)",
         valor: 500,
         data_vencimento: deslocarData(DATA_REF, -120),
-      }).id!;
+      });
 
       // Não deve entrar no relatório (não é 'pendente').
-      const { id: idPaga } = registrarContaAPagar(db, {
+      const idPaga = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Já paga, mesmo vencida há muito tempo",
         valor: 999,
         data_vencimento: deslocarData(DATA_REF, -200),
       });
-      baixarContaAPagar(db, idPaga!, 1, DATA_REF);
+      baixarContaAPagar(db, idPaga, 1, DATA_REF);
 
-      const { id: idCancelada } = registrarContaAPagar(db, {
+      const idCancelada = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Cancelada",
         valor: 999,
         data_vencimento: deslocarData(DATA_REF, -50),
       });
-      cancelarContaAPagar(db, idCancelada!, "Não devida");
+      cancelarContaAPagar(db, idCancelada, "Não devida");
 
       const relatorio = gerarRelatorioAging(db, entidade_id, DATA_REF);
       expect(relatorio.data_referencia).toBe(DATA_REF);

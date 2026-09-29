@@ -108,13 +108,13 @@ describe("solicitarPagamento", () => {
 
   describe("vinculado a uma conta a pagar", () => {
     it("valida que a obrigação existe e está pendente", () => {
-      const contaAPagar = registrarContaAPagar(db, {
+      const contaAPagarId = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Fornecedor Ltda",
         valor: 800,
         data_vencimento: "2025-06-15",
       });
-      expect(contaAPagar.sucesso).toBe(true);
+      expect(contaAPagarId).toBeTruthy();
 
       const r = solicitarPagamento(db, {
         entidade_id,
@@ -123,11 +123,11 @@ describe("solicitarPagamento", () => {
         valor: 800,
         destinatario_nome: "Fornecedor Ltda",
         destinatario_documento: "12345678000199",
-        contas_a_pagar_id: contaAPagar.id!,
+        contas_a_pagar_id: contaAPagarId,
         data_solicitacao: "2025-06-14",
       });
       expect(r.sucesso).toBe(true);
-      expect(obterPagamento(db, r.id!)?.contas_a_pagar_id).toBe(contaAPagar.id);
+      expect(obterPagamento(db, r.id!)?.contas_a_pagar_id).toBe(contaAPagarId);
     });
 
     it("recusa quando a conta a pagar não existe", () => {
@@ -146,13 +146,13 @@ describe("solicitarPagamento", () => {
     });
 
     it("recusa quando a conta a pagar já está cancelada", () => {
-      const contaAPagar = registrarContaAPagar(db, {
+      const contaAPagarId = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Fornecedor Ltda",
         valor: 800,
         data_vencimento: "2025-06-15",
       });
-      executar(db, "UPDATE contas_a_pagar SET status = 'cancelada' WHERE id = ?", [contaAPagar.id]);
+      executar(db, "UPDATE contas_a_pagar SET status = 'cancelada' WHERE id = ?", [contaAPagarId]);
 
       const r = solicitarPagamento(db, {
         entidade_id,
@@ -161,7 +161,7 @@ describe("solicitarPagamento", () => {
         valor: 800,
         destinatario_nome: "Fornecedor Ltda",
         destinatario_documento: "12345678000199",
-        contas_a_pagar_id: contaAPagar.id!,
+        contas_a_pagar_id: contaAPagarId,
         data_solicitacao: "2025-06-14",
       });
       expect(r.sucesso).toBe(false);
@@ -169,14 +169,14 @@ describe("solicitarPagamento", () => {
     });
 
     it("recusa quando a conta a pagar já está paga", () => {
-      const contaAPagar = registrarContaAPagar(db, {
+      const contaAPagarId = registrarContaAPagar(db, {
         entidade_id,
         fornecedor_nome: "Fornecedor Ltda",
         valor: 800,
         data_vencimento: "2025-06-15",
       });
       executar(db, "UPDATE contas_a_pagar SET status = 'paga', data_pagamento = '2025-06-10' WHERE id = ?", [
-        contaAPagar.id,
+        contaAPagarId,
       ]);
 
       const r = solicitarPagamento(db, {
@@ -186,7 +186,7 @@ describe("solicitarPagamento", () => {
         valor: 800,
         destinatario_nome: "Fornecedor Ltda",
         destinatario_documento: "12345678000199",
-        contas_a_pagar_id: contaAPagar.id!,
+        contas_a_pagar_id: contaAPagarId,
         data_solicitacao: "2025-06-14",
       });
       expect(r.sucesso).toBe(false);
@@ -381,8 +381,7 @@ describe("integração com Advocacia: pagar uma despesa jurídica via contas_a_p
     // A conta a pagar em si continua sendo baixada pelo fluxo próprio de contasAPagar
     // (registrarLancamentoContabil) — pagamentosIniciados só registra o STATUS do envio
     // eletrônico, nunca substitui a baixa contábil real.
-    const baixa = baixarContaAPagar(db, despesa.id!, conta_bancaria_id, "2025-06-20");
-    expect(baixa.sucesso).toBe(true);
+    expect(() => baixarContaAPagar(db, despesa.id!, conta_bancaria_id, "2025-06-20")).not.toThrow();
   });
 
   it("recusa solicitar pagamento de uma despesa de processo já paga (mesma regra que qualquer outra conta a pagar)", () => {

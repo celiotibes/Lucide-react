@@ -106,7 +106,7 @@ describe("Dashboard Portfolio - KPIs (schema real)", () => {
       imovel_id: IMOVEL_1,
     });
     // Conta CANCELADA: não deve entrar na soma das despesas do mês.
-    const canceladaResult = registrarContaAPagar(db, {
+    const canceladaId = registrarContaAPagar(db, {
       entidade_id,
       fornecedor_nome: "Fornecedor Errado",
       descricao: "Lançada por engano",
@@ -114,7 +114,7 @@ describe("Dashboard Portfolio - KPIs (schema real)", () => {
       data_vencimento: "2026-01-15",
       imovel_id: IMOVEL_1,
     });
-    if (canceladaResult.id) cancelarContaAPagar(db, canceladaResult.id, "Lançada por engano");
+    cancelarContaAPagar(db, canceladaId, "Lançada por engano");
 
     // Despesa de janeiro/2026 do imóvel 2.
     registrarContaAPagar(db, {

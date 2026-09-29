@@ -372,7 +372,7 @@ function gerarContaAPagarDaDespesa(db: Database, despesa: DespesaOS, ordem: Orde
   const [entidade] = consultar<{ id: number }>(db, "SELECT id FROM entidades_legais ORDER BY id ASC LIMIT 1");
   if (!entidade) return null; // sem entidade titular cadastrada — não há como gerar título financeiro
 
-  const resultado = registrarContaAPagar(db, {
+  return registrarContaAPagar(db, {
     entidade_id: entidade.id,
     fornecedor_nome,
     descricao: `Despesa aprovada da OS #${ordem.id} (despesa #${despesa.id})`,
@@ -381,7 +381,6 @@ function gerarContaAPagarDaDespesa(db: Database, despesa: DespesaOS, ordem: Orde
     plano_conta_codigo: "2.1.04", // "Prestadores de serviço" — ver planoDeContas.ts
     imovel_id: ordem.imovel_id,
   });
-  return resultado.sucesso ? resultado.id ?? null : null;
 }
 
 /** Resultado útil de uma chamada de `aprovarDespesaOS` — o status resultante da despesa

@@ -87,15 +87,12 @@ export interface NovaContaAPagar {
   processo_id?: number;
 }
 
-export interface ResultadoContaAPagar {
-  sucesso: boolean;
-  mensagem: string;
-  id?: number;
-}
-
-export interface ResultadoBaixaContaAPagar extends ResultadoContaAPagar {
-  transacao_id?: number;
-  ledger_entry_id_baixa?: number;
+/** Resultado útil de uma baixa bem-sucedida — id da própria conta a pagar, da transação
+ * bancária inserida e do lançamento de débito (contrapartida) gerado no razão. */
+export interface BaixaContaAPagar {
+  id: number;
+  transacao_id: number;
+  ledger_entry_id_baixa: number;
 }
 
 function obterContaAPagarBruta(db: Database, id: number): ContaAPagar | null {
@@ -121,8 +118,9 @@ function hoje(): string {
 /** Registra uma nova obrigação de pagar. Se `documento_id` for informado, herda
  * valor/fornecedor/CNPJ-CPF/plano_conta_codigo do documento para os campos que NÃO
  * vieram explicitamente em `dados` — nunca sobrescreve o que foi informado, só preenche o
- * que faltou, evitando redigitar algo que o documento já tem. */
-export function registrarContaAPagar(db: Database, dados: NovaContaAPagar): ResultadoContaAPagar {
+ * que faltou, evitando redigitar algo que o documento já tem. Lança `Error` quando a
+ * obrigação não pode ser registrada; retorna o id da linha criada quando pode. */
+export function registrarContaAPagar(db: Database, dados: NovaContaAPagar): number {
   let fornecedor_nome = dados.fornecedor_nome?.trim() || undefined;
   let fornecedor_cnpj_cpf = dados.fornecedor_cnpj_cpf?.trim() || undefined;
   let valor = dados.valor;
@@ -140,7 +138,7 @@ export function registrarContaAPagar(db: Database, dados: NovaContaAPagar): Resu
       [dados.documento_id],
     );
     if (!documento) {
-      return { sucesso: false, mensagem: `Documento ${dados.documento_id} não encontrado.` };
+      throw new Error(`Documento ${dados.documento_id} não encontrado.`);
     }
     if (valor === undefined && documento.valor != null) valor = documento.valor;
     if (!fornecedor_nome && documento.nome_contraparte) fornecedor_nome = documento.nome_contraparte;
@@ -151,16 +149,13 @@ export function registrarContaAPagar(db: Database, dados: NovaContaAPagar): Resu
   }
 
   if (!fornecedor_nome) {
-    return {
-      sucesso: false,
-      mensagem: "Informe o nome do fornecedor (ou um documento com contraparte identificada).",
-    };
+    throw new Error("Informe o nome do fornecedor (ou um documento com contraparte identificada).");
   }
   if (valor === undefined || valor === null || !(valor > 0)) {
-    return { sucesso: false, mensagem: "Informe um valor positivo (ou um documento com valor extraído)." };
+    throw new Error("Informe um valor positivo (ou um documento com valor extraído).");
   }
   if (!dados.data_vencimento) {
-    return { sucesso: false, mensagem: "Informe a data de vencimento." };
+    throw new Error("Informe a data de vencimento.");
   }
 
   executar(
@@ -185,7 +180,7 @@ export function registrarContaAPagar(db: Database, dados: NovaContaAPagar): Resu
   );
 
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Conta a pagar registrada.", id };
+  return id;
 }
 
 /** Período contábil (entidade, ano/mês da data informada), criando-o aberto se ainda não
@@ -221,34 +216,34 @@ function resolverPeriodoParaData(db: Database, entidade_id: number, data: string
 /** Marca a conta como paga e gera o lançamento real no razão: uma saída de caixa na
  * conta bancária escolhida (débito na despesa mapeada, crédito em caixa), pela mesma rota
  * que uma transação bancária importada usaria — ver comentário do arquivo. Recusa baixa
- * dupla (conta já paga) e baixa de conta cancelada. Atômico: se qualquer passo falhar,
- * nada é persistido (nem a transação bancária, nem os lançamentos, nem a atualização de
- * status). */
+ * dupla (conta já paga) e baixa de conta cancelada, lançando `Error`. Atômico: se qualquer
+ * passo falhar, nada é persistido (nem a transação bancária, nem os lançamentos, nem a
+ * atualização de status). */
 export function baixarContaAPagar(
   db: Database,
   conta_a_pagar_id: number,
   conta_bancaria_id: number,
   data_pagamento: string,
   usuario_id?: number,
-): ResultadoBaixaContaAPagar {
+): BaixaContaAPagar {
   const conta = obterContaAPagarBruta(db, conta_a_pagar_id);
   if (!conta) {
-    return { sucesso: false, mensagem: `Conta a pagar ${conta_a_pagar_id} não encontrada.` };
+    throw new Error(`Conta a pagar ${conta_a_pagar_id} não encontrada.`);
   }
   if (conta.status === "cancelada") {
-    return { sucesso: false, mensagem: "Conta a pagar já cancelada — não pode ser baixada." };
+    throw new Error("Conta a pagar já cancelada — não pode ser baixada.");
   }
   if (conta.status === "paga" || conta.data_pagamento) {
-    return { sucesso: false, mensagem: "Conta a pagar já está paga — baixa duplicada recusada." };
+    throw new Error("Conta a pagar já está paga — baixa duplicada recusada.");
   }
   if (!data_pagamento) {
-    return { sucesso: false, mensagem: "Informe a data de pagamento." };
+    throw new Error("Informe a data de pagamento.");
   }
   const [bancaria] = consultar<{ id: number }>(db, "SELECT id FROM contas_bancarias WHERE id = ?", [
     conta_bancaria_id,
   ]);
   if (!bancaria) {
-    return { sucesso: false, mensagem: `Conta bancária ${conta_bancaria_id} não encontrada.` };
+    throw new Error(`Conta bancária ${conta_bancaria_id} não encontrada.`);
   }
 
   const montante = conta.valor;
@@ -308,43 +303,34 @@ export function baixarContaAPagar(
     ]);
 
     db.run("COMMIT");
-    return {
-      sucesso: true,
-      mensagem: `Conta a pagar #${conta.id} baixada — lançamento #${ledger_entry_id_baixa} no razão.`,
-      id: conta.id,
-      transacao_id,
-      ledger_entry_id_baixa,
-    };
+    return { id: conta.id, transacao_id, ledger_entry_id_baixa };
   } catch (erro) {
     try {
       db.run("ROLLBACK");
     } catch {
       /* já fora de transação */
     }
-    return {
-      sucesso: false,
-      mensagem: `Não foi possível baixar a conta a pagar: ${erro instanceof Error ? erro.message : String(erro)}`,
-    };
+    throw erro;
   }
 }
 
 /** Cancela uma obrigação ainda não paga — nunca uma já baixada (contabilidade não se
  * apaga: uma conta paga só pode ser corrigida por estorno do lançamento, fora do escopo
- * deste módulo). Cancelar uma conta já cancelada é idempotente (sucesso, sem duplicar o
- * motivo). */
-export function cancelarContaAPagar(db: Database, conta_a_pagar_id: number, motivo: string): ResultadoContaAPagar {
+ * deste módulo). Cancelar uma conta já cancelada é idempotente (não lança, não duplica o
+ * motivo). Lança `Error` nos demais casos de recusa. */
+export function cancelarContaAPagar(db: Database, conta_a_pagar_id: number, motivo: string): void {
   const conta = obterContaAPagarBruta(db, conta_a_pagar_id);
   if (!conta) {
-    return { sucesso: false, mensagem: `Conta a pagar ${conta_a_pagar_id} não encontrada.` };
+    throw new Error(`Conta a pagar ${conta_a_pagar_id} não encontrada.`);
   }
   if (conta.status === "paga" || conta.data_pagamento) {
-    return { sucesso: false, mensagem: "Conta a pagar já paga — não pode ser cancelada." };
+    throw new Error("Conta a pagar já paga — não pode ser cancelada.");
   }
   if (conta.status === "cancelada") {
-    return { sucesso: true, mensagem: "Conta a pagar já estava cancelada.", id: conta.id };
+    return;
   }
   if (!motivo || !motivo.trim()) {
-    return { sucesso: false, mensagem: "Informe o motivo do cancelamento." };
+    throw new Error("Informe o motivo do cancelamento.");
   }
 
   const descricaoAtual = conta.descricao ? `${conta.descricao} ` : "";
@@ -352,7 +338,6 @@ export function cancelarContaAPagar(db: Database, conta_a_pagar_id: number, moti
     `${descricaoAtual}[CANCELADA: ${motivo.trim()}]`,
     conta.id,
   ]);
-  return { sucesso: true, mensagem: "Conta a pagar cancelada.", id: conta.id };
 }
 
 /** Dias entre `dataReferencia` e `dataAlvo` (positivo quando a referência é POSTERIOR ao

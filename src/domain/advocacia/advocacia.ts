@@ -317,20 +317,22 @@ export function registrarDespesaProcesso(db: Database, dados: NovaDespesaProcess
     };
   }
 
-  const resultado = registrarContaAPagar(db, {
-    entidade_id: dados.entidade_id,
-    documento_id: dados.documento_id,
-    fornecedor_nome: dados.fornecedor_nome,
-    fornecedor_cnpj_cpf: dados.fornecedor_cnpj_cpf,
-    descricao: dados.descricao,
-    valor: dados.valor,
-    data_vencimento: dados.data_vencimento,
-    plano_conta_codigo: dados.plano_conta_codigo ?? PLANO_CONTA_DESPESA_JURIDICA_PADRAO,
-    processo_id: dados.processo_id,
-  });
-
-  if (!resultado.sucesso) return { sucesso: false, mensagem: resultado.mensagem };
-  return { sucesso: true, mensagem: "Despesa jurídica registrada.", id: resultado.id };
+  try {
+    const id = registrarContaAPagar(db, {
+      entidade_id: dados.entidade_id,
+      documento_id: dados.documento_id,
+      fornecedor_nome: dados.fornecedor_nome,
+      fornecedor_cnpj_cpf: dados.fornecedor_cnpj_cpf,
+      descricao: dados.descricao,
+      valor: dados.valor,
+      data_vencimento: dados.data_vencimento,
+      plano_conta_codigo: dados.plano_conta_codigo ?? PLANO_CONTA_DESPESA_JURIDICA_PADRAO,
+      processo_id: dados.processo_id,
+    });
+    return { sucesso: true, mensagem: "Despesa jurídica registrada.", id };
+  } catch (erro) {
+    return { sucesso: false, mensagem: erro instanceof Error ? erro.message : String(erro) };
+  }
 }
 
 /** As despesas (linhas de `contas_a_pagar`) de um processo, com status calculado — nunca

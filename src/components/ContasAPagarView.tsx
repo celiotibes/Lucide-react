@@ -104,25 +104,25 @@ export function ContasAPagarView() {
   async function registrarNovaConta() {
     if (!db || !entidade) return;
     const valor = rascunho.valor.trim() === "" ? undefined : Number.parseFloat(rascunho.valor.replace(",", "."));
-    const resultado = registrarContaAPagar(db, {
-      entidade_id: entidade.id,
-      documento_id: rascunho.documentoId ? Number(rascunho.documentoId) : undefined,
-      fornecedor_nome: rascunho.fornecedorNome.trim() || undefined,
-      fornecedor_cnpj_cpf: rascunho.fornecedorCnpjCpf.trim() || undefined,
-      descricao: rascunho.descricao.trim() || undefined,
-      valor,
-      data_vencimento: rascunho.dataVencimento,
-      plano_conta_codigo: rascunho.planoContaCodigo || undefined,
-      imovel_id: rascunho.imovelId ? Number(rascunho.imovelId) : undefined,
-    });
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      registrarContaAPagar(db, {
+        entidade_id: entidade.id,
+        documento_id: rascunho.documentoId ? Number(rascunho.documentoId) : undefined,
+        fornecedor_nome: rascunho.fornecedorNome.trim() || undefined,
+        fornecedor_cnpj_cpf: rascunho.fornecedorCnpjCpf.trim() || undefined,
+        descricao: rascunho.descricao.trim() || undefined,
+        valor,
+        data_vencimento: rascunho.dataVencimento,
+        plano_conta_codigo: rascunho.planoContaCodigo || undefined,
+        imovel_id: rascunho.imovelId ? Number(rascunho.imovelId) : undefined,
+      });
+      await persistir();
+      setRascunho(RASCUNHO_VAZIO);
+      setMostrarFormulario(false);
+      avisar("good", "Conta a pagar registrada.");
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    setRascunho(RASCUNHO_VAZIO);
-    setMostrarFormulario(false);
-    avisar("good", resultado.mensagem);
   }
 
   function abrirBaixa(id: number) {
@@ -134,14 +134,14 @@ export function ContasAPagarView() {
 
   async function confirmarBaixa() {
     if (!db || baixandoId === null || !contaBancariaBaixa) return;
-    const resultado = baixarContaAPagar(db, baixandoId, Number(contaBancariaBaixa), dataPagamentoBaixa);
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      const resultado = baixarContaAPagar(db, baixandoId, Number(contaBancariaBaixa), dataPagamentoBaixa);
+      await persistir();
+      setBaixandoId(null);
+      avisar("good", `Conta a pagar #${resultado.id} baixada — lançamento #${resultado.ledger_entry_id_baixa} no razão.`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    setBaixandoId(null);
-    avisar("good", resultado.mensagem);
   }
 
   function abrirCancelamento(id: number) {
@@ -152,14 +152,14 @@ export function ContasAPagarView() {
 
   async function confirmarCancelamento() {
     if (!db || cancelandoId === null) return;
-    const resultado = cancelarContaAPagar(db, cancelandoId, motivoCancelamento);
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      cancelarContaAPagar(db, cancelandoId, motivoCancelamento);
+      await persistir();
+      setCancelandoId(null);
+      avisar("good", "Conta a pagar cancelada.");
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    setCancelandoId(null);
-    avisar("good", resultado.mensagem);
   }
 
   if (!entidade) {
