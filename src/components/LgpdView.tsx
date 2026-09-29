@@ -312,6 +312,14 @@ export function LgpdView() {
 
   async function encerrarHold(r: RetencaoLegal) {
     if (!db) return;
+    if (
+      !confirm(
+        `Encerrar a retenção legal de ${ROTULO_ENTIDADE_TIPO[r.entidade_tipo] ?? r.entidade_tipo} #${r.entidade_id}? ` +
+          "Depois de encerrada, este registro deixa de bloquear exclusão/anonimização por LGPD caso não haja outro hold ativo sobre ele.",
+      )
+    ) {
+      return;
+    }
     setEncerrandoHoldId(r.id);
     try {
       encerrarRetencaoLegal(db, r.id);

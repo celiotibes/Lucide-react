@@ -164,7 +164,15 @@ export function PainelAuditoria() {
   const [execucaoConcluindoId, setExecucaoConcluindoId] = useState<number | null>(null);
   const [arquivoRestauradoNome, setArquivoRestauradoNome] = useState<string | null>(null);
   const [arquivoRestauradoBytes, setArquivoRestauradoBytes] = useState<Uint8Array | null>(null);
+  const [lendoArquivoRestaurado, setLendoArquivoRestaurado] = useState(false);
   const [dataUltimoBackupInput, setDataUltimoBackupInput] = useState("");
+  // Token incrementado a cada seleção de arquivo E a cada troca de exercício/execução aberta —
+  // `arquivo.arrayBuffer()` é assíncrono (arquivo .sqlite pode ser grande) e, sem isto, um
+  // usuário que troca de execução/exercício enquanto a leitura anterior ainda está em voo
+  // acabaria aplicando os bytes do arquivo ERRADO à execução agora aberta quando a promise
+  // antiga resolvesse por último. Só o resultado cujo token ainda bate com o mais recente é
+  // aplicado ao estado.
+  const arquivoRestauradoTokenRef = useRef(0);
   // Cobre tanto "concluir com sucesso" quanto "marcar como falha" — as duas mutam a mesma
   // execução e nunca rodam ao mesmo tempo para o mesmo id.
   const [processandoExecucaoId, setProcessandoExecucaoId] = useState<number | null>(null);
@@ -428,17 +436,28 @@ export function PainelAuditoria() {
   // confirmar, e deixa o botão de confirmar já saber se há conteúdo pronto para enviar.
   const selecionarArquivoRestaurado = useCallback(
     async (arquivo: File | null) => {
+      const token = ++arquivoRestauradoTokenRef.current;
       if (!arquivo) {
         setArquivoRestauradoNome(null);
         setArquivoRestauradoBytes(null);
+        setLendoArquivoRestaurado(false);
         return;
       }
+      // Mostra o nome já ao selecionar (feedback imediato) e zera os bytes anteriores — o
+      // arquivo pode ser grande, então a leitura abaixo não é instantânea.
+      setArquivoRestauradoNome(arquivo.name);
+      setArquivoRestauradoBytes(null);
+      setLendoArquivoRestaurado(true);
       try {
         const buffer = await arquivo.arrayBuffer();
+        if (arquivoRestauradoTokenRef.current !== token) return; // seleção obsoleta — descarta
         setArquivoRestauradoBytes(new Uint8Array(buffer));
-        setArquivoRestauradoNome(arquivo.name);
       } catch {
+        if (arquivoRestauradoTokenRef.current !== token) return;
         avisar("critical", "Não foi possível ler o arquivo selecionado.");
+        setArquivoRestauradoNome(null);
+      } finally {
+        if (arquivoRestauradoTokenRef.current === token) setLendoArquivoRestaurado(false);
       }
     },
     [avisar],
@@ -447,6 +466,10 @@ export function PainelAuditoria() {
   const confirmarConclusaoComSucesso = useCallback(
     async (execucaoId: number) => {
       if (!db) return;
+      if (lendoArquivoRestaurado) {
+        avisar("warning", "Aguarde a leitura do arquivo terminar antes de confirmar.");
+        return;
+      }
       if (!arquivoRestauradoBytes) {
         avisar("warning", "Selecione o arquivo .sqlite restaurado antes de confirmar.");
         return;
@@ -476,6 +499,7 @@ export function PainelAuditoria() {
             `A verificação do arquivo restaurado encontrou problema(s) — a execução foi registrada como FALHA, não sucesso. Veja as observações na execução.`,
           );
         }
+        arquivoRestauradoTokenRef.current++; // invalida qualquer leitura de arquivo ainda em voo
         setExecucaoConcluindoId(null);
         setArquivoRestauradoBytes(null);
         setArquivoRestauradoNome(null);
@@ -487,7 +511,7 @@ export function PainelAuditoria() {
         setProcessandoExecucaoId(null);
       }
     },
-    [db, arquivoRestauradoBytes, dataUltimoBackupInput, persistir, avisar, forcarAtualizacao],
+    [db, arquivoRestauradoBytes, dataUltimoBackupInput, lendoArquivoRestaurado, persistir, avisar, forcarAtualizacao],
   );
 
   const marcarExecucaoComoFalha = useCallback(
@@ -938,7 +962,21 @@ export function PainelAuditoria() {
                       RPO alvo {ex.rpo_horas_alvo}h · RTO alvo {ex.rto_horas_alvo}h · planejado para {formatarDataCurta(ex.planejado_para)}
                     </div>
                   </div>
-                  <button className="btn" onClick={() => setExercicioAbertoId(aberto ? null : ex.id)}>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      // Trocar de exercício invalida qualquer arquivo selecionado/em leitura
+                      // para a execução que estava aberta antes — nunca aplicar os bytes de
+                      // um arquivo escolhido para uma execução a outra execução/exercício.
+                      arquivoRestauradoTokenRef.current++;
+                      setExercicioAbertoId(aberto ? null : ex.id);
+                      setExecucaoConcluindoId(null);
+                      setArquivoRestauradoBytes(null);
+                      setArquivoRestauradoNome(null);
+                      setLendoArquivoRestaurado(false);
+                      setDataUltimoBackupInput("");
+                    }}
+                  >
                     {aberto ? "Fechar execuções" : "Ver execuções"}
                   </button>
                 </div>
@@ -998,7 +1036,17 @@ export function PainelAuditoria() {
                                   <div className="toolbar-actions">
                                     <button
                                       className="btn primary"
-                                      onClick={() => setExecucaoConcluindoId(formSucessoAberto ? null : exec.id)}
+                                      onClick={() => {
+                                        // Mesmo cuidado do botão "Ver execuções": trocar de
+                                        // execução invalida um arquivo selecionado/em leitura
+                                        // para a execução anterior.
+                                        arquivoRestauradoTokenRef.current++;
+                                        setExecucaoConcluindoId(formSucessoAberto ? null : exec.id);
+                                        setArquivoRestauradoBytes(null);
+                                        setArquivoRestauradoNome(null);
+                                        setLendoArquivoRestaurado(false);
+                                        setDataUltimoBackupInput("");
+                                      }}
                                     >
                                       <CircleCheck size={13} /> Marcar como concluída com sucesso
                                     </button>
@@ -1037,15 +1085,22 @@ export function PainelAuditoria() {
                                       </div>
                                       {arquivoRestauradoNome && (
                                         <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: -6, marginBottom: 10 }}>
-                                          Selecionado: {arquivoRestauradoNome}
+                                          {lendoArquivoRestaurado
+                                            ? `Lendo ${arquivoRestauradoNome}… (arquivo pode ser grande, aguarde)`
+                                            : `Selecionado: ${arquivoRestauradoNome}`}
                                         </p>
                                       )}
                                       <button
                                         className="btn primary"
                                         onClick={() => confirmarConclusaoComSucesso(exec.id)}
-                                        disabled={processandoExecucaoId === exec.id}
+                                        disabled={processandoExecucaoId === exec.id || lendoArquivoRestaurado}
                                       >
-                                        <Upload size={13} /> {processandoExecucaoId === exec.id ? "Verificando…" : "Confirmar e verificar"}
+                                        <Upload size={13} />{" "}
+                                        {processandoExecucaoId === exec.id
+                                          ? "Verificando…"
+                                          : lendoArquivoRestaurado
+                                          ? "Lendo arquivo…"
+                                          : "Confirmar e verificar"}
                                       </button>
                                     </div>
                                   )}
