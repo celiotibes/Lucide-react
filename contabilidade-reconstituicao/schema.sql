@@ -1623,7 +1623,13 @@ CREATE TABLE IF NOT EXISTS rad_avaliacoes (
     superado_por_id         INTEGER REFERENCES rad_avaliacoes(id),   -- aponta para a versão que a substituiu
     valor_total_deducao     REAL,
     criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    emitido_em              DATETIME
+    emitido_em              DATETIME,
+    -- `contestarRadAvaliacao` exige motivo mas até aqui descartava o texto (nenhuma coluna
+    -- para guardá-lo) — contradizia o princípio do sistema de nunca descartar dado do
+    -- domínio (o mesmo problema já tinha sido resolvido para `rejeitarDespesaOS`, gravando
+    -- o motivo na trilha de eventos da OS; aqui não existe trilha equivalente, então a
+    -- coluna direta é a solução mais simples).
+    motivo_contestacao      TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_rad_avaliacoes_contrato ON rad_avaliacoes(contrato_id);
@@ -1825,9 +1831,38 @@ CREATE TABLE IF NOT EXISTS exercicios_restauracao_execucoes (
     rto_horas_real      REAL,
     resultado           TEXT CHECK (resultado IN ('sucesso', 'falha')),
     evidencia_hash      TEXT,               -- SHA-256 do relatório de verificarBackup gerado nesta execução
+    -- Cadeia de custódia mais forte (decisão do usuário 2026-09-29): além do hash do
+    -- relatório acima, guarda também o SHA-256 do próprio arquivo .sqlite restaurado —
+    -- prova a integridade do arquivo em si, não só do resultado da verificação sobre ele.
+    evidencia_hash_arquivo TEXT,
     observacoes         TEXT,
     revisado_por        TEXT,
     revisado_em         DATETIME
 );
 
 CREATE INDEX IF NOT EXISTS idx_exercicios_execucoes_exercicio ON exercicios_restauracao_execucoes(exercicio_id);
+
+-- =====================================================================================
+-- AVALIAÇÃO PATRIMONIAL DE MERCADO — camada gerencial paralela, nunca oficial
+-- =====================================================================================
+-- Decisão do usuário (2026-09-29): os relatórios oficiais (DRE, Balanço, Fluxo de Caixa)
+-- continuam SEMPRE a custo histórico, para fins fiscais/periciais — nunca mudam por causa
+-- desta tabela. Esta é uma camada PARALELA e opcional: histórico de avaliações de mercado
+-- (valor venal) por imóvel, consumida só por um relatório/tela GERENCIAL separado
+-- (viabilidade, ROI, indicadores de negócio) — nunca lançada no razão (`ledger_entries`),
+-- nunca lida por `relatorios-integrados.ts`/`reports/dre.ts`/etc. `imoveis.valor_venal_
+-- atual`/`data_avaliacao_venal` continuam existindo como o "valor mais recente" em cache
+-- para o cadastro; esta tabela guarda a SÉRIE histórica completa, necessária para
+-- tendência/ROI ao longo do tempo (o que um único valor em cache não permite).
+CREATE TABLE IF NOT EXISTS imovel_avaliacoes_mercado (
+    id                  INTEGER PRIMARY KEY,
+    imovel_id           INTEGER NOT NULL REFERENCES imoveis(id),
+    valor_avaliado      REAL NOT NULL CHECK (valor_avaliado > 0),
+    data_avaliacao      DATE NOT NULL,
+    metodologia         TEXT,               -- ex: 'comparativo de mercado', 'avaliação de corretor', 'IPTU/venal municipal'
+    fonte               TEXT,               -- ex: nome do avaliador/corretor, ou 'estimativa do usuário'
+    observacoes         TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_imovel_avaliacoes_mercado_imovel ON imovel_avaliacoes_mercado(imovel_id, data_avaliacao);

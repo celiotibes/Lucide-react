@@ -46,9 +46,9 @@
  *    chamada REAL de `aprovarDespesaOS` já ser a que precisa vir de alguém diferente do
  *    solicitante.
  *
- * 5) `LIMITE_APROVACAO_DUPLA` é um valor de EXEMPLO (R$ 1.000,00), configurável — nenhuma
- *    tabela de configuração existe ainda para isso; quando existir, troque esta constante
- *    por uma leitura de lá.
+ * 5) `LIMITE_APROVACAO_DUPLA` é R$ 5.000,00 — valor de política definido pelo usuário em
+ *    2026-09-29, hardcoded porque nenhuma tabela de configuração existe ainda; quando
+ *    existir, troque esta constante por uma leitura de lá.
  *
  * 6) `rejeitarDespesaOS` recebe `motivo`, mas `ordens_servico_despesas` não tem coluna de
  *    texto para guardá-lo (só `status`/`decidido_em`). Para não perder o motivo (mesmo
@@ -137,7 +137,7 @@ export interface AvaliacaoPrestador {
 
 /** Valor de exemplo (R$ 1.000,00) acima do qual uma despesa de OS exige DOIS aprovadores
  * distintos — configurável (ver decisão de design nº 5 no cabeçalho do arquivo). */
-export const LIMITE_APROVACAO_DUPLA = 1000;
+export const LIMITE_APROVACAO_DUPLA = 5000;
 
 function hoje(): string {
   return new Date().toISOString().slice(0, 10);
