@@ -345,15 +345,14 @@ describe("conciliarPagamentoComTransacao", () => {
 
 describe("integração com Advocacia: pagar uma despesa jurídica via contas_a_pagar_id", () => {
   it("solicita, confirma e concilia o pagamento de uma despesa de processo sem nenhum atrito — mesma FK (contas_a_pagar), mesmo fluxo de qualquer outra obrigação", () => {
-    const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-    const despesa = registrarDespesaProcesso(db, {
-      processo_id: processo_id!,
+    const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+    const despesaId = registrarDespesaProcesso(db, {
+      processo_id,
       entidade_id,
       fornecedor_nome: "Escritório Advocacia & Associados",
       valor: 1200,
       data_vencimento: "2025-06-20",
     });
-    expect(despesa.sucesso).toBe(true);
 
     // pagamentosIniciados não sabe (nem precisa saber) que esta contas_a_pagar tem
     // processo_id preenchido — valida a mesma coisa que validaria para qualquer outra
@@ -365,7 +364,7 @@ describe("integração com Advocacia: pagar uma despesa jurídica via contas_a_p
       valor: 1200,
       destinatario_nome: "Escritório Advocacia & Associados",
       destinatario_documento: "12345678000199",
-      contas_a_pagar_id: despesa.id!,
+      contas_a_pagar_id: despesaId,
       data_solicitacao: "2025-06-19",
     });
     expect(solicitado.sucesso).toBe(true);
@@ -381,19 +380,19 @@ describe("integração com Advocacia: pagar uma despesa jurídica via contas_a_p
     // A conta a pagar em si continua sendo baixada pelo fluxo próprio de contasAPagar
     // (registrarLancamentoContabil) — pagamentosIniciados só registra o STATUS do envio
     // eletrônico, nunca substitui a baixa contábil real.
-    expect(() => baixarContaAPagar(db, despesa.id!, conta_bancaria_id, "2025-06-20")).not.toThrow();
+    expect(() => baixarContaAPagar(db, despesaId, conta_bancaria_id, "2025-06-20")).not.toThrow();
   });
 
   it("recusa solicitar pagamento de uma despesa de processo já paga (mesma regra que qualquer outra conta a pagar)", () => {
-    const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-    const despesa = registrarDespesaProcesso(db, {
-      processo_id: processo_id!,
+    const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+    const despesaId = registrarDespesaProcesso(db, {
+      processo_id,
       entidade_id,
       fornecedor_nome: "Cartório Central",
       valor: 300,
       data_vencimento: "2025-06-10",
     });
-    baixarContaAPagar(db, despesa.id!, conta_bancaria_id, "2025-06-10");
+    baixarContaAPagar(db, despesaId, conta_bancaria_id, "2025-06-10");
 
     const solicitado = solicitarPagamento(db, {
       entidade_id,
@@ -402,7 +401,7 @@ describe("integração com Advocacia: pagar uma despesa jurídica via contas_a_p
       valor: 300,
       destinatario_nome: "Cartório Central",
       destinatario_documento: "12345678000199",
-      contas_a_pagar_id: despesa.id!,
+      contas_a_pagar_id: despesaId,
       data_solicitacao: "2025-06-11",
     });
     expect(solicitado.sucesso).toBe(false);

@@ -52,7 +52,7 @@ describe("advocacia", () => {
 
   describe("criarProcesso / adicionarParteProcesso / obterProcesso", () => {
     it("cria um processo com partes e as retorna juntas", () => {
-      const { id: processo_id } = criarProcesso(db, {
+      const processo_id = criarProcesso(db, {
         entidade_id,
         numero_processo: "0001234-56.2024.8.26.0100",
         tipo: "civel",
@@ -62,24 +62,26 @@ describe("advocacia", () => {
       });
       expect(processo_id).toBeTruthy();
 
-      const autor = adicionarParteProcesso(db, {
-        processo_id: processo_id!,
-        papel: "autor",
-        nome: "Nosso Cliente Ltda",
-        cpf_cnpj: "12345678000199",
-        representado_por_nos: true,
-      });
-      expect(autor.sucesso).toBe(true);
+      expect(() =>
+        adicionarParteProcesso(db, {
+          processo_id,
+          papel: "autor",
+          nome: "Nosso Cliente Ltda",
+          cpf_cnpj: "12345678000199",
+          representado_por_nos: true,
+        }),
+      ).not.toThrow();
 
-      const reu = adicionarParteProcesso(db, {
-        processo_id: processo_id!,
-        papel: "reu",
-        nome: "Parte Contrária S.A.",
-        representado_por_nos: false,
-      });
-      expect(reu.sucesso).toBe(true);
+      expect(() =>
+        adicionarParteProcesso(db, {
+          processo_id,
+          papel: "reu",
+          nome: "Parte Contrária S.A.",
+          representado_por_nos: false,
+        }),
+      ).not.toThrow();
 
-      const processo = obterProcesso(db, processo_id!);
+      const processo = obterProcesso(db, processo_id);
       expect(processo).not.toBeNull();
       expect(processo!.numero_processo).toBe("0001234-56.2024.8.26.0100");
       expect(processo!.tipo).toBe("civel");
@@ -96,19 +98,19 @@ describe("advocacia", () => {
     });
 
     it("aceita processo sem número (ainda não protocolado)", () => {
-      const { sucesso, id } = criarProcesso(db, { entidade_id, tipo: "outro" });
-      expect(sucesso).toBe(true);
-      const processo = obterProcesso(db, id!);
+      const id = criarProcesso(db, { entidade_id, tipo: "outro" });
+      const processo = obterProcesso(db, id);
       expect(processo!.numero_processo).toBeNull();
     });
 
     it("recusa adicionar parte a processo inexistente", () => {
-      const resultado = adicionarParteProcesso(db, {
-        processo_id: 999999,
-        papel: "autor",
-        nome: "Alguém",
-      });
-      expect(resultado.sucesso).toBe(false);
+      expect(() =>
+        adicionarParteProcesso(db, {
+          processo_id: 999999,
+          papel: "autor",
+          nome: "Alguém",
+        }),
+      ).toThrow(/não encontrado/i);
     });
 
     it("retorna null para processo inexistente", () => {
@@ -118,8 +120,8 @@ describe("advocacia", () => {
 
   describe("listarProcessos", () => {
     it("filtra por status e tipo", () => {
-      const civel = criarProcesso(db, { entidade_id, tipo: "civel" }).id!;
-      const trabalhista = criarProcesso(db, { entidade_id, tipo: "trabalhista" }).id!;
+      const civel = criarProcesso(db, { entidade_id, tipo: "civel" });
+      const trabalhista = criarProcesso(db, { entidade_id, tipo: "trabalhista" });
       encerrarProcesso(db, trabalhista, { data_encerramento: "2024-06-01", resultado: "Acordo homologado" });
 
       const ativos = listarProcessos(db, entidade_id, { status: "ativo" });
@@ -135,65 +137,65 @@ describe("advocacia", () => {
 
   describe("ciclo de status: suspender, encerrar, arquivar, reabrir", () => {
     it("encerra um processo ativo com data e resultado", () => {
-      const { id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      const resultado = encerrarProcesso(db, id!, {
-        data_encerramento: "2024-05-20",
-        resultado: "Procedente — condenação de R$ 10.000,00",
-      });
-      expect(resultado.sucesso).toBe(true);
+      const id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      expect(() =>
+        encerrarProcesso(db, id, {
+          data_encerramento: "2024-05-20",
+          resultado: "Procedente — condenação de R$ 10.000,00",
+        }),
+      ).not.toThrow();
 
-      const processo = obterProcesso(db, id!);
+      const processo = obterProcesso(db, id);
       expect(processo!.status).toBe("encerrado");
       expect(processo!.data_encerramento).toBe("2024-05-20");
       expect(processo!.resultado).toMatch(/Procedente/);
     });
 
     it("recusa encerrar processo já encerrado (idempotência protege o histórico)", () => {
-      const { id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      encerrarProcesso(db, id!, { data_encerramento: "2024-05-20", resultado: "Procedente" });
+      const id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      encerrarProcesso(db, id, { data_encerramento: "2024-05-20", resultado: "Procedente" });
 
-      const segunda = encerrarProcesso(db, id!, { data_encerramento: "2024-06-01", resultado: "Outro resultado" });
-      expect(segunda.sucesso).toBe(false);
+      expect(() =>
+        encerrarProcesso(db, id, { data_encerramento: "2024-06-01", resultado: "Outro resultado" }),
+      ).toThrow(/já está encerrado\/arquivado/i);
 
       // Não sobrescreveu o resultado original.
-      const processo = obterProcesso(db, id!);
+      const processo = obterProcesso(db, id);
       expect(processo!.resultado).toBe("Procedente");
     });
 
     it("recusa encerrar sem resultado", () => {
-      const { id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      const resultado = encerrarProcesso(db, id!, { data_encerramento: "2024-05-20", resultado: "" });
-      expect(resultado.sucesso).toBe(false);
+      const id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      expect(() => encerrarProcesso(db, id, { data_encerramento: "2024-05-20", resultado: "" })).toThrow(
+        /resultado/i,
+      );
     });
 
     it("suspende e reativa um processo (atualizarStatusProcesso)", () => {
-      const { id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      expect(atualizarStatusProcesso(db, id!, "suspenso").sucesso).toBe(true);
-      expect(obterProcesso(db, id!)!.status).toBe("suspenso");
+      const id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      expect(() => atualizarStatusProcesso(db, id, "suspenso")).not.toThrow();
+      expect(obterProcesso(db, id)!.status).toBe("suspenso");
 
-      expect(atualizarStatusProcesso(db, id!, "ativo").sucesso).toBe(true);
-      expect(obterProcesso(db, id!)!.status).toBe("ativo");
+      expect(() => atualizarStatusProcesso(db, id, "ativo")).not.toThrow();
+      expect(obterProcesso(db, id)!.status).toBe("ativo");
     });
 
     it("arquiva só a partir de encerrado, nunca direto de ativo", () => {
-      const { id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      const direto = arquivarProcesso(db, id!);
-      expect(direto.sucesso).toBe(false);
+      const id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      expect(() => arquivarProcesso(db, id)).toThrow(/já encerrado/i);
 
-      encerrarProcesso(db, id!, { data_encerramento: "2024-05-20", resultado: "Procedente" });
-      const depois = arquivarProcesso(db, id!);
-      expect(depois.sucesso).toBe(true);
-      expect(obterProcesso(db, id!)!.status).toBe("arquivado");
+      encerrarProcesso(db, id, { data_encerramento: "2024-05-20", resultado: "Procedente" });
+      expect(() => arquivarProcesso(db, id)).not.toThrow();
+      expect(obterProcesso(db, id)!.status).toBe("arquivado");
     });
 
     it("reabre um processo encerrado, limpando data/resultado", () => {
-      const { id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      encerrarProcesso(db, id!, { data_encerramento: "2024-05-20", resultado: "Procedente" });
+      const id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      encerrarProcesso(db, id, { data_encerramento: "2024-05-20", resultado: "Procedente" });
 
-      const reaberto = reabrirProcesso(db, id!);
-      expect(reaberto.sucesso).toBe(true);
+      expect(() => reabrirProcesso(db, id)).not.toThrow();
 
-      const processo = obterProcesso(db, id!);
+      const processo = obterProcesso(db, id);
       expect(processo!.status).toBe("ativo");
       expect(processo!.data_encerramento).toBeNull();
       expect(processo!.resultado).toBeNull();
@@ -202,36 +204,35 @@ describe("advocacia", () => {
 
   describe("registrarDespesaProcesso", () => {
     it("registra despesa vinculada ao processo, refletida em contas_a_pagar com o plano de contas padrão", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
 
-      const resultado = registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
+      const contaAPagarId = registrarDespesaProcesso(db, {
+        processo_id,
         entidade_id,
         fornecedor_nome: "Escritório Advocacia & Associados",
         valor: 1500,
         data_vencimento: "2024-04-10",
       });
-      expect(resultado.sucesso).toBe(true);
-      expect(resultado.id).toBeTruthy();
+      expect(contaAPagarId).toBeTruthy();
 
       const [linha] = consultar<{ processo_id: number; plano_conta_codigo: string; valor: number }>(
         db,
         "SELECT processo_id, plano_conta_codigo, valor FROM contas_a_pagar WHERE id = ?",
-        [resultado.id!],
+        [contaAPagarId],
       );
       expect(linha.processo_id).toBe(processo_id);
       expect(linha.plano_conta_codigo).toBe(PLANO_CONTA_DESPESA_JURIDICA_PADRAO);
       expect(linha.valor).toBeCloseTo(1500, 2);
 
-      const despesas = listarDespesasProcesso(db, processo_id!, "2024-04-01");
+      const despesas = listarDespesasProcesso(db, processo_id, "2024-04-01");
       expect(despesas).toHaveLength(1);
       expect(despesas[0].status_calculado).toBe("pendente");
     });
 
     it("aceita plano_conta_codigo customizado quando informado", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      const resultado = registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      const contaAPagarId = registrarDespesaProcesso(db, {
+        processo_id,
         entidade_id,
         fornecedor_nome: "Cartório Central",
         valor: 300,
@@ -241,84 +242,100 @@ describe("advocacia", () => {
       const [linha] = consultar<{ plano_conta_codigo: string }>(
         db,
         "SELECT plano_conta_codigo FROM contas_a_pagar WHERE id = ?",
-        [resultado.id!],
+        [contaAPagarId],
       );
       expect(linha.plano_conta_codigo).toBe("2.1.10");
     });
 
     it("recusa nova despesa em processo encerrado", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      encerrarProcesso(db, processo_id!, { data_encerramento: "2024-05-01", resultado: "Procedente" });
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      encerrarProcesso(db, processo_id, { data_encerramento: "2024-05-01", resultado: "Procedente" });
 
-      const resultado = registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
-        entidade_id,
-        fornecedor_nome: "Escritório X",
-        valor: 100,
-        data_vencimento: "2024-05-10",
-      });
-      expect(resultado.sucesso).toBe(false);
-      expect(resultado.mensagem).toMatch(/encerrado/i);
+      expect(() =>
+        registrarDespesaProcesso(db, {
+          processo_id,
+          entidade_id,
+          fornecedor_nome: "Escritório X",
+          valor: 100,
+          data_vencimento: "2024-05-10",
+        }),
+      ).toThrow(/encerrado/i);
     });
 
     it("recusa nova despesa em processo arquivado", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      encerrarProcesso(db, processo_id!, { data_encerramento: "2024-05-01", resultado: "Procedente" });
-      arquivarProcesso(db, processo_id!);
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      encerrarProcesso(db, processo_id, { data_encerramento: "2024-05-01", resultado: "Procedente" });
+      arquivarProcesso(db, processo_id);
 
-      const resultado = registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
-        entidade_id,
-        fornecedor_nome: "Escritório X",
-        valor: 100,
-        data_vencimento: "2024-05-10",
-      });
-      expect(resultado.sucesso).toBe(false);
+      expect(() =>
+        registrarDespesaProcesso(db, {
+          processo_id,
+          entidade_id,
+          fornecedor_nome: "Escritório X",
+          valor: 100,
+          data_vencimento: "2024-05-10",
+        }),
+      ).toThrow(/arquivado/i);
     });
 
     it("aceita nova despesa depois de reabrir o processo", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      encerrarProcesso(db, processo_id!, { data_encerramento: "2024-05-01", resultado: "Procedente" });
-      reabrirProcesso(db, processo_id!);
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      encerrarProcesso(db, processo_id, { data_encerramento: "2024-05-01", resultado: "Procedente" });
+      reabrirProcesso(db, processo_id);
 
-      const resultado = registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
-        entidade_id,
-        fornecedor_nome: "Escritório X",
-        valor: 100,
-        data_vencimento: "2024-05-10",
-      });
-      expect(resultado.sucesso).toBe(true);
+      expect(() =>
+        registrarDespesaProcesso(db, {
+          processo_id,
+          entidade_id,
+          fornecedor_nome: "Escritório X",
+          valor: 100,
+          data_vencimento: "2024-05-10",
+        }),
+      ).not.toThrow();
     });
 
     it("recusa despesa para processo inexistente", () => {
-      const resultado = registrarDespesaProcesso(db, {
-        processo_id: 999999,
-        entidade_id,
-        fornecedor_nome: "Escritório X",
-        valor: 100,
-        data_vencimento: "2024-05-10",
-      });
-      expect(resultado.sucesso).toBe(false);
+      expect(() =>
+        registrarDespesaProcesso(db, {
+          processo_id: 999999,
+          entidade_id,
+          fornecedor_nome: "Escritório X",
+          valor: 100,
+          data_vencimento: "2024-05-10",
+        }),
+      ).toThrow(/não encontrado/i);
+    });
+
+    it("recusa despesa com valor inválido — a exceção de registrarContaAPagar propaga direto", () => {
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      expect(() =>
+        registrarDespesaProcesso(db, {
+          processo_id,
+          entidade_id,
+          fornecedor_nome: "Escritório X",
+          valor: 0,
+          data_vencimento: "2024-05-10",
+        }),
+      ).toThrow(/valor positivo/i);
     });
 
     it("a baixa da despesa gera lançamento real no razão (débito honorários / crédito caixa)", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      const { id: conta_a_pagar_id } = registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      const conta_a_pagar_id = registrarDespesaProcesso(db, {
+        processo_id,
         entidade_id,
         fornecedor_nome: "Escritório Advocacia & Associados",
         valor: 800,
         data_vencimento: "2024-04-10",
       });
 
-      expect(() => baixarContaAPagar(db, conta_a_pagar_id!, 1, "2024-04-10")).not.toThrow();
+      expect(() => baixarContaAPagar(db, conta_a_pagar_id, 1, "2024-04-10")).not.toThrow();
 
       const contaDespesa = MAPA_APP_PARA_ERP[PLANO_CONTA_DESPESA_JURIDICA_PADRAO];
       expect(saldoLedgerConta(contaDespesa).debito).toBeCloseTo(800, 2);
       expect(saldoLedgerConta(CONTA_CAIXA_ERP).credito).toBeCloseTo(800, 2);
 
-      const relatorio = gerarRelatorioProcesso(db, processo_id!, "2024-04-10")!;
+      const relatorio = gerarRelatorioProcesso(db, processo_id, "2024-04-10")!;
       expect(relatorio.total_pago).toBeCloseTo(800, 2);
       expect(relatorio.total_pendente).toBeCloseTo(0, 2);
     });
@@ -326,24 +343,24 @@ describe("advocacia", () => {
 
   describe("gerarRelatorioProcesso", () => {
     it("soma corretamente vários lançamentos (pagos e pendentes)", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
 
       const d1 = registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
+        processo_id,
         entidade_id,
         fornecedor_nome: "Honorários iniciais",
         valor: 1000,
         data_vencimento: "2024-01-10",
-      }).id!;
+      });
       registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
+        processo_id,
         entidade_id,
         fornecedor_nome: "Custas judiciais",
         valor: 250,
         data_vencimento: "2024-02-10",
       });
       registrarDespesaProcesso(db, {
-        processo_id: processo_id!,
+        processo_id,
         entidade_id,
         fornecedor_nome: "Perícia técnica",
         valor: 500,
@@ -352,7 +369,7 @@ describe("advocacia", () => {
 
       baixarContaAPagar(db, d1, 1, "2024-01-10");
 
-      const relatorio = gerarRelatorioProcesso(db, processo_id!, "2024-03-15")!;
+      const relatorio = gerarRelatorioProcesso(db, processo_id, "2024-03-15")!;
       expect(relatorio.total_despesas).toBeCloseTo(1000 + 250 + 500, 2);
       expect(relatorio.total_pago).toBeCloseTo(1000, 2);
       expect(relatorio.total_pendente).toBeCloseTo(250 + 500, 2);
@@ -360,8 +377,8 @@ describe("advocacia", () => {
     });
 
     it("processo sem despesa nenhuma aparece com total zero, nunca erro", () => {
-      const { id: processo_id } = criarProcesso(db, { entidade_id, tipo: "civel" });
-      const relatorio = gerarRelatorioProcesso(db, processo_id!)!;
+      const processo_id = criarProcesso(db, { entidade_id, tipo: "civel" });
+      const relatorio = gerarRelatorioProcesso(db, processo_id)!;
       expect(relatorio).not.toBeNull();
       expect(relatorio.total_despesas).toBe(0);
       expect(relatorio.total_pago).toBe(0);
@@ -376,9 +393,9 @@ describe("advocacia", () => {
 
   describe("gerarRelatorioAdvocacia", () => {
     it("conta processos ativos vs. encerrados e agrega despesas pendentes por processo", () => {
-      const ativo1 = criarProcesso(db, { entidade_id, tipo: "civel" }).id!;
-      const ativo2 = criarProcesso(db, { entidade_id, tipo: "trabalhista" }).id!;
-      const encerrado = criarProcesso(db, { entidade_id, tipo: "tributario" }).id!;
+      const ativo1 = criarProcesso(db, { entidade_id, tipo: "civel" });
+      const ativo2 = criarProcesso(db, { entidade_id, tipo: "trabalhista" });
+      const encerrado = criarProcesso(db, { entidade_id, tipo: "tributario" });
       encerrarProcesso(db, encerrado, { data_encerramento: "2024-01-01", resultado: "Improcedente" });
 
       registrarDespesaProcesso(db, {

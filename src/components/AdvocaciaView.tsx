@@ -188,24 +188,24 @@ export function AdvocaciaView() {
   async function registrarNovoProcesso() {
     if (!db || !entidade) return;
     const valorCausa = rascunhoProcesso.valorCausa.trim() === "" ? undefined : Number.parseFloat(rascunhoProcesso.valorCausa.replace(",", "."));
-    const resultado = criarProcesso(db, {
-      entidade_id: entidade.id,
-      numero_processo: rascunhoProcesso.numeroProcesso.trim() || undefined,
-      tipo: rascunhoProcesso.tipo,
-      vara_comarca: rascunhoProcesso.varaComarca.trim() || undefined,
-      valor_causa: valorCausa,
-      data_distribuicao: rascunhoProcesso.dataDistribuicao || undefined,
-      observacoes: rascunhoProcesso.observacoes.trim() || undefined,
-    });
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      const id = criarProcesso(db, {
+        entidade_id: entidade.id,
+        numero_processo: rascunhoProcesso.numeroProcesso.trim() || undefined,
+        tipo: rascunhoProcesso.tipo,
+        vara_comarca: rascunhoProcesso.varaComarca.trim() || undefined,
+        valor_causa: valorCausa,
+        data_distribuicao: rascunhoProcesso.dataDistribuicao || undefined,
+        observacoes: rascunhoProcesso.observacoes.trim() || undefined,
+      });
+      await persistir();
+      setRascunhoProcesso(RASCUNHO_PROCESSO_VAZIO);
+      setMostrarFormNovoProcesso(false);
+      avisar("good", "Processo registrado.");
+      setProcessoSelecionadoId(id);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    setRascunhoProcesso(RASCUNHO_PROCESSO_VAZIO);
-    setMostrarFormNovoProcesso(false);
-    avisar("good", resultado.mensagem);
-    if (resultado.id !== undefined) setProcessoSelecionadoId(resultado.id);
   }
 
   function selecionarProcesso(id: number) {
@@ -221,32 +221,32 @@ export function AdvocaciaView() {
       avisar("critical", "Informe o nome da parte.");
       return;
     }
-    const resultado = adicionarParteProcesso(db, {
-      processo_id: processoSelecionadoId,
-      papel: rascunhoParte.papel,
-      nome: rascunhoParte.nome,
-      cpf_cnpj: rascunhoParte.cpfCnpj.trim() || undefined,
-      representado_por_nos: rascunhoParte.representadoPorNos,
-    });
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      adicionarParteProcesso(db, {
+        processo_id: processoSelecionadoId,
+        papel: rascunhoParte.papel,
+        nome: rascunhoParte.nome,
+        cpf_cnpj: rascunhoParte.cpfCnpj.trim() || undefined,
+        representado_por_nos: rascunhoParte.representadoPorNos,
+      });
+      await persistir();
+      setRascunhoParte(RASCUNHO_PARTE_VAZIO);
+      setMostrarFormParte(false);
+      avisar("good", "Parte adicionada ao processo.");
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    setRascunhoParte(RASCUNHO_PARTE_VAZIO);
-    setMostrarFormParte(false);
-    avisar("good", resultado.mensagem);
   }
 
   async function suspenderOuReativar(processoId: number, novoStatus: "ativo" | "suspenso") {
     if (!db) return;
-    const resultado = atualizarStatusProcesso(db, processoId, novoStatus);
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      atualizarStatusProcesso(db, processoId, novoStatus);
+      await persistir();
+      avisar("good", `Processo marcado como '${novoStatus}'.`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    avisar("good", resultado.mensagem);
   }
 
   function abrirEncerramento(processoId: number) {
@@ -256,39 +256,39 @@ export function AdvocaciaView() {
 
   async function confirmarEncerramento() {
     if (!db || encerrandoId === null) return;
-    const resultado = encerrarProcesso(db, encerrandoId, {
-      data_encerramento: rascunhoEncerramento.dataEncerramento,
-      resultado: rascunhoEncerramento.resultado,
-    });
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      encerrarProcesso(db, encerrandoId, {
+        data_encerramento: rascunhoEncerramento.dataEncerramento,
+        resultado: rascunhoEncerramento.resultado,
+      });
+      await persistir();
+      setEncerrandoId(null);
+      avisar("good", "Processo encerrado.");
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    setEncerrandoId(null);
-    avisar("good", resultado.mensagem);
   }
 
   async function reabrir(processoId: number) {
     if (!db) return;
-    const resultado = reabrirProcesso(db, processoId);
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      reabrirProcesso(db, processoId);
+      await persistir();
+      avisar("good", "Processo reaberto.");
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    avisar("good", resultado.mensagem);
   }
 
   async function arquivar(processoId: number) {
     if (!db) return;
-    const resultado = arquivarProcesso(db, processoId);
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      arquivarProcesso(db, processoId);
+      await persistir();
+      avisar("good", "Processo arquivado.");
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    avisar("good", resultado.mensagem);
   }
 
   function atualizarRascunhoDespesa(campos: Partial<RascunhoDespesa>) {
@@ -298,24 +298,24 @@ export function AdvocaciaView() {
   async function registrarNovaDespesa() {
     if (!db || !entidade || processoSelecionadoId === null) return;
     const valor = Number.parseFloat(rascunhoDespesa.valor.replace(",", "."));
-    const resultado = registrarDespesaProcesso(db, {
-      processo_id: processoSelecionadoId,
-      entidade_id: entidade.id,
-      valor,
-      data_vencimento: rascunhoDespesa.dataVencimento,
-      fornecedor_nome: rascunhoDespesa.fornecedorNome.trim(),
-      fornecedor_cnpj_cpf: rascunhoDespesa.fornecedorCnpjCpf.trim() || undefined,
-      descricao: rascunhoDespesa.descricao.trim() || undefined,
-      plano_conta_codigo: rascunhoDespesa.planoContaCodigo || undefined,
-    });
-    if (!resultado.sucesso) {
-      avisar("critical", resultado.mensagem);
-      return;
+    try {
+      registrarDespesaProcesso(db, {
+        processo_id: processoSelecionadoId,
+        entidade_id: entidade.id,
+        valor,
+        data_vencimento: rascunhoDespesa.dataVencimento,
+        fornecedor_nome: rascunhoDespesa.fornecedorNome.trim(),
+        fornecedor_cnpj_cpf: rascunhoDespesa.fornecedorCnpjCpf.trim() || undefined,
+        descricao: rascunhoDespesa.descricao.trim() || undefined,
+        plano_conta_codigo: rascunhoDespesa.planoContaCodigo || undefined,
+      });
+      await persistir();
+      setRascunhoDespesa(RASCUNHO_DESPESA_VAZIO);
+      setMostrarFormDespesa(false);
+      avisar("good", "Despesa jurídica registrada.");
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "erro desconhecido");
     }
-    await persistir();
-    setRascunhoDespesa(RASCUNHO_DESPESA_VAZIO);
-    setMostrarFormDespesa(false);
-    avisar("good", resultado.mensagem);
   }
 
   if (!entidade) {

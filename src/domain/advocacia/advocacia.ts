@@ -91,20 +91,15 @@ export interface NovaParteProcesso {
   representado_por_nos?: boolean;
 }
 
-export interface ResultadoOperacaoAdvocacia {
-  sucesso: boolean;
-  mensagem: string;
-  id?: number;
-}
-
 /** Registra um novo processo legal. `status` sempre nasce 'ativo' — mudar de status é
- * responsabilidade de `atualizarStatusProcesso`/`encerrarProcesso`. */
-export function criarProcesso(db: Database, dados: NovoProcesso): ResultadoOperacaoAdvocacia {
+ * responsabilidade de `atualizarStatusProcesso`/`encerrarProcesso`. Lança `Error` quando o
+ * processo não pode ser registrado; retorna o id da linha criada quando pode. */
+export function criarProcesso(db: Database, dados: NovoProcesso): number {
   if (!dados.tipo) {
-    return { sucesso: false, mensagem: "Informe o tipo do processo." };
+    throw new Error("Informe o tipo do processo.");
   }
   if (dados.valor_causa !== undefined && dados.valor_causa < 0) {
-    return { sucesso: false, mensagem: "Valor da causa não pode ser negativo." };
+    throw new Error("Valor da causa não pode ser negativo.");
   }
 
   executar(
@@ -125,17 +120,18 @@ export function criarProcesso(db: Database, dados: NovoProcesso): ResultadoOpera
   );
 
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Processo registrado.", id };
+  return id;
 }
 
-/** Adiciona uma parte a um processo existente (autor, réu ou terceiro interessado). */
-export function adicionarParteProcesso(db: Database, dados: NovaParteProcesso): ResultadoOperacaoAdvocacia {
+/** Adiciona uma parte a um processo existente (autor, réu ou terceiro interessado). Lança
+ * `Error` quando a parte não pode ser adicionada; retorna o id da linha criada quando pode. */
+export function adicionarParteProcesso(db: Database, dados: NovaParteProcesso): number {
   const processo = obterProcessoBruto(db, dados.processo_id);
   if (!processo) {
-    return { sucesso: false, mensagem: `Processo ${dados.processo_id} não encontrado.` };
+    throw new Error(`Processo ${dados.processo_id} não encontrado.`);
   }
   if (!dados.nome || !dados.nome.trim()) {
-    return { sucesso: false, mensagem: "Informe o nome da parte." };
+    throw new Error("Informe o nome da parte.");
   }
 
   executar(
@@ -152,7 +148,7 @@ export function adicionarParteProcesso(db: Database, dados: NovaParteProcesso): 
   );
 
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
-  return { sucesso: true, mensagem: "Parte adicionada ao processo.", id };
+  return id;
 }
 
 function obterProcessoBruto(db: Database, processo_id: number): ProcessoLegal | null {
@@ -204,65 +200,59 @@ export function listarProcessos(db: Database, entidade_id: number, filtros: Filt
 
 /** Muda o status do processo — transição livre entre 'ativo'/'suspenso'/'arquivado', mas
  * ENCERRAR passa por `encerrarProcesso` (exige resultado e data). Recusa mudar status de
- * um processo já finalizado ('encerrado'/'arquivado') por aqui — use `reabrirProcesso`. */
-export function atualizarStatusProcesso(
-  db: Database,
-  processo_id: number,
-  novoStatus: "ativo" | "suspenso",
-): ResultadoOperacaoAdvocacia {
+ * um processo já finalizado ('encerrado'/'arquivado') por aqui — use `reabrirProcesso`.
+ * Lança `Error` quando a mudança não pode ser feita. */
+export function atualizarStatusProcesso(db: Database, processo_id: number, novoStatus: "ativo" | "suspenso"): void {
   const processo = obterProcessoBruto(db, processo_id);
   if (!processo) {
-    return { sucesso: false, mensagem: `Processo ${processo_id} não encontrado.` };
+    throw new Error(`Processo ${processo_id} não encontrado.`);
   }
   if (STATUS_JA_FINALIZADO.has(processo.status)) {
-    return {
-      sucesso: false,
-      mensagem: "Processo já finalizado (encerrado/arquivado) — use reabrirProcesso para reverter.",
-    };
+    throw new Error("Processo já finalizado (encerrado/arquivado) — use reabrirProcesso para reverter.");
   }
   executar(db, "UPDATE processos_legais SET status = ? WHERE id = ?", [novoStatus, processo_id]);
-  return { sucesso: true, mensagem: `Processo marcado como '${novoStatus}'.`, id: processo_id };
 }
 
 /** Reabre um processo finalizado (encerrado/arquivado → ativo), limpando data de
  * encerramento e resultado — usado quando uma despesa remanescente aparece depois do
  * encerramento e o processo precisa ser formalmente reaberto antes de aceitar despesa
- * nova (ver REGRA DE NEGÓCIO no comentário do arquivo). */
-export function reabrirProcesso(db: Database, processo_id: number): ResultadoOperacaoAdvocacia {
+ * nova (ver REGRA DE NEGÓCIO no comentário do arquivo). Lança `Error` quando não há o que
+ * reabrir. */
+export function reabrirProcesso(db: Database, processo_id: number): void {
   const processo = obterProcessoBruto(db, processo_id);
   if (!processo) {
-    return { sucesso: false, mensagem: `Processo ${processo_id} não encontrado.` };
+    throw new Error(`Processo ${processo_id} não encontrado.`);
   }
   if (!STATUS_JA_FINALIZADO.has(processo.status)) {
-    return { sucesso: false, mensagem: "Processo não está encerrado/arquivado — nada a reabrir." };
+    throw new Error("Processo não está encerrado/arquivado — nada a reabrir.");
   }
   executar(
     db,
     "UPDATE processos_legais SET status = 'ativo', data_encerramento = NULL, resultado = NULL WHERE id = ?",
     [processo_id],
   );
-  return { sucesso: true, mensagem: "Processo reaberto.", id: processo_id };
 }
 
 /** Encerra o processo — exige resultado e data de encerramento. Recusa encerrar um
- * processo já finalizado (idempotência: encerrar de novo pisaria no histórico gravado). */
+ * processo já finalizado (idempotência: encerrar de novo pisaria no histórico gravado).
+ * Lança `Error` quando o encerramento não pode ser feito. */
 export function encerrarProcesso(
   db: Database,
   processo_id: number,
   dados: { data_encerramento: string; resultado: string },
-): ResultadoOperacaoAdvocacia {
+): void {
   const processo = obterProcessoBruto(db, processo_id);
   if (!processo) {
-    return { sucesso: false, mensagem: `Processo ${processo_id} não encontrado.` };
+    throw new Error(`Processo ${processo_id} não encontrado.`);
   }
   if (STATUS_JA_FINALIZADO.has(processo.status)) {
-    return { sucesso: false, mensagem: "Processo já está encerrado/arquivado." };
+    throw new Error("Processo já está encerrado/arquivado.");
   }
   if (!dados.data_encerramento) {
-    return { sucesso: false, mensagem: "Informe a data de encerramento." };
+    throw new Error("Informe a data de encerramento.");
   }
   if (!dados.resultado || !dados.resultado.trim()) {
-    return { sucesso: false, mensagem: "Informe o resultado do processo." };
+    throw new Error("Informe o resultado do processo.");
   }
 
   executar(
@@ -270,21 +260,20 @@ export function encerrarProcesso(
     "UPDATE processos_legais SET status = 'encerrado', data_encerramento = ?, resultado = ? WHERE id = ?",
     [dados.data_encerramento, dados.resultado.trim(), processo_id],
   );
-  return { sucesso: true, mensagem: "Processo encerrado.", id: processo_id };
 }
 
 /** Arquiva um processo já encerrado (passo posterior, tipicamente após o prazo recursal
- * ou baixa definitiva) — só a partir de 'encerrado', nunca direto de 'ativo'/'suspenso'. */
-export function arquivarProcesso(db: Database, processo_id: number): ResultadoOperacaoAdvocacia {
+ * ou baixa definitiva) — só a partir de 'encerrado', nunca direto de 'ativo'/'suspenso'.
+ * Lança `Error` quando o processo não pode ser arquivado. */
+export function arquivarProcesso(db: Database, processo_id: number): void {
   const processo = obterProcessoBruto(db, processo_id);
   if (!processo) {
-    return { sucesso: false, mensagem: `Processo ${processo_id} não encontrado.` };
+    throw new Error(`Processo ${processo_id} não encontrado.`);
   }
   if (processo.status !== "encerrado") {
-    return { sucesso: false, mensagem: "Só é possível arquivar um processo já encerrado." };
+    throw new Error("Só é possível arquivar um processo já encerrado.");
   }
   executar(db, "UPDATE processos_legais SET status = 'arquivado' WHERE id = ?", [processo_id]);
-  return { sucesso: true, mensagem: "Processo arquivado.", id: processo_id };
 }
 
 export interface NovaDespesaProcesso {
@@ -304,35 +293,29 @@ export interface NovaDespesaProcesso {
 
 /** Registra uma despesa jurídica vinculada a um processo — uma linha comum de
  * `contas_a_pagar` com `processo_id` preenchido (ver DECISÃO DE DESENHO no comentário do
- * arquivo). Recusa se o processo estiver encerrado/arquivado (ver REGRA DE NEGÓCIO). */
-export function registrarDespesaProcesso(db: Database, dados: NovaDespesaProcesso): ResultadoOperacaoAdvocacia {
+ * arquivo). Recusa se o processo estiver encerrado/arquivado (ver REGRA DE NEGÓCIO). Lança
+ * `Error` quando a despesa não pode ser registrada (inclusive a exceção propagada direto
+ * de `registrarContaAPagar`); retorna o id da linha criada em `contas_a_pagar` quando pode. */
+export function registrarDespesaProcesso(db: Database, dados: NovaDespesaProcesso): number {
   const processo = obterProcessoBruto(db, dados.processo_id);
   if (!processo) {
-    return { sucesso: false, mensagem: `Processo ${dados.processo_id} não encontrado.` };
+    throw new Error(`Processo ${dados.processo_id} não encontrado.`);
   }
   if (STATUS_SEM_NOVA_DESPESA.has(processo.status)) {
-    return {
-      sucesso: false,
-      mensagem: `Processo está '${processo.status}' — não aceita despesa nova (reabra o processo primeiro).`,
-    };
+    throw new Error(`Processo está '${processo.status}' — não aceita despesa nova (reabra o processo primeiro).`);
   }
 
-  try {
-    const id = registrarContaAPagar(db, {
-      entidade_id: dados.entidade_id,
-      documento_id: dados.documento_id,
-      fornecedor_nome: dados.fornecedor_nome,
-      fornecedor_cnpj_cpf: dados.fornecedor_cnpj_cpf,
-      descricao: dados.descricao,
-      valor: dados.valor,
-      data_vencimento: dados.data_vencimento,
-      plano_conta_codigo: dados.plano_conta_codigo ?? PLANO_CONTA_DESPESA_JURIDICA_PADRAO,
-      processo_id: dados.processo_id,
-    });
-    return { sucesso: true, mensagem: "Despesa jurídica registrada.", id };
-  } catch (erro) {
-    return { sucesso: false, mensagem: erro instanceof Error ? erro.message : String(erro) };
-  }
+  return registrarContaAPagar(db, {
+    entidade_id: dados.entidade_id,
+    documento_id: dados.documento_id,
+    fornecedor_nome: dados.fornecedor_nome,
+    fornecedor_cnpj_cpf: dados.fornecedor_cnpj_cpf,
+    descricao: dados.descricao,
+    valor: dados.valor,
+    data_vencimento: dados.data_vencimento,
+    plano_conta_codigo: dados.plano_conta_codigo ?? PLANO_CONTA_DESPESA_JURIDICA_PADRAO,
+    processo_id: dados.processo_id,
+  });
 }
 
 /** As despesas (linhas de `contas_a_pagar`) de um processo, com status calculado — nunca
