@@ -1022,6 +1022,22 @@ export function PainelAuditoria() {
                                   )}
                                 </div>
                               )}
+                              {(exec.evidencia_hash || exec.evidencia_hash_arquivo) && (
+                                <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "var(--ink-soft)" }}>
+                                  {exec.evidencia_hash && (
+                                    <span>
+                                      Hash do relatório:{" "}
+                                      <code title={exec.evidencia_hash} style={{ fontSize: 12 }}>{hashCurto(exec.evidencia_hash)}</code>
+                                    </span>
+                                  )}
+                                  {exec.evidencia_hash_arquivo && (
+                                    <span>
+                                      Hash do arquivo:{" "}
+                                      <code title={exec.evidencia_hash_arquivo} style={{ fontSize: 12 }}>{hashCurto(exec.evidencia_hash_arquivo)}</code>
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {exec.observacoes && (
                                 <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4, whiteSpace: "pre-wrap" }}>{exec.observacoes}</div>
                               )}

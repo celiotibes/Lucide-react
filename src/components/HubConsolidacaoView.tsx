@@ -66,6 +66,9 @@ export function HubConsolidacaoView() {
   const { avisar } = useToast();
   const [sugerindo, setSugerindo] = useState(false);
   const [processandoLinkId, setProcessandoLinkId] = useState<number | null>(null);
+  // Tolerância (em dias) usada por "Sugerir ligações" — parâmetro só desta ação, não
+  // persistido: reinicia no padrão (10) a cada visita à tela.
+  const [toleranciaDiasInput, setToleranciaDiasInput] = useState("10");
 
   const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
 
@@ -129,9 +132,14 @@ export function HubConsolidacaoView() {
 
   async function sugerirLigacoes() {
     if (!db || !entidade) return;
+    const toleranciaDias = Number(toleranciaDiasInput);
+    if (!Number.isFinite(toleranciaDias) || toleranciaDias < 1 || toleranciaDias > 60) {
+      avisar("warning", "Tolerância (dias) deve ser um número entre 1 e 60.");
+      return;
+    }
     setSugerindo(true);
     try {
-      const criadas = sugerirLigacoesCompetenciaRecebimento(db, entidade.id, {});
+      const criadas = sugerirLigacoesCompetenciaRecebimento(db, entidade.id, { toleranciaDias });
       await persistir();
       avisar(
         "good",
@@ -273,9 +281,24 @@ export function HubConsolidacaoView() {
             confirmada automaticamente.
           </p>
         </div>
-        <button className="btn primary" onClick={sugerirLigacoes} disabled={sugerindo}>
-          {sugerindo ? "Sugerindo..." : "Sugerir ligações"}
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-600 flex items-center gap-1">
+            Tolerância (dias)
+            <input
+              type="number"
+              min={1}
+              max={60}
+              step={1}
+              value={toleranciaDiasInput}
+              onChange={(e) => setToleranciaDiasInput(e.target.value)}
+              style={{ width: 60 }}
+              className="border rounded px-1 py-0.5 text-xs"
+            />
+          </label>
+          <button className="btn primary" onClick={sugerirLigacoes} disabled={sugerindo}>
+            {sugerindo ? "Sugerindo..." : "Sugerir ligações"}
+          </button>
+        </div>
       </div>
 
       {/* Lista de ligações pendentes */}

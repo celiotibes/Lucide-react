@@ -21,14 +21,17 @@
  *   o backup presta — a distância entre `iniciado_em` e o momento em que a verificação
  *   concluiu (agora, dentro de `concluirExecucaoComSucesso`).
  *
- * `evidencia_hash`: SHA-256 do RELATÓRIO retornado por `verificarBackup` (serializado como
- * JSON), não do conteúdo `.sqlite` restaurado. Motivo: `verificarBackup` já devolve
- * `hashSha256` do próprio arquivo dentro do relatório — hashear o relatório inteiro cobre
- * o hash do arquivo E o resultado da checagem (quais invariantes passaram, contagens por
- * tabela) num único hash de evidência. Duas pessoas com o mesmo arquivo mas relatórios
- * diferentes (ex: checagem rodada em versões diferentes deste módulo) teriam evidências
- * diferentes, que é o comportamento certo para uma evidência pericial: ela atesta "o que
- * foi verificado e o que se encontrou", não só "qual arquivo foi aberto".
+ * Cadeia de custódia: DOIS hashes de evidência são gravados por execução bem-sucedida.
+ * - `evidencia_hash`: SHA-256 do RELATÓRIO retornado por `verificarBackup` (serializado como
+ *   JSON) — cobre o resultado da checagem (quais invariantes passaram, contagens por
+ *   tabela). Duas pessoas com o mesmo arquivo mas relatórios diferentes (ex: checagem rodada
+ *   em versões diferentes deste módulo) teriam evidências diferentes, que é o comportamento
+ *   certo para uma evidência pericial: ela atesta "o que foi verificado e o que se
+ *   encontrou", não só "qual arquivo foi aberto".
+ * - `evidencia_hash_arquivo`: SHA-256 do conteúdo `.sqlite` restaurado em si — reaproveitado de
+ *   `relatorio.hashSha256`, que `verificarBackup` já calcula sobre os MESMOS bytes de
+ *   `conteudoSqliteRestaurado` recebidos aqui (evita hashear o arquivo duas vezes). Permite
+ *   conferir "este era exatamente o arquivo aberto" independente do relatório JSON.
  */
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
@@ -65,6 +68,10 @@ export interface ExecucaoExercicio {
   rto_horas_real: number | null;
   resultado: ResultadoExecucao | null;
   evidencia_hash: string | null;
+  /** SHA-256 do conteúdo `.sqlite` restaurado (bytes brutos), separado de `evidencia_hash`
+   * (hash do RELATÓRIO de `verificarBackup`) — cadeia de custódia mais forte: um hash atesta
+   * "este era o arquivo aberto", o outro "isto foi verificado e encontrado". */
+  evidencia_hash_arquivo: string | null;
   observacoes: string | null;
   revisado_por: string | null;
   revisado_em: string | null;
@@ -218,15 +225,17 @@ export async function concluirExecucaoComSucesso(
   }
 
   const evidenciaHash = await sha256Hex(JSON.stringify(relatorio));
+  const evidenciaHashArquivo = relatorio.hashSha256;
   const rpoHorasReal = diferencaEmHoras(dados.dataUltimoBackupConhecido, execucao.iniciado_em);
   const rtoHorasReal = diferencaEmHoras(execucao.iniciado_em, concluidoEm);
 
   executar(
     db,
     `UPDATE exercicios_restauracao_execucoes
-     SET concluido_em = ?, rpo_horas_real = ?, rto_horas_real = ?, resultado = 'sucesso', evidencia_hash = ?
+     SET concluido_em = ?, rpo_horas_real = ?, rto_horas_real = ?, resultado = 'sucesso',
+         evidencia_hash = ?, evidencia_hash_arquivo = ?
      WHERE id = ?`,
-    [concluidoEm, rpoHorasReal, rtoHorasReal, evidenciaHash, execucaoId],
+    [concluidoEm, rpoHorasReal, rtoHorasReal, evidenciaHash, evidenciaHashArquivo, execucaoId],
   );
   marcarExecutado(db, execucao.exercicio_id);
   return buscarExecucao(db, execucaoId)!;

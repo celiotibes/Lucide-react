@@ -99,6 +99,11 @@ describe("fluxo completo: planejado → executado (sucesso) → revisado", () =>
     expect(concluida.rpo_horas_real).toBeCloseTo(2, 5);
     expect(concluida.rto_horas_real).toBeCloseTo(0.5, 5);
     expect(concluida.evidencia_hash).toMatch(/^[0-9a-f]{64}$/);
+    // Cadeia de custódia dupla: hash do relatório (JSON de verificarBackup) e hash do
+    // arquivo .sqlite restaurado em si — devem ser gravados e ser DIFERENTES entre si (um
+    // hasheia o relatório JSON, outro os bytes binários do arquivo).
+    expect(concluida.evidencia_hash_arquivo).toMatch(/^[0-9a-f]{64}$/);
+    expect(concluida.evidencia_hash_arquivo).not.toBe(concluida.evidencia_hash);
     expect(concluida.concluido_em).toBe("2024-06-01T10:30:00.000Z");
 
     const exercicioExecutado = listarExercicios(db, { status: "executado" });
@@ -141,6 +146,7 @@ describe("execução com falha", () => {
     expect(concluida.rpo_horas_real).toBeNull();
     expect(concluida.rto_horas_real).toBeNull();
     expect(concluida.evidencia_hash).toBeNull();
+    expect(concluida.evidencia_hash_arquivo).toBeNull();
     expect(concluida.observacoes).toMatch(/Balanceamento do razão/);
     expect(concluida.observacoes).toMatch(/não fecham/);
     expect(concluida.concluido_em).not.toBeNull();
