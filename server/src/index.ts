@@ -6,6 +6,7 @@ import { pluggy, normalizarTransacao } from "./pluggy.js";
 import { initializeDatabase, getDatabase, closeDatabase } from "./database-init.js";
 import { AuthServiceDB } from "../src/domain/auth/auth-service-db.js";
 import { AuditTrailServiceDB } from "../src/domain/auth/audit-trail-db.js";
+import { PermissoesServiceDB } from "../src/domain/auth/permissoes-db.js";
 import { DuplicatePaymentGuardDB } from "../src/domain/erp/duplicate-payment-guard-db.js";
 import { avisarSeSegredoForTemporario } from "../src/domain/auth/token.js";
 import { criarRotasAuth } from "../src/routes/auth-routes.js";
@@ -25,6 +26,7 @@ const db = initializeDatabase();
 // Create singleton service instances
 const authService = new AuthServiceDB(db);
 const auditService = new AuditTrailServiceDB(db);
+const permissoesService = new PermissoesServiceDB(db);
 const paymentGuard = new DuplicatePaymentGuardDB(db);
 
 console.log("[Server] Database and services initialized");
@@ -41,6 +43,7 @@ app.use(express.json());
 // Attach services to app context for use in routes
 app.locals.authService = authService;
 app.locals.auditService = auditService;
+app.locals.permissoesService = permissoesService;
 app.locals.paymentGuard = paymentGuard;
 app.locals.db = db;
 
@@ -49,11 +52,14 @@ app.locals.db = db;
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 }));
 
 /** Rotas de autenticação real (Fase 1) — POST /api/auth/login, GET /api/auth/me,
- * POST /api/auth/logout, POST /api/auth/bootstrap. Ver auth-routes.ts: têm
- * rate limit próprio (mais agressivo que o geral acima, só para login e
+ * POST /api/auth/logout, POST /api/auth/bootstrap — mais a gestão do
+ * sistema (Fase 2, reservada a titular/administrador): GET/PUT
+ * /api/auth/permissoes (matriz de permissões configurável) e
+ * POST /api/auth/usuarios (criar usuário de outro papel). Ver auth-routes.ts:
+ * têm rate limit próprio (mais agressivo que o geral acima, só para login e
  * bootstrap) e herdam a mesma política de CORS já configurada acima —
  * nenhuma configuração de CORS adicional é feita para elas. */
-app.use("/api/auth", criarRotasAuth({ authService, auditService }));
+app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET

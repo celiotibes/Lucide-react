@@ -7,6 +7,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { AuthServiceDB } from "../../domain/auth/auth-service-db";
 import { AuditTrailServiceDB } from "../../domain/auth/audit-trail-db";
+import { PermissoesServiceDB } from "../../domain/auth/permissoes-db";
+import { matrizPadrao } from "../../domain/auth/permissoes";
 import { gerarHashSenha } from "../../domain/auth/password";
 import { criarRotasAuth } from "../auth-routes";
 
@@ -34,16 +36,29 @@ function createTestDatabase(): Database.Database {
   return db;
 }
 
+/** Mesma semente padrão que `database-init.ts` grava num banco novo — ver
+ * nota equivalente em permissoes-db.test.ts. */
+function seedMatrizPadrao(db: Database.Database): void {
+  const inserir = db.prepare(
+    `INSERT OR IGNORE INTO permissoes_papel (papel, funcao, habilitado, limite_valor, atualizado_em, atualizado_por)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)`,
+  );
+  for (const e of matrizPadrao()) {
+    inserir.run(e.papel, e.funcao, e.habilitado ? 1 : 0, e.limite_valor);
+  }
+}
+
 /** Monta um app Express minimal, só com as rotas de auth — não sobe porta
  * real nem depende de API_KEY/Pluggy (isso é responsabilidade de index.ts,
  * fora do escopo deste teste). */
 function criarAppDeTeste(db: Database.Database) {
   const authService = new AuthServiceDB(db);
   const auditService = new AuditTrailServiceDB(db);
+  const permissoesService = new PermissoesServiceDB(db);
   const app = express();
   app.use(express.json());
-  app.use("/api/auth", criarRotasAuth({ authService, auditService }));
-  return { app, authService, auditService };
+  app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService }));
+  return { app, authService, auditService, permissoesService };
 }
 
 describe("Rotas HTTP de autenticação (/api/auth)", () => {
@@ -57,6 +72,11 @@ describe("Rotas HTTP de autenticação (/api/auth)", () => {
       `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
        VALUES ('user_titular_1', 'Titular Teste', 'titular@example.com', ?, 'titular', true, '2026-01-01')`,
     ).run(hash);
+    db.prepare(
+      `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
+       VALUES ('user_contador_1', 'Contador Teste', 'contador@example.com', ?, 'contador', true, '2026-01-01')`,
+    ).run(hash);
+    seedMatrizPadrao(db);
     ({ app } = criarAppDeTeste(db));
   });
 
@@ -223,6 +243,206 @@ describe("Rotas HTTP de autenticação (/api/auth)", () => {
         count: number;
       };
       expect(contagem.count).toBe(1);
+    });
+  });
+
+  /** Token de sessão para o contador seedado no beforeEach — usado nos
+   * testes abaixo para exercitar a rejeição de quem não é titular/administrador. */
+  async function tokenContador(): Promise<string> {
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "contador@example.com", senha: SENHA_PADRAO });
+    return login.body.token as string;
+  }
+
+  async function tokenTitular(): Promise<string> {
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "titular@example.com", senha: SENHA_PADRAO });
+    return login.body.token as string;
+  }
+
+  describe("GET /api/auth/permissoes", () => {
+    it("returns the full matrix, the function catalog and the valid roles for titular", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app).get("/api/auth/permissoes").set("Authorization", `Bearer ${token}`);
+
+      expect(resposta.status).toBe(200);
+      expect(Array.isArray(resposta.body.matriz)).toBe(true);
+      expect(resposta.body.matriz.length).toBeGreaterThan(0);
+      expect(Array.isArray(resposta.body.catalogoFuncoes)).toBe(true);
+      expect(resposta.body.papeis).toContain("administrador");
+      expect(resposta.body.papeis).toContain("economista");
+    });
+
+    it("rejects a contador (not titular/administrador)", async () => {
+      const token = await tokenContador();
+      const resposta = await request(app).get("/api/auth/permissoes").set("Authorization", `Bearer ${token}`);
+      expect(resposta.status).toBe(403);
+    });
+
+    it("rejects a request without a valid session token", async () => {
+      const resposta = await request(app).get("/api/auth/permissoes");
+      expect(resposta.status).toBe(401);
+    });
+
+    it("records the refusal in the audit trail as acesso_negado", async () => {
+      const token = await tokenContador();
+      await request(app).get("/api/auth/permissoes").set("Authorization", `Bearer ${token}`);
+
+      const registro = db.prepare("SELECT * FROM auditoria WHERE tipo_acao = 'acesso_negado'").get();
+      expect(registro).toBeDefined();
+    });
+  });
+
+  describe("PUT /api/auth/permissoes", () => {
+    it("updates the matrix for titular", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .put("/api/auth/permissoes")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ entradas: [{ papel: "perito", funcao: "ver_indicadores_gestao", habilitado: true, limite_valor: null }] });
+
+      expect(resposta.status).toBe(200);
+      const entrada = (resposta.body.matriz as { papel: string; funcao: string; habilitado: boolean }[]).find(
+        (e) => e.papel === "perito" && e.funcao === "ver_indicadores_gestao",
+      );
+      expect(entrada?.habilitado).toBe(true);
+    });
+
+    it("rejects a contador (not titular/administrador)", async () => {
+      const token = await tokenContador();
+      const resposta = await request(app)
+        .put("/api/auth/permissoes")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ entradas: [{ papel: "perito", funcao: "ver_indicadores_gestao", habilitado: true, limite_valor: null }] });
+      expect(resposta.status).toBe(403);
+    });
+
+    it("refuses to disable gerenciar_permissoes for titular (self-lock protection)", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .put("/api/auth/permissoes")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ entradas: [{ papel: "titular", funcao: "gerenciar_permissoes", habilitado: false, limite_valor: null }] });
+
+      expect(resposta.status).toBe(400);
+      expect(resposta.body.erro).toContain("gerenciar_permissoes");
+    });
+
+    it("refuses to disable gerenciar_permissoes for administrador too", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .put("/api/auth/permissoes")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ entradas: [{ papel: "administrador", funcao: "gerenciar_permissoes", habilitado: false, limite_valor: null }] });
+
+      expect(resposta.status).toBe(400);
+    });
+
+    it("rejects an invalid entrada with a 400 and writes nothing", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .put("/api/auth/permissoes")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ entradas: [{ papel: "papel-inexistente", funcao: "importar_documentos", habilitado: true }] });
+
+      expect(resposta.status).toBe(400);
+    });
+
+    it("records a successful update in the audit trail with old and new values", async () => {
+      const token = await tokenTitular();
+      await request(app)
+        .put("/api/auth/permissoes")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ entradas: [{ papel: "advogado", funcao: "ver_indicadores_gestao", habilitado: true, limite_valor: null }] });
+
+      const registro = db
+        .prepare("SELECT * FROM auditoria WHERE tipo_acao = 'atualizar_permissoes' AND resultado = 'sucesso'")
+        .get() as { valores_antigos: string; valores_novos: string } | undefined;
+      expect(registro).toBeDefined();
+      expect(JSON.parse(registro!.valores_novos).entradas[0].habilitado).toBe(true);
+    });
+  });
+
+  describe("POST /api/auth/usuarios", () => {
+    it("creates a user with a new role (administrador) when called by titular", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .post("/api/auth/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ nome: "Nova Administradora", email: "nova-admin@example.com", senha: "uma-senha-forte-123", role: "administrador" });
+
+      expect(resposta.status).toBe(201);
+      expect(resposta.body.usuario.role).toBe("administrador");
+      expect(resposta.body.usuario.senha_hash).toBeUndefined();
+
+      // A conta criada consegue logar de verdade com a senha informada.
+      const login = await request(app)
+        .post("/api/auth/login")
+        .send({ email: "nova-admin@example.com", senha: "uma-senha-forte-123" });
+      expect(login.status).toBe(200);
+    });
+
+    it("creates a user with role economista", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .post("/api/auth/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ nome: "Nova Economista", email: "nova-economista@example.com", senha: "uma-senha-forte-123", role: "economista" });
+
+      expect(resposta.status).toBe(201);
+      expect(resposta.body.usuario.role).toBe("economista");
+    });
+
+    it("rejects a contador (not titular/administrador)", async () => {
+      const token = await tokenContador();
+      const resposta = await request(app)
+        .post("/api/auth/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ nome: "X", email: "x@example.com", senha: "uma-senha-forte-123", role: "perito" });
+      expect(resposta.status).toBe(403);
+    });
+
+    it("rejects an invalid role", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .post("/api/auth/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ nome: "X", email: "x2@example.com", senha: "uma-senha-forte-123", role: "estagiario" });
+      expect(resposta.status).toBe(400);
+    });
+
+    it("rejects a password shorter than 8 characters", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .post("/api/auth/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ nome: "X", email: "x3@example.com", senha: "curta", role: "perito" });
+      expect(resposta.status).toBe(400);
+    });
+
+    it("rejects a duplicate email with a friendly message", async () => {
+      const token = await tokenTitular();
+      const resposta = await request(app)
+        .post("/api/auth/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ nome: "Duplicado", email: "contador@example.com", senha: "uma-senha-forte-123", role: "perito" });
+      expect(resposta.status).toBe(400);
+      expect(resposta.body.erro).toContain("Já existe um usuário");
+    });
+
+    it("records the creation in the audit trail", async () => {
+      const token = await tokenTitular();
+      await request(app)
+        .post("/api/auth/usuarios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ nome: "Novo Advogado", email: "novo-advogado@example.com", senha: "uma-senha-forte-123", role: "advogado" });
+
+      const registro = db
+        .prepare("SELECT * FROM auditoria WHERE tipo_acao = 'criar_usuario' AND resultado = 'sucesso' AND recurso_id != 'user_titular_1'")
+        .get();
+      expect(registro).toBeDefined();
     });
   });
 });

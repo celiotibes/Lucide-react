@@ -15,10 +15,14 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import type { AuthServiceDB, Usuario } from "../domain/auth/auth-service-db.js";
 import type { AuditTrailServiceDB } from "../domain/auth/audit-trail-db.js";
+import type { PermissoesServiceDB } from "../domain/auth/permissoes-db.js";
+import { FUNCOES_CATALOGO, PAPEIS_VALIDOS, papelValido } from "../domain/auth/permissoes.js";
+import type { UserRole, ContextoAutenticacao } from "../domain/auth/auth-service.js";
 
 export interface AuthRoutesDeps {
   authService: AuthServiceDB;
   auditService: AuditTrailServiceDB;
+  permissoesService: PermissoesServiceDB;
 }
 
 /** Extrai IP e user-agent da requisição para a trilha de auditoria e para a
@@ -97,6 +101,33 @@ function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
   };
 }
 
+/** Middleware que exige um dos papéis em `papeisPermitidos` — encadeado
+ * DEPOIS de `exigirAutenticacao` (precisa de `req.auth` já preenchido).
+ * Usado pelas rotas de gestão do sistema (matriz de permissões, criação de
+ * usuário), reservadas a `titular`/`administrador`: este é um gate FIXO no
+ * código (não depende da matriz de permissões configurável em si — a matriz
+ * modela capacidades mais finas para os demais papéis, mas quem PODE
+ * administrar o sistema continua uma decisão de código, não de dado, para
+ * nunca ficar configurável a ponto de ninguém mais conseguir corrigi-la).
+ * Recusa gera evento `acesso_negado` na trilha de auditoria. */
+function criarMiddlewareRequerPapel(auditService: AuditTrailServiceDB, ...papeisPermitidos: UserRole[]) {
+  return function requerPapel(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const contexto = req.auth as ContextoAutenticacao;
+    const papel = contexto.usuario?.role;
+    if (!papel || !papeisPermitidos.includes(papel)) {
+      auditService.registrarAcessoNegado(
+        contexto,
+        "permissoes_administrativas",
+        `${req.method} ${req.path}`,
+        `Papel '${papel ?? "desconhecido"}' não está entre os permitidos: ${papeisPermitidos.join(", ")}`,
+      );
+      res.status(403).json({ erro: "Sem permissão para esta operação" });
+      return;
+    }
+    next();
+  };
+}
+
 /** O tipo `Usuario` (auth-service.ts) já não tem campo `senha_hash` — os
  * métodos de AuthServiceDB nunca o incluem no objeto que devolvem. Esta
  * função só existe para deixar explícito, no ponto de saída da resposta
@@ -105,9 +136,10 @@ function usuarioParaResposta(usuario: Usuario | null | undefined): Usuario | nul
   return usuario ?? null;
 }
 
-export function criarRotasAuth({ authService, auditService }: AuthRoutesDeps): express.Router {
+export function criarRotasAuth({ authService, auditService, permissoesService }: AuthRoutesDeps): express.Router {
   const router = express.Router();
   const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
+  const requerGestaoSistema = criarMiddlewareRequerPapel(auditService, "titular", "administrador");
   const limitadorLogin = criarLimitadorLogin();
   const limitadorBootstrap = criarLimitadorBootstrap();
 
@@ -231,6 +263,133 @@ export function criarRotasAuth({ authService, auditService }: AuthRoutesDeps): e
     const contexto = { usuario: resultado.usuario, autenticado: true, role: resultado.usuario.role };
     auditService.registrarAcao(contexto, "criar_usuario", "usuario", resultado.usuario.id, {
       descricao: `Bootstrap: primeiro titular criado (${resultado.usuario.email})`,
+      resultado: "sucesso",
+      endereco_ip: enderecoIp,
+      user_agent: userAgent,
+    });
+
+    res.status(201).json({ usuario: usuarioParaResposta(resultado.usuario) });
+  });
+
+  /**
+   * GET /api/auth/permissoes
+   * Header: Authorization: Bearer <token> — exige papel titular/administrador.
+   *
+   * Devolve a matriz completa (papel × função) mais o catálogo de funções
+   * (rótulo/descrição/se aceita limite) e a lista de papéis válidos — para o
+   * client renderizar a tabela sem precisar duplicar esse catálogo.
+   */
+  router.get("/permissoes", exigirAutenticacao, requerGestaoSistema, (_req, res) => {
+    res.json({
+      matriz: permissoesService.obterMatriz(),
+      catalogoFuncoes: FUNCOES_CATALOGO,
+      papeis: PAPEIS_VALIDOS,
+    });
+  });
+
+  /**
+   * PUT /api/auth/permissoes
+   * Header: Authorization: Bearer <token> — exige papel titular/administrador.
+   * Body: { entradas: [{ papel, funcao, habilitado, limite_valor? }, ...] }
+   *
+   * Ver `PermissoesServiceDB.atualizarMatriz` para a validação completa e a
+   * proteção contra autotravamento (gerenciar_permissoes nunca pode ser
+   * desabilitada para titular/administrador). Toda mudança bem-sucedida gera
+   * um evento `atualizar_permissoes` na trilha de auditoria, com os valores
+   * antigos e novos das entradas tocadas.
+   */
+  router.put("/permissoes", exigirAutenticacao, requerGestaoSistema, (req, res) => {
+    const contexto = req.auth!;
+    const { enderecoIp, userAgent } = contextoRequisicao(req);
+    const entradas = (req.body ?? {}).entradas;
+
+    const resultado = permissoesService.atualizarMatriz(entradas, contexto);
+
+    if (!resultado.sucesso) {
+      auditService.registrarAcao(contexto, "atualizar_permissoes", "permissoes", "matriz", {
+        descricao: `Tentativa de atualizar a matriz de permissões falhou: ${resultado.erro}`,
+        resultado: "falha",
+        motivo_falha: resultado.erro,
+        endereco_ip: enderecoIp,
+        user_agent: userAgent,
+      });
+      res.status(400).json({ erro: resultado.erro ?? "Não foi possível atualizar a matriz de permissões" });
+      return;
+    }
+
+    auditService.registrarAcao(contexto, "atualizar_permissoes", "permissoes", "matriz", {
+      descricao: `${resultado.entradasNovas!.length} entrada(s) da matriz de permissões atualizada(s) por ${contexto.usuario!.email}`,
+      valores_antigos: { entradas: resultado.entradasAntigas },
+      valores_novos: { entradas: resultado.entradasNovas },
+      resultado: "sucesso",
+      endereco_ip: enderecoIp,
+      user_agent: userAgent,
+    });
+
+    res.json({ matriz: permissoesService.obterMatriz() });
+  });
+
+  /**
+   * POST /api/auth/usuarios
+   * Header: Authorization: Bearer <token> — exige papel titular/administrador.
+   * Body: { nome, email, senha, role }
+   *
+   * Fecha a lacuna identificada na fase anterior (ver
+   * docs/viabilidade-backend-pagamentos.md, seção 9): antes desta rota, um
+   * titular não tinha como criar conta para outro papel depois do bootstrap
+   * — `AuthServiceDB.criarUsuario` já existia e funcionava, só faltava rota
+   * HTTP. `role` precisa ser um dos 6 papéis válidos (`PAPEIS_VALIDOS`);
+   * validado aqui com mensagem clara, em vez de deixar a CHECK constraint do
+   * banco vazar um erro SQL cru.
+   *
+   * Senha inicial em texto puro, nunca logada nem devolvida — só o hash é
+   * gravado (ver AuthServiceDB.criarUsuario). NÃO força troca de senha no
+   * primeiro login: o desenho atual de `usuarios` não tem coluna para esse
+   * estado — ver nota em AuthServiceDB.criarUsuario; fica documentado como
+   * próximo passo, não implementado nesta rodada.
+   */
+  router.post("/usuarios", exigirAutenticacao, requerGestaoSistema, async (req, res) => {
+    const contexto = req.auth!;
+    const { enderecoIp, userAgent } = contextoRequisicao(req);
+    const { nome, email, senha, role } = req.body ?? {};
+
+    if (typeof nome !== "string" || !nome.trim()) {
+      res.status(400).json({ erro: "nome é obrigatório" });
+      return;
+    }
+    if (typeof email !== "string" || !email.includes("@")) {
+      res.status(400).json({ erro: "email válido é obrigatório" });
+      return;
+    }
+    if (typeof senha !== "string" || senha.length < 8) {
+      res.status(400).json({ erro: "senha precisa ter pelo menos 8 caracteres" });
+      return;
+    }
+    if (typeof role !== "string" || !papelValido(role)) {
+      res.status(400).json({ erro: `role inválido — precisa ser um de: ${PAPEIS_VALIDOS.join(", ")}` });
+      return;
+    }
+
+    const resultado = await authService.criarUsuario(
+      { nome: nome.trim(), email: email.trim(), senha, role, ativo: true },
+      contexto,
+    );
+
+    if (!resultado.sucesso || !resultado.usuario) {
+      auditService.registrarAcao(contexto, "criar_usuario", "usuario", email, {
+        descricao: `Tentativa de criar usuário (${role}) falhou: ${resultado.erro}`,
+        resultado: "falha",
+        motivo_falha: resultado.erro,
+        endereco_ip: enderecoIp,
+        user_agent: userAgent,
+      });
+      const status = resultado.erro === "Sem permissão para criar usuários" ? 403 : 400;
+      res.status(status).json({ erro: resultado.erro ?? "Não foi possível criar o usuário" });
+      return;
+    }
+
+    auditService.registrarAcao(contexto, "criar_usuario", "usuario", resultado.usuario.id, {
+      descricao: `${contexto.usuario!.email} criou o usuário ${resultado.usuario.email} (${role})`,
       resultado: "sucesso",
       endereco_ip: enderecoIp,
       user_agent: userAgent,

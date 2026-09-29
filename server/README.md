@@ -43,7 +43,12 @@ paga da API da Pluggy.
 
 Login real por usuário, separado da `API_KEY` compartilhada acima (que só
 autoriza "é este app", não "é este usuário"). Papéis do produto: `titular`,
-`contador`, `perito`, `advogado` — ver `server/src/domain/auth/auth-service.ts`.
+`administrador`, `contador`, `perito`, `advogado`, `economista` — ver
+`server/src/domain/auth/auth-service.ts`. `administrador` tem acesso amplo de
+gestão do sistema (equivalente a `titular` nas permissões de código), mas é
+conceitualmente distinto: alguém autorizado a administrar em nome do titular,
+não necessariamente o dono da contabilidade. `economista` é análise
+financeira/indicadores de gestão, sem escrituração contábil.
 
 - `POST /api/auth/bootstrap` — `{ nome, email, senha }` → cria o primeiro
   usuário `titular`. Só funciona uma vez (enquanto não existir nenhum
@@ -66,11 +71,41 @@ user-agent. Senha é armazenada com hash `scrypt` (nunca em texto puro nem
 logada); o token de sessão é assinado com HMAC-SHA256 usando `SESSION_SECRET`
 (ver `.env.example` e `server/src/domain/auth/token.ts`).
 
-**Limitação conhecida desta fase**: não existe rota para um `titular`
-convidar/criar contas de `contador`/`perito`/`advogado` depois do bootstrap —
-`AuthServiceDB.criarUsuario` existe e funciona, mas só é chamável de dentro
-do processo Node (por outro código do servidor), não por HTTP. Ver
-`docs/viabilidade-backend-pagamentos.md` para o que falta.
+### Gestão do sistema — matriz de permissões e criação de usuário (reservado a titular/administrador)
+
+Fecha a lacuna registrada na fase anterior deste README ("não existe rota
+para convidar/criar contas depois do bootstrap"). As três rotas abaixo
+exigem `Authorization: Bearer <token>` de um usuário com papel `titular` OU
+`administrador` — qualquer outro papel recebe 403 e gera um evento
+`acesso_negado` na trilha de auditoria.
+
+- `POST /api/auth/usuarios` — `{ nome, email, senha, role }` → cria um
+  usuário com o papel informado (um dos 6 válidos) e a senha inicial (mín. 8
+  caracteres). **Não força troca de senha no primeiro login** — o desenho
+  atual de `usuarios` não tem coluna para esse estado; fica documentado como
+  próximo passo (exigiria uma migração de schema, fora do escopo desta
+  rodada), não uma tabela nova inventada para isso.
+- `GET /api/auth/permissoes` — devolve a matriz completa papel × função
+  (`{ matriz, catalogoFuncoes, papeis }`). "Função" é uma capacidade nomeada
+  do sistema (ex: `aprovar_despesa_os`, `gerar_laudo_pericial`,
+  `exportar_ecd`) com um `habilitado` booleano e, para algumas funções, um
+  `limite_valor` numérico opcional por papel (mesmo espírito de
+  `LIMITE_APROVACAO_DUPLA` no client, mas configurável). Ver
+  `server/src/domain/auth/permissoes.ts` (catálogo) e a tabela
+  `permissoes_papel` (migração).
+- `PUT /api/auth/permissoes` — `{ entradas: [{ papel, funcao, habilitado, limite_valor? }, ...] }`
+  → atualiza a matriz (upsert por `papel`+`funcao`; entradas não incluídas
+  ficam como estavam). Validação rigorosa de cada entrada, e uma proteção
+  contra autotravamento: nenhuma chamada pode desabilitar
+  `gerenciar_permissoes` para `titular` NEM para `administrador` — o lote
+  inteiro é recusado (nada é gravado) se isso aconteceria, para nunca deixar
+  o sistema sem ninguém que possa corrigir a própria matriz depois. Toda
+  atualização bem-sucedida gera um evento `atualizar_permissoes` na trilha
+  de auditoria (quem mudou, valores antigos e novos, quando).
+
+Ver `server/src/domain/auth/permissoes.ts` e `permissoes-db.ts` para a
+implementação, e `server/src/routes/__tests__/auth-routes.test.ts` /
+`server/src/domain/auth/__tests__/permissoes-db.test.ts` para os testes.
 
 ## Testando webhooks localmente
 

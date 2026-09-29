@@ -21,7 +21,11 @@ CREATE TABLE IF NOT EXISTS usuarios (
   -- Papéis REAIS do produto (Fase 1 — ver docs/viabilidade-backend-pagamentos.md
   -- e server/src/domain/auth/auth-service.ts). Não são mais os papéis do
   -- antigo módulo interno de pagamento a prestadores (admin/gestor/prestador).
-  role TEXT NOT NULL CHECK(role IN ('titular', 'contador', 'perito', 'advogado')),
+  -- `administrador` e `economista` adicionados numa fase seguinte — ver
+  -- UserRole/PAPEIS_VALIDOS em auth-service.ts (fonte única desta lista;
+  -- mantenha em sincronia com o CHECK abaixo e com o CHECK de `funcao` na
+  -- tabela permissoes_papel mais adiante neste arquivo).
+  role TEXT NOT NULL CHECK(role IN ('titular', 'administrador', 'contador', 'perito', 'advogado', 'economista')),
   -- prestador_id agora é só um vínculo de identidade opcional com o módulo
   -- de pagamento a prestadores (qualquer um dos 4 papéis pode tê-lo ou não —
   -- não existe mais checagem "papel X exige prestador_id"; ver
@@ -87,6 +91,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
       'login',
       'logout',
       'criar_usuario',
+      'atualizar_permissoes',
       'acesso_negado'
     )
   ),
@@ -246,6 +251,60 @@ CREATE TABLE IF NOT EXISTS prestadores (
 CREATE INDEX idx_prestadores_usuario_id ON prestadores(usuario_id);
 CREATE INDEX idx_prestadores_email ON prestadores(email);
 CREATE INDEX idx_prestadores_ativo ON prestadores(ativo);
+
+-- ============================================================
+-- 8. PERMISSOES_PAPEL TABLE - Matriz de permissões papel × função
+-- ============================================================
+--
+-- Chave primária composta (papel, funcao): uma linha por combinação, não um
+-- histórico — a última escrita é o estado vigente (a trilha de MUDANÇAS fica
+-- em `auditoria`, tipo_acao='atualizar_permissoes', não nesta tabela).
+--
+-- `funcao` é uma capacidade nomeada do sistema (ex: 'aprovar_despesa_os',
+-- 'gerar_laudo_pericial') — o catálogo com descrição de cada uma vive em
+-- server/src/domain/auth/permissoes.ts (FUNCOES_CATALOGO), fonte única desta
+-- lista; o CHECK abaixo precisa ser mantido em sincronia manualmente com
+-- aquele arquivo (SQLite não permite CHECK dinâmico a partir de outra
+-- tabela/enum TypeScript).
+--
+-- `limite_valor` é opcional (NULL = função não tem limite numérico, ou tem
+-- mas está desabilitado) — usado por funções como 'aprovar_despesa_os' e
+-- 'aprovar_pagamento', no mesmo espírito de LIMITE_APROVACAO_DUPLA já
+-- existente no client (src/domain/operacoes/ordensServico.ts), mas agora
+-- configurável por papel em vez de uma constante fixa global.
+CREATE TABLE IF NOT EXISTS permissoes_papel (
+  papel TEXT NOT NULL CHECK(papel IN ('titular', 'administrador', 'contador', 'perito', 'advogado', 'economista')),
+  funcao TEXT NOT NULL CHECK(funcao IN (
+    'gerenciar_usuarios',
+    'gerenciar_permissoes',
+    'ver_trilha_auditoria',
+    'aprovar_despesa_os',
+    'aprovar_pagamento',
+    'editar_plano_de_contas',
+    'lancar_transacoes',
+    'fechar_periodo_contabil',
+    'gerar_laudo_pericial',
+    'exportar_ecd',
+    'ver_indicadores_gestao',
+    'gerenciar_contratos_advocacia',
+    'editar_lgpd_chaves',
+    'importar_documentos'
+  )),
+  habilitado BOOLEAN NOT NULL DEFAULT false,
+  limite_valor DECIMAL(12, 2),
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- Quem fez a ÚLTIMA alteração nesta linha — NULL para as linhas seedadas
+  -- automaticamente no boot (ninguém "alterou", nasceram assim); nunca uma
+  -- string inventada, mesmo motivo do usuario_id em auditoria.
+  atualizado_por TEXT,
+
+  PRIMARY KEY(papel, funcao),
+  CHECK(limite_valor IS NULL OR limite_valor >= 0),
+  FOREIGN KEY(atualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_permissoes_papel_papel ON permissoes_papel(papel);
+CREATE INDEX idx_permissoes_papel_funcao ON permissoes_papel(funcao);
 
 -- ============================================================
 -- Views for Common Queries

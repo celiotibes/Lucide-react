@@ -2,30 +2,63 @@
  * Authentication and Authorization Service
  * Gerencia autenticação de usuários, roles e permissões
  *
- * Roles (Fase 1 — ver docs/viabilidade-backend-pagamentos.md):
+ * Roles (Fase 1 — ver docs/viabilidade-backend-pagamentos.md; `administrador`
+ * e `economista` adicionados numa fase seguinte, junto com a matriz de
+ * permissões configurável — ver `permissoes.ts`):
  * - titular: dono(a) da conta/escritório — papel mais próximo de "admin"
+ * - administrador: acesso amplo de gestão do SISTEMA (equivalente a titular
+ *   nas permissões de código abaixo — `usuario`/`auditoria`), mas
+ *   conceitualmente distinto: é alguém autorizado a administrar o sistema em
+ *   nome do titular, não necessariamente o titular da contabilidade. Existe
+ *   como papel separado (não um alias de `titular`) para que a trilha de
+ *   auditoria e a matriz de permissões (papel × função) possam, no futuro,
+ *   diferenciar o dono da conta de quem administra em nome dele — hoje têm
+ *   exatamente as mesmas permissões de código (PERMISSOES_POR_ROLE), mas a
+ *   matriz de permissões (tabela `permissoes_papel`) já os trata como duas
+ *   linhas independentes.
  * - contador: profissional contábil
  * - perito: perito(a) — inclui quem também é rastreado no módulo de
  *   pagamento a prestadores (diária + km) para viagens/vistorias, via
  *   `Usuario.prestador_id` (ver nota abaixo)
  * - advogado: advogado(a)
+ * - economista: análise financeira/indicadores de gestão e investimento —
+ *   distinto de `contador` por foco: não faz escrituração contábil
+ *   (lançamentos, plano de contas, fechamento), só CONSOME os indicadores
+ *   que o módulo contábil produz (ver `ver_indicadores_gestao` em
+ *   `permissoes.ts`).
  *
  * Estes são os papéis REAIS do produto (não os do antigo módulo interno de
  * pagamento a prestadores de serviço — admin/gestor/prestador — que foi
  * removido daqui; ver commit `926e8cf` e a análise de viabilidade). RBAC
- * granular por papel profissional (titular vs. contador vs. perito vs.
- * advogado) ainda não existe porque nenhuma tela real consome essa
- * diferenciação ainda — os quatro têm hoje as mesmas permissões, exceto
- * gestão de usuários e leitura de auditoria, reservadas ao titular por ser
- * o papel mais próximo de "dono da conta". Ver PERMISSOES_POR_ROLE abaixo.
+ * granular por papel profissional continua raso de propósito NESTE arquivo
+ * (PERMISSOES_POR_ROLE) — nenhuma tela real do módulo de pagamento a
+ * prestadores consome essa diferenciação; só gestão de usuários e leitura de
+ * auditoria são reservadas a titular/administrador. A diferenciação granular
+ * por papel que o produto de fato precisa (aprovar despesa de OS, gerar
+ * laudo pericial, ver indicadores de gestão, etc.) foi modelada à parte, na
+ * matriz de permissões configurável (`permissoes.ts` + tabela
+ * `permissoes_papel`) — não duplicada aqui.
  *
  * O módulo de pagamento a prestadores (`duplicate-payment-guard-db.ts`) não
  * usa mais nome de papel nenhum para decidir quem só vê os próprios dados —
  * usa a presença de `Usuario.prestador_id` (ver `podeAcessarPrestador`
- * abaixo), independente de qual dos 4 papéis o usuário tem.
+ * abaixo), independente de qual dos 6 papéis o usuário tem.
  */
 
-export type UserRole = "titular" | "contador" | "perito" | "advogado";
+export type UserRole = "titular" | "administrador" | "contador" | "perito" | "advogado" | "economista";
+
+/** Todos os papéis válidos, na ordem em que aparecem em `UserRole` — fonte
+ * única para validação de entrada em rotas HTTP (ex: `POST /api/auth/usuarios`)
+ * e para popular um `<select>` no client, evitando uma segunda lista
+ * hardcoded que poderia divergir desta. */
+export const PAPEIS_VALIDOS: readonly UserRole[] = [
+  "titular",
+  "administrador",
+  "contador",
+  "perito",
+  "advogado",
+  "economista",
+];
 
 export interface Usuario {
   id: string;
@@ -84,6 +117,30 @@ export const PERMISSOES_POR_ROLE: Record<UserRole, PermissaoOperacao[]> = {
     { recurso: "usuario", operacao: "criar", roles: ["titular"] },
     { recurso: "usuario", operacao: "atualizar", roles: ["titular"] },
   ],
+  // `administrador`: acesso amplo de gestão do sistema, EQUIVALENTE a
+  // `titular` nesta lista de permissões de código (a distinção entre os
+  // dois — "dono da conta" vs. "administra em nome do titular" — não muda
+  // nada aqui; ela é modelada na matriz de permissões configurável, ver
+  // permissoes.ts, onde os dois têm linhas independentes que HOJE nascem
+  // idênticas mas podem divergir se o titular decidir restringir um
+  // administrador específico no futuro).
+  administrador: [
+    { recurso: "prestador_contrato", operacao: "criar", roles: ["administrador"] },
+    { recurso: "prestador_contrato", operacao: "ler", roles: ["administrador"] },
+    { recurso: "prestador_contrato", operacao: "atualizar", roles: ["administrador"] },
+    { recurso: "prestador_contrato", operacao: "deletar", roles: ["administrador"] },
+    { recurso: "prestador_apontamento", operacao: "criar", roles: ["administrador"] },
+    { recurso: "prestador_apontamento", operacao: "ler", roles: ["administrador"] },
+    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["administrador"] },
+    { recurso: "prestador_apontamento", operacao: "deletar", roles: ["administrador"] },
+    { recurso: "prestador_pagamento", operacao: "criar", roles: ["administrador"] },
+    { recurso: "prestador_pagamento", operacao: "ler", roles: ["administrador"] },
+    { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["administrador"] },
+    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["administrador"] },
+    { recurso: "auditoria", operacao: "ler", roles: ["administrador"] },
+    { recurso: "usuario", operacao: "criar", roles: ["administrador"] },
+    { recurso: "usuario", operacao: "atualizar", roles: ["administrador"] },
+  ],
   contador: [
     { recurso: "prestador_contrato", operacao: "criar", roles: ["contador"] },
     { recurso: "prestador_contrato", operacao: "ler", roles: ["contador"] },
@@ -125,6 +182,26 @@ export const PERMISSOES_POR_ROLE: Record<UserRole, PermissaoOperacao[]> = {
     { recurso: "prestador_pagamento", operacao: "ler", roles: ["advogado"] },
     { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["advogado"] },
     { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["advogado"] },
+  ],
+  // `economista`: mesmo padrão de acesso ao módulo de prestadores que
+  // contador/perito/advogado (nenhuma tela real diferencia isso hoje — ver
+  // nota no topo do arquivo); sem `usuario`/`auditoria`, reservadas a
+  // titular/administrador. A diferenciação real do papel (foco em
+  // indicadores de gestão, não em escrituração) vive na matriz de
+  // permissões configurável, não nesta lista de código.
+  economista: [
+    { recurso: "prestador_contrato", operacao: "criar", roles: ["economista"] },
+    { recurso: "prestador_contrato", operacao: "ler", roles: ["economista"] },
+    { recurso: "prestador_contrato", operacao: "atualizar", roles: ["economista"] },
+    { recurso: "prestador_contrato", operacao: "deletar", roles: ["economista"] },
+    { recurso: "prestador_apontamento", operacao: "criar", roles: ["economista"] },
+    { recurso: "prestador_apontamento", operacao: "ler", roles: ["economista"] },
+    { recurso: "prestador_apontamento", operacao: "atualizar", roles: ["economista"] },
+    { recurso: "prestador_apontamento", operacao: "deletar", roles: ["economista"] },
+    { recurso: "prestador_pagamento", operacao: "criar", roles: ["economista"] },
+    { recurso: "prestador_pagamento", operacao: "ler", roles: ["economista"] },
+    { recurso: "prestador_pagamento", operacao: "atualizar", roles: ["economista"] },
+    { recurso: "prestador_pagamento", operacao: "aprovar", roles: ["economista"] },
   ],
 };
 

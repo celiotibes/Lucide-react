@@ -277,9 +277,15 @@ export class AuthServiceDB {
 
   /**
    * Cria um novo usuário (exige permissão "usuario:criar" no contexto de
-   * quem está chamando — hoje só `titular`, ver PERMISSOES_POR_ROLE).
-   * Recebe a senha em texto puro e grava só o hash (nunca loga nem
-   * devolve a senha ou o hash completo).
+   * quem está chamando — hoje `titular`/`administrador`, ver
+   * PERMISSOES_POR_ROLE). Recebe a senha em texto puro e grava só o hash
+   * (nunca loga nem devolve a senha ou o hash completo).
+   *
+   * NOTA (próximo passo, não implementado): não existe hoje coluna/tabela
+   * para marcar "precisa trocar a senha no primeiro login" — o desenho
+   * atual (`usuarios.senha_hash`) não suporta isso sem uma mudança de
+   * schema, fora do escopo desta rodada (ver `POST /api/auth/usuarios` em
+   * auth-routes.ts e o relatório desta tarefa).
    */
   async criarUsuario(
     novo_usuario: Omit<Usuario, "id" | "data_criacao"> & { senha: string },
@@ -323,6 +329,9 @@ export class AuthServiceDB {
         },
       };
     } catch (erro) {
+      if (erro instanceof Error && erro.message.includes("UNIQUE constraint failed")) {
+        return { sucesso: false, erro: "Já existe um usuário com este e-mail" };
+      }
       return {
         sucesso: false,
         erro: erro instanceof Error ? erro.message : "Erro ao criar usuário",

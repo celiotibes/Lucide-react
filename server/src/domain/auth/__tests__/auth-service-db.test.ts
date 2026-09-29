@@ -73,7 +73,9 @@ async function seedUsuarios(db: Database.Database): Promise<void> {
      VALUES (?, ?, ?, ?, ?, ?, ?, '2026-01-01')`,
   );
   inserir.run("user_titular_1", "Titular User", "titular@example.com", hash, "titular", null, 1);
+  inserir.run("user_administrador_1", "Administrador User", "administrador@example.com", hash, "administrador", null, 1);
   inserir.run("user_contador_1", "Contador User", "contador@example.com", hash, "contador", null, 1);
+  inserir.run("user_economista_1", "Economista User", "economista@example.com", hash, "economista", null, 1);
   // Vinculado a um prestador (módulo de pagamento a prestadores) — qualquer
   // um dos 4 papéis pode ter esse vínculo; usamos "perito" aqui só porque é
   // um caso plausível (perito que viaja para vistoria, diária + km).
@@ -257,7 +259,7 @@ describe("AuthServiceDB (Phase 2)", () => {
   });
 
   describe("Roles", () => {
-    it.each(["titular", "contador", "perito", "advogado"] as const)(
+    it.each(["titular", "administrador", "contador", "perito", "advogado", "economista"] as const)(
       "accepts '%s' as a valid role in the database",
       (role) => {
         expect(() => {
@@ -310,6 +312,25 @@ describe("AuthServiceDB (Phase 2)", () => {
         true
       );
       expect(authService.temPermissao(contexto!, "usuario", "criar")).toBe(false);
+    });
+
+    it("administrador has the same broad permissions as titular, including managing users and auditing", async () => {
+      const authResult = await authService.autenticar("administrador@example.com", SENHA_PADRAO);
+      const contexto = authService.validarToken(authResult.token!);
+
+      expect(contexto?.autenticado).toBe(true);
+      expect(authService.temPermissao(contexto!, "prestador_pagamento", "aprovar")).toBe(true);
+      expect(authService.temPermissao(contexto!, "auditoria", "ler")).toBe(true);
+      expect(authService.temPermissao(contexto!, "usuario", "criar")).toBe(true);
+    });
+
+    it("economista can read and approve payments, but not manage users", async () => {
+      const authResult = await authService.autenticar("economista@example.com", SENHA_PADRAO);
+      const contexto = authService.validarToken(authResult.token!);
+
+      expect(authService.temPermissao(contexto!, "prestador_pagamento", "ler")).toBe(true);
+      expect(authService.temPermissao(contexto!, "usuario", "criar")).toBe(false);
+      expect(authService.temPermissao(contexto!, "auditoria", "ler")).toBe(false);
     });
   });
 

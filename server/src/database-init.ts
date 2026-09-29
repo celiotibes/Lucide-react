@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { matrizPadrao } from "./domain/auth/permissoes.js";
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -172,11 +173,38 @@ function seedInitialData(db: Database.Database): void {
     );
 
     console.log("[Database] Seeded default contract parameters");
+
+    seedMatrizPermissoesPadrao(db);
   } catch (erro) {
     throw new Error(
       `Seed data insertion failed: ${erro instanceof Error ? erro.message : String(erro)}`
     );
   }
+}
+
+/**
+ * Seeda a matriz de permissões (papel × função) com os defaults de
+ * `matrizPadrao()` — TODA combinação (6 papéis × 14 funções) fica com uma
+ * linha desde o início, para `GET /api/auth/permissoes` nunca precisar
+ * "inventar" um default em memória para uma combinação ausente. Usa
+ * `INSERT OR IGNORE`, mesmo padrão de `insertParamsStmt` acima — idempotente
+ * se rodar mais de uma vez (não deveria, já que só é chamada dentro do
+ * `if (!usersTableExists)` de `initializeDatabase`, mas não custa a
+ * segurança extra). `atualizado_por` fica NULL: ninguém "alterou" essas
+ * linhas, nasceram assim no boot.
+ */
+function seedMatrizPermissoesPadrao(db: Database.Database): void {
+  const inserir = db.prepare(
+    `INSERT OR IGNORE INTO permissoes_papel (papel, funcao, habilitado, limite_valor, atualizado_em, atualizado_por)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)`,
+  );
+  const executarLote = db.transaction((entradas: ReturnType<typeof matrizPadrao>) => {
+    for (const entrada of entradas) {
+      inserir.run(entrada.papel, entrada.funcao, entrada.habilitado ? 1 : 0, entrada.limite_valor);
+    }
+  });
+  executarLote(matrizPadrao());
+  console.log("[Database] Seeded default permission matrix (papel × função)");
 }
 
 /**

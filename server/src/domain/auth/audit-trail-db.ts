@@ -19,6 +19,7 @@ export type TipoAcao =
   | "login"
   | "logout"
   | "criar_usuario"
+  | "atualizar_permissoes"
   | "acesso_negado";
 
 export interface RegistroAuditoria {
