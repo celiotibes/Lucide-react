@@ -699,6 +699,11 @@ export function CaucaoView() {
                                       value={radAtual.valor_total_deducao != null ? formatarMoeda(radAtual.valor_total_deducao) : "— (ainda em rascunho)"}
                                     />
                                   </div>
+                                  {radAtual.status === "contestado" && (
+                                    <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "0 0 12px", maxWidth: "68ch" }}>
+                                      <strong>Motivo da contestação:</strong> {radAtual.motivo_contestacao ?? "—"}
+                                    </p>
+                                  )}
                                   <div className="table-wrap" style={{ marginBottom: 12 }}>
                                     <table className="data-table">
                                       <thead>

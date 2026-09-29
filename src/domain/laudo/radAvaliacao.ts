@@ -93,6 +93,7 @@ export interface RadAvaliacao {
   valor_total_deducao: number | null;
   criado_em: string;
   emitido_em: string | null;
+  motivo_contestacao: string | null;
 }
 
 export interface RadAvaliacaoComItens extends RadAvaliacao {
@@ -303,12 +304,9 @@ export function supersederRadAvaliacao(
  * Contesta uma avaliação emitida (ex: locatário discorda do valor apurado). Só é permitido a
  * partir de 'emitido' — um rascunho ainda não foi comunicado a ninguém para ser contestado, e
  * uma já 'superado'/'contestado' não volta a este estado por aqui. O motivo é exigido (mesma
- * exigência de justificativa de `rejeitarItemRad`) mas não tem coluna própria em
- * `rad_avaliacoes` para persistir o texto — limitação de schema documentada, mesmo padrão de
- * outras limitações já aceitas neste sistema (ex.: comentário de
- * `contabilizarReavaliacaoImovel` em `integracao-patrimonio.ts`); o motivo entra como
- * validação de entrada e cabe ao chamador registrá-lo em observações do imóvel/contrato, se
- * quiser manter o texto.
+ * exigência de justificativa de `rejeitarItemRad`) e é gravado em `motivo_contestacao`
+ * (`rad_avaliacoes`), para que o texto fique disponível junto do registro da avaliação, sem
+ * depender de o chamador anotá-lo em observações de outra entidade.
  */
 export function contestarRadAvaliacao(db: Database, radAvaliacaoId: number, motivo: string): void {
   if (!motivo || !motivo.trim()) {
@@ -325,7 +323,11 @@ export function contestarRadAvaliacao(db: Database, radAvaliacaoId: number, moti
     throw new Error(`Só é possível contestar uma avaliação 'emitido' (esta está '${avaliacao.status}').`);
   }
 
-  executar(db, "UPDATE rad_avaliacoes SET status = 'contestado' WHERE id = ?", [radAvaliacaoId]);
+  executar(
+    db,
+    "UPDATE rad_avaliacoes SET status = 'contestado', motivo_contestacao = ? WHERE id = ?",
+    [motivo, radAvaliacaoId],
+  );
 }
 
 /** Retorna a avaliação vigente do contrato: a de maior versão que não esteja 'superado' —

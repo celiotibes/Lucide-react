@@ -304,6 +304,29 @@ describe("contestarRadAvaliacao", () => {
     expect(avaliacao.status).toBe("contestado");
   });
 
+  it("grava o motivo recebido em motivo_contestacao, recuperável por consulta direta e por obterRadAvaliacaoAtual", async () => {
+    const db = await bancoComContratoEImovel();
+    executar(
+      db,
+      "INSERT INTO imovel_inventario_bens (id, imovel_id, descricao, valor_reposicao, data_vistoria) VALUES (1, 1, 'Item A', 500, '2024-01-01')",
+    );
+    const { radAvaliacaoId } = gerarRadAvaliacao(db, { contratoId: 1 });
+    emitirRadAvaliacao(db, radAvaliacaoId);
+
+    contestarRadAvaliacao(db, radAvaliacaoId, "motivo tal");
+
+    const [avaliacao] = consultar<{ motivo_contestacao: string | null }>(
+      db,
+      "SELECT motivo_contestacao FROM rad_avaliacoes WHERE id = ?",
+      [radAvaliacaoId],
+    );
+    expect(avaliacao.motivo_contestacao).toBe("motivo tal");
+
+    const atual = obterRadAvaliacaoAtual(db, 1);
+    expect(atual).not.toBeNull();
+    expect(atual!.motivo_contestacao).toBe("motivo tal");
+  });
+
   it("exige motivo não vazio", async () => {
     const db = await bancoComContratoEImovel();
     executar(
