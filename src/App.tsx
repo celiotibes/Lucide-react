@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -63,12 +63,13 @@ const OperacoesView = lazy(() => import("./components/OperacoesView").then((m) =
 const HubConsolidacaoView = lazy(() => import("./components/HubConsolidacaoView").then((m) => ({ default: m.HubConsolidacaoView })));
 const AvaliacaoMercadoView = lazy(() => import("./components/AvaliacaoMercadoView").then((m) => ({ default: m.AvaliacaoMercadoView })));
 const IndicadoresGestaoView = lazy(() => import("./components/IndicadoresGestaoView").then((m) => ({ default: m.IndicadoresGestaoView })));
+const GerenciamentoPermissoesView = lazy(() => import("./components/GerenciamentoPermissoesView").then((m) => ({ default: m.GerenciamentoPermissoesView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
-  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao";
+  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -108,6 +109,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "contaspessoais", rotulo: "Contas pessoais", icone: Users },
   { id: "pagamentos", rotulo: "Pagamentos (PIX/TED/DOC)", icone: Send },
   { id: "lgpd", rotulo: "LGPD e chaves", icone: ShieldCheck },
+  { id: "permissoes", rotulo: "Usuários e permissões (backend)", icone: KeyRound },
   { id: "laudo", rotulo: "Laudo pericial", icone: FileText },
   { id: "sincronizacao", rotulo: "Sincronização", icone: RefreshCw },
   { id: "ia", rotulo: "Configuração de IA", icone: RefreshCw },
@@ -456,6 +458,7 @@ function Conteudo() {
             {aba === "contaspessoais" && <ContasPessoaisView />}
             {aba === "pagamentos" && <PagamentosView />}
             {aba === "lgpd" && <LgpdView />}
+            {aba === "permissoes" && <GerenciamentoPermissoesView />}
             {aba === "laudo" && <LaudoView />}
             {aba === "sincronizacao" && <SincronizacaoView />}
             {aba === "ia" && <ConfiguracaoIA />}
