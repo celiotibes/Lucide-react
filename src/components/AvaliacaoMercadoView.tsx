@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { TrendingUp, Plus } from "lucide-react";
+import { TrendingUp, Plus, Info, FlaskConical } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { useToast } from "../ui/useToast";
 import {
@@ -7,6 +7,7 @@ import {
   listarAvaliacoesMercado,
   relatorioPatrimonioMercado,
   calcularIndicadoresViabilidade,
+  type IndicadorMercadoComExplicacao,
 } from "../domain/patrimonio/avaliacaoMercado";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
@@ -16,10 +17,77 @@ function formatarPercentual(valor: number | null, casasDecimais = 1): string {
   return `${valor.toFixed(casasDecimais)}%`;
 }
 
+function formatarAnos(valor: number | null, casasDecimais = 1): string {
+  if (valor === null || !Number.isFinite(valor)) return "—";
+  return `${valor.toFixed(casasDecimais)} anos`;
+}
+
+function formatarIndice(valor: number | null, casasDecimais = 2): string {
+  if (valor === null || !Number.isFinite(valor)) return "—";
+  return valor.toFixed(casasDecimais);
+}
+
 function formatarData(data: string | null): string {
   if (!data) return "—";
   const [ano, mes, dia] = data.split("-");
   return dia && mes && ano ? `${dia}/${mes}/${ano}` : data;
+}
+
+/** Bloco de indicador avançado (payback, yield, CAGR, TIR aproximada, LTV, DSCR a mercado):
+ * mesmo visual de KpiTile, mas com a legenda de fórmula/fonte sempre VISÍVEL logo abaixo do
+ * valor (não só em `title` — um tooltip só por hover não é acessível por toque num celular),
+ * e um `title` com o mesmo texto para quem passar o mouse. Segue o mesmo padrão de
+ * "LegendaFormula" já usado em outras telas de indicadores deste sistema (ex:
+ * IndicadoresGestaoView.tsx). Quando `valor` é `null`, mostra `motivoIndisponivel` no lugar
+ * da fórmula. `badge` (ex: "estimativa") reforça visualmente que um indicador é aproximado. */
+function BlocoIndicadorMercado({
+  label,
+  indicador,
+  formatarValor,
+  badge,
+}: {
+  label: string;
+  indicador: IndicadorMercadoComExplicacao<number>;
+  formatarValor: (v: number) => string;
+  badge?: string;
+}) {
+  const textoLegenda = indicador.motivoIndisponivel
+    ? `Indisponível: ${indicador.motivoIndisponivel}`
+    : indicador.formula;
+  return (
+    <div className="kpi-tile">
+      <div className="label">
+        {label}
+        {badge && (
+          <span
+            title="Este indicador é uma APROXIMAÇÃO — ver a legenda abaixo para os detalhes."
+            style={{
+              marginLeft: 6,
+              fontSize: 9.5,
+              fontWeight: 700,
+              color: "#b45309",
+              border: "1px solid currentColor",
+              borderRadius: 4,
+              padding: "1px 4px",
+              verticalAlign: "1px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <FlaskConical size={9} style={{ verticalAlign: "-1px", marginRight: 2 }} />
+            {badge}
+          </span>
+        )}
+      </div>
+      <div className="value">{indicador.valor !== null ? formatarValor(indicador.valor) : "—"}</div>
+      <p
+        title={`Fórmula: ${indicador.formula}\n\nFonte dos dados: ${indicador.fonteDados}`}
+        style={{ fontSize: 10.5, color: "var(--ink-soft)", margin: "6px 0 0", lineHeight: 1.4 }}
+      >
+        <Info size={11} style={{ verticalAlign: "-2px", marginRight: 3 }} />
+        {indicador.motivoIndisponivel ? <em>{textoLegenda}</em> : textoLegenda}
+      </p>
+    </div>
+  );
 }
 
 interface RascunhoAvaliacao {
@@ -67,6 +135,11 @@ export function AvaliacaoMercadoView() {
   const linhaSelecionada = useMemo(
     () => relatorio?.linhas.find((l) => l.imovelId === imovelSelecionadoId) ?? null,
     [relatorio, imovelSelecionadoId],
+  );
+
+  const indicadorSelecionado = useMemo(
+    () => indicadores?.imoveis.find((i) => i.imovelId === imovelSelecionadoId) ?? null,
+    [indicadores, imovelSelecionadoId],
   );
 
   function atualizarRascunho(campos: Partial<RascunhoAvaliacao>) {
@@ -206,6 +279,52 @@ export function AvaliacaoMercadoView() {
       {/* Detalhe do imóvel selecionado */}
       {linhaSelecionada && (
         <div className="card" style={{ marginBottom: 20 }}>
+          {indicadorSelecionado && (
+            <>
+              <strong style={{ display: "block", marginBottom: 12 }}>
+                Indicadores de negócio a valor de mercado — {linhaSelecionada.apelido}
+              </strong>
+              <div className="kpi-grid" style={{ marginBottom: 24 }}>
+                <BlocoIndicadorMercado
+                  label="Payback a mercado"
+                  indicador={indicadorSelecionado.paybackMercadoAnos}
+                  formatarValor={(v) => formatarAnos(v)}
+                />
+                <BlocoIndicadorMercado
+                  label="Yield bruto a mercado"
+                  indicador={indicadorSelecionado.yieldBrutoMercadoPercentual}
+                  formatarValor={(v) => formatarPercentual(v, 2)}
+                />
+                <BlocoIndicadorMercado
+                  label="Yield líquido a mercado"
+                  indicador={indicadorSelecionado.yieldLiquidoMercadoPercentual}
+                  formatarValor={(v) => formatarPercentual(v, 2)}
+                />
+                <BlocoIndicadorMercado
+                  label="Valorização anualizada (CAGR)"
+                  indicador={indicadorSelecionado.valorizacaoAnualizadaPercentual}
+                  formatarValor={(v) => formatarPercentual(v, 2)}
+                />
+                <BlocoIndicadorMercado
+                  label="TIR aproximada"
+                  indicador={indicadorSelecionado.tirAproximadaPercentual}
+                  formatarValor={(v) => formatarPercentual(v, 2)}
+                  badge="estimativa"
+                />
+                <BlocoIndicadorMercado
+                  label="LTV a mercado"
+                  indicador={indicadorSelecionado.ltvMercadoPercentual}
+                  formatarValor={(v) => formatarPercentual(v, 2)}
+                />
+                <BlocoIndicadorMercado
+                  label="DSCR"
+                  indicador={indicadorSelecionado.dscrMercado}
+                  formatarValor={(v) => formatarIndice(v, 2)}
+                />
+              </div>
+            </>
+          )}
+
           <strong style={{ display: "block", marginBottom: 12 }}>
             Histórico de avaliações — {linhaSelecionada.apelido}
           </strong>

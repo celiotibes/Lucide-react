@@ -8,6 +8,13 @@ import {
   obterUltimaAvaliacaoMercado,
   relatorioPatrimonioMercado,
   calcularIndicadoresViabilidade,
+  calcularPaybackMercado,
+  calcularYieldsMercado,
+  calcularValorizacaoAnualizada,
+  calcularTirAproximada,
+  calcularLtvMercado,
+  calcularDscrMercado,
+  type AvaliacaoMercado,
 } from "./avaliacaoMercado";
 
 async function bancoComImovel(opts?: { valorAquisicao?: number; usoPessoal?: 0 | 1 }) {
@@ -225,5 +232,304 @@ describe("calcularIndicadoresViabilidade — NOI, Cap Rate, ROI a valor de merca
 
     const indicadores = calcularIndicadoresViabilidade(db, 2026);
     expect(indicadores.imoveis.map((i) => i.imovelId)).toEqual([1]);
+  });
+});
+
+describe("calcularPaybackMercado", () => {
+  it("payback = valor de mercado / fluxo de caixa líquido anual", () => {
+    const resultado = calcularPaybackMercado(300000, 18000);
+    expect(resultado.valor).toBeCloseTo(300000 / 18000, 6); // 16,6667 anos
+    expect(resultado.motivoIndisponivel).toBeNull();
+    expect(resultado.formula).toContain("Payback");
+  });
+
+  it("retorna null sem valor de mercado", () => {
+    const resultado = calcularPaybackMercado(null, 18000);
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/sem valor de mercado/);
+  });
+
+  it("retorna null com fluxo de caixa líquido anual não positivo (payback indefinido)", () => {
+    const resultado = calcularPaybackMercado(300000, 0);
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/não positivo/);
+  });
+});
+
+describe("calcularYieldsMercado", () => {
+  it("yield bruto e líquido a mercado com dados conhecidos", () => {
+    // Receita bruta anual 24000, receita líquida (NOI) anual 18000, valor de mercado 300000.
+    const resultado = calcularYieldsMercado(24000, 18000, 300000);
+    expect(resultado.bruto.valor).toBeCloseTo(8, 6); // 24000/300000*100
+    expect(resultado.liquido.valor).toBeCloseTo(6, 6); // 18000/300000*100 — igual ao Cap Rate
+    expect(resultado.bruto.motivoIndisponivel).toBeNull();
+    expect(resultado.liquido.motivoIndisponivel).toBeNull();
+  });
+
+  it("retorna null (bruto e líquido) sem valor de mercado", () => {
+    const resultado = calcularYieldsMercado(24000, 18000, null);
+    expect(resultado.bruto.valor).toBeNull();
+    expect(resultado.liquido.valor).toBeNull();
+    expect(resultado.bruto.motivoIndisponivel).toMatch(/sem valor de mercado/);
+    expect(resultado.liquido.motivoIndisponivel).toMatch(/sem valor de mercado/);
+  });
+});
+
+function avaliacaoMock(valor: number, data: string, id: number): AvaliacaoMercado {
+  return {
+    id,
+    imovel_id: 1,
+    valor_avaliado: valor,
+    data_avaliacao: data,
+    metodologia: null,
+    fonte: null,
+    observacoes: null,
+    criado_em: "2026-01-01 00:00:00",
+  };
+}
+
+describe("calcularValorizacaoAnualizada (CAGR)", () => {
+  it("retorna null com histórico insuficiente (0 avaliações)", () => {
+    const resultado = calcularValorizacaoAnualizada([]);
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toBe("histórico insuficiente — precisa de pelo menos 2 avaliações");
+  });
+
+  it("retorna null com histórico insuficiente (1 avaliação apenas)", () => {
+    const resultado = calcularValorizacaoAnualizada([avaliacaoMock(300000, "2026-01-01", 1)]);
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toBe("histórico insuficiente — precisa de pelo menos 2 avaliações");
+  });
+
+  it("calcula o CAGR com 2 avaliações — resultado verificável manualmente", () => {
+    // Histórico vem ORDENADO DESC (mais recente primeiro), igual a listarAvaliacoesMercado.
+    const historico: AvaliacaoMercado[] = [
+      avaliacaoMock(200000, "2026-01-01", 2), // mais recente
+      avaliacaoMock(100000, "2016-01-01", 1), // mais antiga — valor dobrou em ~10 anos
+    ];
+
+    const resultado = calcularValorizacaoAnualizada(historico);
+
+    // Verificação manual independente da implementação: mesma fórmula, calculada aqui à parte.
+    const dias =
+      (new Date("2026-01-01T00:00:00Z").getTime() - new Date("2016-01-01T00:00:00Z").getTime()) /
+      (1000 * 60 * 60 * 24);
+    const anosEsperados = dias / 365.25;
+    const cagrEsperado = (Math.pow(200000 / 100000, 1 / anosEsperados) - 1) * 100;
+
+    expect(anosEsperados).toBeCloseTo(10, 1); // ~10 anos (3 anos bissextos no intervalo)
+    expect(resultado.valor).toBeCloseTo(cagrEsperado, 8);
+    expect(resultado.valor).toBeCloseTo(7.18, 1); // ordem de grandeza: dobrou em 10 anos ≈ 7,2% a.a.
+    expect(resultado.motivoIndisponivel).toBeNull();
+  });
+});
+
+describe("calcularTirAproximada — TIR (IRR) aproximada, resolvida por bisseção", () => {
+  async function bancoComFinanciamento(opts: {
+    valorAquisicao: number;
+    dataContrato: string;
+    valorMercado: number;
+    dataAvaliacao: string;
+  }) {
+    const db = await bancoComImovel({ valorAquisicao: opts.valorAquisicao });
+    executar(
+      db,
+      `INSERT INTO financiamentos
+         (id, imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total, saldo_devedor_manual, parcela_mensal_manual)
+       VALUES (1, 1, 'Banco Teste', 'OUTRO', 1, 0, ?, 1, 50000, 1000)`,
+      [opts.dataContrato],
+    );
+    registrarAvaliacaoMercado(db, { imovelId: 1, valorAvaliado: opts.valorMercado, dataAvaliacao: opts.dataAvaliacao });
+    return db;
+  }
+
+  it("caso verificável manualmente: fluxo de 1 ano só (-100000 → 110000) dá TIR = 10%", async () => {
+    // valorAquisicao=100000, sem contrato de locação (noiAnual=0), financiamento contratado em
+    // 2025-01-01 (proxy da aquisição), avaliação de mercado de 110000 em 2026-01-01 (~1 ano
+    // depois). Fluxo: [-100000, 0 + 110000] → VPL(r) = -100000 + 110000/(1+r) = 0 → r = 10%.
+    const db = await bancoComFinanciamento({
+      valorAquisicao: 100000,
+      dataContrato: "2025-01-01",
+      valorMercado: 110000,
+      dataAvaliacao: "2026-01-01",
+    });
+
+    const ultima = obterUltimaAvaliacaoMercado(db, 1)!;
+    const resultado = calcularTirAproximada(db, 1, 100000, 0, ultima.valorAvaliado, ultima.dataAvaliacao);
+
+    expect(resultado.motivoIndisponivel).toBeNull();
+    expect(resultado.valor).toBeCloseTo(10, 4);
+    expect(resultado.fonteDados).toMatch(/APROXIMAÇÃO/);
+  });
+
+  it("segundo caso verificável: fluxo com NOI positivo (-200000 → 318000 em 1 ano) dá TIR = 59%", async () => {
+    const db = await bancoComFinanciamento({
+      valorAquisicao: 200000,
+      dataContrato: "2025-01-01",
+      valorMercado: 300000,
+      dataAvaliacao: "2026-01-01",
+    });
+    const ultima = obterUltimaAvaliacaoMercado(db, 1)!;
+    // NOI anual de 18000: fluxo final = 18000 + 300000 = 318000. VPL(r) = -200000 + 318000/(1+r) = 0
+    // → 1+r = 318000/200000 = 1,59 → r = 59%.
+    const resultado = calcularTirAproximada(db, 1, 200000, 18000, ultima.valorAvaliado, ultima.dataAvaliacao);
+
+    expect(resultado.motivoIndisponivel).toBeNull();
+    expect(resultado.valor).toBeCloseTo(59, 4);
+  });
+
+  it("retorna null sem valor de aquisição cadastrado", async () => {
+    const db = await bancoComImovel({ valorAquisicao: 0 });
+    registrarAvaliacaoMercado(db, { imovelId: 1, valorAvaliado: 300000, dataAvaliacao: "2026-01-01" });
+    const resultado = calcularTirAproximada(db, 1, null, 0, 300000, "2026-01-01");
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/sem valor de aquisição/);
+  });
+
+  it("retorna null sem valor de mercado conhecido", async () => {
+    const db = await bancoComImovel({ valorAquisicao: 200000 });
+    const resultado = calcularTirAproximada(db, 1, 200000, 0, null, null);
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/sem valor de mercado/);
+  });
+
+  it("retorna null sem data de referência para a aquisição (nem financiamento, nem histórico)", async () => {
+    const db = await bancoComImovel({ valorAquisicao: 200000 });
+    // Sem histórico de avaliações e sem financiamento — só o cache valor_venal_atual.
+    executar(db, "UPDATE imoveis SET valor_venal_atual = 300000, data_avaliacao_venal = '2026-01-01' WHERE id = 1");
+    const resultado = calcularTirAproximada(db, 1, 200000, 0, 300000, "2026-01-01");
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/sem data de referência/);
+  });
+});
+
+describe("calcularLtvMercado e calcularDscrMercado — a valor de mercado", () => {
+  async function bancoComFinanciamentoOutro() {
+    const db = await bancoComImovel({ valorAquisicao: 200000 });
+    executar(
+      db,
+      `INSERT INTO financiamentos
+         (id, imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total, saldo_devedor_manual, parcela_mensal_manual)
+       VALUES (1, 1, 'Banco Teste', 'OUTRO', 1, 0, '2025-01-01', 1, 50000, 1000)`,
+    );
+    return db;
+  }
+
+  it("LTV a mercado = saldo devedor / valor de mercado × 100", async () => {
+    const db = await bancoComFinanciamentoOutro();
+    const resultado = calcularLtvMercado(db, 1, 300000, "2026-09-29");
+    expect(resultado.valor).toBeCloseTo((50000 / 300000) * 100, 6); // 16,6667%
+    expect(resultado.motivoIndisponivel).toBeNull();
+  });
+
+  it("LTV é 0 (não null) quando o imóvel não tem financiamento", async () => {
+    const db = await bancoComImovel({ valorAquisicao: 200000 });
+    const resultado = calcularLtvMercado(db, 1, 300000, "2026-09-29");
+    expect(resultado.valor).toBe(0);
+    expect(resultado.motivoIndisponivel).toBeNull();
+  });
+
+  it("LTV retorna null sem valor de mercado conhecido", async () => {
+    const db = await bancoComFinanciamentoOutro();
+    const resultado = calcularLtvMercado(db, 1, null, "2026-09-29");
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/sem valor de mercado/);
+  });
+
+  it("LTV retorna null quando financiamento 'OUTRO' não tem saldo_devedor_manual informado", async () => {
+    const db = await bancoComImovel({ valorAquisicao: 200000 });
+    executar(
+      db,
+      `INSERT INTO financiamentos
+         (id, imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total)
+       VALUES (1, 1, 'Banco Teste', 'OUTRO', 1, 0, '2025-01-01', 1)`,
+    );
+    const resultado = calcularLtvMercado(db, 1, 300000, "2026-09-29");
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/saldo devedor incompleto/);
+  });
+
+  it("DSCR = NOI anual / serviço da dívida anual", async () => {
+    const db = await bancoComFinanciamentoOutro();
+    // parcela_mensal_manual = 1000 → serviço da dívida anual = 12000. NOI anual = 18000.
+    const resultado = calcularDscrMercado(db, 1, 18000, "2026-09-29");
+    expect(resultado.valor).toBeCloseTo(18000 / 12000, 6); // 1,5
+    expect(resultado.motivoIndisponivel).toBeNull();
+    expect(resultado.fonteDados).toMatch(/Idêntico ao DSCR a custo histórico/);
+  });
+
+  it("DSCR retorna null quando o imóvel não tem financiamento cadastrado", async () => {
+    const db = await bancoComImovel({ valorAquisicao: 200000 });
+    const resultado = calcularDscrMercado(db, 1, 18000, "2026-09-29");
+    expect(resultado.valor).toBeNull();
+    expect(resultado.motivoIndisponivel).toMatch(/sem financiamento cadastrado/);
+  });
+});
+
+describe("calcularIndicadoresViabilidade — indicadores avançados integrados (payback, yields, CAGR, TIR, LTV, DSCR)", () => {
+  async function bancoCompleto() {
+    const db = await bancoComImovel({ valorAquisicao: 200000 });
+    const r = criarEntidadeLegal(db, { nome: "Titular de Teste", cpf_cnpj: "52998224725" });
+    if (!r.entidade_id) throw new Error(`Fixture não conseguiu criar a entidade: ${r.mensagem}`);
+
+    // Contrato vigente o ano inteiro: aluguel de R$2.000/mês => R$24.000/ano de receita bruta.
+    executar(
+      db,
+      `INSERT INTO contratos_locacao (id, imovel_id, locatario, tipo, valor_referencia, data_inicio)
+       VALUES (1, 1, 'Inquilino Teste', 'residencial_fixo', 2000, '2020-01-01')`,
+    );
+    // Despesa operacional de R$500/mês => R$6.000/ano. NOI anual = 24000 - 6000 = 18000.
+    for (let mes = 1; mes <= 12; mes++) {
+      const mm = String(mes).padStart(2, "0");
+      executar(
+        db,
+        `INSERT INTO contas_a_pagar (entidade_id, fornecedor_nome, valor, data_vencimento, status, imovel_id, criado_em)
+         VALUES (?, 'Condomínio', 500, ?, 'pendente', 1, ?)`,
+        [r.entidade_id, `2026-${mm}-10`, `2026-${mm}-01`],
+      );
+    }
+    // Financiamento 'OUTRO': saldo devedor 50000, parcela mensal 1000, contratado em 2025-01-01
+    // (proxy da data de aquisição, já que imoveis não tem data_aquisicao).
+    executar(
+      db,
+      `INSERT INTO financiamentos
+         (id, imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total, saldo_devedor_manual, parcela_mensal_manual)
+       VALUES (1, 1, 'Banco Teste', 'OUTRO', 1, 0, '2025-01-01', 1, 50000, 1000)`,
+    );
+    // Uma única avaliação de mercado — histórico insuficiente para CAGR (< 2 pontos).
+    registrarAvaliacaoMercado(db, { imovelId: 1, valorAvaliado: 300000, dataAvaliacao: '2026-01-01' });
+
+    return db;
+  }
+
+  it("payback, yields, LTV e DSCR a mercado com dados conhecidos; CAGR null (histórico insuficiente)", async () => {
+    const db = await bancoCompleto();
+    const indicadores = calcularIndicadoresViabilidade(db, 2026);
+    const imovel = indicadores.imoveis[0];
+
+    // Payback = 300000 / 18000.
+    expect(imovel.paybackMercadoAnos.valor).toBeCloseTo(300000 / 18000, 6);
+    expect(imovel.paybackMercadoAnos.motivoIndisponivel).toBeNull();
+
+    // Yield bruto = 24000/300000*100 = 8%; yield líquido = 18000/300000*100 = 6% (= Cap Rate).
+    expect(imovel.yieldBrutoMercadoPercentual.valor).toBeCloseTo(8, 6);
+    expect(imovel.yieldLiquidoMercadoPercentual.valor).toBeCloseTo(6, 6);
+    expect(imovel.yieldLiquidoMercadoPercentual.valor).toBeCloseTo(imovel.capRatePercentual!, 6);
+
+    // CAGR: só 1 avaliação no histórico → null.
+    expect(imovel.valorizacaoAnualizadaPercentual.valor).toBeNull();
+    expect(imovel.valorizacaoAnualizadaPercentual.motivoIndisponivel).toBe(
+      "histórico insuficiente — precisa de pelo menos 2 avaliações",
+    );
+
+    // TIR aproximada: fluxo [-200000, 18000+300000=318000] em ~1 ano → 59%.
+    expect(imovel.tirAproximadaPercentual.valor).toBeCloseTo(59, 3);
+    expect(imovel.tirAproximadaPercentual.fonteDados).toMatch(/APROXIMAÇÃO/);
+
+    // LTV a mercado = 50000/300000*100.
+    expect(imovel.ltvMercadoPercentual.valor).toBeCloseTo((50000 / 300000) * 100, 6);
+
+    // DSCR = 18000 / (1000*12) = 1,5.
+    expect(imovel.dscrMercado.valor).toBeCloseTo(1.5, 6);
   });
 });
