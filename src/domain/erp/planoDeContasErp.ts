@@ -26,6 +26,15 @@ export const PLANO_DE_CONTAS_ERP = [
   { id: 1101, codigo: "1.1.01", descricao: "Caixa", grupo: "ativo", natureza: "debito" },
   { id: 1102, codigo: "1.1.02", descricao: "Conta bancária", grupo: "ativo", natureza: "debito" },
   { id: 1103, codigo: "1.1.03", descricao: "Aplicações financeiras", grupo: "ativo", natureza: "debito" },
+  // Par de contas para provisão de juros/multa de mora (opção de política contábil B,
+  // decisão do usuário 2026-09-29): reconhece o crédito de juros/multa por competência
+  // (1104, débito) simultaneamente a uma provisão para perda esperada sobre esse crédito
+  // específico (1106, crédito — contra-ativo, reduz o saldo líquido do grupo ativo, mesmo
+  // padrão de "Depreciação acumulada" num plano patrimonial). Nunca usadas para o aluguel
+  // básico (que continua reconhecido só no recebimento, via migracao-ledger.ts) — só para
+  // o encargo de mora em si, que é o que `provisarJurosInadimplencia` contabiliza.
+  { id: 1104, codigo: "1.1.04", descricao: "Contas a receber — juros e multa de mora", grupo: "ativo", natureza: "debito" },
+  { id: 1106, codigo: "1.1.06", descricao: "(-) Provisão para devedores duvidosos", grupo: "ativo", natureza: "credito" },
   { id: 1105, codigo: "1.1.05", descricao: "Contas correntes pessoais", grupo: "ativo", natureza: "debito" },
   { id: 1109, codigo: "1.1.09", descricao: "Transferências em trânsito", grupo: "ativo", natureza: "debito" },
   { id: 1205, codigo: "1.2.05", descricao: "Imóveis (ativo imobilizado)", grupo: "ativo", natureza: "debito" },
