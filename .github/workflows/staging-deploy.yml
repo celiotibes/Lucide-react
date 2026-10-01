@@ -49,6 +49,12 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/claude/accounting-legal-reconstruction-i8gep8'
+    # Sem isso, o GITHUB_TOKEN padrão deste repositório é somente leitura e o
+    # push para gh-pages abaixo falha com 403 ("Permission ... denied to
+    # github-actions[bot]") — foi exatamente essa falha recorrente em todo
+    # push nesta branch, confirmada pelo log do job.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
