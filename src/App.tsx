@@ -71,13 +71,14 @@ const CobrancasAsaasView = lazy(() => import("./components/integracoes/Cobrancas
 const PluggySyncView = lazy(() => import("./components/integracoes/PluggySyncView").then((m) => ({ default: m.PluggySyncView })));
 const CapturasTelegramView = lazy(() => import("./components/integracoes/CapturasTelegramView").then((m) => ({ default: m.CapturasTelegramView })));
 const NotificacoesView = lazy(() => import("./components/integracoes/NotificacoesView").then((m) => ({ default: m.NotificacoesView })));
+const IndicadoresAjustadosJurosView = lazy(() => import("./components/IndicadoresAjustadosJurosView").then((m) => ({ default: m.IndicadoresAjustadosJurosView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
   | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes" | "expansao" | "juros" | "quitacao"
-  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes";
+  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes" | "indicadoresajustadosjuros";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -103,6 +104,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "pluggymeu", rotulo: "Sincronização bancária (MeuPluggy)", icone: Wallet },
   { id: "capturastelegram", rotulo: "Captura via Telegram", icone: Send },
   { id: "notificacoes", rotulo: "Notificações enviadas", icone: Bell },
+  { id: "indicadoresajustadosjuros", rotulo: "Indicadores ajustados por juros", icone: Scale },
   { id: "avaliacaomercado", rotulo: "Avaliação de mercado (gerencial)", icone: CircleDollarSign },
   { id: "indicadoresgestao", rotulo: "Indicadores de gestão financeira", icone: Gauge },
   { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
@@ -459,6 +461,7 @@ function Conteudo() {
             {aba === "pluggymeu" && <PluggySyncView />}
             {aba === "capturastelegram" && <CapturasTelegramView />}
             {aba === "notificacoes" && <NotificacoesView />}
+            {aba === "indicadoresajustadosjuros" && <IndicadoresAjustadosJurosView />}
             {aba === "avaliacaomercado" && <AvaliacaoMercadoView />}
             {aba === "indicadoresgestao" && <IndicadoresGestaoView />}
             {aba === "relatorios" && <RelatoriosIntegradosView />}
