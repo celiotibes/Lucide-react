@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell, Droplets, BellRing } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell, Droplets, BellRing, ClipboardCheck } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -74,13 +74,14 @@ const NotificacoesView = lazy(() => import("./components/integracoes/Notificacoe
 const IndicadoresAjustadosJurosView = lazy(() => import("./components/IndicadoresAjustadosJurosView").then((m) => ({ default: m.IndicadoresAjustadosJurosView })));
 const SimulacaoLiquidezView = lazy(() => import("./components/SimulacaoLiquidezView").then((m) => ({ default: m.SimulacaoLiquidezView })));
 const LembretesVencimentoView = lazy(() => import("./components/integracoes/LembretesVencimentoView").then((m) => ({ default: m.LembretesVencimentoView })));
+const VistoriaView = lazy(() => import("./components/VistoriaView").then((m) => ({ default: m.VistoriaView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
   | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes" | "expansao" | "juros" | "quitacao"
-  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes" | "indicadoresajustadosjuros" | "simulacaoliquidez" | "lembretesvencimento";
+  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes" | "indicadoresajustadosjuros" | "simulacaoliquidez" | "lembretesvencimento" | "vistorias";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -97,6 +98,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "contratos", rotulo: "Contratos e inadimplência", icone: FileSignature },
   { id: "reajustes", rotulo: "Reajustes e rescisão", icone: TrendingUp },
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
+  { id: "vistorias", rotulo: "Vistorias de imóveis", icone: ClipboardCheck },
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
   { id: "patrimonio", rotulo: "Patrimônio e alavancagem", icone: Scale },
   { id: "expansao", rotulo: "Projetos de expansão", icone: Hammer },
@@ -466,6 +468,7 @@ function Conteudo() {
             {aba === "capturastelegram" && <CapturasTelegramView />}
             {aba === "notificacoes" && <NotificacoesView />}
             {aba === "lembretesvencimento" && <LembretesVencimentoView />}
+            {aba === "vistorias" && <VistoriaView />}
             {aba === "indicadoresajustadosjuros" && <IndicadoresAjustadosJurosView />}
             {aba === "simulacaoliquidez" && <SimulacaoLiquidezView />}
             {aba === "avaliacaomercado" && <AvaliacaoMercadoView />}
