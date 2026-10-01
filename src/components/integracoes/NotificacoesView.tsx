@@ -45,6 +45,8 @@ const STATUS_VARIANTE: Record<StatusNotificacao, "good" | "warning" | "critical"
 const ORIGEM_LABEL: Record<OrigemNotificacao, string> = {
   cobranca_asaas: "Cobrança Asaas",
   comunicado_generico: "Comunicado genérico",
+  lembrete_aluguel: "Lembrete de vencimento (aluguel)",
+  lembrete_honorario: "Lembrete de vencimento (honorário)",
 };
 
 function PillStatus({ status }: { status: StatusNotificacao }) {

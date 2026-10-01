@@ -45,7 +45,7 @@ export interface NotificacoesRoutesDeps {
   senders?: SendersNotificacao;
 }
 
-const ORIGENS_VALIDAS = ["cobranca_asaas", "comunicado_generico"] as const;
+const ORIGENS_VALIDAS = ["cobranca_asaas", "comunicado_generico", "lembrete_aluguel", "lembrete_honorario"] as const;
 type OrigemNotificacao = (typeof ORIGENS_VALIDAS)[number];
 
 function origemValida(valor: unknown): valor is OrigemNotificacao {

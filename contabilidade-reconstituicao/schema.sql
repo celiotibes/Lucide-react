@@ -126,7 +126,12 @@ CREATE TABLE IF NOT EXISTS prestadores (
     id              INTEGER PRIMARY KEY,
     nome            TEXT NOT NULL,
     cpf_cnpj        TEXT,
-    servico         TEXT NOT NULL               -- faxina, portaria, gestão de Airbnb, reforma, etc.
+    servico         TEXT NOT NULL,              -- faxina, portaria, gestão de Airbnb, reforma, etc.
+    -- email/telefone adicionados para notificação de ordem de serviço (decisão do usuário,
+    -- 2026-10) — faltavam aqui porque a tela de operações sempre atribuiu prestador só por
+    -- nome, sem precisar de contato direto antes.
+    telefone        TEXT,
+    email           TEXT
 );
 
 CREATE TABLE IF NOT EXISTS contratos_locacao (
@@ -2072,7 +2077,11 @@ CREATE INDEX IF NOT EXISTS idx_pluggy_contas_vinculadas_conta ON pluggy_contas_v
 -- qualquer outra ação do sistema que produz efeito fora do banco local.
 CREATE TABLE IF NOT EXISTS notificacoes_enviadas (
     id                  INTEGER PRIMARY KEY,
-    origem_tipo         TEXT NOT NULL CHECK (origem_tipo IN ('cobranca_asaas', 'comunicado_generico')),
+    -- 'lembrete_aluguel'/'lembrete_honorario' adicionados (2026-10) para os lembretes
+    -- automáticos de vencimento (2 dias antes + no dia) — origem_id aponta para
+    -- aluguel_competencias.id / honorarios_advocaticios.id, para permitir checar "já
+    -- mandei lembrete pra essa competência hoje?" antes de disparar de novo.
+    origem_tipo         TEXT NOT NULL CHECK (origem_tipo IN ('cobranca_asaas', 'comunicado_generico', 'lembrete_aluguel', 'lembrete_honorario')),
     origem_id           INTEGER,                -- cobrancas_asaas.id quando origem_tipo='cobranca_asaas'; NULL p/ comunicado solto
     canal               TEXT NOT NULL CHECK (canal IN ('email', 'whatsapp', 'telegram')),
     destinatario        TEXT NOT NULL,           -- endereço de e-mail, número de WhatsApp (E.164) ou chat_id do Telegram
@@ -2086,3 +2095,23 @@ CREATE TABLE IF NOT EXISTS notificacoes_enviadas (
 
 CREATE INDEX IF NOT EXISTS idx_notificacoes_enviadas_origem ON notificacoes_enviadas(origem_tipo, origem_id);
 CREATE INDEX IF NOT EXISTS idx_notificacoes_enviadas_status ON notificacoes_enviadas(status, criado_em);
+
+-- Vínculo de Telegram para CONTATOS EXTERNOS (locatário, cliente da advocacia, prestador de
+-- serviço) — diferente de `telegram_vinculos` no servidor, que só vincula chat_id a
+-- usuario_id (usuário DO SISTEMA). Aqui a identidade (contrato_locatario/entidade_legal/
+-- prestador) é dado de NEGÓCIO, que só existe neste banco local — por isso o código de
+-- vínculo é gerado e resolvido aqui, não no servidor (que só vê o código bruto chegando
+-- pelo webhook do bot, sem saber a quem ele pertence — ver
+-- server/src/migrations-phase4-vinculos-externos.sql).
+CREATE TABLE IF NOT EXISTS vinculos_telegram_externos (
+    id                  INTEGER PRIMARY KEY,
+    referencia_tipo     TEXT NOT NULL CHECK (referencia_tipo IN ('contrato_locatario', 'entidade_legal', 'prestador')),
+    referencia_id       INTEGER NOT NULL,
+    codigo_vinculo      TEXT NOT NULL UNIQUE,
+    chat_id             TEXT UNIQUE,            -- NULL até o bot confirmar o vínculo
+    vinculado_em        DATETIME,
+    expira_em           DATETIME NOT NULL,      -- código não usado expira
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vinculos_telegram_externos_referencia ON vinculos_telegram_externos(referencia_tipo, referencia_id);

@@ -67,9 +67,13 @@ export function initializeDatabase(): Database.Database {
       console.log("[Database] Schema already initialized");
     }
 
-    // Fase 3 (integrações Asaas/MeuPluggy/bot Telegram): aplicada em TODO boot, não só
-    // na primeira vez — ver cabeçalho de migrations-phase3-integracoes.sql.
-    runMigracoesFase3(db);
+    // Fases 3+ (integrações Asaas/MeuPluggy/bot Telegram, vínculos externos de Telegram, e
+    // o que vier depois): aplicadas em TODO boot, não só na primeira vez — ver cabeçalho de
+    // cada arquivo. Lista cresce a cada fase nova; nenhuma reescreve o que já existe.
+    runMigracoesIdempotentes(db, [
+      "migrations-phase3-integracoes.sql",
+      "migrations-phase4-vinculos-externos.sql",
+    ]);
 
     // Setup periodic cleanup of expired sessions
     setupSessionCleanup(db);
@@ -85,16 +89,19 @@ export function initializeDatabase(): Database.Database {
 }
 
 /**
- * Fase 3: tabelas de integrações externas, aplicadas em todo boot (idempotente —
- * ver cabeçalho de migrations-phase3-integracoes.sql).
+ * Tabelas de fases pós-auth (integrações, vínculos externos, etc.), aplicadas em todo
+ * boot (idempotente — cada arquivo só usa CREATE TABLE/INDEX IF NOT EXISTS, ver
+ * cabeçalho de cada um).
  */
-function runMigracoesFase3(db: Database.Database): void {
-  const migrationPath = path.join(__dirname, "migrations-phase3-integracoes.sql");
-  if (!fs.existsSync(migrationPath)) {
-    console.warn(`[Database] Migração fase 3 não encontrada em ${migrationPath}, pulando`);
-    return;
+function runMigracoesIdempotentes(db: Database.Database, arquivos: string[]): void {
+  for (const nomeArquivo of arquivos) {
+    const migrationPath = path.join(__dirname, nomeArquivo);
+    if (!fs.existsSync(migrationPath)) {
+      console.warn(`[Database] Migração não encontrada em ${migrationPath}, pulando`);
+      continue;
+    }
+    db.exec(fs.readFileSync(migrationPath, "utf-8"));
   }
-  db.exec(fs.readFileSync(migrationPath, "utf-8"));
 }
 
 /**

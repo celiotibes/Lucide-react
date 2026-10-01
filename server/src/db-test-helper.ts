@@ -9,11 +9,12 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Lê os dois arquivos de schema (fase 2 + fase 3 — ver migrations-phase3-integracoes.sql)
-// e concatena, na mesma ordem em que database-init.ts os aplica num boot real.
+// Lê todos os arquivos de schema (fase 2 + fases idempotentes seguintes) e concatena, na
+// mesma ordem em que database-init.ts os aplica num boot real.
 const SCHEMA_PATHS = [
   path.join(__dirname, "migrations-phase2-auth.sql"),
   path.join(__dirname, "migrations-phase3-integracoes.sql"),
+  path.join(__dirname, "migrations-phase4-vinculos-externos.sql"),
 ];
 const SCHEMA = SCHEMA_PATHS.map((schemaPath) => {
   try {

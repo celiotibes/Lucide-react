@@ -24,7 +24,7 @@
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 
-export type OrigemNotificacao = "cobranca_asaas" | "comunicado_generico";
+export type OrigemNotificacao = "cobranca_asaas" | "comunicado_generico" | "lembrete_aluguel" | "lembrete_honorario";
 export type CanalNotificacao = "email" | "whatsapp" | "telegram";
 export type StatusNotificacao = "pendente" | "enviado" | "falha";
 

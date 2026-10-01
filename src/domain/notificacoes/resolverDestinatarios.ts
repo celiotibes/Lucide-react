@@ -19,14 +19,13 @@
  *                                tem e-mail/telefone, só nome/cpf_cnpj/papel): o vínculo
  *                                processo -> entidade_legal com contato já existe direto.
  *
- * LIMITAÇÃO DE PRODUTO (documentada, não resolvida aqui — ver relatório da tarefa):
- * `telegramChatId` nesta função é SEMPRE `undefined`. O canal Telegram só faz sentido
- * hoje para o chat_id do PRÓPRIO usuário do sistema (titular/administrador/contador),
- * vinculado via `telegram_vinculos` (tabela do SERVIDOR, não deste banco) — locatários e
- * clientes da advocacia não têm (ainda) nenhuma coluna para vincular um chat_id próprio
- * em `contrato_locatarios`/`entidades_legais`. Quem usa o resultado desta função (ver
- * `despachoCliente.ts`) trata a ausência de `telegramChatId` como "canal pulado", nunca
- * como erro.
+ * ATUALIZAÇÃO (2026-10): `telegramChatId` agora é resolvido de verdade, via
+ * `vinculos_telegram_externos` (ver schema.sql e `vinculosExternos.ts`) — locatário,
+ * cliente da advocacia e prestador podem vincular o próprio chat_id pelo fluxo de código
+ * único (`/vincular CODIGO` no bot). Antes desta rodada, este campo era sempre
+ * `undefined`; continua sendo `undefined` sempre que a referência não tiver (ainda) um
+ * vínculo confirmado — quem usa o resultado (ver `despachoCliente.ts`) trata a ausência
+ * como "canal pulado", nunca como erro.
  *
  * Se não houver e-mail/telefone cadastrado para o destinatário resolvido (campo em
  * branco no cadastro), o campo correspondente vem como `undefined` — nunca lança erro:
@@ -35,10 +34,30 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 
+export type ReferenciaVinculoExterno = "contrato_locatario" | "entidade_legal" | "prestador";
+
+/** Chat_id vinculado (confirmado) de um contato externo, ou `undefined` se não houver
+ * vínculo — ou se o vínculo existir mas ainda não tiver sido confirmado pelo bot
+ * (`chat_id IS NULL` até a confirmação, ver `vinculosExternos.ts`). Função central: toda
+ * resolução de Telegram para contato externo passa por aqui, nunca lê
+ * `vinculos_telegram_externos` direto em mais de um lugar. */
+export function resolverChatIdExterno(
+  db: Database,
+  referenciaTipo: ReferenciaVinculoExterno,
+  referenciaId: number,
+): string | undefined {
+  const [vinculo] = consultar<{ chat_id: string | null }>(
+    db,
+    "SELECT chat_id FROM vinculos_telegram_externos WHERE referencia_tipo = ? AND referencia_id = ? AND chat_id IS NOT NULL ORDER BY vinculado_em DESC LIMIT 1",
+    [referenciaTipo, referenciaId],
+  );
+  return vinculo?.chat_id ?? undefined;
+}
+
 export interface DestinatariosResolvidos {
   email?: string;
   whatsappE164?: string;
-  /** Sempre `undefined` nesta função — ver limitação documentada no cabeçalho do arquivo. */
+  /** `undefined` quando a referência não tem vínculo confirmado — ver `resolverChatIdExterno`. */
   telegramChatId?: string;
 }
 
@@ -74,20 +93,24 @@ function resolverParaAluguel(db: Database, competenciaId: number): Destinatarios
   );
   if (!competencia) return DESTINATARIOS_VAZIOS;
 
-  const [contato] = consultar<{ email: string | null; telefone: string | null }>(
+  const [contato] = consultar<{ id: number; email: string | null; telefone: string | null }>(
     db,
-    "SELECT email, telefone FROM contrato_locatarios WHERE contrato_id = ? AND papel = 'locatario' ORDER BY id ASC LIMIT 1",
+    "SELECT id, email, telefone FROM contrato_locatarios WHERE contrato_id = ? AND papel = 'locatario' ORDER BY id ASC LIMIT 1",
     [competencia.contrato_id],
   );
   if (!contato) return DESTINATARIOS_VAZIOS;
 
-  return { email: normalizarEmail(contato.email), whatsappE164: normalizarParaE164(contato.telefone) };
+  return {
+    email: normalizarEmail(contato.email),
+    whatsappE164: normalizarParaE164(contato.telefone),
+    telegramChatId: resolverChatIdExterno(db, "contrato_locatario", contato.id),
+  };
 }
 
 function resolverParaHonorario(db: Database, honorarioId: number): DestinatariosResolvidos {
-  const [linha] = consultar<{ email: string | null; telefone: string | null }>(
+  const [linha] = consultar<{ entidade_id: number; email: string | null; telefone: string | null }>(
     db,
-    `SELECT el.email AS email, el.telefone AS telefone
+    `SELECT el.id AS entidade_id, el.email AS email, el.telefone AS telefone
      FROM honorarios_advocaticios h
      JOIN processos_legais p ON p.id = h.processo_id
      JOIN entidades_legais el ON el.id = p.entidade_id
@@ -96,7 +119,46 @@ function resolverParaHonorario(db: Database, honorarioId: number): Destinatarios
   );
   if (!linha) return DESTINATARIOS_VAZIOS;
 
-  return { email: normalizarEmail(linha.email), whatsappE164: normalizarParaE164(linha.telefone) };
+  return {
+    email: normalizarEmail(linha.email),
+    whatsappE164: normalizarParaE164(linha.telefone),
+    telegramChatId: resolverChatIdExterno(db, "entidade_legal", linha.entidade_id),
+  };
+}
+
+/** Resolve os destinatários de um prestador de serviço (`prestadores.id`) — usado pelas
+ * telas de operações/ordem de serviço para notificar o prestador atribuído. */
+export function resolverDestinatariosPrestador(db: Database, prestadorId: number): DestinatariosResolvidos {
+  const [prestador] = consultar<{ email: string | null; telefone: string | null }>(
+    db,
+    "SELECT email, telefone FROM prestadores WHERE id = ?",
+    [prestadorId],
+  );
+  if (!prestador) return DESTINATARIOS_VAZIOS;
+
+  return {
+    email: normalizarEmail(prestador.email),
+    whatsappE164: normalizarParaE164(prestador.telefone),
+    telegramChatId: resolverChatIdExterno(db, "prestador", prestadorId),
+  };
+}
+
+/** Resolve os destinatários de um locatário específico (`contrato_locatarios.id`) — usado
+ * por telas que não partem de uma competência/cobrança (ex: envio de laudo de vistoria),
+ * mas já sabem exatamente qual linha de `contrato_locatarios` notificar. */
+export function resolverDestinatariosContratoLocatario(db: Database, contratoLocatarioId: number): DestinatariosResolvidos {
+  const [contato] = consultar<{ email: string | null; telefone: string | null }>(
+    db,
+    "SELECT email, telefone FROM contrato_locatarios WHERE id = ?",
+    [contratoLocatarioId],
+  );
+  if (!contato) return DESTINATARIOS_VAZIOS;
+
+  return {
+    email: normalizarEmail(contato.email),
+    whatsappE164: normalizarParaE164(contato.telefone),
+    telegramChatId: resolverChatIdExterno(db, "contrato_locatario", contratoLocatarioId),
+  };
 }
 
 /**
