@@ -9,15 +9,19 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Read schema once
-const SCHEMA_PATH = path.join(__dirname, "migrations-phase2-auth.sql");
-const SCHEMA = (() => {
+// Lê os dois arquivos de schema (fase 2 + fase 3 — ver migrations-phase3-integracoes.sql)
+// e concatena, na mesma ordem em que database-init.ts os aplica num boot real.
+const SCHEMA_PATHS = [
+  path.join(__dirname, "migrations-phase2-auth.sql"),
+  path.join(__dirname, "migrations-phase3-integracoes.sql"),
+];
+const SCHEMA = SCHEMA_PATHS.map((schemaPath) => {
   try {
-    return fs.readFileSync(SCHEMA_PATH, "utf-8");
+    return fs.readFileSync(schemaPath, "utf-8");
   } catch (e) {
-    throw new Error(`Cannot read schema file from ${SCHEMA_PATH}: ${e}`);
+    throw new Error(`Cannot read schema file from ${schemaPath}: ${e}`);
   }
-})();
+}).join("\n");
 
 /**
  * Initialize a test database with the Phase 2 schema

@@ -10,6 +10,8 @@ import { PermissoesServiceDB } from "../src/domain/auth/permissoes-db.js";
 import { DuplicatePaymentGuardDB } from "../src/domain/erp/duplicate-payment-guard-db.js";
 import { avisarSeSegredoForTemporario } from "../src/domain/auth/token.js";
 import { criarRotasAuth } from "../src/routes/auth-routes.js";
+import { EventosExternosServiceDB } from "../src/domain/integracoes/eventos-externos-db.js";
+import { criarRotasEventosExternos } from "../src/routes/eventos-externos-routes.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -28,6 +30,7 @@ const authService = new AuthServiceDB(db);
 const auditService = new AuditTrailServiceDB(db);
 const permissoesService = new PermissoesServiceDB(db);
 const paymentGuard = new DuplicatePaymentGuardDB(db);
+const eventosExternosService = new EventosExternosServiceDB(db);
 
 console.log("[Server] Database and services initialized");
 
@@ -60,6 +63,14 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 }));
  * bootstrap) e herdam a mesma política de CORS já configurada acima —
  * nenhuma configuração de CORS adicional é feita para elas. */
 app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService }));
+
+/** Inbox de eventos externos (webhook da Asaas, captura do bot do Telegram) — ver
+ * eventos-externos-routes.ts/eventos-externos-db.ts. O cliente consome por polling
+ * porque o servidor não tem acesso ao banco local do navegador. */
+app.use(
+  "/api/eventos-externos",
+  criarRotasEventosExternos({ authService, eventosService: eventosExternosService }),
+);
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
