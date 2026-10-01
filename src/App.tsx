@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -67,12 +67,17 @@ const GerenciamentoPermissoesView = lazy(() => import("./components/Gerenciament
 const ProjetosExpansaoView = lazy(() => import("./components/ProjetosExpansaoView").then((m) => ({ default: m.ProjetosExpansaoView })));
 const HistoricoJurosView = lazy(() => import("./components/HistoricoJurosView").then((m) => ({ default: m.HistoricoJurosView })));
 const PriorizacaoQuitacaoView = lazy(() => import("./components/PriorizacaoQuitacaoView").then((m) => ({ default: m.PriorizacaoQuitacaoView })));
+const CobrancasAsaasView = lazy(() => import("./components/integracoes/CobrancasAsaasView").then((m) => ({ default: m.CobrancasAsaasView })));
+const PluggySyncView = lazy(() => import("./components/integracoes/PluggySyncView").then((m) => ({ default: m.PluggySyncView })));
+const CapturasTelegramView = lazy(() => import("./components/integracoes/CapturasTelegramView").then((m) => ({ default: m.CapturasTelegramView })));
+const NotificacoesView = lazy(() => import("./components/integracoes/NotificacoesView").then((m) => ({ default: m.NotificacoesView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
-  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes" | "expansao" | "juros" | "quitacao";
+  | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes" | "expansao" | "juros" | "quitacao"
+  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -94,6 +99,10 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "expansao", rotulo: "Projetos de expansão", icone: Hammer },
   { id: "juros", rotulo: "Histórico de juros pagos", icone: Percent },
   { id: "quitacao", rotulo: "Priorização de quitação de dívidas", icone: ArrowDownUp },
+  { id: "cobrancasasaas", rotulo: "Cobranças Asaas (boleto/PIX)", icone: Receipt },
+  { id: "pluggymeu", rotulo: "Sincronização bancária (MeuPluggy)", icone: Wallet },
+  { id: "capturastelegram", rotulo: "Captura via Telegram", icone: Send },
+  { id: "notificacoes", rotulo: "Notificações enviadas", icone: Bell },
   { id: "avaliacaomercado", rotulo: "Avaliação de mercado (gerencial)", icone: CircleDollarSign },
   { id: "indicadoresgestao", rotulo: "Indicadores de gestão financeira", icone: Gauge },
   { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
@@ -446,6 +455,10 @@ function Conteudo() {
             {aba === "expansao" && <ProjetosExpansaoView />}
             {aba === "juros" && <HistoricoJurosView />}
             {aba === "quitacao" && <PriorizacaoQuitacaoView />}
+            {aba === "cobrancasasaas" && <CobrancasAsaasView />}
+            {aba === "pluggymeu" && <PluggySyncView />}
+            {aba === "capturastelegram" && <CapturasTelegramView />}
+            {aba === "notificacoes" && <NotificacoesView />}
             {aba === "avaliacaomercado" && <AvaliacaoMercadoView />}
             {aba === "indicadoresgestao" && <IndicadoresGestaoView />}
             {aba === "relatorios" && <RelatoriosIntegradosView />}

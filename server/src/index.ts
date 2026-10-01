@@ -12,6 +12,10 @@ import { avisarSeSegredoForTemporario } from "../src/domain/auth/token.js";
 import { criarRotasAuth } from "../src/routes/auth-routes.js";
 import { EventosExternosServiceDB } from "../src/domain/integracoes/eventos-externos-db.js";
 import { criarRotasEventosExternos } from "../src/routes/eventos-externos-routes.js";
+import { criarRotasAsaas } from "../src/routes/asaas-routes.js";
+import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
+import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
+import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -71,6 +75,26 @@ app.use(
   "/api/eventos-externos",
   criarRotasEventosExternos({ authService, eventosService: eventosExternosService }),
 );
+
+/** Emissão de boleto/PIX via Asaas (aluguel e honorários advocatícios) — inclui o
+ * webhook de confirmação de pagamento em /api/asaas/webhooks/asaas (sem
+ * autenticação Bearer, validado por header próprio — ver asaas-routes.ts). */
+app.use("/api/asaas", criarRotasAsaas({ authService, eventosService: eventosExternosService }));
+
+/** Sincronização bancária pessoal via MeuPluggy (uso gratuito, paralelo ao fluxo
+ * comercial de /api/accounts e /api/transactions acima) — ver pluggy-meu-routes.ts. */
+app.use("/api/pluggy-meu", criarRotasPluggyMeu({ authService }));
+
+/** Bot do Telegram para captura rápida (texto/foto) de documentos — inclui o
+ * webhook do Telegram em /api/telegram/webhook (sem autenticação Bearer, validado
+ * pelo header X-Telegram-Bot-Api-Secret-Token — ver telegram-routes.ts). */
+app.use("/api/telegram", criarRotasTelegram({ authService, eventosService: eventosExternosService, db }));
+
+/** Disparo de notificação (e-mail/WhatsApp/Telegram) para cobrança ou comunicado —
+ * stateless: recebe os destinatários já resolvidos pelo cliente e só envia, não
+ * grava nada (quem persiste o histórico é o próprio cliente, em notificacoes_enviadas
+ * no banco local — ver notificacoes-routes.ts). */
+app.use("/api/notificacoes", criarRotasNotificacoes({ authService }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
