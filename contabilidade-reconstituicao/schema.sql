@@ -1964,3 +1964,98 @@ CREATE TABLE IF NOT EXISTS projetos_expansao (
 );
 
 CREATE INDEX IF NOT EXISTS idx_projetos_expansao_status ON projetos_expansao(status);
+
+-- =====================================================================================
+-- INTEGRAÇÕES EXTERNAS — ASAAS (emissão de boleto/PIX) E MEUPLUGGY (sincronização bancária)
+-- =====================================================================================
+-- Decisão do usuário (2026-10): emitir boletos para inquilinos e clientes da advocacia via
+-- Asaas, e sincronizar extratos de banco/cartão via MeuPluggy (uso pessoal gratuito da
+-- Pluggy). As credenciais (Asaas API key; Pluggy client_id/client_secret) vivem SOMENTE em
+-- variável de ambiente do servidor — nunca neste banco nem no bundle do cliente, mesmo
+-- padrão já usado por `exigirChaveApi`/`server/src/pluggy.ts`. O servidor é só um proxy que
+-- fala com Asaas/Pluggy; o registro de negócio (cobrança emitida, conta vinculada) continua
+-- morando no banco local do cliente, como todo o resto do sistema.
+
+-- Recebível de honorários advocatícios — não existia tabela de "contas a receber" para
+-- clientes da advocacia (só despesas/custas em advocacia.ts); sem isso não há o que
+-- referenciar ao emitir boleto. Mesmo desenho de `aluguel_competencias` (uma linha por
+-- parcela/vencimento, baixa real só via ledger_entry_id_baixa).
+CREATE TABLE IF NOT EXISTS honorarios_advocaticios (
+    id                      INTEGER PRIMARY KEY,
+    processo_id             INTEGER NOT NULL REFERENCES processos_legais(id),
+    parcela_numero          INTEGER NOT NULL DEFAULT 1,
+    descricao               TEXT,
+    valor_devido            REAL NOT NULL CHECK (valor_devido > 0),
+    data_vencimento         DATE NOT NULL,
+    data_recebimento        DATE,                  -- NULL até ser recebida
+    status                  TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'recebido', 'cancelado')),
+    ledger_entry_id_baixa   INTEGER REFERENCES ledger_entries(id),  -- preenchido só na baixa
+    criado_em               DATE NOT NULL,
+    UNIQUE (processo_id, parcela_numero)
+);
+
+CREATE INDEX IF NOT EXISTS idx_honorarios_advocaticios_processo_status ON honorarios_advocaticios(processo_id, status, data_vencimento);
+
+-- Mapeamento local ↔ cliente Asaas. Polimórfico porque o "cliente" que recebe o boleto pode
+-- ser o locatário de um contrato de locação ou uma entidade_legal (cliente da advocacia) —
+-- mesmo padrão de `retencoes_legais(entidade_tipo, entidade_id)`.
+CREATE TABLE IF NOT EXISTS asaas_clientes_externos (
+    id                  INTEGER PRIMARY KEY,
+    referencia_tipo     TEXT NOT NULL CHECK (referencia_tipo IN ('contrato_locacao', 'entidade_legal')),
+    referencia_id       INTEGER NOT NULL,
+    asaas_customer_id   TEXT NOT NULL UNIQUE,
+    nome                TEXT NOT NULL,
+    cpf_cnpj            TEXT,
+    email               TEXT,
+    telefone            TEXT,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (referencia_tipo, referencia_id)
+);
+
+-- Cobrança (boleto ou PIX) emitida via Asaas. origem é polimórfica (aluguel de inquilino ou
+-- honorário da advocacia). multa_percentual/juros_percentual_mensal aqui são um ESPELHO da
+-- config enviada ao Asaas na criação da cobrança (decisão do usuário: deixar o próprio Asaas
+-- calcular e cobrar automaticamente o atraso) — nunca a fonte de cálculo para outros módulos
+-- (inadimplência/juros do sistema já tem sua própria lógica, independente desta tabela).
+-- Sem UNIQUE em (origem_tipo, origem_id): uma cobrança cancelada pode ser reemitida.
+CREATE TABLE IF NOT EXISTS cobrancas_asaas (
+    id                          INTEGER PRIMARY KEY,
+    origem_tipo                 TEXT NOT NULL CHECK (origem_tipo IN ('aluguel_competencia', 'honorario_advocaticio')),
+    origem_id                   INTEGER NOT NULL,
+    asaas_customer_id           TEXT NOT NULL,
+    asaas_charge_id              TEXT UNIQUE,         -- NULL até a API da Asaas confirmar criação
+    tipo_cobranca                TEXT NOT NULL DEFAULT 'boleto' CHECK (tipo_cobranca IN ('boleto', 'pix')),
+    valor                        REAL NOT NULL CHECK (valor > 0),
+    data_vencimento              DATE NOT NULL,
+    status                       TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago', 'atrasado', 'cancelado')),
+    boleto_url                   TEXT,
+    linha_digitavel               TEXT,
+    pix_qrcode                   TEXT,
+    multa_percentual             REAL,
+    juros_percentual_mensal      REAL,
+    data_pagamento_confirmado    DATE,
+    webhook_ultimo_evento        TEXT,
+    webhook_recebido_em          DATETIME,
+    criado_em                    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_origem ON cobrancas_asaas(origem_tipo, origem_id);
+CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_status ON cobrancas_asaas(status, data_vencimento);
+
+-- Vínculo entre uma conta bancária já cadastrada e a conta equivalente no MeuPluggy (uso
+-- pessoal gratuito, até 5 conexões — ver docs/viabilidade-backend-pagamentos.md). O usuário
+-- conecta a conta em meu.pluggy.ai por fora do sistema; aqui só guardamos o mapeamento para
+-- a sincronização (import de transações) saber qual conta_bancaria_id atualizar.
+CREATE TABLE IF NOT EXISTS pluggy_contas_vinculadas (
+    id                          INTEGER PRIMARY KEY,
+    conta_bancaria_id           INTEGER NOT NULL REFERENCES contas_bancarias(id),
+    pluggy_item_id               TEXT NOT NULL,
+    pluggy_account_id            TEXT NOT NULL UNIQUE,
+    nome_instituicao_pluggy      TEXT,
+    ultima_sincronizacao         DATETIME,
+    status_sincronizacao         TEXT NOT NULL DEFAULT 'ok' CHECK (status_sincronizacao IN ('ok', 'erro', 'desconectado')),
+    observacoes                  TEXT,
+    criado_em                    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pluggy_contas_vinculadas_conta ON pluggy_contas_vinculadas(conta_bancaria_id);

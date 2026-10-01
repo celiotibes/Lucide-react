@@ -67,6 +67,10 @@ export function initializeDatabase(): Database.Database {
       console.log("[Database] Schema already initialized");
     }
 
+    // Fase 3 (integrações Asaas/MeuPluggy/bot Telegram): aplicada em TODO boot, não só
+    // na primeira vez — ver cabeçalho de migrations-phase3-integracoes.sql.
+    runMigracoesFase3(db);
+
     // Setup periodic cleanup of expired sessions
     setupSessionCleanup(db);
 
@@ -78,6 +82,19 @@ export function initializeDatabase(): Database.Database {
       `Failed to initialize database: ${erro instanceof Error ? erro.message : String(erro)}`
     );
   }
+}
+
+/**
+ * Fase 3: tabelas de integrações externas, aplicadas em todo boot (idempotente —
+ * ver cabeçalho de migrations-phase3-integracoes.sql).
+ */
+function runMigracoesFase3(db: Database.Database): void {
+  const migrationPath = path.join(__dirname, "migrations-phase3-integracoes.sql");
+  if (!fs.existsSync(migrationPath)) {
+    console.warn(`[Database] Migração fase 3 não encontrada em ${migrationPath}, pulando`);
+    return;
+  }
+  db.exec(fs.readFileSync(migrationPath, "utf-8"));
 }
 
 /**
