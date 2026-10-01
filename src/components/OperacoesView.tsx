@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Star,
   BanknoteArrowDown,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
@@ -25,14 +27,71 @@ import {
   avaliarPrestador,
   listarOrdensServico,
   obterOrdemServicoComHistorico,
+  dispararNotificacaoPrestadorOS,
   LIMITE_APROVACAO_DUPLA,
   type StatusOS,
   type PrioridadeOS,
   type TipoEventoOS,
 } from "../domain/operacoes/ordensServico";
+import type { ResultadoDisparo } from "../domain/notificacoes/despachoCliente";
+import { criarNotificacoesApiClientHttp } from "../domain/notificacoes/vinculosExternos";
 import type { Imovel, Prestador } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
+
+/**
+ * Configuração local (backend + token de sessão) para disparar a notificação ao prestador —
+ * mesmo padrão de `CobrancasAsaasView.tsx` (chave própria em `localStorage`, por ser
+ * conveniência de "para onde apontar", não dado de negócio).
+ */
+interface ConfiguracaoNotificarPrestador {
+  enderecoBackend: string;
+  tokenSessao: string;
+}
+
+const CHAVE_LOCALSTORAGE_NOTIFICAR_PRESTADOR = "operacoes-notificar-prestador:config:v1";
+const CONFIG_NOTIFICAR_PRESTADOR_PADRAO: ConfiguracaoNotificarPrestador = { enderecoBackend: "", tokenSessao: "" };
+
+function carregarConfigNotificarPrestador(): ConfiguracaoNotificarPrestador {
+  try {
+    const bruto = localStorage.getItem(CHAVE_LOCALSTORAGE_NOTIFICAR_PRESTADOR);
+    if (!bruto) return { ...CONFIG_NOTIFICAR_PRESTADOR_PADRAO };
+    return { ...CONFIG_NOTIFICAR_PRESTADOR_PADRAO, ...(JSON.parse(bruto) as Partial<ConfiguracaoNotificarPrestador>) };
+  } catch {
+    return { ...CONFIG_NOTIFICAR_PRESTADOR_PADRAO };
+  }
+}
+
+function salvarConfigNotificarPrestador(config: ConfiguracaoNotificarPrestador): void {
+  try {
+    localStorage.setItem(CHAVE_LOCALSTORAGE_NOTIFICAR_PRESTADOR, JSON.stringify(config));
+  } catch {
+    // Storage bloqueado/cheio — a configuração continua valendo em memória para esta sessão.
+  }
+}
+
+function notificarPrestadorConfigurado(config: ConfiguracaoNotificarPrestador): boolean {
+  return config.enderecoBackend.trim().length > 0 && config.tokenSessao.trim().length > 0;
+}
+
+const ROTULO_CANAL_NOTIFICACAO: Record<ResultadoDisparo["canal"], string> = {
+  email: "E-mail",
+  whatsapp: "WhatsApp",
+  telegram: "Telegram",
+};
+
+/** Resume os resultados por canal em uma linha só, para o toast — ex.: "E-mail: enviado ·
+ * WhatsApp: pulado (Nenhum telefone cadastrado...) · Telegram: pulado (...)". */
+function resumoDisparoPrestador(resultados: ResultadoDisparo[]): string {
+  return resultados
+    .map((r) => {
+      const rotulo = ROTULO_CANAL_NOTIFICACAO[r.canal] ?? r.canal;
+      if (r.status === "enviado") return `${rotulo}: enviado`;
+      if (r.status === "falha") return `${rotulo}: falha (${r.motivo ?? "erro desconhecido"})`;
+      return `${rotulo}: pulado (${r.motivo ?? "sem destinatário"})`;
+    })
+    .join(" · ");
+}
 
 const STATUS_OS: StatusOS[] = ["aberta", "atribuida", "em_andamento", "concluida", "impedida", "cancelada"];
 
@@ -159,6 +218,18 @@ export function OperacoesView() {
 
   const [notaAvaliacao, setNotaAvaliacao] = useState(5);
   const [comentarioAvaliacao, setComentarioAvaliacao] = useState("");
+
+  const [configNotificarPrestador, setConfigNotificarPrestador] = useState<ConfiguracaoNotificarPrestador>(() => carregarConfigNotificarPrestador());
+  const notificarPrestadorConfiguradoAtual = notificarPrestadorConfigurado(configNotificarPrestador);
+  const [notificandoOrdemId, setNotificandoOrdemId] = useState<number | null>(null);
+
+  function atualizarConfigNotificarPrestador(patch: Partial<ConfiguracaoNotificarPrestador>) {
+    setConfigNotificarPrestador((atual) => {
+      const proximo = { ...atual, ...patch };
+      salvarConfigNotificarPrestador(proximo);
+      return proximo;
+    });
+  }
 
   const imoveis = useMemo<Imovel[]>(
     () => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []),
@@ -362,6 +433,28 @@ export function OperacoesView() {
     }
   }
 
+  async function notificarPrestador(ordemServicoId: number) {
+    if (!db) return;
+    if (!notificarPrestadorConfiguradoAtual) {
+      avisar("critical", "Configure o endereço do backend e o token de sessão antes de notificar o prestador.");
+      return;
+    }
+    setNotificandoOrdemId(ordemServicoId);
+    try {
+      const apiClient = criarNotificacoesApiClientHttp(configNotificarPrestador.enderecoBackend.trim(), configNotificarPrestador.tokenSessao.trim());
+      const resultados = await dispararNotificacaoPrestadorOS(db, apiClient, ordemServicoId);
+      await persistir();
+      const algumaFalha = resultados.some((r) => r.status === "falha");
+      const algumEnviado = resultados.some((r) => r.status === "enviado");
+      const tipoToast = algumaFalha ? "critical" : algumEnviado ? "good" : "warning";
+      avisar(tipoToast, `Notificação ao prestador — ${resumoDisparoPrestador(resultados)}`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "Erro ao notificar o prestador.");
+    } finally {
+      setNotificandoOrdemId(null);
+    }
+  }
+
   if (!db) return null;
 
   return (
@@ -372,6 +465,39 @@ export function OperacoesView() {
         despesa por alçada (acima de {formatarMoeda(LIMITE_APROVACAO_DUPLA)} exige dois aprovadores distintos) e
         avaliação do prestador ao concluir.
       </p>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, marginBottom: 10 }}>Notificar prestador — backend e sessão</h3>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Endereço do backend
+            <input
+              className="btn"
+              style={{ width: 280, marginTop: 4, cursor: "text" }}
+              placeholder="http://localhost:8787"
+              value={configNotificarPrestador.enderecoBackend}
+              onChange={(e) => atualizarConfigNotificarPrestador({ enderecoBackend: e.target.value })}
+            />
+          </label>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Token de sessão (Bearer)
+            <input
+              className="btn"
+              type="password"
+              style={{ width: 280, marginTop: 4, cursor: "text" }}
+              placeholder="obtido via POST /api/auth/login"
+              value={configNotificarPrestador.tokenSessao}
+              onChange={(e) => atualizarConfigNotificarPrestador({ tokenSessao: e.target.value })}
+            />
+          </label>
+        </div>
+        {!notificarPrestadorConfiguradoAtual && (
+          <p style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 10 }}>
+            Sem backend/token configurados, o botão "Notificar prestador" (nos detalhes de cada ordem) não dispara
+            nada — nenhuma chamada de rede é feita sem essa configuração.
+          </p>
+        )}
+      </div>
 
       <div className="kpi-grid" style={{ marginBottom: 20 }}>
         {STATUS_OS.map((status) => (
@@ -573,6 +699,19 @@ export function OperacoesView() {
                             </label>
                             <button className="btn" onClick={confirmarAtribuicao} disabled={!prestadorParaAtribuir}>
                               <UserPlus size={13} /> Atribuir
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Notificar o prestador já atribuído (e-mail/WhatsApp/Telegram) */}
+                        {o.prestador_id !== null && (
+                          <div style={{ marginBottom: 16 }}>
+                            <button
+                              className="btn"
+                              onClick={() => notificarPrestador(o.id)}
+                              disabled={notificandoOrdemId === o.id}
+                            >
+                              {notificandoOrdemId === o.id ? <Loader2 size={13} className="spin" /> : <Send size={13} />} Notificar prestador
                             </button>
                           </div>
                         )}

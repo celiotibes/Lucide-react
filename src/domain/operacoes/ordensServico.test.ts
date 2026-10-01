@@ -13,8 +13,35 @@ import {
   avaliarPrestador,
   listarOrdensServico,
   obterOrdemServicoComHistorico,
+  dispararNotificacaoPrestadorOS,
+  montarMensagemNotificacaoOS,
   LIMITE_APROVACAO_DUPLA,
 } from "./ordensServico";
+import type { NotificacoesApiClient, ResultadoDisparo } from "../notificacoes/despachoCliente";
+
+/** Fake do apiClient de notificações — nunca toca rede; mesmo espírito do fake usado em
+ * `../notificacoes/__tests__/despachoCliente.test.ts`, duplicado aqui por conveniência de
+ * teste (não exportado de lá). */
+function criarApiClienteNotificacaoFake(
+  gerarResultado: (canal: "email" | "whatsapp" | "telegram", destinatario: string) => ResultadoDisparo = (canal, destinatario) => ({
+    canal,
+    destinatario,
+    status: "enviado",
+  }),
+): NotificacoesApiClient & { chamadas: unknown[] } {
+  const chamadas: unknown[] = [];
+  return {
+    chamadas,
+    async disparar(dados) {
+      chamadas.push(dados);
+      const resultados: ResultadoDisparo[] = [];
+      if (dados.destinatarios.email) resultados.push(gerarResultado("email", dados.destinatarios.email));
+      if (dados.destinatarios.whatsappE164) resultados.push(gerarResultado("whatsapp", dados.destinatarios.whatsappE164));
+      if (dados.destinatarios.telegramChatId) resultados.push(gerarResultado("telegram", dados.destinatarios.telegramChatId));
+      return { resultados };
+    },
+  };
+}
 
 /** Cenário determinístico contra o schema REAL (contabilidade-reconstituicao/schema.sql),
  * via criarBancoDeTeste() — nunca contra um CREATE TABLE inventado no teste. */
@@ -257,6 +284,73 @@ describe("ordensServico", () => {
 
       const doPrestador = listarOrdensServico(db, { prestadorId: PRESTADOR_1 });
       expect(doPrestador.map((o) => o.id)).toEqual([os2]);
+    });
+  });
+
+  describe("notificação ao prestador", () => {
+    it("monta a mensagem com imóvel, serviço, descrição, prioridade e SLA", () => {
+      const { assunto, mensagem } = montarMensagemNotificacaoOS({
+        titulo: "Vazamento no banheiro",
+        descricao: "Vazando embaixo da pia",
+        prioridade: "urgente",
+        slaDataLimite: "2026-11-05",
+        apelidoImovel: "Apto 101",
+      });
+      expect(assunto).toContain("Vazamento no banheiro");
+      expect(mensagem).toContain("Apto 101");
+      expect(mensagem).toContain("Vazando embaixo da pia");
+      expect(mensagem).toContain("Urgente");
+      expect(mensagem).toContain("05/11/2026");
+    });
+
+    it("omite descrição/SLA da mensagem quando a ordem não os tem", () => {
+      const { mensagem } = montarMensagemNotificacaoOS({
+        titulo: "Jardinagem",
+        descricao: null,
+        prioridade: "normal",
+        slaDataLimite: null,
+        apelidoImovel: "Apto 101",
+      });
+      expect(mensagem).not.toContain("Descrição");
+      expect(mensagem).not.toContain("SLA");
+    });
+
+    it("dispara e-mail/WhatsApp para o prestador atribuído quando ele tem contato cadastrado", async () => {
+      executar(db, "UPDATE prestadores SET email = ?, telefone = ? WHERE id = ?", [
+        "joao@reparos.example.com",
+        "11988887777",
+        PRESTADOR_1,
+      ]);
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Vazamento no banheiro", prioridade: "alta" });
+      atribuirPrestador(db, osId, PRESTADOR_1, "Síndico");
+
+      const apiClient = criarApiClienteNotificacaoFake();
+      const resultados = await dispararNotificacaoPrestadorOS(db, apiClient, osId);
+
+      expect(resultados.find((r) => r.canal === "email")).toMatchObject({ status: "enviado", destinatario: "joao@reparos.example.com" });
+      expect(resultados.find((r) => r.canal === "whatsapp")).toMatchObject({ status: "enviado", destinatario: "+5511988887777" });
+      // Prestador não tem vínculo de Telegram confirmado -> canal pulado, não erro.
+      expect(resultados.find((r) => r.canal === "telegram")).toMatchObject({ status: "pulado" });
+      expect(apiClient.chamadas).toHaveLength(1);
+    });
+
+    it("prestador sem e-mail/telefone cadastrado: os 3 canais vêm 'pulado', sem chamar o apiClient", async () => {
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "Jardinagem" });
+      atribuirPrestador(db, osId, PRESTADOR_1, "Síndico"); // PRESTADOR_1 criado sem email/telefone na fixture
+
+      const apiClient = criarApiClienteNotificacaoFake();
+      const resultados = await dispararNotificacaoPrestadorOS(db, apiClient, osId);
+
+      expect(resultados).toHaveLength(3);
+      expect(resultados.every((r) => r.status === "pulado")).toBe(true);
+      expect(apiClient.chamadas).toHaveLength(0);
+    });
+
+    it("recusa notificar uma ordem sem prestador atribuído", async () => {
+      const osId = criarOrdemServico(db, { imovelId: IMOVEL_1, titulo: "OS sem prestador" });
+      const apiClient = criarApiClienteNotificacaoFake();
+      await expect(dispararNotificacaoPrestadorOS(db, apiClient, osId)).rejects.toThrow(/não tem prestador atribuído/i);
+      expect(apiClient.chamadas).toHaveLength(0);
     });
   });
 });

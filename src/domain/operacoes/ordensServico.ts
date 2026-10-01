@@ -76,6 +76,8 @@
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import { registrarContaAPagar } from "../contasAPagar/contasAPagar";
+import { resolverDestinatariosPrestador } from "../notificacoes/resolverDestinatarios";
+import { dispararNotificacaoComunicado, type NotificacoesApiClient, type ResultadoDisparo } from "../notificacoes/despachoCliente";
 
 export type PrioridadeOS = "baixa" | "normal" | "alta" | "urgente";
 export type StatusOS = "aberta" | "atribuida" | "em_andamento" | "concluida" | "impedida" | "cancelada";
@@ -599,4 +601,83 @@ export function obterOrdemServicoComHistorico(db: Database, ordemServicoId: numb
     null;
 
   return { ordem, eventos, despesas, avaliacao };
+}
+
+// ============================================================================
+// NOTIFICAÇÃO AO PRESTADOR (e-mail/WhatsApp/Telegram)
+// ============================================================================
+//
+// Reaproveita a infraestrutura de notificação já pronta em `../notificacoes/`
+// (`dispararNotificacaoComunicado` + `resolverDestinatariosPrestador`) — este módulo só monta
+// a mensagem com os dados da própria OS e delega o disparo, exatamente como
+// `lembretesVencimento.ts` já faz para aluguel/honorário. `prestadores.email`/`.telefone`
+// (schema.sql) são lidos por `resolverDestinatariosPrestador`; quando ausentes, o canal
+// correspondente vem 'pulado' — nunca lança erro por falta de contato (ver aquele módulo).
+
+const ROTULO_PRIORIDADE_OS: Record<PrioridadeOS, string> = {
+  baixa: "Baixa",
+  normal: "Normal",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
+/** `'YYYY-MM-DD'` -> `'DD/MM/YYYY'` — mesma necessidade (e mesmo padrão duplicado, por
+ * convenção deste domínio) de `formatarDataBr` em `../notificacoes/lembretesVencimento.ts`. */
+function formatarDataBrCompleta(dataIso: string): string {
+  const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(dataIso);
+  if (!partes) return dataIso;
+  return `${partes[3]}/${partes[2]}/${partes[1]}`;
+}
+
+export interface DadosNotificacaoOS {
+  titulo: string;
+  descricao: string | null;
+  prioridade: PrioridadeOS;
+  slaDataLimite: string | null;
+  apelidoImovel: string;
+}
+
+/** Monta assunto/mensagem da notificação ao prestador a partir dos dados que a própria OS
+ * já tem — função pura (sem acesso a banco), para ficar facilmente testável e reaproveitável
+ * caso outra tela precise do mesmo texto. */
+export function montarMensagemNotificacaoOS(dados: DadosNotificacaoOS): { assunto: string; mensagem: string } {
+  const partes = [`Imóvel: ${dados.apelidoImovel}`, `Serviço: ${dados.titulo}`];
+  if (dados.descricao) partes.push(`Descrição: ${dados.descricao}`);
+  partes.push(`Prioridade: ${ROTULO_PRIORIDADE_OS[dados.prioridade]}`);
+  if (dados.slaDataLimite) partes.push(`Prazo (SLA): ${formatarDataBrCompleta(dados.slaDataLimite)}`);
+
+  return {
+    assunto: `Ordem de serviço atribuída a você — ${dados.titulo}`,
+    mensagem: partes.join(" | "),
+  };
+}
+
+/** Notifica (e-mail/WhatsApp/Telegram) o prestador atribuído a uma ordem de serviço, com os
+ * detalhes da própria ordem (imóvel, serviço/descrição, prioridade, prazo). Lança se a ordem
+ * não existir ou não tiver prestador atribuído — quem chama (a tela) já sabe `prestador_id`
+ * antes de oferecer o botão, então essas duas condições indicam uso incorreto, não um estado
+ * de negócio esperado. A ausência de contato cadastrado do prestador NUNCA lança: vira canal
+ * 'pulado' no resultado (ver `resolverDestinatariosPrestador`/`dispararNotificacaoComunicado`). */
+export async function dispararNotificacaoPrestadorOS(
+  db: Database,
+  apiClient: NotificacoesApiClient,
+  ordemServicoId: number,
+): Promise<ResultadoDisparo[]> {
+  const ordem = obterOrdemBruta(db, ordemServicoId);
+  if (!ordem) throw new Error(`Ordem de serviço ${ordemServicoId} não encontrada.`);
+  if (ordem.prestador_id === null) {
+    throw new Error("Esta ordem não tem prestador atribuído — não há para quem notificar.");
+  }
+
+  const [imovel] = consultar<{ apelido: string }>(db, "SELECT apelido FROM imoveis WHERE id = ?", [ordem.imovel_id]);
+  const { assunto, mensagem } = montarMensagemNotificacaoOS({
+    titulo: ordem.titulo,
+    descricao: ordem.descricao,
+    prioridade: ordem.prioridade,
+    slaDataLimite: ordem.sla_data_limite,
+    apelidoImovel: imovel?.apelido ?? `Imóvel #${ordem.imovel_id}`,
+  });
+
+  const destinatarios = resolverDestinatariosPrestador(db, ordem.prestador_id);
+  return dispararNotificacaoComunicado(db, apiClient, destinatarios, { assunto, mensagem });
 }
