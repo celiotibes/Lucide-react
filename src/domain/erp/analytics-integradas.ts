@@ -5,6 +5,7 @@
 
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
+import { resumoInadimplenciaTotal } from "./integracao-inadimplencia";
 
 /** KPI: Indicador de Desempenho de Rentabilidade */
 export interface KPIRentabilidade {
@@ -68,9 +69,33 @@ export function calcularKPIRentabilidade(
   // consultas antigas filtravam por status IN ('com_atraso',...) e por status IN
   // ('ativo','pendente'), colunas inexistentes, e derrubavam a tela inteira com
   // "no such column: status".
-  // FIXME: ligar em calcularInadimplencia() para este indicador deixar de ser zero; hoje
-  // não há como derivá-lo só de contratos_locacao, e inventar um número seria pior.
-  const inadimplentes = { valor: 0 };
+  //
+  // CORRIGIDO: o FIXME anterior ("ligar em calcularInadimplencia() para este indicador
+  // deixar de ser zero") pedia uma função que, na época, não existia. Hoje existe
+  // `resumoInadimplenciaTotal` (integracao-inadimplencia.ts), que devolve
+  // `valor_aluguel_em_atraso` — soma do valor de aluguel vencido e NÃO PAGO na data de
+  // referência, apurado contrato a contrato (vencimento × recebimentos em `transacoes`,
+  // ver `apurarInadimplenciaContrato`). É o numerador certo para esta taxa; manter o
+  // placeholder zerado agora que a função existe seria pior do que usá-la.
+  //
+  // `data_referencia`: deliberadamente NÃO usamos a data de fim de `periodo_id`. O
+  // DENOMINADOR logo abaixo (`contratosTodos`) já ignora `periodo_id` por completo e usa
+  // `DATE('now')` para decidir quais contratos estão vigentes — isso já era assim antes
+  // deste achado, não é mudança daqui. Para numerador e denominador ficarem na mesma
+  // base ("contratos vigentes HOJE"), chamamos `resumoInadimplenciaTotal(db)` sem
+  // `data_referencia`, que por padrão também usa hoje. Se um dia o denominador passar a
+  // respeitar `periodo_id` (reconstituir a posição NO FIM daquele período em vez de
+  // hoje), o numerador deve mudar junto, passando a mesma data de referência às duas
+  // consultas — não só a uma delas.
+  //
+  // LIMITAÇÃO (documentada, não inventada): nem `resumoInadimplenciaTotal` nem
+  // `relatorioInadimplenciaDetalhado` (de que ela depende) filtram por entidade — olham
+  // TODOS os contratos do banco, de qualquer entidade_id. O indicador sai correto num
+  // sistema de entidade única (o caso de uso atual), mas não segrega por `entidade_id`
+  // se um dia existir mais de uma entidade com contratos próprios. Por isso o parâmetro
+  // `entidade_id` desta função não é usado neste trecho — adicionar o filtro é mudança
+  // em integracao-inadimplencia.ts, fora do escopo deste achado.
+  const inadimplentes = { valor: resumoInadimplenciaTotal(db).valor_aluguel_em_atraso };
 
   const [contratosTodos] = consultar<{ valor: number }>(
     db,
