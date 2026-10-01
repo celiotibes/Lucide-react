@@ -1,22 +1,78 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2, Send } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
+import { useToast } from "../ui/useToast";
 import { listarReajustes, sugerirProximoReajuste, registrarReajuste, registrarRecomposicaoValor, calcularMultaRescisoria, aplicarDescontoNegociado } from "../domain/contratos/reajustes";
+import {
+  montarMensagemReajuste,
+  montarMensagemRescisao,
+  obterLocatarioPrincipalId,
+  resumirResultadosDisparo,
+} from "../domain/contratos/mensagensNotificacaoContrato";
+import { dispararNotificacaoComunicado } from "../domain/notificacoes/despachoCliente";
+import { resolverDestinatariosPorContratoId } from "../domain/notificacoes/resolverDestinatarios";
+import { criarNotificacoesApiClientHttp } from "../domain/notificacoes/vinculosExternos";
+import { VincularTelegramExterno } from "./integracoes/VincularTelegramExterno";
 import type { ContratoLocacao, Imovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
 import { KpiTile } from "./KpiTile";
+
+/**
+ * Config de backend/sessão para notificar o locatário sobre reajuste/rescisão (e-mail/
+ * WhatsApp/Telegram) — mesmo padrão (localStorage, chave própria desta tela) de
+ * `CobrancasAsaasView.tsx`/`ContratosInadimplenciaView.tsx`/`CaucaoView.tsx`.
+ */
+interface ConfigNotificar {
+  enderecoBackend: string;
+  tokenSessao: string;
+}
+
+const CHAVE_LOCALSTORAGE_NOTIFICAR = "reajustes-notificar:config:v1";
+const CONFIG_NOTIFICAR_PADRAO: ConfigNotificar = { enderecoBackend: "", tokenSessao: "" };
+
+function carregarConfigNotificar(): ConfigNotificar {
+  try {
+    const bruto = localStorage.getItem(CHAVE_LOCALSTORAGE_NOTIFICAR);
+    if (!bruto) return { ...CONFIG_NOTIFICAR_PADRAO };
+    return { ...CONFIG_NOTIFICAR_PADRAO, ...(JSON.parse(bruto) as Partial<ConfigNotificar>) };
+  } catch {
+    return { ...CONFIG_NOTIFICAR_PADRAO };
+  }
+}
+
+function salvarConfigNotificar(config: ConfigNotificar): void {
+  try {
+    localStorage.setItem(CHAVE_LOCALSTORAGE_NOTIFICAR, JSON.stringify(config));
+  } catch {
+    // Storage bloqueado/cheio — a configuração continua valendo em memória para esta sessão.
+  }
+}
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 export function ReajustesRescisaoView() {
   const { db, versao, persistir } = useDb();
+  const { avisar } = useToast();
   const hoje = hojeIso();
   const [contratoSelecionadoId, setContratoSelecionadoId] = useState<number | null>(null);
   const [dataRescisao, setDataRescisao] = useState(hoje);
   const [descontoNegociado, setDescontoNegociado] = useState("");
   const [recomposicao, setRecomposicao] = useState({ data: hoje, valorNovo: "", motivo: "" });
+
+  const [configNotificar, setConfigNotificar] = useState<ConfigNotificar>(() => carregarConfigNotificar());
+  const notificarConfigurado = configNotificar.enderecoBackend.trim().length > 0 && configNotificar.tokenSessao.trim().length > 0;
+  const [notificandoReajuste, setNotificandoReajuste] = useState(false);
+  const [notificandoRescisao, setNotificandoRescisao] = useState(false);
+
+  function atualizarConfigNotificar(patch: Partial<ConfigNotificar>) {
+    setConfigNotificar((atual) => {
+      const proximo = { ...atual, ...patch };
+      salvarConfigNotificar(proximo);
+      return proximo;
+    });
+  }
 
   const contratos = useMemo<ContratoLocacao[]>(
     () => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE tipo = 'residencial_fixo' ORDER BY id") : []),
@@ -54,6 +110,62 @@ export function ReajustesRescisaoView() {
     setRecomposicao({ data: hoje, valorNovo: "", motivo: "" });
   };
 
+  async function notificarReajuste() {
+    if (!db || !contratoAtivo || !sugestao || sugestao.valorSugerido === null || sugestao.percentualSugerido === null) return;
+    if (!notificarConfigurado) {
+      avisar("critical", "Configure o endereço do backend e o token de sessão antes de notificar o locatário.");
+      return;
+    }
+    setNotificandoReajuste(true);
+    try {
+      const apiClient = criarNotificacoesApiClientHttp(configNotificar.enderecoBackend.trim(), configNotificar.tokenSessao.trim());
+      const destinatarios = resolverDestinatariosPorContratoId(db, contratoAtivo.id);
+      const { assunto, mensagem } = montarMensagemReajuste({
+        locatario: contratoAtivo.locatario,
+        imovelApelido: imoveis.get(contratoAtivo.imovel_id)?.apelido ?? String(contratoAtivo.imovel_id),
+        valorAtual: sugestao.valorAtual,
+        valorSugerido: sugestao.valorSugerido,
+        percentual: sugestao.percentualSugerido,
+        criterio: sugestao.criterioSugerido,
+        dataVigencia: hoje,
+      });
+      const resultados = await dispararNotificacaoComunicado(db, apiClient, destinatarios, { assunto, mensagem });
+      await persistir();
+      avisar(resultados.some((r) => r.status === "enviado") ? "good" : "warning", `Notificação de reajuste: ${resumirResultadosDisparo(resultados)}.`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "Erro desconhecido ao notificar o locatário.");
+    } finally {
+      setNotificandoReajuste(false);
+    }
+  }
+
+  async function notificarRescisao() {
+    if (!db || !contratoAtivo || !multa) return;
+    if (!notificarConfigurado) {
+      avisar("critical", "Configure o endereço do backend e o token de sessão antes de notificar o locatário.");
+      return;
+    }
+    setNotificandoRescisao(true);
+    try {
+      const apiClient = criarNotificacoesApiClientHttp(configNotificar.enderecoBackend.trim(), configNotificar.tokenSessao.trim());
+      const destinatarios = resolverDestinatariosPorContratoId(db, contratoAtivo.id);
+      const { assunto, mensagem } = montarMensagemRescisao({
+        locatario: contratoAtivo.locatario,
+        imovelApelido: imoveis.get(contratoAtivo.imovel_id)?.apelido ?? String(contratoAtivo.imovel_id),
+        dataRescisao,
+        mesesRestantes: multa.mesesRestantes,
+        multaProporcional: multa.multaProporcional,
+      });
+      const resultados = await dispararNotificacaoComunicado(db, apiClient, destinatarios, { assunto, mensagem });
+      await persistir();
+      avisar(resultados.some((r) => r.status === "enviado") ? "good" : "warning", `Notificação de rescisão: ${resumirResultadosDisparo(resultados)}.`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "Erro desconhecido ao notificar o locatário.");
+    } finally {
+      setNotificandoRescisao(false);
+    }
+  }
+
   return (
     <div>
       <h2 className="section-title">Reajustes e rescisão ({contratos.length} contratos)</h2>
@@ -62,6 +174,38 @@ export function ReajustesRescisaoView() {
         definido no contrato), renovações seguintes pela variação acumulada do índice contratado — e calculadora de
         multa rescisória proporcional por quebra antecipada do prazo determinado (art. 4º, Lei 8.245/91).
       </p>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="section-title" style={{ fontSize: 14 }}>Notificação ao locatário — backend e sessão</div>
+        <p style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 10, maxWidth: "64ch" }}>
+          Usado só para notificar o locatário sobre o reajuste calculado ou a rescisão (botões abaixo) por
+          e-mail/WhatsApp/Telegram — chama o próprio backend (<code>POST /api/notificacoes/disparar</code>), nunca a
+          Asaas/Telegram direto.
+        </p>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Endereço do backend
+            <input
+              className="btn"
+              style={{ width: 240, marginTop: 4, cursor: "text" }}
+              placeholder="http://localhost:8787"
+              value={configNotificar.enderecoBackend}
+              onChange={(e) => atualizarConfigNotificar({ enderecoBackend: e.target.value })}
+            />
+          </label>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Token de sessão (Bearer)
+            <input
+              className="btn"
+              type="password"
+              style={{ width: 240, marginTop: 4, cursor: "text" }}
+              placeholder="obtido via POST /api/auth/login"
+              value={configNotificar.tokenSessao}
+              onChange={(e) => atualizarConfigNotificar({ tokenSessao: e.target.value })}
+            />
+          </label>
+        </div>
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
         {contratos.map((c) => (
@@ -79,6 +223,17 @@ export function ReajustesRescisaoView() {
 
       {contratoAtivo && (
         <>
+          {(() => {
+            const locatarioPrincipalId = db ? obterLocatarioPrincipalId(db, contratoAtivo.id) : null;
+            return locatarioPrincipalId !== null ? (
+              <VincularTelegramExterno
+                referenciaTipo="contrato_locatario"
+                referenciaId={locatarioPrincipalId}
+                nomeExibicao={contratoAtivo.locatario}
+              />
+            ) : null;
+          })()}
+
           <div className="kpi-grid">
             <KpiTile label="Valor vigente" value={sugestao ? formatarMoeda(sugestao.valorAtual) : "—"} />
             <KpiTile
@@ -96,9 +251,14 @@ export function ReajustesRescisaoView() {
           </div>
 
           {sugestao?.valorSugerido !== null && sugestao?.valorSugerido !== undefined && (
-            <button className="btn" style={{ marginTop: 4, marginBottom: 24 }} onClick={registrarSugestao}>
-              Registrar reajuste de hoje ({formatarMoeda(sugestao.valorSugerido)})
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4, marginBottom: 24 }}>
+              <button className="btn" onClick={registrarSugestao}>
+                Registrar reajuste de hoje ({formatarMoeda(sugestao.valorSugerido)})
+              </button>
+              <button className="btn primary" disabled={notificandoReajuste} onClick={notificarReajuste}>
+                {notificandoReajuste ? <Loader2 size={14} className="spin" /> : <Send size={14} />} Notificar locatário
+              </button>
+            </div>
           )}
           {sugestao?.valorSugerido === null && (
             <div className="aviso-caixa" style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 24 }}>
@@ -226,6 +386,11 @@ export function ReajustesRescisaoView() {
                 />
               )}
             </div>
+          )}
+          {multa && (
+            <button className="btn primary" style={{ marginTop: 10 }} disabled={notificandoRescisao} onClick={notificarRescisao}>
+              {notificandoRescisao ? <Loader2 size={14} className="spin" /> : <Send size={14} />} Notificar locatário (rescisão)
+            </button>
           )}
           <p style={{ fontSize: 12.5, color: "var(--ink-soft)", maxWidth: "68ch", marginTop: 10 }}>
             Fórmula: teto ({contratoAtivo.multa_rescisoria_teto_meses} meses do valor vigente) dividido pela duração

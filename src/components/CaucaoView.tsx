@@ -9,6 +9,7 @@ import {
   Loader2,
   Pencil,
   RefreshCw,
+  Send,
   ShieldAlert,
   Wallet,
   Wrench,
@@ -37,6 +38,42 @@ import { finalizarVistoriaContabil, relatorioVistoriasComProvisionamento } from 
 import { sincronizarVistoriaConcluidaParaProvisionamento } from "../domain/erp/integracao-vistorias-provisionamento";
 import { useToast } from "../ui/useToast";
 import { KpiTile } from "./KpiTile";
+import { montarMensagemRad, obterLocatarioPrincipalId, resumirResultadosDisparo } from "../domain/contratos/mensagensNotificacaoContrato";
+import { dispararNotificacaoComunicado } from "../domain/notificacoes/despachoCliente";
+import { resolverDestinatariosPorContratoId } from "../domain/notificacoes/resolverDestinatarios";
+import { criarNotificacoesApiClientHttp } from "../domain/notificacoes/vinculosExternos";
+import { VincularTelegramExterno } from "./integracoes/VincularTelegramExterno";
+
+/**
+ * Config de backend/sessão para disparar notificação do RAD ao locatário (e-mail/WhatsApp/
+ * Telegram) — mesmo padrão (localStorage, chave própria desta tela) de
+ * `CobrancasAsaasView.tsx`/`CapturasTelegramView.tsx`/`ContratosInadimplenciaView.tsx`.
+ */
+interface ConfigNotificar {
+  enderecoBackend: string;
+  tokenSessao: string;
+}
+
+const CHAVE_LOCALSTORAGE_NOTIFICAR = "caucao-notificar:config:v1";
+const CONFIG_NOTIFICAR_PADRAO: ConfigNotificar = { enderecoBackend: "", tokenSessao: "" };
+
+function carregarConfigNotificar(): ConfigNotificar {
+  try {
+    const bruto = localStorage.getItem(CHAVE_LOCALSTORAGE_NOTIFICAR);
+    if (!bruto) return { ...CONFIG_NOTIFICAR_PADRAO };
+    return { ...CONFIG_NOTIFICAR_PADRAO, ...(JSON.parse(bruto) as Partial<ConfigNotificar>) };
+  } catch {
+    return { ...CONFIG_NOTIFICAR_PADRAO };
+  }
+}
+
+function salvarConfigNotificar(config: ConfigNotificar): void {
+  try {
+    localStorage.setItem(CHAVE_LOCALSTORAGE_NOTIFICAR, JSON.stringify(config));
+  } catch {
+    // Storage bloqueado/cheio — a configuração continua valendo em memória para esta sessão.
+  }
+}
 
 interface ItemVistoriaDanoRow {
   item_id: number;
@@ -121,6 +158,18 @@ export function CaucaoView() {
   const [radOcupadoPor, setRadOcupadoPor] = useState<{ tipo: string; id: number } | null>(null);
   function radOcupado(tipo: string, id: number) {
     return radOcupadoPor?.tipo === tipo && radOcupadoPor?.id === id;
+  }
+
+  const [configNotificar, setConfigNotificar] = useState<ConfigNotificar>(() => carregarConfigNotificar());
+  const notificarConfigurado = configNotificar.enderecoBackend.trim().length > 0 && configNotificar.tokenSessao.trim().length > 0;
+  const [notificandoRadId, setNotificandoRadId] = useState<number | null>(null);
+
+  function atualizarConfigNotificar(patch: Partial<ConfigNotificar>) {
+    setConfigNotificar((atual) => {
+      const proximo = { ...atual, ...patch };
+      salvarConfigNotificar(proximo);
+      return proximo;
+    });
   }
 
   const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
@@ -354,6 +403,34 @@ export function CaucaoView() {
     }
   }
 
+  async function notificarRadAoLocatario(radAtual: RadAvaliacaoComItens, contratoId: number, locatarioNome: string, imovelApelido: string) {
+    if (!db) return;
+    if (!notificarConfigurado) {
+      avisar("critical", "Configure o endereço do backend e o token de sessão antes de notificar o locatário.");
+      return;
+    }
+    setNotificandoRadId(radAtual.id);
+    try {
+      const apiClient = criarNotificacoesApiClientHttp(configNotificar.enderecoBackend.trim(), configNotificar.tokenSessao.trim());
+      const destinatarios = resolverDestinatariosPorContratoId(db, contratoId);
+      const { assunto, mensagem } = montarMensagemRad({
+        locatario: locatarioNome,
+        imovelApelido,
+        versao: radAtual.versao,
+        status: radAtual.status,
+        valorTotalDeducao: radAtual.valor_total_deducao,
+        itens: radAtual.itens.map((item) => ({ descricao: item.descricao, valorDepreciado: item.valor_depreciado, aceito: item.aceito === 1 })),
+      });
+      const resultados = await dispararNotificacaoComunicado(db, apiClient, destinatarios, { assunto, mensagem });
+      await persistir();
+      avisar(resultados.some((r) => r.status === "enviado") ? "good" : "warning", `Envio do RAD: ${resumirResultadosDisparo(resultados)}.`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "Erro desconhecido ao notificar o locatário.");
+    } finally {
+      setNotificandoRadId(null);
+    }
+  }
+
   async function salvarEdicao() {
     if (!db || !formEdicao) return;
     const dadosAnteriores = (consultar<Caucao>(db, "SELECT * FROM caucoes WHERE id = ?", [formEdicao.id])[0] as unknown as Record<string, unknown>) ?? null;
@@ -384,6 +461,38 @@ export function CaucaoView() {
         {" "}em cada linha gera o Relatório de Apuração de Débitos (RAD) em PDF — inventário de bens do imóvel
         (cadastrado em Imóveis) + a dedução já registrada nesta tela, sem inventar nenhuma vistoria que não aconteceu.
       </p>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="section-title" style={{ fontSize: 14 }}>Notificação do RAD ao locatário — backend e sessão</div>
+        <p style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 10, maxWidth: "64ch" }}>
+          Usado só para enviar o RAD por e-mail/WhatsApp/Telegram (botão "Enviar RAD ao locatário", na seção RAD de
+          cada depósito) — chama o próprio backend (<code>POST /api/notificacoes/disparar</code>), nunca a
+          Asaas/Telegram direto.
+        </p>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Endereço do backend
+            <input
+              className="btn"
+              style={{ width: 240, marginTop: 4, cursor: "text" }}
+              placeholder="http://localhost:8787"
+              value={configNotificar.enderecoBackend}
+              onChange={(e) => atualizarConfigNotificar({ enderecoBackend: e.target.value })}
+            />
+          </label>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Token de sessão (Bearer)
+            <input
+              className="btn"
+              type="password"
+              style={{ width: 240, marginTop: 4, cursor: "text" }}
+              placeholder="obtido via POST /api/auth/login"
+              value={configNotificar.tokenSessao}
+              onChange={(e) => atualizarConfigNotificar({ tokenSessao: e.target.value })}
+            />
+          </label>
+        </div>
+      </div>
 
       {caucoesRetidas.length > 0 && (
         <>
@@ -677,6 +786,17 @@ export function CaucaoView() {
                                 {contrato && <span style={{ fontWeight: 400, color: "var(--ink-soft)" }}>— {contrato.locatario}</span>}
                               </strong>
 
+                              {(() => {
+                                const locatarioPrincipalId = db ? obterLocatarioPrincipalId(db, c.contrato_id) : null;
+                                return locatarioPrincipalId !== null ? (
+                                  <VincularTelegramExterno
+                                    referenciaTipo="contrato_locatario"
+                                    referenciaId={locatarioPrincipalId}
+                                    nomeExibicao={contrato?.locatario}
+                                  />
+                                ) : null;
+                              })()}
+
                               {!radAtual ? (
                                 <p style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "0 0 12px", maxWidth: "68ch" }}>
                                   Nenhuma avaliação RAD gerada ainda para este contrato. "Gerar avaliação RAD" busca o
@@ -842,6 +962,23 @@ export function CaucaoView() {
                                         <RefreshCw size={13} />
                                       )}{" "}
                                       Gerar nova versão (supersedendo)
+                                    </button>
+                                    <button
+                                      className="btn primary"
+                                      style={{ padding: "6px 10px", fontSize: 12.5 }}
+                                      disabled={notificandoRadId === radAtual.id}
+                                      title="Enviar o RAD ao locatário por e-mail/WhatsApp/Telegram"
+                                      onClick={() =>
+                                        notificarRadAoLocatario(
+                                          radAtual,
+                                          c.contrato_id,
+                                          contrato?.locatario ?? "",
+                                          (contrato ? imoveis.get(contrato.imovel_id)?.apelido : undefined) ?? "",
+                                        )
+                                      }
+                                    >
+                                      {notificandoRadId === radAtual.id ? <Loader2 size={13} className="spin" /> : <Send size={13} />}{" "}
+                                      Enviar RAD ao locatário
                                     </button>
                                   </>
                                 )}

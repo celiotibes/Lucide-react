@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState, type CSSProperties } from "react";
-import { Check, RefreshCcw, X } from "lucide-react";
+import { Check, Loader2, RefreshCcw, Send, X } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { useToast } from "../ui/useToast";
@@ -19,8 +19,45 @@ import {
 } from "../domain/erp/integracao-inadimplencia";
 import { detectarMesesSemReceitaAirbnb } from "../domain/reconcile/airbnb";
 import { listarPartes } from "../domain/contratos/locatarios";
+import { montarMensagemInadimplencia, obterLocatarioPrincipalId, resumirResultadosDisparo } from "../domain/contratos/mensagensNotificacaoContrato";
+import { dispararNotificacaoComunicado } from "../domain/notificacoes/despachoCliente";
+import { resolverDestinatariosPorContratoId } from "../domain/notificacoes/resolverDestinatarios";
+import { criarNotificacoesApiClientHttp } from "../domain/notificacoes/vinculosExternos";
+import { VincularTelegramExterno } from "./integracoes/VincularTelegramExterno";
 import type { ContratoLocacao, Imovel } from "../domain/types";
 import { formatarMoeda } from "../domain/formatarMoeda";
+
+/**
+ * Config de backend/sessão para disparar notificação (e-mail/WhatsApp/Telegram) do locatário
+ * inadimplente — mesmo padrão (localStorage, chave própria desta tela) de
+ * `CobrancasAsaasView.tsx`/`CapturasTelegramView.tsx`. O endereço do backend e o token nunca
+ * são dado de negócio (sql.js) — só "para onde apontar" a chamada de disparo.
+ */
+interface ConfigNotificar {
+  enderecoBackend: string;
+  tokenSessao: string;
+}
+
+const CHAVE_LOCALSTORAGE_NOTIFICAR = "contratos-notificar:config:v1";
+const CONFIG_NOTIFICAR_PADRAO: ConfigNotificar = { enderecoBackend: "", tokenSessao: "" };
+
+function carregarConfigNotificar(): ConfigNotificar {
+  try {
+    const bruto = localStorage.getItem(CHAVE_LOCALSTORAGE_NOTIFICAR);
+    if (!bruto) return { ...CONFIG_NOTIFICAR_PADRAO };
+    return { ...CONFIG_NOTIFICAR_PADRAO, ...(JSON.parse(bruto) as Partial<ConfigNotificar>) };
+  } catch {
+    return { ...CONFIG_NOTIFICAR_PADRAO };
+  }
+}
+
+function salvarConfigNotificar(config: ConfigNotificar): void {
+  try {
+    localStorage.setItem(CHAVE_LOCALSTORAGE_NOTIFICAR, JSON.stringify(config));
+  } catch {
+    // Storage bloqueado/cheio — a configuração continua valendo em memória para esta sessão.
+  }
+}
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -76,6 +113,18 @@ export function ContratosInadimplenciaView() {
   const [percentualPerdaInput, setPercentualPerdaInput] = useState<string>(String(PERCENTUAL_PERDA_ESPERADA_PADRAO * 100));
   const [revertendoCompetenciaId, setRevertendoCompetenciaId] = useState<number | null>(null);
   const [motivoReversao, setMotivoReversao] = useState<string>("");
+
+  const [configNotificar, setConfigNotificar] = useState<ConfigNotificar>(() => carregarConfigNotificar());
+  const notificarConfigurado = configNotificar.enderecoBackend.trim().length > 0 && configNotificar.tokenSessao.trim().length > 0;
+  const [notificandoContratoId, setNotificandoContratoId] = useState<number | null>(null);
+
+  function atualizarConfigNotificar(patch: Partial<ConfigNotificar>) {
+    setConfigNotificar((atual) => {
+      const proximo = { ...atual, ...patch };
+      salvarConfigNotificar(proximo);
+      return proximo;
+    });
+  }
 
   const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
   const contasBancarias = useMemo(() => (db ? listarContasBancarias(db) : []), [db, versao]);
@@ -257,6 +306,36 @@ export function ContratosInadimplenciaView() {
     }
   }
 
+  async function notificarLocatario(s: InadimplenciaPorCompetencia) {
+    if (!db) return;
+    if (!notificarConfigurado) {
+      avisar("critical", "Configure o endereço do backend e o token de sessão antes de notificar o locatário.");
+      return;
+    }
+    setNotificandoContratoId(s.contrato_id);
+    try {
+      const apiClient = criarNotificacoesApiClientHttp(configNotificar.enderecoBackend.trim(), configNotificar.tokenSessao.trim());
+      const destinatarios = resolverDestinatariosPorContratoId(db, s.contrato_id);
+      const contrato = contratosPorId.get(s.contrato_id);
+      const { assunto, mensagem } = montarMensagemInadimplencia({
+        locatario: contrato?.locatario ?? s.locatario,
+        imovelApelido: imoveis.get(s.imovel_id)?.apelido ?? String(s.imovel_id),
+        diasAtraso: s.dias_atraso,
+        valorAluguelVencido: s.valor_aluguel_vencido,
+        multaValor: s.multa_valor,
+        jurosValor: s.juros_valor,
+        valorTotalDevido: s.valor_total_devido,
+      });
+      const resultados = await dispararNotificacaoComunicado(db, apiClient, destinatarios, { assunto, mensagem });
+      await persistir();
+      avisar(resultados.some((r) => r.status === "enviado") ? "good" : "warning", `Notificação de atraso: ${resumirResultadosDisparo(resultados)}.`);
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "Erro desconhecido ao notificar o locatário.");
+    } finally {
+      setNotificandoContratoId(null);
+    }
+  }
+
   return (
     <div>
       <h2 className="section-title">Contratos de locação ({contratos.length})</h2>
@@ -303,6 +382,37 @@ export function ContratosInadimplenciaView() {
         <button className="btn primary" onClick={gerarCompetenciasDosVigentes} disabled={gerando}>
           <RefreshCcw size={14} /> {gerando ? "Gerando…" : "Gerar competências pendentes (contratos vigentes)"}
         </button>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="section-title" style={{ fontSize: 14 }}>Notificação ao locatário — backend e sessão</div>
+        <p style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 10, maxWidth: "64ch" }}>
+          Usado só para disparar o resumo de atraso por e-mail/WhatsApp/Telegram (botão "Notificar locatário" abaixo) —
+          chama o próprio backend (<code>POST /api/notificacoes/disparar</code>), nunca a Asaas/Telegram direto.
+        </p>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Endereço do backend
+            <input
+              className="btn"
+              style={{ width: 240, marginTop: 4, cursor: "text" }}
+              placeholder="http://localhost:8787"
+              value={configNotificar.enderecoBackend}
+              onChange={(e) => atualizarConfigNotificar({ enderecoBackend: e.target.value })}
+            />
+          </label>
+          <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            Token de sessão (Bearer)
+            <input
+              className="btn"
+              type="password"
+              style={{ width: 240, marginTop: 4, cursor: "text" }}
+              placeholder="obtido via POST /api/auth/login"
+              value={configNotificar.tokenSessao}
+              onChange={(e) => atualizarConfigNotificar({ tokenSessao: e.target.value })}
+            />
+          </label>
+        </div>
       </div>
       <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 10, marginBottom: 12, maxWidth: "72ch" }}>
         Cada mês devido de um contrato residencial vira uma competência própria (vencimento e recebimento
@@ -355,13 +465,22 @@ export function ContratosInadimplenciaView() {
                         {ROTULO_STATUS[s.status]}
                       </span>
                     </td>
-                    <td>
+                    <td style={{ display: "flex", gap: 4 }}>
                       <button
                         className="btn"
                         style={{ padding: "4px 8px", fontSize: 12 }}
                         onClick={() => setExpandidoContratoId(expandido ? null : s.contrato_id)}
                       >
                         {expandido ? "Ocultar" : "Detalhar"}
+                      </button>
+                      <button
+                        className="btn primary"
+                        style={{ padding: "4px 8px", fontSize: 12 }}
+                        disabled={notificandoContratoId === s.contrato_id}
+                        title="Notificar o locatário do débito em atraso (e-mail/WhatsApp/Telegram)"
+                        onClick={() => notificarLocatario(s)}
+                      >
+                        {notificandoContratoId === s.contrato_id ? <Loader2 size={12} className="spin" /> : <Send size={12} />} Notificar locatário
                       </button>
                     </td>
                   </tr>
@@ -374,6 +493,16 @@ export function ContratosInadimplenciaView() {
                               Cadastre a entidade titular antes de registrar baixa de competência.
                             </p>
                           )}
+                          {(() => {
+                            const locatarioPrincipalId = db ? obterLocatarioPrincipalId(db, s.contrato_id) : null;
+                            return locatarioPrincipalId !== null ? (
+                              <VincularTelegramExterno
+                                referenciaTipo="contrato_locatario"
+                                referenciaId={locatarioPrincipalId}
+                                nomeExibicao={contrato?.locatario ?? s.locatario}
+                              />
+                            ) : null;
+                          })()}
                           <table className="data-table" style={{ minWidth: 0 }}>
                             <thead>
                               <tr>
