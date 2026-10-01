@@ -64,7 +64,7 @@ export interface NotificacoesApiClient {
 const SEM_DESTINATARIO = "(nenhum)";
 const MOTIVO_SEM_EMAIL = "Nenhum e-mail cadastrado para este destinatário";
 const MOTIVO_SEM_WHATSAPP = "Nenhum telefone cadastrado para este destinatário";
-const MOTIVO_SEM_TELEGRAM = "Destinatário sem Telegram vinculado — locatários/clientes ainda não têm como vincular um chat_id próprio (ver README do módulo de notificações)";
+const MOTIVO_SEM_TELEGRAM = "Destinatário sem Telegram vinculado ainda — locatário/cliente/prestador pode vincular o próprio chat_id (ver VincularTelegramExterno.tsx / tela de captura via Telegram)";
 
 interface OpcoesDisparo {
   origemTipo: OrigemNotificacao;
