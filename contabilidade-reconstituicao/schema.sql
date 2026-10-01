@@ -588,6 +588,11 @@ CREATE TABLE IF NOT EXISTS entidades_legais (
     nome            TEXT NOT NULL,
     endereco        TEXT,
     regime_tributario TEXT CHECK (regime_tributario IN ('simples_nacional', 'presumido', 'lucro_real')),
+    -- email/telefone adicionados para notificação de cobrança/comunicado (decisão do
+    -- usuário, 2026-10) — faltavam aqui porque esta tabela nunca precisou de contato
+    -- direto antes (processos_legais sempre referenciava por nome dentro de partes_processo).
+    telefone        TEXT,
+    email           TEXT,
     criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -2059,3 +2064,25 @@ CREATE TABLE IF NOT EXISTS pluggy_contas_vinculadas (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pluggy_contas_vinculadas_conta ON pluggy_contas_vinculadas(conta_bancaria_id);
+
+-- Trilha de envio de notificações (e-mail/WhatsApp/Telegram) disparadas quando uma cobrança
+-- Asaas é emitida ou um comunicado genérico é enviado (decisão do usuário, 2026-10: toda
+-- cobrança/boleto/comunicado deve sair por e-mail e WhatsApp/Telegram cadastrados). Uma
+-- notificação pode gerar várias linhas aqui (uma por canal tentado) — rastreável como
+-- qualquer outra ação do sistema que produz efeito fora do banco local.
+CREATE TABLE IF NOT EXISTS notificacoes_enviadas (
+    id                  INTEGER PRIMARY KEY,
+    origem_tipo         TEXT NOT NULL CHECK (origem_tipo IN ('cobranca_asaas', 'comunicado_generico')),
+    origem_id           INTEGER,                -- cobrancas_asaas.id quando origem_tipo='cobranca_asaas'; NULL p/ comunicado solto
+    canal               TEXT NOT NULL CHECK (canal IN ('email', 'whatsapp', 'telegram')),
+    destinatario        TEXT NOT NULL,           -- endereço de e-mail, número de WhatsApp (E.164) ou chat_id do Telegram
+    assunto             TEXT,
+    mensagem            TEXT NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'enviado', 'falha')),
+    erro_mensagem       TEXT,                    -- preenchido só quando status='falha'
+    enviado_em          DATETIME,
+    criado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notificacoes_enviadas_origem ON notificacoes_enviadas(origem_tipo, origem_id);
+CREATE INDEX IF NOT EXISTS idx_notificacoes_enviadas_status ON notificacoes_enviadas(status, criado_em);
