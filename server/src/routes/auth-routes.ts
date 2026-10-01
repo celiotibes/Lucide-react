@@ -77,7 +77,7 @@ function criarLimitadorBootstrap() {
 /** Middleware que exige `Authorization: Bearer <token>` válido — equivalente,
  * por usuário, ao que `exigirChaveApi` já faz por chave compartilhada em
  * index.ts. Anexa o contexto autenticado em `req.auth`. */
-function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
+export function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
   return function exigirAutenticacao(
     req: express.Request,
     res: express.Response,
