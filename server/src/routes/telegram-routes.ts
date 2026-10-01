@@ -28,12 +28,25 @@
  * outra mensagem do mesmo chat é recusada (orientando a vincular primeiro) — nunca enfileira
  * um evento sem usuario_id resolvido para esta integração (diferente do webhook da Asaas,
  * que não tem como saber o usuário antes de consumir: aqui o chat_id já resolve isso).
+ *
+ * VÍNCULO DE CONTATO EXTERNO (locatário, cliente da advocacia, prestador — fase 4, ver
+ * migrations-phase4-vinculos-externos.sql): quando "/vincular CODIGO" chega de um chat cujo
+ * código NÃO resolve contra `telegram_vinculos` (usuário do sistema), o servidor não tenta
+ * adivinhar se o código é inválido ou se é um código de CONTATO EXTERNO — essa referência só
+ * existe no banco local do CLIENTE (`vinculos_telegram_externos`, ver schema.sql e
+ * `src/domain/notificacoes/vinculosExternos.ts`), que o servidor nunca acessa. Por isso só
+ * enfileira `{codigo, chatId}` em `vinculos_externos_telegram_pendentes`
+ * (vinculos-externos-telegram-db.ts) e responde com uma mensagem neutra ("vamos confirmar em
+ * breve") — nunca "código inválido", que seria falso para um código externo legítimo. O
+ * cliente consome esse inbox (`GET/POST /vinculos-externos-pendentes...` abaixo), casa o
+ * código com a própria tabela e confirma a mensagem final ao contato.
  */
 import express from "express";
 import { randomUUID, randomInt } from "crypto";
 import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type { EventosExternosServiceDB } from "../domain/integracoes/eventos-externos-db.js";
+import { VinculosExternosTelegramServiceDB } from "../domain/integracoes/vinculos-externos-telegram-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import {
   enviarMensagemTelegram,
@@ -118,18 +131,34 @@ function buscarVinculoPendentePorCodigo(db: Database.Database, codigo: string): 
     .get(codigo) as LinhaVinculo | undefined;
 }
 
-/** Trata "/vincular CODIGO" — resolve o código (não expirado, ainda sem chat_id), preenche
- * chat_id/vinculado_em, e sempre responde ao usuário (sucesso ou motivo da recusa). */
-async function tratarComandoVincular(db: Database.Database, chatId: string, texto: string): Promise<void> {
+/** Trata "/vincular CODIGO" — resolve o código contra `telegram_vinculos` (usuário do
+ * sistema; não expirado, ainda sem chat_id), preenche chat_id/vinculado_em, e sempre
+ * responde ao usuário. Quando o código NÃO resolve aqui, enfileira em
+ * `vinculos_externos_telegram_pendentes` em vez de recusar — ver cabeçalho do arquivo: o
+ * servidor não tem como distinguir "código inválido" de "código de contato externo
+ * legítimo", então nunca mais afirma "inválido" neste ramo. */
+async function tratarComandoVincular(
+  db: Database.Database,
+  vinculosExternosService: VinculosExternosTelegramServiceDB,
+  chatId: string,
+  texto: string,
+): Promise<void> {
   const codigo = texto.trim().split(/\s+/)[1];
   if (!codigo) {
-    await enviarMensagemTelegram(chatId, "Uso: /vincular CODIGO — gere o código na tela do app (Capturas via Telegram).");
+    await enviarMensagemTelegram(
+      chatId,
+      "Uso: /vincular CODIGO — gere o código na tela do app (Capturas via Telegram, ou na tela de cadastro do locatário/cliente/prestador).",
+    );
     return;
   }
 
   const vinculo = buscarVinculoPendentePorCodigo(db, codigo);
   if (!vinculo) {
-    await enviarMensagemTelegram(chatId, "Código inválido, já usado ou expirado. Gere um novo código na tela do app.");
+    vinculosExternosService.registrarPendente(codigo, chatId);
+    await enviarMensagemTelegram(
+      chatId,
+      "Código recebido! Vamos confirmar em breve — abra o app na tela correspondente para concluir o vínculo.",
+    );
     return;
   }
 
@@ -201,6 +230,10 @@ async function tratarCaptura(
 export function criarRotasTelegram({ authService, eventosService, db }: TelegramRoutesDeps): express.Router {
   const router = express.Router();
   const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
+  // Instanciado aqui (a partir do `db` já recebido em TelegramRoutesDeps) em vez de ser mais
+  // um campo em TelegramRoutesDeps — assim nenhum chamador existente de criarRotasTelegram
+  // (ex: server/src/index.ts) precisa mudar para ganhar as rotas de vínculo externo abaixo.
+  const vinculosExternosService = new VinculosExternosTelegramServiceDB(db);
 
   // Avisos de boot (nunca impedem o resto do servidor de subir — ver cabeçalho da tarefa):
   // sem TELEGRAM_BOT_TOKEN o bot não consegue mandar/baixar nada da API do Telegram; sem
@@ -273,7 +306,7 @@ export function criarRotasTelegram({ authService, eventosService, db }: Telegram
     try {
       const texto = mensagem.text?.trim();
       if (texto && /^\/vincular\b/i.test(texto)) {
-        await tratarComandoVincular(db, String(mensagem.chat.id), texto);
+        await tratarComandoVincular(db, vinculosExternosService, String(mensagem.chat.id), texto);
       } else {
         await tratarCaptura(db, eventosService, mensagem);
       }
@@ -288,6 +321,38 @@ export function criarRotasTelegram({ authService, eventosService, db }: Telegram
     }
 
     res.status(200).json({ ok: true });
+  });
+
+  /**
+   * GET /vinculos-externos-pendentes
+   * Header: Authorization: Bearer <token>
+   *
+   * Lista todos os códigos de vínculo de CONTATO EXTERNO (locatário, cliente da advocacia,
+   * prestador) recebidos pelo bot e ainda não resolvidos — sem filtro por usuário: só o
+   * titular/quem está logado no app consome este inbox, e a correspondência
+   * código -> referência de negócio só existe no banco local do cliente de qualquer forma
+   * (ver `vinculos_telegram_externos` em schema.sql e `src/domain/notificacoes/
+   * vinculosExternos.ts`). Mesmo espírito de GET /api/eventos-externos/pendentes, mas sobre
+   * o inbox dedicado (mais simples, sem usuario_id para carimbar).
+   */
+  router.get("/vinculos-externos-pendentes", exigirAutenticacao, (_req, res) => {
+    res.json({ pendentes: vinculosExternosService.listarPendentes() });
+  });
+
+  /**
+   * POST /vinculos-externos-pendentes/:id/consumir
+   * Header: Authorization: Bearer <token>
+   *
+   * O cliente chama depois de tentar casar o código com `vinculos_telegram_externos` — com
+   * sucesso ou não — para não reaparecer no próximo polling.
+   */
+  router.post("/vinculos-externos-pendentes/:id/consumir", exigirAutenticacao, (req, res) => {
+    const ok = vinculosExternosService.marcarConsumido(req.params.id);
+    if (!ok) {
+      res.status(404).json({ erro: "Vínculo externo pendente não encontrado ou já consumido" });
+      return;
+    }
+    res.json({ sucesso: true });
   });
 
   return router;

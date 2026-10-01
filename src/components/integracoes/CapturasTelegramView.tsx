@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Send, Loader2, RefreshCw, ImageIcon, FileText, Inbox } from "lucide-react";
+import { Send, Loader2, RefreshCw, ImageIcon, FileText, Inbox, UserPlus } from "lucide-react";
 import { useDb } from "../../db/useDb";
 import { useToast } from "../../ui/useToast";
 import {
@@ -8,6 +8,12 @@ import {
   criarCapturasApiClientHttp,
   type CapturaTelegramPendente,
 } from "../../domain/integracoes/capturasPendentes";
+import {
+  resolverVinculosExternosPendentes,
+  criarVinculosExternosApiClientHttp,
+  criarNotificacoesApiClientHttp,
+  type PendenteVinculoExternoServidor,
+} from "../../domain/notificacoes/vinculosExternos";
 
 /**
  * Captura rápida via bot do Telegram: tela "ponte" entre o bot (server/src/routes/
@@ -84,6 +90,14 @@ export function CapturasTelegramView() {
   const [carregando, setCarregando] = useState(false);
   const [importandoId, setImportandoId] = useState<string | null>(null);
 
+  // Vínculos de CONTATOS EXTERNOS (locatário/cliente da advocacia/prestador) — ver
+  // domain/notificacoes/vinculosExternos.ts. Lista separada da fila de capturas acima:
+  // aqui são só códigos "/vincular CODIGO" que o servidor não soube resolver (não são
+  // usuário do sistema), aguardando o cliente casar com `vinculos_telegram_externos`.
+  const [pendentesExternos, setPendentesExternos] = useState<PendenteVinculoExternoServidor[]>([]);
+  const [carregandoExternos, setCarregandoExternos] = useState(false);
+  const [verificandoExternos, setVerificandoExternos] = useState(false);
+
   const salvarConfig = useCallback((patch: Partial<ConfiguracaoLocal>) => {
     setConfig((atual) => {
       const proximo = { ...atual, ...patch };
@@ -107,10 +121,49 @@ export function CapturasTelegramView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.enderecoBackend, config.tokenSessao]);
 
+  const carregarPendentesExternos = useCallback(async () => {
+    if (!configurado) return;
+    setCarregandoExternos(true);
+    try {
+      const vinculosApiClient = criarVinculosExternosApiClientHttp(config.enderecoBackend.trim(), config.tokenSessao.trim());
+      setPendentesExternos(await vinculosApiClient.listarPendentes());
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "Falha ao buscar vínculos de contatos externos pendentes");
+    } finally {
+      setCarregandoExternos(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.enderecoBackend, config.tokenSessao, configurado]);
+
   useEffect(() => {
-    if (configurado) carregarCapturas();
+    if (configurado) {
+      carregarCapturas();
+      carregarPendentesExternos();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configurado]);
+
+  async function verificarVinculosExternos() {
+    if (!db || !configurado) return;
+    setVerificandoExternos(true);
+    try {
+      const backend = config.enderecoBackend.trim();
+      const token = config.tokenSessao.trim();
+      const vinculosApiClient = criarVinculosExternosApiClientHttp(backend, token);
+      const notificacoesApiClient = criarNotificacoesApiClientHttp(backend, token);
+      const { resolvidos, naoEncontrados } = await resolverVinculosExternosPendentes(db, vinculosApiClient, notificacoesApiClient);
+      await persistir();
+      await carregarPendentesExternos();
+      avisar(
+        "good",
+        `${resolvidos} vínculo(s) de contato externo confirmado(s)${naoEncontrados > 0 ? `, ${naoEncontrados} não encontrado(s)/expirado(s)` : ""}.`,
+      );
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : "Falha ao verificar vínculos de contatos externos pendentes");
+    } finally {
+      setVerificandoExternos(false);
+    }
+  }
 
   async function gerarCodigo() {
     if (!apiClient) return;
@@ -247,6 +300,43 @@ export function CapturasTelegramView() {
                 >
                   {importandoId === captura.id ? <Loader2 className="spin" size={13} /> : null} Importar para triagem
                 </button>
+              </div>
+            ))
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 10 }}>
+            <h3 style={{ fontSize: 15, display: "flex", alignItems: "center", gap: 6 }}>
+              <UserPlus size={15} /> Vínculos de contatos externos pendentes ({pendentesExternos.length})
+            </h3>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="btn" style={{ padding: "4px 8px", fontSize: 12 }} onClick={carregarPendentesExternos} disabled={carregandoExternos}>
+                {carregandoExternos ? <Loader2 className="spin" size={13} /> : <RefreshCw size={13} />} Atualizar
+              </button>
+              <button className="btn primary" style={{ padding: "4px 8px", fontSize: 12 }} onClick={verificarVinculosExternos} disabled={verificandoExternos}>
+                {verificandoExternos ? <Loader2 className="spin" size={13} /> : <UserPlus size={13} />} Verificar vínculos pendentes
+              </button>
+            </div>
+          </div>
+          <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 10, maxWidth: "68ch" }}>
+            Códigos "/vincular CODIGO" recebidos pelo bot de um chat que <strong>não</strong> é um usuário do sistema — locatário,
+            cliente da advocacia ou prestador que gerou o próprio código na tela de cadastro correspondente (ver{" "}
+            <code>VincularTelegramExterno</code>). Clique em "Verificar vínculos pendentes" para casar cada código com o cadastro
+            certo e confirmar o vínculo ao contato.
+          </p>
+          {pendentesExternos.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>Nenhum vínculo de contato externo pendente.</p>
+          ) : (
+            pendentesExternos.map((pendente) => (
+              <div key={pendente.id} className="card" style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                <UserPlus size={16} />
+                <div style={{ flex: 1, fontSize: 13 }}>
+                  <div>
+                    /vincular {pendente.codigoVinculo} — chat {pendente.chatId}
+                  </div>
+                  {pendente.recebidoEm && (
+                    <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{new Date(pendente.recebidoEm).toLocaleString("pt-BR")}</div>
+                  )}
+                </div>
               </div>
             ))
           )}

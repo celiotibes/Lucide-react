@@ -35,6 +35,7 @@ function createTestDatabase(): Database.Database {
   db.pragma("foreign_keys = ON");
   db.exec(resolverSchema("migrations-phase2-auth.sql"));
   db.exec(resolverSchema("migrations-phase3-integracoes.sql"));
+  db.exec(resolverSchema("migrations-phase4-vinculos-externos.sql"));
   return db;
 }
 
@@ -168,7 +169,7 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
       expect(corpoEnviado.text).toContain("Vinculado");
     });
 
-    it("does not link an expired code", async () => {
+    it("does not link an expired code, and queues it as an external pending link instead", async () => {
       // Insere um vínculo já expirado direto no banco (sem passar por /gerar-codigo-vinculo,
       // que sempre gera um código válido por 15 minutos a partir de agora).
       db.prepare(
@@ -187,12 +188,50 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
         });
       expect(resp.status).toBe(200);
 
+      // Nunca linkado como usuário do sistema (código expirado para esse fim)...
       const linha = db.prepare("SELECT * FROM telegram_vinculos WHERE id = 'v1'").get() as any;
       expect(linha.chat_id).toBeNull();
 
+      // ...mas o servidor não sabe se é inválido ou um código de contato externo legítimo —
+      // só enfileira, sem tentar resolver (ver cabeçalho de telegram-routes.ts).
+      const pendenteExterno = db
+        .prepare("SELECT * FROM vinculos_externos_telegram_pendentes WHERE codigo_vinculo = '000111'")
+        .get() as any;
+      expect(pendenteExterno).toBeTruthy();
+      expect(pendenteExterno.chat_id).toBe("777");
+      expect(pendenteExterno.consumido).toBe(0);
+
       const [, init] = fetchMock.mock.calls[0];
       const corpoEnviado = JSON.parse(init.body);
-      expect(corpoEnviado.text).toContain("expirado");
+      expect(corpoEnviado.text).toContain("recebido");
+      expect(corpoEnviado.text).not.toContain("inválido");
+    });
+
+    it("queues an unresolved /vincular code as an external pending link (not in telegram_vinculos)", async () => {
+      const fetchMock = fetchOkTelegramPadrao();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const resp = await request(app)
+        .post("/api/telegram/webhook")
+        .set("X-Telegram-Bot-Api-Secret-Token", WEBHOOK_SECRET)
+        .send({
+          update_id: 99,
+          message: { message_id: 99, date: 1700000000, chat: { id: 4242, type: "private" }, text: "/vincular 654321" },
+        });
+      expect(resp.status).toBe(200);
+
+      expect(db.prepare("SELECT * FROM telegram_vinculos WHERE codigo_vinculo = '654321'").get()).toBeUndefined();
+
+      const pendenteExterno = db
+        .prepare("SELECT * FROM vinculos_externos_telegram_pendentes WHERE codigo_vinculo = '654321'")
+        .get() as any;
+      expect(pendenteExterno).toBeTruthy();
+      expect(pendenteExterno.chat_id).toBe("4242");
+
+      const [, init] = fetchMock.mock.calls[0];
+      const corpoEnviado = JSON.parse(init.body);
+      expect(corpoEnviado.chat_id).toBe("4242");
+      expect(corpoEnviado.text).toContain("recebido");
     });
 
     it("queues an event with the correct usuario_id for a message from a linked chat", async () => {
@@ -244,6 +283,65 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
       const [, init] = fetchMock.mock.calls[0];
       const corpoEnviado = JSON.parse(init.body);
       expect(corpoEnviado.text).toContain("/vincular");
+    });
+  });
+
+  describe("GET/POST /api/telegram/vinculos-externos-pendentes", () => {
+    async function enfileirarPendenteExterno(codigo: string, chatId: string): Promise<void> {
+      const fetchMock = fetchOkTelegramPadrao();
+      vi.stubGlobal("fetch", fetchMock);
+      const resp = await request(app)
+        .post("/api/telegram/webhook")
+        .set("X-Telegram-Bot-Api-Secret-Token", WEBHOOK_SECRET)
+        .send({
+          update_id: Math.floor(Math.random() * 1_000_000),
+          message: { message_id: 1, date: 1700000000, chat: { id: chatId, type: "private" }, text: `/vincular ${codigo}` },
+        });
+      expect(resp.status).toBe(200);
+      vi.unstubAllGlobals();
+    }
+
+    it("rejects both routes without a valid session token", async () => {
+      const respGet = await request(app).get("/api/telegram/vinculos-externos-pendentes");
+      expect(respGet.status).toBe(401);
+
+      const respPost = await request(app).post("/api/telegram/vinculos-externos-pendentes/algum-id/consumir");
+      expect(respPost.status).toBe(401);
+    });
+
+    it("lists pending external links queued by the webhook", async () => {
+      await enfileirarPendenteExterno("111222", "5001");
+
+      const token = await login(app, "titular@example.com");
+      const resp = await request(app).get("/api/telegram/vinculos-externos-pendentes").set("Authorization", `Bearer ${token}`);
+      expect(resp.status).toBe(200);
+      expect(resp.body.pendentes).toHaveLength(1);
+      expect(resp.body.pendentes[0]).toMatchObject({ codigoVinculo: "111222", chatId: "5001", consumido: false });
+    });
+
+    it("marks a pending external link as consumed, and it no longer appears in the listing", async () => {
+      await enfileirarPendenteExterno("333444", "5002");
+
+      const token = await login(app, "titular@example.com");
+      const listagem = await request(app).get("/api/telegram/vinculos-externos-pendentes").set("Authorization", `Bearer ${token}`);
+      const id = listagem.body.pendentes[0].id;
+
+      const consumir = await request(app)
+        .post(`/api/telegram/vinculos-externos-pendentes/${id}/consumir`)
+        .set("Authorization", `Bearer ${token}`);
+      expect(consumir.status).toBe(200);
+      expect(consumir.body.sucesso).toBe(true);
+
+      const depois = await request(app).get("/api/telegram/vinculos-externos-pendentes").set("Authorization", `Bearer ${token}`);
+      expect(depois.body.pendentes).toHaveLength(0);
+    });
+
+    it("returns 404 when consuming an unknown or already-consumed id", async () => {
+      const token = await login(app, "titular@example.com");
+      const resp = await request(app)
+        .post("/api/telegram/vinculos-externos-pendentes/id-inexistente/consumir")
+        .set("Authorization", `Bearer ${token}`);
+      expect(resp.status).toBe(404);
     });
   });
 });
