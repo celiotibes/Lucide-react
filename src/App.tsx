@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell, Droplets } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -72,13 +72,14 @@ const PluggySyncView = lazy(() => import("./components/integracoes/PluggySyncVie
 const CapturasTelegramView = lazy(() => import("./components/integracoes/CapturasTelegramView").then((m) => ({ default: m.CapturasTelegramView })));
 const NotificacoesView = lazy(() => import("./components/integracoes/NotificacoesView").then((m) => ({ default: m.NotificacoesView })));
 const IndicadoresAjustadosJurosView = lazy(() => import("./components/IndicadoresAjustadosJurosView").then((m) => ({ default: m.IndicadoresAjustadosJurosView })));
+const SimulacaoLiquidezView = lazy(() => import("./components/SimulacaoLiquidezView").then((m) => ({ default: m.SimulacaoLiquidezView })));
 
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
   | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes" | "expansao" | "juros" | "quitacao"
-  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes" | "indicadoresajustadosjuros";
+  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes" | "indicadoresajustadosjuros" | "simulacaoliquidez";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -105,6 +106,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "capturastelegram", rotulo: "Captura via Telegram", icone: Send },
   { id: "notificacoes", rotulo: "Notificações enviadas", icone: Bell },
   { id: "indicadoresajustadosjuros", rotulo: "Indicadores ajustados por juros", icone: Scale },
+  { id: "simulacaoliquidez", rotulo: "Simulação de liquidez futura", icone: Droplets },
   { id: "avaliacaomercado", rotulo: "Avaliação de mercado (gerencial)", icone: CircleDollarSign },
   { id: "indicadoresgestao", rotulo: "Indicadores de gestão financeira", icone: Gauge },
   { id: "relatorios", rotulo: "Relatórios integrados", icone: FileText },
@@ -462,6 +464,7 @@ function Conteudo() {
             {aba === "capturastelegram" && <CapturasTelegramView />}
             {aba === "notificacoes" && <NotificacoesView />}
             {aba === "indicadoresajustadosjuros" && <IndicadoresAjustadosJurosView />}
+            {aba === "simulacaoliquidez" && <SimulacaoLiquidezView />}
             {aba === "avaliacaomercado" && <AvaliacaoMercadoView />}
             {aba === "indicadoresgestao" && <IndicadoresGestaoView />}
             {aba === "relatorios" && <RelatoriosIntegradosView />}
