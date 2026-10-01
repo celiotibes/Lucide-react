@@ -146,6 +146,26 @@ export function resolverDestinatariosPrestador(db: Database, prestadorId: number
 /** Resolve os destinatários de um locatário específico (`contrato_locatarios.id`) — usado
  * por telas que não partem de uma competência/cobrança (ex: envio de laudo de vistoria),
  * mas já sabem exatamente qual linha de `contrato_locatarios` notificar. */
+/** Resolve o destinatário a partir de `contratos_locacao.id` direto (não de uma
+ * competência/cobrança específica) — usado por telas como caução, inadimplência e
+ * reajuste/rescisão, que giram em torno do CONTRATO, não de uma competência isolada.
+ * Pega o locatário principal (`papel = 'locatario'`, o mais antigo) do contrato, mesmo
+ * critério já usado internamente para resolver uma cobrança de aluguel. */
+export function resolverDestinatariosPorContratoId(db: Database, contratoId: number): DestinatariosResolvidos {
+  const [contato] = consultar<{ id: number; email: string | null; telefone: string | null }>(
+    db,
+    "SELECT id, email, telefone FROM contrato_locatarios WHERE contrato_id = ? AND papel = 'locatario' ORDER BY id ASC LIMIT 1",
+    [contratoId],
+  );
+  if (!contato) return DESTINATARIOS_VAZIOS;
+
+  return {
+    email: normalizarEmail(contato.email),
+    whatsappE164: normalizarParaE164(contato.telefone),
+    telegramChatId: resolverChatIdExterno(db, "contrato_locatario", contato.id),
+  };
+}
+
 export function resolverDestinatariosContratoLocatario(db: Database, contratoLocatarioId: number): DestinatariosResolvidos {
   const [contato] = consultar<{ email: string | null; telefone: string | null }>(
     db,
