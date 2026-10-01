@@ -724,9 +724,16 @@ export function reverterProvisaoJurosMora(
   };
 }
 
-/** Relatório: Contratos em inadimplência com cálculos de juros/multa */
+/** Relatório: Contratos em inadimplência com cálculos de juros/multa.
+ *
+ * `data_referencia` é opcional e propagado para `apurarInadimplenciaContrato` — sem ela,
+ * o relógio real (`new Date()`) é usado, como sempre foi. Passá-la explicitamente torna o
+ * resultado determinístico (importante para teste: sem isso, esta função nunca reporta
+ * nenhum contrato como atrasado no dia 1º de qualquer mês, porque a data de vencimento
+ * "deste mês" cai no mesmo dia de hoje — ver `apurarInadimplenciaContrato`). */
 export function relatorioInadimplenciaDetalhado(
   db: Database,
+  data_referencia?: string,
 ): InadimplenciaCalculada[] {
   const contratos = consultar<{ id: number }>(
     db,
@@ -737,13 +744,15 @@ export function relatorioInadimplenciaDetalhado(
   );
 
   return contratos
-    .map((c) => apurarInadimplenciaContrato(db, c.id))
+    .map((c) => apurarInadimplenciaContrato(db, c.id, data_referencia))
     .filter((c) => c !== null && c.dias_atraso > 0) as InadimplenciaCalculada[];
 }
 
-/** Resumo executivo: Inadimplência total em risco */
+/** Resumo executivo: Inadimplência total em risco. `data_referencia` opcional — ver
+ * `relatorioInadimplenciaDetalhado`. */
 export function resumoInadimplenciaTotal(
   db: Database,
+  data_referencia?: string,
 ): {
   contratos_inadimplentes: number;
   valor_aluguel_em_atraso: number;
@@ -751,7 +760,7 @@ export function resumoInadimplenciaTotal(
   juros_acumulado: number;
   valor_total_em_risco: number;
 } {
-  const relatorio = relatorioInadimplenciaDetalhado(db);
+  const relatorio = relatorioInadimplenciaDetalhado(db, data_referencia);
 
   return {
     contratos_inadimplentes: relatorio.length,

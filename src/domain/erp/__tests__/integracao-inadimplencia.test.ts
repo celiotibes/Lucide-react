@@ -313,23 +313,23 @@ describe("integracao-inadimplencia: relatorioInadimplenciaDetalhado / resumoInad
     expect(vigentes).not.toContain(encerrado);
   });
 
-  it("resumoInadimplenciaTotal soma multa/juros/valor em risco de todos os contratos vigentes em atraso, hoje", () => {
-    // relatorioInadimplenciaDetalhado/resumoInadimplenciaTotal chamam
-    // apurarInadimplenciaContrato sem data_referencia — usam sempre o relógio real, sem
-    // como injetar uma data fixa (limitação conhecida, fora do escopo deste achado; os
-    // testes de apurarInadimplenciaContrato acima já cobrem a lógica de cálculo de forma
-    // determinística via data_referencia). Vencimento no dia 1 garante atraso em
-    // praticamente qualquer dia do mês em que este teste rodar (só não em 1º de mês).
+  it("resumoInadimplenciaTotal soma multa/juros/valor em risco de todos os contratos vigentes em atraso", () => {
+    // ACHADO corrigido: relatorioInadimplenciaDetalhado/resumoInadimplenciaTotal agora
+    // aceitam `data_referencia` opcional (propagada para apurarInadimplenciaContrato, que
+    // já suportava). Antes, sem forma de injetar uma data fixa, este teste usava o
+    // relógio real e falhava mecanicamente todo dia 1º de qualquer mês (vencimento="este
+    // mês, dia 1" nunca fica "em atraso" quando hoje também é dia 1 — dias_atraso = 0).
+    // Fixando a data de referência no meio do mês, o teste é determinístico para sempre.
+    const dataReferencia = "2025-06-15";
     const contrato_id = criarContrato(1, 1000);
-    const hoje = new Date().toISOString().slice(0, 10);
 
-    const antes = resumoInadimplenciaTotal(db);
+    const antes = resumoInadimplenciaTotal(db, dataReferencia);
     expect(antes.contratos_inadimplentes).toBe(1);
     expect(antes.valor_aluguel_em_atraso).toBeCloseTo(1000, 2);
     expect(antes.valor_total_em_risco).toBeGreaterThan(1000); // principal + multa + juros
 
-    registrarRecebimento(contrato_id, 1000, hoje);
-    const depois = resumoInadimplenciaTotal(db);
+    registrarRecebimento(contrato_id, 1000, dataReferencia);
+    const depois = resumoInadimplenciaTotal(db, dataReferencia);
     expect(depois.contratos_inadimplentes).toBe(0); // pago: some do relatório
   });
 });
