@@ -368,6 +368,30 @@ export function iniciarScannerAnomaliasDiario(db: Database.Database): void {
 }
 
 /**
+ * Executa backup automático do banco SQLite para Google Drive a cada hora.
+ * Registra resultado em log — não lança exceção.
+ */
+export async function executarBackupHorario(): Promise<void> {
+  try {
+    console.log("[GoogleDriveBackup] Iniciando backup automático...");
+    const resultado = await backupSQLiteToGoogleDrive();
+
+    if (resultado.sucesso) {
+      console.log(`[GoogleDriveBackup] Backup concluído: ${resultado.arquivoZip}`);
+    } else {
+      console.error(
+        `[GoogleDriveBackup] Backup falhou: ${resultado.erros.join(", ")}`
+      );
+    }
+  } catch (erro) {
+    console.error(
+      "[GoogleDriveBackup] Erro inesperado ao fazer backup:",
+      erro instanceof Error ? erro.message : erro
+    );
+  }
+}
+
+/**
  * Inicia o loop: uma rodada imediata (boot) e depois uma rodada por hora. Nunca lança —
  * qualquer erro inesperado de uma rodada (ex: erro de banco) só é logado, para não derrubar
  * o processo do servidor por uma falha num loop de background.
