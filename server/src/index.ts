@@ -20,6 +20,7 @@ import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembrete
 import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
 import { criarRotasRelatorios } from "../src/routes/dre-routes.js";
+import { criarRotasTransacoes } from "../src/routes/transacoes-routes.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -119,6 +120,11 @@ app.use("/api/lembretes-agendados", criarRotasLembretesAgendados({ authService, 
  * GET /api/relatorios/dre/historico — listagem periódica
  * GET /api/relatorios/dre/:ano/:mes — busca específica */
 app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
+
+/** Sugestão inteligente de categorias para transações (fase 2.3) — baseada em
+ * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria
+ * retorna { categoria, confianca (0-100), motivo }. */
+app.use("/api/transacoes", criarRotasTransacoes({ db }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET

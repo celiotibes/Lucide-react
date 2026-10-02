@@ -2141,3 +2141,22 @@ CREATE TABLE IF NOT EXISTS vinculos_telegram_externos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_vinculos_telegram_externos_referencia ON vinculos_telegram_externos(referencia_tipo, referencia_id);
+
+-- Phase 2.3: Categorização inteligente de transações
+-- Histórico de sugestões de categorias geradas automaticamente.
+-- Usada para:
+-- 1. Auditar as sugestões feitas ao usuário
+-- 2. Aprender padrões no futuro (feedback loop)
+-- 3. Medir acurácia do sistema (categoria_sugerida vs categoria_real quando usuário confirma)
+CREATE TABLE IF NOT EXISTS categorias_sugeridas_historico (
+    id                      INTEGER PRIMARY KEY,
+    transacao_id            INTEGER NOT NULL REFERENCES transacoes(id),
+    categoria_sugerida      TEXT NOT NULL,             -- plano_conta_codigo sugerido
+    categoria_real          TEXT,                      -- preenchido depois quando usuário confirma/corrige
+    confianca_sugestao      INTEGER NOT NULL CHECK (confianca_sugestao BETWEEN 0 AND 100),
+    motivo                  TEXT NOT NULL,             -- ex: "Baseado em histórico: 7 transações", "Keyword match: aluguel, imóvel"
+    criado_em               TEXT NOT NULL              -- timestamp ISO 8601
+);
+
+CREATE INDEX IF NOT EXISTS idx_categorias_sugeridas_transacao ON categorias_sugeridas_historico(transacao_id);
+CREATE INDEX IF NOT EXISTS idx_categorias_sugeridas_criado ON categorias_sugeridas_historico(criado_em DESC);
