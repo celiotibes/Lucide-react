@@ -12,6 +12,7 @@ import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { calcularDREPeriodo, gravarDREPeriodo, buscarDREPeriodo, listarDREPeriodos } from "../domain/relatorios/dre.js";
+import { forecastMediaMovel, forecastRegressao, type ProjecaoFluxo } from "../domain/relatorios/fluxoCaixaForecast.js";
 
 export interface RelatoriosRoutesDeps {
   authService: AuthServiceDB;
@@ -225,6 +226,93 @@ export function criarRotasRelatorios(deps: RelatoriosRoutesDeps): express.Router
     } catch (erro) {
       console.error("[DRE] Erro ao buscar DRE específico:", erro);
       res.status(500).json({ erro: "Erro ao buscar DRE" });
+    }
+  });
+
+  /**
+   * GET /api/relatorios/fluxo-caixa/projecao
+   * Query params:
+   *   - diasAdiante: number (30, 60, ou 90 dias — default 30)
+   *   - algoritmo: string ("media_movel" ou "regressao" — default "media_movel")
+   *
+   * Retorna projeção de fluxo de caixa usando um dos dois algoritmos
+   */
+  router.get("/fluxo-caixa/projecao", (req, res) => {
+    try {
+      if (!db) {
+        return res.status(500).json({ erro: "Database não disponível" });
+      }
+
+      const diasAdiante = Number(req.query.diasAdiante ?? 30);
+      const algoritmo = String(req.query.algoritmo ?? "media_movel") as "media_movel" | "regressao";
+
+      // Validar diasAdiante
+      if (!Number.isInteger(diasAdiante) || diasAdiante < 1 || diasAdiante > 90) {
+        return res.status(400).json({
+          erro: "diasAdiante deve ser um número inteiro entre 1 e 90",
+        });
+      }
+
+      // Validar algoritmo
+      if (algoritmo !== "media_movel" && algoritmo !== "regressao") {
+        return res.status(400).json({
+          erro: "algoritmo deve ser 'media_movel' ou 'regressao'",
+        });
+      }
+
+      // Calcular projeção
+      const projecao =
+        algoritmo === "media_movel"
+          ? forecastMediaMovel(db, diasAdiante)
+          : forecastRegressao(db, diasAdiante);
+
+      // Obter saldo atual do banco de dados (excluindo transferências)
+      const saldoResult = db
+        .prepare(
+          `SELECT COALESCE(SUM(t.valor), 0) AS saldo_total
+           FROM transacoes t
+           JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+           WHERE t.data <= date('now')
+             AND p.grupo != 'transferencia'`
+        )
+        .get() as { saldo_total: number };
+      const saldoAtual = saldoResult?.saldo_total ?? 0;
+      const saldoFinal = projecao.length > 0 ? projecao[projecao.length - 1].saldoEstimado : saldoAtual;
+      const dataInicio = new Date();
+      const dataFim = new Date(Date.now() + diasAdiante * 24 * 60 * 60 * 1000);
+
+      // Detectar dias com caixa negativo
+      const alertas: Array<{ data: string; saldo: number; mensagem: string }> = [];
+      const diasCaixaNegativo = projecao.filter((p) => {
+        if (p.saldoEstimado < 0) {
+          alertas.push({
+            data: p.data,
+            saldo: p.saldoEstimado,
+            mensagem: `Saldo: R$ ${Math.abs(p.saldoEstimado).toLocaleString("pt-BR")}`,
+          });
+          return true;
+        }
+        return false;
+      }).length;
+
+      res.json({
+        diasAdiante,
+        algoritmo,
+        projecao,
+        alertas,
+        resumo: {
+          saldoAtual,
+          saldoFinal,
+          temCaixaNegativo: diasCaixaNegativo > 0,
+          diasCaixaNegativo,
+          periodoProjecao: `${dataInicio.toISOString().split("T")[0]} a ${dataFim.toISOString().split("T")[0]}`,
+        },
+      });
+    } catch (erro) {
+      console.error("[FluxoCaixa] Erro ao calcular projeção:", erro);
+      res.status(500).json({
+        erro: erro instanceof Error ? erro.message : "Erro ao calcular projeção",
+      });
     }
   });
 

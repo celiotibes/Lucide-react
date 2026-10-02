@@ -121,14 +121,16 @@ function buscarHistoricoUltimos90Dias(db: Database.Database): TransacaoDiaria[] 
 }
 
 /**
- * Busca o saldo atual (soma de todas as transações)
+ * Busca o saldo atual (soma de todas as transações, excluindo transferências)
  */
 function buscarSaldoAtual(db: Database.Database): number {
   try {
     const resultado = db.prepare(`
       SELECT COALESCE(SUM(t.valor), 0) AS saldo_total
       FROM transacoes t
+      JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
       WHERE t.data <= date('now')
+        AND p.grupo != 'transferencia'
     `).get() as { saldo_total: number };
 
     return resultado?.saldo_total ?? 0;

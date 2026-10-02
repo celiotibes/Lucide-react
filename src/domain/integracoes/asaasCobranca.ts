@@ -22,6 +22,7 @@
 
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
+import { aplicarEventoReembolsoWebhook } from "./asaasReembolsos";
 
 export type StatusCobrancaAsaas = "pendente" | "pago" | "atrasado" | "cancelado";
 export type TipoCobranca = "boleto" | "pix";
@@ -385,7 +386,9 @@ export interface ResultadoAplicacaoEventoAsaas {
 /** Vocabulário de eventos de webhook da Asaas que este módulo reconhece — mapeado para o
  * vocabulário local de `cobrancas_asaas.status`. Qualquer outro `event` (ex:
  * PAYMENT_CREATED, PAYMENT_UPDATED) é ignorado explicitamente (não é erro, só não altera
- * nada aqui), em vez de arriscar um mapeamento adivinhado. */
+ * nada aqui), em vez de arriscar um mapeamento adivinhado.
+ *
+ * PAYMENT_REFUNDED é tratado separadamente em aplicarReembolsoWebhook — não entra aqui. */
 const EVENTO_PARA_STATUS: Record<string, StatusCobrancaAsaas> = {
   PAYMENT_RECEIVED: "pago",
   PAYMENT_CONFIRMED: "pago",
@@ -410,7 +413,7 @@ function atualizarOrigemComoRecebida(db: Database, origemTipo: OrigemCobranca, o
 }
 
 function aplicarUmEvento(db: Database, evento: EventoWebhookAsaasPendente): ResultadoAplicacaoEventoAsaas {
-  const payload = evento.payload as { event?: string; payment?: { id?: string; paymentDate?: string } } | null;
+  const payload = evento.payload as { event?: string; payment?: { id?: string; paymentDate?: string; refundedAmount?: number; refundDate?: string } } | null;
   const tipoEvento = payload?.event;
   const asaasChargeId = payload?.payment?.id;
 
@@ -419,6 +422,16 @@ function aplicarUmEvento(db: Database, evento: EventoWebhookAsaasPendente): Resu
       eventoId: evento.id,
       aplicado: false,
       motivo: "Payload sem 'event' ou 'payment.id' — não reconhecido como webhook da Asaas.",
+    };
+  }
+
+  // Trata PAYMENT_REFUNDED separadamente
+  if (tipoEvento === "PAYMENT_REFUNDED") {
+    const resultado = aplicarEventoReembolsoWebhook(db, { payment: payload.payment, event: tipoEvento });
+    return {
+      eventoId: evento.id,
+      aplicado: resultado.aplicado,
+      motivo: resultado.motivo,
     };
   }
 

@@ -27,6 +27,7 @@ import {
   AsaasApiError,
   type TipoCobrancaAsaas,
 } from "../asaas.js";
+import { processarReembolsoAsaas, obterReembolsosPorChargeId } from "../domain/integracoes/asaasReembolsos.js";
 
 export interface AsaasRoutesDeps {
   authService: AuthServiceDB;
@@ -197,6 +198,100 @@ export function criarRotasAsaas({ authService, eventosService }: AsaasRoutesDeps
 
     eventosService.registrarEvento("webhook_asaas", req.body);
     res.json({ recebido: true });
+  });
+
+  /**
+   * POST /api/asaas/cobrancas/:chargeId/processar-devolucao
+   * Header: Authorization: Bearer <token>
+   * Body: { motivo: string, tipoForce?: 'reversao' | 'devolucao' }
+   *
+   * Processa um reembolso para uma cobrança já paga. A lógica de negócio fica no módulo
+   * de domínio (asaasReembolsos.ts), o servidor só valida inputs, chama a função e
+   * devolve o resultado. Idempotência garantida por UNIQUE constraint na tabela.
+   */
+  router.post("/cobrancas/:chargeId/processar-devolucao", exigirAutenticacao, async (req, res) => {
+    const { motivo, tipoForce } = req.body ?? {};
+    const chargeId = req.params.chargeId?.trim();
+
+    if (!chargeId) {
+      res.status(400).json({ erro: "chargeId é obrigatório (via URL)" });
+      return;
+    }
+
+    if (typeof motivo !== "string" || !motivo.trim()) {
+      res.status(400).json({ erro: "motivo é obrigatório (corpo)" });
+      return;
+    }
+
+    if (tipoForce && !["reversao", "devolucao"].includes(tipoForce)) {
+      res.status(400).json({ erro: "tipoForce inválido — precisa ser 'reversao' ou 'devolucao'" });
+      return;
+    }
+
+    try {
+      const db = (req as any).db;
+      const reembolso = await processarReembolsoAsaas(db, {
+        chargeId,
+        motivo: motivo.trim(),
+        tipoForce: tipoForce as "reversao" | "devolucao" | undefined,
+      });
+
+      res.status(201).json({
+        id: reembolso.id,
+        asaasChargeId: reembolso.asaasChargeId,
+        motivo: reembolso.motivo,
+        tipo: reembolso.tipo,
+        status: reembolso.status,
+        dataProcessamento: reembolso.dataProcessamento,
+        origemTipo: reembolso.origemTipo,
+        origemId: reembolso.origemId,
+      });
+    } catch (erro) {
+      if (erro instanceof Error && erro.message.includes("não encontrada")) {
+        res.status(404).json({ erro: erro.message });
+        return;
+      }
+      if (erro instanceof Error && erro.message.includes("status")) {
+        res.status(400).json({ erro: erro.message });
+        return;
+      }
+      throw erro;
+    }
+  });
+
+  /**
+   * GET /api/asaas/cobrancas/:chargeId/reembolsos
+   * Header: Authorization: Bearer <token>
+   *
+   * Lista reembolsos associados a uma cobrança específica.
+   */
+  router.get("/cobrancas/:chargeId/reembolsos", exigirAutenticacao, async (req, res) => {
+    const chargeId = req.params.chargeId?.trim();
+
+    if (!chargeId) {
+      res.status(400).json({ erro: "chargeId é obrigatório (via URL)" });
+      return;
+    }
+
+    try {
+      const db = (req as any).db;
+      const reembolsos = obterReembolsosPorChargeId(db, chargeId);
+
+      res.json({
+        chargeId,
+        reembolsos: reembolsos.map((r) => ({
+          id: r.id,
+          tipo: r.tipo,
+          status: r.status,
+          motivo: r.motivo,
+          dataProcessamento: r.dataProcessamento,
+          criadoEm: r.criadoEm,
+          mensagemErro: r.mensagemErro,
+        })),
+      });
+    } catch (erro) {
+      throw erro;
+    }
   });
 
   return router;

@@ -2051,6 +2051,32 @@ CREATE TABLE IF NOT EXISTS cobrancas_asaas (
 
 CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_origem ON cobrancas_asaas(origem_tipo, origem_id);
 CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_status ON cobrancas_asaas(status, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_charge_id ON cobrancas_asaas(asaas_charge_id);
+CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_status_v2 ON cobrancas_asaas(status, criado_em DESC);
+
+-- Rastreamento de reembolsos/devoluções de cobranças Asaas com idempotência (UNIQUE constraint
+-- em origem_tipo + origem_id previne reemissão acidental). Suporta dois tipos:
+-- - 'reversao': cobrança < 24h (tenta reverter na Asaas se suportado)
+-- - 'devolucao': cobrança ≥ 24h (registra como novo lançamento de saída 'Devolução de Pagamento')
+CREATE TABLE IF NOT EXISTS reembolsos_asaas (
+    id                        INTEGER PRIMARY KEY,
+    asaas_charge_id           TEXT NOT NULL UNIQUE REFERENCES cobrancas_asaas(asaas_charge_id),
+    motivo                    TEXT NOT NULL,
+    tipo                      TEXT NOT NULL CHECK (tipo IN ('reversao', 'devolucao')),
+    status                    TEXT NOT NULL DEFAULT 'processando' CHECK (status IN ('processando', 'sucesso', 'erro')),
+    data_processamento        DATE NOT NULL,
+    origem_tipo               TEXT NOT NULL CHECK (origem_tipo IN ('aluguel_competencia', 'honorario_advocaticio')),
+    origem_id                 INTEGER NOT NULL,
+    mensagem_erro             TEXT,
+    criado_em                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (origem_tipo, origem_id)  -- Idempotência: impede reemissão acidental
+);
+
+CREATE INDEX IF NOT EXISTS idx_reembolsos_asaas_tipo ON reembolsos_asaas(tipo);
+CREATE INDEX IF NOT EXISTS idx_reembolsos_asaas_status ON reembolsos_asaas(status);
+CREATE INDEX IF NOT EXISTS idx_reembolsos_asaas_data ON reembolsos_asaas(data_processamento DESC);
+CREATE INDEX IF NOT EXISTS idx_reembolsos_asaas_origem ON reembolsos_asaas(origem_tipo, origem_id);
+CREATE INDEX IF NOT EXISTS idx_reembolsos_asaas_charge ON reembolsos_asaas(asaas_charge_id);
 
 -- Vínculo entre uma conta bancária já cadastrada e a conta equivalente no MeuPluggy (uso
 -- pessoal gratuito, até 5 conexões — ver docs/viabilidade-backend-pagamentos.md). O usuário
