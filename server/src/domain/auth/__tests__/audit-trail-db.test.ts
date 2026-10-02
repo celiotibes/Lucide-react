@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Test database file
-const TEST_DB_PATH = path.join(__dirname, "test-audit.db");
+const TEST_DB_PATH = path.join(__dirname, `test-audit-${process.pid}.db`);
 
 /**
  * Create and initialize a test database

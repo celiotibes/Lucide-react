@@ -8,7 +8,7 @@ import { LembretesAgendadosServiceDB, type LembreteParaSincronizar } from "../le
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TEST_DB_PATH = path.join(__dirname, "test-lembretes-agendados-db.db");
+const TEST_DB_PATH = path.join(__dirname, `test-lembretes-agendados-db-${process.pid}.db`);
 
 function resolverSchema(nomeArquivo: string): string {
   const candidatos = [

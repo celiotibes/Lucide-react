@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Test database file
-const TEST_DB_PATH = path.join(__dirname, "test-auth.db");
+const TEST_DB_PATH = path.join(__dirname, `test-auth-${process.pid}.db`);
 
 const SENHA_PADRAO = "senha123";
 

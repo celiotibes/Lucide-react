@@ -9,7 +9,7 @@ import { executarRodadaDisparo, iniciarDisparoLembretesAgendados, type SendersLe
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TEST_DB_PATH = path.join(__dirname, "test-lembretes-dispatcher.db");
+const TEST_DB_PATH = path.join(__dirname, `test-lembretes-dispatcher-${process.pid}.db`);
 
 function resolverSchema(nomeArquivo: string): string {
   const candidatos = [

@@ -14,7 +14,7 @@ import { criarRotasTelegram } from "../telegram-routes";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TEST_DB_PATH = path.join(__dirname, "test-telegram-routes.db");
+const TEST_DB_PATH = path.join(__dirname, `test-telegram-routes-${process.pid}.db`);
 const SENHA_PADRAO = "senha-correta-123";
 const WEBHOOK_SECRET = "segredo-webhook-de-teste";
 
