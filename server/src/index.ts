@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import swaggerUi from "swagger-ui-express";
+import { specs } from "./swagger.js";
 import { pluggy, normalizarTransacao } from "./pluggy.js";
 import { initializeDatabase, getDatabase, closeDatabase } from "./database-init.js";
 import { AuthServiceDB } from "../src/domain/auth/auth-service-db.js";
