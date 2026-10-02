@@ -275,6 +275,23 @@ app.post("/api/webhooks/pluggy", (req, res) => {
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
+/** Swagger API documentation (sem autenticação Bearer, apenas informativos). */
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(specs, {
+  swaggerOptions: {
+    urls: [
+      {
+        url: "/api-docs.json",
+        name: "OpenAPI JSON",
+      },
+    ],
+  },
+}));
+
+app.get("/api-docs.json", (_req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.send(specs);
+});
+
 /** Middleware de erro — precisa ser o ÚLTIMO app.use() (Express identifica middleware de erro
  * pela assinatura de 4 parâmetros). Sem isso, um erro não tratado (ex: JSON malformado
  * chegando em express.json(), que roda ANTES de exigirChaveApi em toda rota — alcançável sem

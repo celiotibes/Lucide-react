@@ -31,6 +31,7 @@ import { sincronizarStatusTaxaAsaas } from "./domain/integracoes/pagamentos-reco
 import { conciliarPixOFX } from "./domain/integracoes/conciliacao-pix-ofx.js";
 import { enviarRelatorioEmailMensal } from "./domain/relatorios/relatorio-executivo.js";
 import { sincronizarPagamentosPendentes } from "./domain/integracoes/asaas-pagamentos-pix.js";
+import { backupSQLiteToGoogleDrive } from "./utils/googleDriveBackup.js";
 
 export interface SendersLembretesAgendados {
   enviarEmail: (opcoes: { destinatario: string; assunto: string; corpo: string }) => Promise<void>;
@@ -351,6 +352,7 @@ export function varrerAnomaliastransacoes(db: Database.Database): void {
 }
 
 const INTERVALO_ANOMALIAS_MS = 24 * 60 * 60 * 1000; // 24 horas
+const INTERVALO_BACKUP_MS = 60 * 60 * 1000; // 1 hora
 
 /**
  * Inicia o scanner de anomalias: uma rodada imediata (boot) e depois diariamente.
