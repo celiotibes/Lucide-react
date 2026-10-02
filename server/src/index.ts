@@ -20,8 +20,11 @@ import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembrete
 import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
 import { criarRotasRelatorios } from "../src/routes/dre-routes.js";
+import { criarRotasRelatorioExecutivo } from "../src/routes/relatorio-executivo-routes.js";
 import { criarRotasTransacoes } from "../src/routes/transacoes-routes.js";
 import { criarRotasConciliacaoPixOFX } from "../src/routes/conciliacao-pix-ofx-routes.js";
+import { criarRotasAnomalias } from "../src/routes/anomalias-routes.js";
+import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -50,6 +53,11 @@ console.log("[Server] Database and services initialized");
  * independente de qualquer requisição HTTP. É esta chamada que faz o disparo acontecer
  * num horário real do servidor mesmo com o app cliente fechado no dia do vencimento. */
 iniciarDisparoLembretesAgendados(db);
+
+/** Scanner diário de anomalias em fluxo de caixa (fase 4.1 — ver lembretes-dispatcher.ts e
+ * migrations-phase4.1-anomalias.sql): analisa transações do último dia e registra alertas
+ * críticos. Roda uma vez ao boot e depois a cada 24 horas, independente de requisições HTTP. */
+iniciarScannerAnomaliasDiario(db);
 
 // Fase 1 (auth real): avisa alto no boot se o segredo de assinatura de
 // sessão foi gerado só para este processo (SESSION_SECRET/JWT_SECRET
@@ -122,6 +130,14 @@ app.use("/api/lembretes-agendados", criarRotasLembretesAgendados({ authService, 
  * GET /api/relatorios/dre/:ano/:mes — busca específica */
 app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
 
+/** Relatório Executivo Mensal (fase 4.2) — consolidação de KPIs, DRE, Fluxo, Margens,
+ * Alertas em um documento para apresentação a gestor/executivo. Inclui:
+ * GET  /api/relatorios/executivo/dashboard?mes=10&ano=2026 — JSON para UI
+ * GET  /api/relatorios/executivo/download/:mes/:ano — HTML/PDF para download
+ * POST /api/relatorios/executivo/gerar?mes=10&ano=2026 — trigger manual
+ * POST /api/relatorios/executivo/enviar-email?mes=10&ano=2026&email=user@example.com — enviar por email */
+app.use("/api/relatorios", criarRotasRelatorioExecutivo({ authService, db }));
+
 /** Sugestão inteligente de categorias para transações (fase 2.3) — baseada em
  * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria
  * retorna { categoria, confianca (0-100), motivo }. */
@@ -133,6 +149,14 @@ app.use("/api/transacoes", criarRotasTransacoes({ db }));
  * GET /api/conciliacao/status?dias=30 — estatísticas
  * GET /api/conciliacao/discrepancias?limite=50 — lista de discrepâncias */
 app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db }));
+
+/** Detecção de anomalias em fluxo de caixa (fase 4.1) — identifica transações anormais
+ * usando 3 métodos estatísticos (2-Sigma, IQR, Percentile) com votação/consenso.
+ * POST /api/anomalias/analisar/:transacaoId — análise manual de uma transação
+ * GET /api/anomalias/alertas — lista alertas com filtros (severidade, dias, etc.)
+ * GET /api/anomalias/estatisticas — estatísticas agregadas de anomalias
+ * PATCH /api/anomalias/alertas/:id/revisar — marca alerta como revisado (auditoria) */
+app.use("/api/anomalias", criarRotasAnomalias({ db }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET

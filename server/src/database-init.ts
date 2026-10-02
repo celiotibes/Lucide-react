@@ -73,10 +73,12 @@ export function initializeDatabase(): Database.Database {
     runMigracoesIdempotentes(db, [
       "migrations-phase3-integracoes.sql",
       "migrations-phase4-vinculos-externos.sql",
+      "migrations-phase4.1-anomalias.sql",
       "migrations-phase5-lembretes-agendados.sql",
       "migrations-phase6-analytics-completa.sql",
       "migrations-phase6-relatorios-dre.sql",
       "migrations-phase7-margens-propriedades.sql",
+      "migrations-phase7-relatorio-executivo.sql",
       "migrations-phase8-asaas-reembolsos.sql",
       "migrations-phase8-reconciliacao-asaas.sql",
     ]);
