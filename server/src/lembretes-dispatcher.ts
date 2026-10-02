@@ -497,4 +497,19 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   console.log(
     `[RelatorioExecutivo] Envio mensal agendado para ${proximoDisparo.toLocaleString()}, depois 1º dia útil de cada mês às 8:00 AM`,
   );
+
+  // Backup automático do banco SQLite para Google Drive (a cada 1 hora)
+  function rodarBackupGoogleDrive(): void {
+    executarBackupHorario().catch((erro) => {
+      console.error(
+        "[GoogleDriveBackup] Erro inesperado ao fazer backup:",
+        erro instanceof Error ? erro.message : erro,
+      );
+    });
+  }
+
+  rodarBackupGoogleDrive(); // rodada imediata no boot
+  const intervalBackup = setInterval(rodarBackupGoogleDrive, INTERVALO_BACKUP_MS);
+  intervalBackup.unref(); // não impede o processo de terminar
+  console.log("[GoogleDriveBackup] Loop de backup automático agendado (a cada 1h)");
 }
