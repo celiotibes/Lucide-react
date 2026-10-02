@@ -29,3 +29,9 @@ dist-ssr
 # como alteração binária a cada vez que o servidor subia.
 *.db-shm
 *.db-wal
+
+# Resíduo de testes de geração de PDF (laudo/RAD): jsPDF chama `.save()`, que no ambiente
+# Node dos testes grava um arquivo físico na raiz do repo em vez de só devolver bytes —
+# nunca é intencional, nunca deve ser versionado.
+/laudo-*.pdf
+/rad-*.pdf
