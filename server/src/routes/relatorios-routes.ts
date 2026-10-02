@@ -115,6 +115,11 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
       const ano = parseInt(anoStr, 10);
       const mes = parseInt(mesStr, 10);
 
+      if (mes < 1 || mes > 12) {
+        res.status(400).json({ erro: `mes deve estar entre 1 e 12: ${mes}` });
+        return;
+      }
+
       const { top5, bottom5 } = obterMargensRanking(db, ano, mes);
 
       res.status(200).json({
@@ -139,7 +144,11 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
         })),
       });
     } catch (erro) {
-      throw erro;
+      console.error("[RelatoriosRoutes] Erro ao obter ranking de margens:", erro);
+      res.status(500).json({
+        erro: "Erro ao obter ranking de margens",
+        detalhes: erro instanceof Error ? erro.message : String(erro),
+      });
     }
   });
 
@@ -179,7 +188,11 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
         })),
       });
     } catch (erro) {
-      throw erro;
+      console.error("[RelatoriosRoutes] Erro ao calcular margens:", erro);
+      res.status(500).json({
+        erro: "Erro ao calcular margens",
+        detalhes: erro instanceof Error ? erro.message : String(erro),
+      });
     }
   });
 

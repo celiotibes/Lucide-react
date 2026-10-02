@@ -47,6 +47,17 @@ beforeEach(() => {
       UNIQUE(imovel_id, ano, mes),
       FOREIGN KEY (imovel_id) REFERENCES imoveis(id)
     );
+
+    CREATE TABLE transacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      imovel_id INTEGER NOT NULL,
+      tipo TEXT NOT NULL,
+      categoria TEXT,
+      descricao TEXT NOT NULL,
+      valor DECIMAL(15, 2) NOT NULL,
+      data DATETIME NOT NULL,
+      FOREIGN KEY (imovel_id) REFERENCES imoveis(id)
+    );
   `);
 
   // Inserir dados de teste
@@ -55,22 +66,18 @@ beforeEach(() => {
 
   // Mock auth service
   mockAuthService = {
-    validarToken: async (token: string) => ({
+    validarToken: (token: string) => ({
+      autenticado: true,
       usuarioId: 1,
       email: "test@example.com",
       papel: "titular",
+      usuario: { id: 1, email: "test@example.com", role: "titular" },
     }),
   } as any;
 
   // Setup Express
   app = express();
   app.use(express.json());
-
-  // Middleware de autenticação mock
-  app.use((req, res, next) => {
-    (req as any).usuario = { usuarioId: 1, email: "test@example.com", papel: "titular" };
-    next();
-  });
 
   const router = criarRotasRelatorios({ authService: mockAuthService, db });
   app.use("/api/relatorios", router);
@@ -96,6 +103,7 @@ describe("Rotas de Margens por Propriedade", () => {
 
     const response = await request(app)
       .get("/api/relatorios/margens?imovelId=1&dataInicio=2026-01-01&dataFim=2026-12-31")
+      .set("Authorization", "Bearer test-token")
       .expect(200);
 
     expect(response.body).toHaveProperty("imovelId", 1);
@@ -107,6 +115,7 @@ describe("Rotas de Margens por Propriedade", () => {
   it("deve retornar erro 400 se imovelId não for fornecido", async () => {
     const response = await request(app)
       .get("/api/relatorios/margens?dataInicio=2026-01-01")
+      .set("Authorization", "Bearer test-token")
       .expect(400);
 
     expect(response.body).toHaveProperty("erro");
@@ -130,6 +139,7 @@ describe("Rotas de Margens por Propriedade", () => {
 
     const response = await request(app)
       .get("/api/relatorios/margens/ranking?periodoMes=2026-10")
+      .set("Authorization", "Bearer test-token")
       .expect(200);
 
     expect(response.body).toHaveProperty("periodo", "2026-10");
@@ -140,6 +150,7 @@ describe("Rotas de Margens por Propriedade", () => {
   it("deve retornar erro 400 se periodoMes for inválido", async () => {
     const response = await request(app)
       .get("/api/relatorios/margens/ranking?periodoMes=2026-13")
+      .set("Authorization", "Bearer test-token")
       .expect(400);
 
     expect(response.body).toHaveProperty("erro");
@@ -148,6 +159,7 @@ describe("Rotas de Margens por Propriedade", () => {
   it("deve calcular e gravar margens de um período", async () => {
     const response = await request(app)
       .post("/api/relatorios/margens/calcular")
+      .set("Authorization", "Bearer test-token")
       .send({ ano: 2026, mes: 10 })
       .expect(200);
 
@@ -170,6 +182,7 @@ describe("Rotas de Margens por Propriedade", () => {
 
     const response = await request(app)
       .get("/api/relatorios/margens/imovel/1/ultimo")
+      .set("Authorization", "Bearer test-token")
       .expect(200);
 
     expect(response.body).toHaveProperty("imovelId", 1);

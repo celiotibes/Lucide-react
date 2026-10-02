@@ -236,6 +236,7 @@ export function gravarMargensImovel(db: Database, ano: number, mes: number, marg
     margem.status,
     margem.calculadoEm,
     agora,
+    agora,
     agora
   );
 }
