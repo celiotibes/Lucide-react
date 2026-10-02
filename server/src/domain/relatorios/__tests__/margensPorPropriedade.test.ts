@@ -444,7 +444,7 @@ describe("Edge cases", () => {
     db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, valor, data) VALUES (?, ?, ?, ?, ?)")
       .run(1, "RECEITA", "aluguel", 1000, data);
     db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, valor, data) VALUES (?, ?, ?, ?, ?)")
-      .run(1, "DESPESA", "despesa", 333, data);
+      .run(1, "DESPESA", "Manutenção da propriedade", 333, data);
 
     const margem = calcularMargensImovel(db, 1, 2026, 10);
 
@@ -459,9 +459,9 @@ describe("Edge cases", () => {
     db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, valor, data) VALUES (?, ?, ?, ?, ?)")
       .run(1, "DESPESA", "IPTU", 100, data);
     db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, valor, data) VALUES (?, ?, ?, ?, ?)")
-      .run(1, "DESPESA", "CONDOMÍNIO", 100, data);
-    db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, valor, data) VALUES (?, ?, ?, ?, ?)")
-      .run(1, "DESPESA", "Manutenção geral", 100, data);
+      .run(1, "DESPESA", "Condominio", 100, data);
+    db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, categoria, valor, data) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(1, "DESPESA", "MANUTENCAO GERAL", "Manutenção", 100, data);
 
     const margem = calcularMargensImovel(db, 1, 2026, 10);
 
@@ -488,7 +488,7 @@ describe("Edge cases", () => {
     db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, valor, data) VALUES (?, ?, ?, ?, ?)")
       .run(1, "RECEITA", "aluguel", 500, data);
     db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, valor, data) VALUES (?, ?, ?, ?, ?)")
-      .run(1, "DESPESA", "despesa", 1000, data);
+      .run(1, "DESPESA", "Conserto da estrutura", 1000, data);
 
     const margem = calcularMargensImovel(db, 1, 2026, 10);
 
