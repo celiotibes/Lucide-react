@@ -101,7 +101,7 @@ export function calcularMargensImovel(
 
   // Calcular data de início e fim do período
   const dataInicio = new Date(ano, mes - 1, 1);
-  const dataFim = new Date(ano, mes, 0, 23, 59, 59);
+  const dataFim = new Date(ano, mes + 1, 0, 23, 59, 59);
 
   // Buscar aluguel recebido (receita do imóvel)
   const receita = db
@@ -112,7 +112,7 @@ export function calcularMargensImovel(
       WHERE imovel_id = ?
         AND data >= ? AND data <= ?
         AND tipo = 'RECEITA'
-        AND descricao LIKE '%aluguel%'
+        AND descricao LIKE '%aluguel%' COLLATE NOCASE
     `
     )
     .get(imovelId, dataInicio.toISOString(), dataFim.toISOString()) as {
@@ -129,14 +129,13 @@ export function calcularMargensImovel(
         AND t.data >= ? AND t.data <= ?
         AND t.tipo = 'DESPESA'
         AND (
-          t.categoria IN (?, ?, ?)
-          OR t.descricao LIKE '%IPTU%'
-          OR t.descricao LIKE '%condominio%'
-          OR t.descricao LIKE '%condomínio%'
-          OR t.descricao LIKE '%manutencao%'
-          OR t.descricao LIKE '%manutenção%'
-          OR t.descricao LIKE '%conserto%'
-          OR t.descricao LIKE '%reforma%'
+          t.categoria COLLATE NOCASE IN (?, ?, ?)
+          OR t.descricao LIKE '%iptu%' COLLATE NOCASE
+          OR t.descricao LIKE '%condominio%' COLLATE NOCASE
+          OR t.descricao LIKE '%manutencao%' COLLATE NOCASE
+          OR t.descricao LIKE '%manutenção%' COLLATE NOCASE
+          OR t.descricao LIKE '%conserto%' COLLATE NOCASE
+          OR t.descricao LIKE '%reforma%' COLLATE NOCASE
         )
     `
     )
@@ -407,7 +406,7 @@ export function calcularEGravarMargensDoMes(db: Database, ano: number, mes: numb
  * Determine o status baseado na margem percentual
  */
 function determinarStatus(margemPercentual: number): MargemStatus {
-  if (margemPercentual > 70) return "OK";
+  if (margemPercentual >= 70) return "OK";
   if (margemPercentual >= 50) return "ATENÇÃO";
   return "CRÍTICO";
 }
