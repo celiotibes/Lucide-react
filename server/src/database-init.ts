@@ -73,6 +73,7 @@ export function initializeDatabase(): Database.Database {
     runMigracoesIdempotentes(db, [
       "migrations-phase3-integracoes.sql",
       "migrations-phase4-vinculos-externos.sql",
+      "migrations-phase5-lembretes-agendados.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions

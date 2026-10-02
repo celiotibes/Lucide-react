@@ -15,6 +15,7 @@ const SCHEMA_PATHS = [
   path.join(__dirname, "migrations-phase2-auth.sql"),
   path.join(__dirname, "migrations-phase3-integracoes.sql"),
   path.join(__dirname, "migrations-phase4-vinculos-externos.sql"),
+  path.join(__dirname, "migrations-phase5-lembretes-agendados.sql"),
 ];
 const SCHEMA = SCHEMA_PATHS.map((schemaPath) => {
   try {
