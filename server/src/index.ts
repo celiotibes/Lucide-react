@@ -83,6 +83,10 @@ app.locals.auditService = auditService;
 app.locals.permissoesService = permissoesService;
 app.locals.paymentGuard = paymentGuard;
 app.locals.db = db;
+// Phase 9: Cache e Alertas
+app.locals.cache = cache;
+app.locals.enviarAlertaEmail = enviarAlertaEmail;
+app.locals.enviarAlertaSlack = enviarAlertaSlack;
 
 // Limite de requisições por IP — protege contra força bruta de itemId/accountId (agravaria o
 // achado abaixo se não houvesse chave) e contra estourar a cota paga da API da Pluggy.
@@ -348,11 +352,18 @@ app.use((erro: unknown, _req: express.Request, res: express.Response, _next: exp
 const porta = Number(process.env.PORT) || 8787;
 const server = app.listen(porta, () => {
   console.log(`Servidor de integração Pluggy rodando em http://localhost:${porta}`);
+  // Phase 9: Log dos serviços inicializados
+  const cacheStats = cache.stats();
+  console.log(`[Cache] Inicializado com ${cacheStats.total} entradas`);
+  console.log(
+    `[Alertas] Email (${process.env.ALERTS_EMAIL_PROVIDER || "none"}), Slack (${process.env.SLACK_WEBHOOK_URL ? "configurado" : "desabilitado"})`,
+  );
 });
 
 // Graceful shutdown - close database connection
 process.on("SIGTERM", () => {
   console.log("[Server] SIGTERM received, closing server...");
+  cache.limpar(); // Limpa cache em memória
   server.close(() => {
     closeDatabase();
     process.exit(0);
@@ -361,6 +372,7 @@ process.on("SIGTERM", () => {
 
 process.on("SIGINT", () => {
   console.log("[Server] SIGINT received, closing server...");
+  cache.limpar(); // Limpa cache em memória
   server.close(() => {
     closeDatabase();
     process.exit(0);
