@@ -76,6 +76,9 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase5-lembretes-agendados.sql",
       "migrations-phase6-analytics-completa.sql",
       "migrations-phase6-relatorios-dre.sql",
+      "migrations-phase7-margens-propriedades.sql",
+      "migrations-phase8-asaas-reembolsos.sql",
+      "migrations-phase8-reconciliacao-asaas.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions

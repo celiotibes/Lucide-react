@@ -16,6 +16,7 @@
  * (ASAAS_WEBHOOK_TOKEN) no header `asaas-access-token`, não por Bearer token.
  */
 import express from "express";
+import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type { EventosExternosServiceDB } from "../domain/integracoes/eventos-externos-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
@@ -28,10 +29,12 @@ import {
   type TipoCobrancaAsaas,
 } from "../asaas.js";
 import { processarReembolsoAsaas, obterReembolsosPorChargeId } from "../domain/integracoes/asaasReembolsos.js";
+import { sincronizarStatusTaxaAsaas } from "../domain/integracoes/pagamentos-reconciliador.js";
 
 export interface AsaasRoutesDeps {
   authService: AuthServiceDB;
   eventosService: EventosExternosServiceDB;
+  db?: Database.Database; // Opcional para passar o banco ao reconciliador
 }
 
 /** Erros esperados (config ausente, Asaas recusou o payload) virar uma resposta HTTP
@@ -51,7 +54,7 @@ function tratarErroAsaas(erro: unknown, res: express.Response): void {
 
 const TIPOS_COBRANCA_VALIDOS: TipoCobrancaAsaas[] = ["BOLETO", "PIX"];
 
-export function criarRotasAsaas({ authService, eventosService }: AsaasRoutesDeps): express.Router {
+export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutesDeps): express.Router {
   const router = express.Router();
   const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
 
@@ -274,8 +277,8 @@ export function criarRotasAsaas({ authService, eventosService }: AsaasRoutesDeps
     }
 
     try {
-      const db = (req as any).db;
-      const reembolsos = obterReembolsosPorChargeId(db, chargeId);
+      const dbLocal = (req as any).db;
+      const reembolsos = obterReembolsosPorChargeId(dbLocal, chargeId);
 
       res.json({
         chargeId,
@@ -291,6 +294,37 @@ export function criarRotasAsaas({ authService, eventosService }: AsaasRoutesDeps
       });
     } catch (erro) {
       throw erro;
+    }
+  });
+
+  /**
+   * POST /api/asaas/reconciliar-agora
+   * Header: Authorization: Bearer <token>
+   *
+   * Trigger manual para reconciliação imediata de todas as cobranças Asaas.
+   * Útil para forçar uma sincronização fora do horário do loop automático (a cada 1h).
+   * Retorna: { atualizadas, discrepancias, erros, detalhes }
+   */
+  router.post("/reconciliar-agora", exigirAutenticacao, async (req, res) => {
+    if (!db) {
+      res.status(503).json({ erro: "Banco de dados não disponível para reconciliação" });
+      return;
+    }
+
+    try {
+      const resultado = await sincronizarStatusTaxaAsaas(db);
+      res.json({
+        atualizadas: resultado.atualizadas,
+        discrepancias: resultado.discrepancias,
+        erros: resultado.erros,
+        detalhes: resultado.detalhes,
+      });
+    } catch (erro) {
+      console.error("[asaas-routes] Erro ao reconciliar manualmente:", erro instanceof Error ? erro.message : erro);
+      res.status(500).json({
+        erro: "Erro ao reconciliar cobranças Asaas",
+        detalhes: erro instanceof Error ? erro.message : String(erro),
+      });
     }
   });
 

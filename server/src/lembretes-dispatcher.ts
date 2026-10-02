@@ -27,6 +27,7 @@ import { enviarEmail } from "./notificacoes/email.js";
 import { enviarWhatsapp } from "./notificacoes/whatsapp.js";
 import { enviarTelegram } from "./notificacoes/telegram-sender.js";
 import { calcularDREPeriodo, gravarDREPeriodo } from "./domain/relatorios/dre.js";
+import { sincronizarStatusTaxaAsaas } from "./domain/integracoes/pagamentos-reconciliador.js";
 
 export interface SendersLembretesAgendados {
   enviarEmail: (opcoes: { destinatario: string; assunto: string; corpo: string }) => Promise<void>;
@@ -115,6 +116,37 @@ export function sincronizarDREDiario(db: Database.Database): void {
 }
 
 /**
+ * Sincronização horária de cobranças Asaas (status e taxas).
+ * Chamada a cada 1 hora via loop background.
+ * Consulta a API da Asaas para cada cobrança ativa e atualiza o banco local.
+ *
+ * Não lança: qualquer erro (rede, API) é só logado. Mantém o loop rodando
+ * mesmo com falhas isoladas (ex: uma cobrança com erro não deruba o resto).
+ */
+export async function sincronizarCobrancasAsaas(db: Database.Database): Promise<void> {
+  try {
+    const resultado = await sincronizarStatusTaxaAsaas(db);
+
+    if (resultado.atualizadas > 0 || resultado.discrepancias > 0 || resultado.erros > 0) {
+      console.info(
+        `[Asaas] Reconciliação: ${resultado.atualizadas} atualizadas, ${resultado.discrepancias} discrepâncias, ${resultado.erros} erro(s)`
+      );
+    }
+
+    if (resultado.discrepancias > 0) {
+      console.warn(
+        `[Asaas] ${resultado.discrepancias} discrepância(s) detectada(s) — verificar audit_reconciliacao_asaas`
+      );
+    }
+  } catch (erro) {
+    console.error(
+      "[Asaas] Erro ao sincronizar cobranças:",
+      erro instanceof Error ? erro.message : erro
+    );
+  }
+}
+
+/**
  * Inicia o loop: uma rodada imediata (boot) e depois uma rodada por hora. Nunca lança —
  * qualquer erro inesperado de uma rodada (ex: erro de banco) só é logado, para não derrubar
  * o processo do servidor por uma falha num loop de background.
@@ -140,6 +172,18 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   interval.unref(); // não impede o processo de terminar (mesmo padrão de setupSessionCleanup).
 
   console.log("[LembretesAgendados] Loop de disparo agendado (a cada 1h)");
+
+  // Sincronização horária de cobranças Asaas
+  function rodarAsaas(): void {
+    sincronizarCobrancasAsaas(db).catch((erro) => {
+      console.error("[Asaas] Erro inesperado ao sincronizar cobranças:", erro instanceof Error ? erro.message : erro);
+    });
+  }
+
+  rodarAsaas(); // rodada imediata no boot
+  const intervalAsaas = setInterval(rodarAsaas, INTERVALO_MS);
+  intervalAsaas.unref(); // não impede o processo de terminar
+  console.log("[Asaas] Loop de reconciliação agendado (a cada 1h)");
 
   // Sincronização diária de DRE (Opção B): chamada imediatamente, depois uma vez por dia às 23:55
   sincronizarDREDiario(db);
