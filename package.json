@@ -14,9 +14,14 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
     "verificar-backup": "tsx scripts/verificar-backup.ts",
     "backup:enviar": "tsx scripts/backup/enviar-backup.ts",
-    "backup:verificar-remoto": "tsx scripts/backup/verificar-remoto.ts"
+    "backup:verificar-remoto": "tsx scripts/backup/verificar-remoto.ts",
+    "backup:listar": "tsx scripts/backup/listar-backups.ts",
+    "backup:restaurar": "tsx scripts/backup/restore-backup.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
