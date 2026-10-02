@@ -30,6 +30,7 @@ import { calcularDREPeriodo, gravarDREPeriodo } from "./domain/relatorios/dre.js
 import { sincronizarStatusTaxaAsaas } from "./domain/integracoes/pagamentos-reconciliador.js";
 import { conciliarPixOFX } from "./domain/integracoes/conciliacao-pix-ofx.js";
 import { enviarRelatorioEmailMensal } from "./domain/relatorios/relatorio-executivo.js";
+import { sincronizarPagamentosPendentes } from "./domain/integracoes/asaas-pagamentos-pix.js";
 
 export interface SendersLembretesAgendados {
   enviarEmail: (opcoes: { destinatario: string; assunto: string; corpo: string }) => Promise<void>;
@@ -41,6 +42,7 @@ const sendersPadrao: SendersLembretesAgendados = { enviarEmail, enviarWhatsapp, 
 
 const INTERVALO_MS = 60 * 60 * 1000; // 1 hora — ver justificativa no cabeçalho do arquivo.
 const INTERVALO_PIX_OFX_MS = 3 * 60 * 60 * 1000; // 3 horas — menos frequente que sync taxa
+const INTERVALO_PIX_PROATIVO_MS = 2 * 60 * 60 * 1000; // 2 horas — sincronização de pagamentos outgoing
 
 /** Dispara UM lembrete pelo canal certo e grava o resultado (`marcarEnviado`/`marcarFalha`).
  * Nunca lança: qualquer erro do sender vira `marcarFalha` com a mensagem do erro, para o
@@ -174,6 +176,37 @@ export function sincronizarConciliacaoPixOFX(db: Database.Database): void {
   } catch (erro) {
     console.error(
       "[PIX↔OFX] Erro ao reconciliar:",
+      erro instanceof Error ? erro.message : erro
+    );
+  }
+}
+
+/**
+ * Sincronização de pagamentos PIX PROATIVOS (outgoing) a cada 2 horas.
+ * Poolea a Asaas para atualizar status de pagamentos pendentes/em processamento.
+ * Grava histórico de atualizações em pagamentos_pix_historico.
+ *
+ * Não lança: qualquer erro (rede, API) é só logado. Mantém o loop rodando
+ * mesmo com falhas isoladas (ex: um pagamento com erro não deruba o resto).
+ */
+export async function sincronizarPagamentosPixProativos(db: Database.Database): Promise<void> {
+  try {
+    const resultado = await sincronizarPagamentosPendentes(db);
+
+    if (resultado.atualizados > 0 || resultado.erros > 0) {
+      console.info(
+        `[PIX Proativo] Sincronização: ${resultado.atualizados} atualizados, ${resultado.erros} erro(s)`
+      );
+    }
+
+    if (resultado.erros > 0) {
+      console.warn(
+        `[PIX Proativo] ${resultado.erros} erro(s) durante sincronização — verificar histórico`
+      );
+    }
+  } catch (erro) {
+    console.error(
+      "[PIX Proativo] Erro ao sincronizar pagamentos:",
       erro instanceof Error ? erro.message : erro
     );
   }
@@ -399,6 +432,21 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   const intervalPixOFX = setInterval(rodarPixOFX, INTERVALO_PIX_OFX_MS);
   intervalPixOFX.unref(); // não impede o processo de terminar
   console.log("[PIX↔OFX] Loop de reconciliação agendado (a cada 3h)");
+
+  // Sincronização de pagamentos PIX PROATIVOS (outgoing) a cada 2 horas
+  function rodarPixProativo(): void {
+    sincronizarPagamentosPixProativos(db).catch((erro) => {
+      console.error(
+        "[PIX Proativo] Erro inesperado ao sincronizar pagamentos:",
+        erro instanceof Error ? erro.message : erro,
+      );
+    });
+  }
+
+  rodarPixProativo(); // rodada imediata no boot
+  const intervalPixProativo = setInterval(rodarPixProativo, INTERVALO_PIX_PROATIVO_MS);
+  intervalPixProativo.unref(); // não impede o processo de terminar
+  console.log("[PIX Proativo] Loop de sincronização agendado (a cada 2h)");
 
   // Envio de Relatório Executivo Mensal (1º dia útil de cada mês, 8:00 AM)
   function rodarRelatorioExecutivo(): void {

@@ -24,6 +24,7 @@ import { criarRotasRelatorioExecutivo } from "../src/routes/relatorio-executivo-
 import { criarRotasTransacoes } from "../src/routes/transacoes-routes.js";
 import { criarRotasConciliacaoPixOFX } from "../src/routes/conciliacao-pix-ofx-routes.js";
 import { criarRotasAnomalias } from "../src/routes/anomalias-routes.js";
+import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 
 if (!process.env.API_KEY) {
@@ -101,6 +102,14 @@ app.use(
  * webhook de confirmação de pagamento em /api/asaas/webhooks/asaas (sem
  * autenticação Bearer, validado por header próprio — ver asaas-routes.ts). */
 app.use("/api/asaas", criarRotasAsaas({ authService, eventosService: eventosExternosService }));
+
+/** Pagamentos PIX Proativos via Asaas Payments (fase 5) — permite iniciar pagamentos
+ * PIX a fornecedores/prestadores com rastreamento e conciliação automática.
+ * POST   /api/asaas/pagamentos-pix/criar — cria novo pagamento
+ * GET    /api/asaas/pagamentos-pix/:id — retorna status + histórico
+ * GET    /api/asaas/pagamentos-pix — lista com filtros
+ * POST   /api/asaas/pagamentos-pix/:id/sincronizar — força sincronização manual */
+app.use("/api/asaas", criarRotasAsaasPixProativo({ authService, db }));
 
 /** Sincronização bancária pessoal via MeuPluggy (uso gratuito, paralelo ao fluxo
  * comercial de /api/accounts e /api/transactions acima) — ver pluggy-meu-routes.ts. */
