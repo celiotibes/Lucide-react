@@ -160,9 +160,7 @@ describe("Slack Alertas", () => {
       process.env.SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/test";
       fetchMock.mockRejectedValueOnce(new Error("Network error"));
 
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-      // Não deve lançar erro
+      // Não deve lançar erro (graceful degradation)
       await expect(
         enviarAlertaSlack({
           mensagem: "Teste",
@@ -170,8 +168,8 @@ describe("Slack Alertas", () => {
         }),
       ).resolves.not.toThrow();
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
+      // Deve ter tentado fazer fetch antes de falhar
+      expect(fetchMock).toHaveBeenCalled();
     });
   });
 

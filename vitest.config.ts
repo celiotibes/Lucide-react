@@ -35,6 +35,7 @@ export default mergeConfig(
       environment: "node",
       include: [
         "src/**/*.test.ts",
+        "server/src/__tests__/**/*.test.ts",
         "server/src/domain/auth/**/*.test.ts",
         "server/src/domain/erp/**/*.test.ts",
         "server/src/domain/relatorios/**/*.test.ts",

@@ -29,6 +29,8 @@ import { criarRotasAnomalias } from "../src/routes/anomalias-routes.js";
 import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 import { criarRotasBackup } from "../src/routes/backup-routes.js";
+// Phase 10: Assinatura Digital + LGPD
+import { criarRotasAssinaturasLGPD } from "../src/routes/assinatura-lgpd-routes.js";
 // Phase 9: Cache, Alertas, Health Check
 import { cache } from "../src/utils/cache-memoria.js";
 import { enviarAlertaEmail } from "../src/utils/email-alertas.js";
@@ -185,6 +187,20 @@ app.use("/api/anomalias", criarRotasAnomalias({ db }));
  * POST /api/backup/restaurar/:fileId — restaura um backup específico
  * GET /api/backup/status — verifica status da configuração */
 app.use("/api/backup", criarRotasBackup({ permissoesService }));
+
+/** Assinatura Digital + LGPD Compliance (fase 10)
+ * POST /api/relatorios/desafio-2fa — envia desafio SMS (Ser Pro ID)
+ * POST /api/relatorios/validar-2fa — valida código SMS
+ * POST /api/relatorios/:id/assinar — assina relatório com Certisign A3
+ * POST /api/gdpr/anonimizar-pessoa — anonimiza pessoa (direito ao esquecimento)
+ * GET /api/gdpr/exportar-dados — exporta dados da pessoa (direito de acesso)
+ * GET /api/auditoria/log-lgpd — obtém log de auditoria LGPD */
+app.use("/api", criarRotasAssinaturasLGPD({
+  authService,
+  db,
+  certisignApiKey: process.env.CERTISIGN_API_KEY || "test-key",
+  serProIdApiKey: process.env.SERPROID_API_KEY || "test-key",
+}));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
