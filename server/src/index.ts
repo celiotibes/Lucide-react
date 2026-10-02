@@ -28,6 +28,12 @@ import { criarRotasConciliacaoPixOFX } from "../src/routes/conciliacao-pix-ofx-r
 import { criarRotasAnomalias } from "../src/routes/anomalias-routes.js";
 import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
+import { criarRotasBackup } from "../src/routes/backup-routes.js";
+// Phase 9: Cache, Alertas, Health Check
+import { cache } from "../src/utils/cache-memoria.js";
+import { enviarAlertaEmail } from "../src/utils/email-alertas.js";
+import { enviarAlertaSlack } from "../src/utils/slack-alertas.js";
+import { executarHealthCheck, executarHealthCheckLeve } from "../src/utils/health-check.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -169,6 +175,13 @@ app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db }));
  * PATCH /api/anomalias/alertas/:id/revisar — marca alerta como revisado (auditoria) */
 app.use("/api/anomalias", criarRotasAnomalias({ db }));
 
+/** Backup automático para Google Drive (backup horário)
+ * GET /api/backup/listar — lista backups no Google Drive
+ * POST /api/backup/agora — executa backup manual imediato
+ * POST /api/backup/restaurar/:fileId — restaura um backup específico
+ * GET /api/backup/status — verifica status da configuração */
+app.use("/api/backup", criarRotasBackup({ permissoesService }));
+
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
  * usado na autenticação com a Pluggy — logar o objeto completo arriscaria vazar o segredo em
@@ -273,7 +286,31 @@ app.post("/api/webhooks/pluggy", (req, res) => {
   res.status(200).json({ recebido: true });
 });
 
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+/**
+ * Health check endpoint — diagnostico completo de saúde do sistema
+ * GET /api/health?leve=true — versão leve (só BD + memória, < 100ms)
+ * GET /api/health — versão completa (inclui Asaas + Pluggy, < 500ms)
+ *
+ * Usado por: Kubernetes probes, monitoramento, dashboards de diagnóstico
+ */
+app.get("/api/health", async (_req, res) => {
+  try {
+    const usarLeve = _req.query.leve === "true";
+    const saudeCompleta = usarLeve ? await executarHealthCheckLeve(db) : await executarHealthCheck(db);
+    const statusHttp = saudeCompleta.status === "error" ? 503 : 200;
+    res.status(statusHttp).json(saudeCompleta);
+  } catch (erro) {
+    console.error("[Health] Erro ao executar health check:", erro instanceof Error ? erro.message : String(erro));
+    res.status(503).json({
+      status: "error",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      checks: {
+        database: { status: "error", mensagem: "Health check falhou" },
+      },
+    });
+  }
+});
 
 /** Swagger API documentation (sem autenticação Bearer, apenas informativos). */
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(specs, {
