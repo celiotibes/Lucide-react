@@ -26,6 +26,7 @@ import { LembretesAgendadosServiceDB, type LembreteAgendado } from "./domain/not
 import { enviarEmail } from "./notificacoes/email.js";
 import { enviarWhatsapp } from "./notificacoes/whatsapp.js";
 import { enviarTelegram } from "./notificacoes/telegram-sender.js";
+import { calcularDREPeriodo, gravarDREPeriodo } from "./domain/relatorios/dre.js";
 
 export interface SendersLembretesAgendados {
   enviarEmail: (opcoes: { destinatario: string; assunto: string; corpo: string }) => Promise<void>;

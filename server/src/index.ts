@@ -19,6 +19,7 @@ import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
 import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembretes-agendados-db.js";
 import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
+import { criarRotasRelatorios } from "../src/routes/relatorios-routes.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -110,6 +111,14 @@ app.use("/api/notificacoes", criarRotasNotificacoes({ authService }));
  * completa que o cliente manda e serve a listagem de diagnóstico; o disparo de fato roda
  * no loop em segundo plano (`iniciarDisparoLembretesAgendados`, chamado acima), não aqui. */
 app.use("/api/lembretes-agendados", criarRotasLembretesAgendados({ authService, service: lembretesAgendadosService }));
+
+/** Relatórios de negócio (fase 6) — DRE (Demonstração de Resultado do Exercício)
+ * com ambas opções: on-the-fly (real-time, cache 1h) e histórico (gravado 1x/dia).
+ * GET /api/relatorios/dre — Opção A, on-the-fly
+ * POST /api/relatorios/dre/calcular — Opção B, manual trigger ou scheduler
+ * GET /api/relatorios/dre/historico — listagem periódica
+ * GET /api/relatorios/dre/:ano/:mes — busca específica */
+app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
