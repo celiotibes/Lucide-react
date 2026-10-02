@@ -25,7 +25,8 @@ import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import { formatarMoeda } from "../formatarMoeda";
 import { listarPorOrigem } from "./notificacoes-db";
-import { resolverDestinatariosCobranca } from "./resolverDestinatarios";
+import type { CanalNotificacao } from "./notificacoes-db";
+import { resolverDestinatariosCobranca, type DestinatariosResolvidos } from "./resolverDestinatarios";
 import { dispararNotificacao, type NotificacoesApiClient, type ResultadoDisparo } from "./despachoCliente";
 
 export type TipoLembrete = "2_dias_antes" | "no_dia";
@@ -142,42 +143,62 @@ function jaLembradoNestaData(
  * `gerarCompetenciasPendentes`, `aluguel-competencias.ts`) a partir daquele dia — a fonte
  * única de vencimento "real" de cada mês.
  */
-export function identificarLembretesPendentes(db: Database, dataReferencia?: string): LembretePendente[] {
-  const dataRef = dataReferencia || hoje();
-  const dataDoisDiasAntes = somarDias(dataRef, 2);
+interface LinhaCompetenciaAluguel {
+  id: number;
+  contrato_id: number;
+  locatario: string;
+  valor_devido: number;
+  data_vencimento: string;
+}
 
-  const competenciasAluguel = consultar<{
-    id: number;
-    contrato_id: number;
-    locatario: string;
-    valor_devido: number;
-    data_vencimento: string;
-  }>(
+interface LinhaHonorario {
+  id: number;
+  processo_id: number;
+  cliente: string;
+  descricao: string | null;
+  valor_devido: number;
+  data_vencimento: string;
+}
+
+/** Query ÚNICA de competências de aluguel `pendente` (sem filtro de data nenhum) — usada
+ * tanto por `identificarLembretesPendentes` (filtra em JS por "hoje OU em 2 dias exatos")
+ * quanto por `identificarLembretesFuturos` (filtra em JS por um INTERVALO de datas). Extraída
+ * para aqui de propósito, para as duas funções nunca duplicarem o mesmo JOIN/SELECT — só a
+ * forma de filtrar por data é diferente entre elas (pontual vs. intervalo), e isso não dá
+ * para expressar com a mesma cláusula WHERE SQL sem duplicar a query inteira. */
+function buscarCompetenciasAluguelPendentes(db: Database): LinhaCompetenciaAluguel[] {
+  return consultar<LinhaCompetenciaAluguel>(
     db,
     `SELECT ac.id, ac.contrato_id, cl.locatario, ac.valor_devido, ac.data_vencimento
      FROM aluguel_competencias ac
      JOIN contratos_locacao cl ON cl.id = ac.contrato_id
-     WHERE ac.status = 'pendente' AND ac.data_vencimento IN (?, ?)
+     WHERE ac.status = 'pendente'
      ORDER BY ac.data_vencimento ASC, ac.id ASC`,
-    [dataRef, dataDoisDiasAntes],
   );
+}
 
-  const honorarios = consultar<{
-    id: number;
-    processo_id: number;
-    cliente: string;
-    descricao: string | null;
-    valor_devido: number;
-    data_vencimento: string;
-  }>(
+/** Mesmo motivo de `buscarCompetenciasAluguelPendentes`, para honorários. */
+function buscarHonorariosPendentes(db: Database): LinhaHonorario[] {
+  return consultar<LinhaHonorario>(
     db,
     `SELECT h.id, h.processo_id, el.nome AS cliente, h.descricao, h.valor_devido, h.data_vencimento
      FROM honorarios_advocaticios h
      JOIN processos_legais p ON p.id = h.processo_id
      JOIN entidades_legais el ON el.id = p.entidade_id
-     WHERE h.status = 'pendente' AND h.data_vencimento IN (?, ?)
+     WHERE h.status = 'pendente'
      ORDER BY h.data_vencimento ASC, h.id ASC`,
-    [dataRef, dataDoisDiasAntes],
+  );
+}
+
+export function identificarLembretesPendentes(db: Database, dataReferencia?: string): LembretePendente[] {
+  const dataRef = dataReferencia || hoje();
+  const dataDoisDiasAntes = somarDias(dataRef, 2);
+
+  const competenciasAluguel = buscarCompetenciasAluguelPendentes(db).filter(
+    (c) => c.data_vencimento === dataRef || c.data_vencimento === dataDoisDiasAntes,
+  );
+  const honorarios = buscarHonorariosPendentes(db).filter(
+    (h) => h.data_vencimento === dataRef || h.data_vencimento === dataDoisDiasAntes,
   );
 
   const pendentes: LembretePendente[] = [];
@@ -221,7 +242,17 @@ function formatarDataBr(dataIso: string): string {
   return `${partes[3]}/${partes[2]}`;
 }
 
-function montarMensagem(lembrete: LembretePendente): { assunto: string; mensagem: string } {
+/** Só precisa destes 4 campos (não o `LembretePendente` inteiro) — assim também serve
+ * `identificarLembretesFuturos`, que nunca monta um `LembretePendente` completo (não tem
+ * `diasParaVencimento`/`descricaoContexto` prontos no mesmo formato). */
+interface DadosParaMensagem {
+  origemTipo: "lembrete_aluguel" | "lembrete_honorario";
+  tipoLembrete: TipoLembrete;
+  valorDevido: number;
+  dataVencimento: string;
+}
+
+function montarMensagem(lembrete: DadosParaMensagem): { assunto: string; mensagem: string } {
   const dataFormatada = formatarDataBr(lembrete.dataVencimento);
   const valorFormatado = formatarMoeda(lembrete.valorDevido);
   const tipoDescricao = lembrete.origemTipo === "lembrete_aluguel" ? "aluguel" : "honorário advocatício";
@@ -236,6 +267,18 @@ function montarMensagem(lembrete: LembretePendente): { assunto: string; mensagem
     assunto: `Vencimento em 2 dias — ${tipoDescricao}`,
     mensagem: `Seu ${tipoDescricao} de ${valorFormatado} vence em 2 dias (${dataFormatada}).`,
   };
+}
+
+/** Mapeia o vocabulário de `origemTipo` de `notificacoes_enviadas`/`lembretes_agendados`
+ * (`'lembrete_aluguel' | 'lembrete_honorario'`) para o vocabulário que
+ * `resolverDestinatariosCobranca` espera (`'aluguel_competencia' | 'honorario_advocaticio'`)
+ * — ver a nota "ATENÇÃO" em `dispararLembretesPendentes` para por que são dois vocabulários
+ * diferentes para a mesma distinção. Extraída para não duplicar este mapeamento entre
+ * `dispararLembretesPendentes` e `identificarLembretesFuturos`. */
+function origemTipoCobrancaDe(
+  origemTipo: "lembrete_aluguel" | "lembrete_honorario",
+): "aluguel_competencia" | "honorario_advocaticio" {
+  return origemTipo === "lembrete_aluguel" ? "aluguel_competencia" : "honorario_advocaticio";
 }
 
 /**
@@ -270,9 +313,7 @@ export async function dispararLembretesPendentes(
 
   for (const lembrete of pendentes) {
     const { assunto, mensagem } = montarMensagem(lembrete);
-    const origemTipoCobranca: "aluguel_competencia" | "honorario_advocaticio" =
-      lembrete.origemTipo === "lembrete_aluguel" ? "aluguel_competencia" : "honorario_advocaticio";
-    const destinatarios = resolverDestinatariosCobranca(db, origemTipoCobranca, lembrete.origemId);
+    const destinatarios = resolverDestinatariosCobranca(db, origemTipoCobrancaDe(lembrete.origemTipo), lembrete.origemId);
 
     const resultadosDisparo = await dispararNotificacao(db, apiClient, {
       origemTipo: lembrete.origemTipo,
@@ -286,4 +327,176 @@ export async function dispararLembretesPendentes(
   }
 
   return resultados;
+}
+
+// ============================================================================
+// Lembretes FUTUROS — sincronização com o servidor (`lembretes_agendados`), para o
+// disparo acontecer num horário real mesmo com o app fechado no dia do vencimento.
+// ============================================================================
+
+/**
+ * Um item PRONTO para sincronizar com o servidor — um por (origem, tipo de lembrete,
+ * CANAL), já achatado: diferente de `LembretePendente` (um por origem, com os 3 canais só
+ * implícitos via `resolverDestinatariosCobranca`), aqui cada canal com destinatário vira
+ * sua própria linha, porque é essa a granularidade de `lembretes_agendados` no servidor
+ * (ver `migrations-phase5-lembretes-agendados.sql`: `UNIQUE(origem_tipo, origem_id,
+ * tipo_lembrete, canal)`).
+ */
+export interface LembreteFuturo {
+  origemTipo: "lembrete_aluguel" | "lembrete_honorario";
+  origemId: number;
+  tipoLembrete: TipoLembrete;
+  canal: CanalNotificacao;
+  destinatario: string;
+  assunto?: string;
+  mensagem: string;
+  /** 'YYYY-MM-DD' — quando o SERVIDOR deve disparar este lembrete (vencimento em si para
+   * `'no_dia'`, vencimento menos 2 dias para `'2_dias_antes'`). Pode cair no passado em
+   * relação a `dataReferencia` quando o vencimento está a 0 ou 1 dia (o "2 dias antes"
+   * resultante já passou) — isso é intencional: o servidor (`listarPendentesParaDisparo`)
+   * trata qualquer `data_disparo_prevista <= hoje` como "disparar agora", nunca como erro;
+   * um lembrete "atrasado" dispara na próxima rodada do loop em vez de nunca disparar. */
+  dataDisparoPrevista: string;
+}
+
+/** Gera os até 2 gatilhos (`'2_dias_antes'` e `'no_dia'`) × até 3 canais para UMA origem
+ * (competência ou honorário) — reusa `montarMensagem`/`resolverDestinatariosCobranca`, as
+ * mesmas usadas por `dispararLembretesPendentes`, para nunca ter dois jeitos diferentes de
+ * montar a mensagem ou resolver o destinatário de uma mesma origem. */
+function gerarLembretesFuturosDaOrigem(
+  db: Database,
+  origemTipo: "lembrete_aluguel" | "lembrete_honorario",
+  origemId: number,
+  dataVencimento: string,
+  valorDevido: number,
+): LembreteFuturo[] {
+  const destinatarios: DestinatariosResolvidos = resolverDestinatariosCobranca(db, origemTipoCobrancaDe(origemTipo), origemId);
+  const canais: Array<[CanalNotificacao, string | undefined]> = [
+    ["email", destinatarios.email],
+    ["whatsapp", destinatarios.whatsappE164],
+    ["telegram", destinatarios.telegramChatId],
+  ];
+
+  const itens: LembreteFuturo[] = [];
+  for (const tipoLembrete of ["2_dias_antes", "no_dia"] as const) {
+    const { assunto, mensagem } = montarMensagem({ origemTipo, tipoLembrete, valorDevido, dataVencimento });
+    const dataDisparoPrevista = tipoLembrete === "no_dia" ? dataVencimento : somarDias(dataVencimento, -2);
+    for (const [canal, destinatario] of canais) {
+      if (!destinatario) continue; // mesmo critério de dispararLembretesPendentes: canal sem contato nunca gera linha (nunca um "pulado" morto na agenda).
+      itens.push({ origemTipo, origemId, tipoLembrete, canal, destinatario, assunto, mensagem, dataDisparoPrevista });
+    }
+  }
+  return itens;
+}
+
+/**
+ * Identifica TODOS os lembretes futuros (ambos os gatilhos, não só o que já está no ponto
+ * de disparo — diferença central em relação a `identificarLembretesPendentes`) para toda
+ * competência/honorário `pendente` cujo VENCIMENTO cai dentro de
+ * `[dataReferencia, dataReferencia + diasHorizonte]`. Achatado por canal — ver
+ * `LembreteFuturo`. Pronto para ser enviado direto para `sincronizarLembretesFuturos`.
+ *
+ * Por que filtra pelo VENCIMENTO (não pela `dataDisparoPrevista`): é o vencimento que
+ * define "esta competência está dentro do horizonte que me interessa sincronizar agora";
+ * os dois gatilhos (vencimento e vencimento-2) derivam dele, não o contrário. Uma
+ * competência vencendo no ÚLTIMO dia do horizonte ainda entra — os dois gatilhos são
+ * gerados, mesmo que o de "2 dias antes" caia DEPOIS do fim do horizonte (ele vai, na
+ * prática, disparar antes do vencimento de qualquer forma, e a próxima sincronização
+ * (horizonte deslizante) o alcança de novo bem antes disso importar).
+ *
+ * Nunca aplica o dedup de `jaLembradoNestaData` — não faz sentido aqui: a FOTO que este
+ * cliente manda ao servidor não é "o que falta enviar hoje", é "o que ainda é válido",
+ * independente de already ter sido notificado antes (o servidor, não o cliente, decide o
+ * que falta enviar, via `status = 'pendente'` em `lembretes_agendados`).
+ */
+export function identificarLembretesFuturos(
+  db: Database,
+  { diasHorizonte, dataReferencia }: { diasHorizonte: number; dataReferencia?: string },
+): LembreteFuturo[] {
+  const dataRef = dataReferencia || hoje();
+  const dataFim = somarDias(dataRef, diasHorizonte);
+
+  const itens: LembreteFuturo[] = [];
+
+  const competenciasAluguel = buscarCompetenciasAluguelPendentes(db).filter(
+    (c) => c.data_vencimento >= dataRef && c.data_vencimento <= dataFim,
+  );
+  for (const c of competenciasAluguel) {
+    itens.push(...gerarLembretesFuturosDaOrigem(db, "lembrete_aluguel", c.id, c.data_vencimento, c.valor_devido));
+  }
+
+  const honorarios = buscarHonorariosPendentes(db).filter((h) => h.data_vencimento >= dataRef && h.data_vencimento <= dataFim);
+  for (const h of honorarios) {
+    itens.push(...gerarLembretesFuturosDaOrigem(db, "lembrete_honorario", h.id, h.data_vencimento, h.valor_devido));
+  }
+
+  return itens;
+}
+
+/** Porta para sincronizar a agenda de lembretes futuros com o servidor — a implementação
+ * real é `criarLembretesAgendadosApiClientHttp` (chama `POST /api/lembretes-agendados/
+ * sincronizar`, em `server/src/routes/lembretes-agendados-routes.ts`); testes usam um fake
+ * em memória. Mesmo padrão de porta/adapter de `AsaasApiClient`/`NotificacoesApiClient`. */
+export interface LembretesAgendadosApiClient {
+  sincronizar(dados: { origemTipo: "lembrete_aluguel" | "lembrete_honorario"; lembretes: LembreteFuturo[] }): Promise<void>;
+}
+
+/**
+ * Calcula (`identificarLembretesFuturos`) e sincroniza com o servidor — em DUAS chamadas
+ * separadas (`'lembrete_aluguel'` e `'lembrete_honorario'`), porque o cancelamento no
+ * servidor (`LembretesAgendadosServiceDB.sincronizar`) é isolado por `origemTipo`: cada
+ * chamada manda a foto completa só daquele tipo, nunca os dois juntos numa única "foto"
+ * (ver contrato detalhado no servidor). Devolve quantos itens (linhas por canal, não
+ * quantas competências/honorários) foram enviados de cada tipo — só para a UI reportar
+ * "sincronizado com sucesso".
+ */
+export async function sincronizarLembretesFuturos(
+  db: Database,
+  apiClient: LembretesAgendadosApiClient,
+  { diasHorizonte, dataReferencia }: { diasHorizonte: number; dataReferencia?: string },
+): Promise<{ aluguel: number; honorario: number }> {
+  const todos = identificarLembretesFuturos(db, { diasHorizonte, dataReferencia });
+  const deAluguel = todos.filter((i) => i.origemTipo === "lembrete_aluguel");
+  const deHonorario = todos.filter((i) => i.origemTipo === "lembrete_honorario");
+
+  await apiClient.sincronizar({ origemTipo: "lembrete_aluguel", lembretes: deAluguel });
+  await apiClient.sincronizar({ origemTipo: "lembrete_honorario", lembretes: deHonorario });
+
+  return { aluguel: deAluguel.length, honorario: deHonorario.length };
+}
+
+function cabecalhosAutenticados(token: string): Record<string, string> {
+  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+}
+
+async function mensagemErroResposta(resposta: Response, acaoDescricao: string): Promise<string> {
+  try {
+    const corpo = await resposta.json();
+    if (typeof corpo?.erro === "string") return corpo.erro;
+  } catch {
+    /* corpo não é JSON — segue para a mensagem genérica abaixo */
+  }
+  return `${acaoDescricao} (HTTP ${resposta.status})`;
+}
+
+/**
+ * Implementação de produção de `LembretesAgendadosApiClient` — chama o PRÓPRIO backend
+ * (`POST /api/lembretes-agendados/sincronizar`), com o mesmo Bearer token de sessão do
+ * resto do app autenticado. Mesmo padrão de `criarNotificacoesApiClientHttp`
+ * (`src/domain/notificacoes/vinculosExternos.ts`) e `criarVinculosExternosApiClientHttp`.
+ */
+export function criarLembretesAgendadosApiClientHttp(backendUrl: string, token: string): LembretesAgendadosApiClient {
+  const base = backendUrl.replace(/\/+$/, "");
+  return {
+    async sincronizar({ origemTipo, lembretes }) {
+      const resposta = await fetch(`${base}/api/lembretes-agendados/sincronizar`, {
+        method: "POST",
+        headers: cabecalhosAutenticados(token),
+        body: JSON.stringify({ origemTipo, lembretes }),
+      });
+      if (!resposta.ok) {
+        throw new Error(await mensagemErroResposta(resposta, "Falha ao sincronizar lembretes agendados"));
+      }
+    },
+  };
 }

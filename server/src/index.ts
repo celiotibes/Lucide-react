@@ -16,6 +16,9 @@ import { criarRotasAsaas } from "../src/routes/asaas-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
 import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
+import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembretes-agendados-db.js";
+import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
+import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -35,8 +38,15 @@ const auditService = new AuditTrailServiceDB(db);
 const permissoesService = new PermissoesServiceDB(db);
 const paymentGuard = new DuplicatePaymentGuardDB(db);
 const eventosExternosService = new EventosExternosServiceDB(db);
+const lembretesAgendadosService = new LembretesAgendadosServiceDB(db);
 
 console.log("[Server] Database and services initialized");
+
+/** Loop de disparo dos lembretes agendados (fase 5 — ver lembretes-dispatcher.ts e
+ * migrations-phase5-lembretes-agendados.sql): roda uma vez agora e depois a cada 1h,
+ * independente de qualquer requisição HTTP. É esta chamada que faz o disparo acontecer
+ * num horário real do servidor mesmo com o app cliente fechado no dia do vencimento. */
+iniciarDisparoLembretesAgendados(db);
 
 // Fase 1 (auth real): avisa alto no boot se o segredo de assinatura de
 // sessão foi gerado só para este processo (SESSION_SECRET/JWT_SECRET
@@ -95,6 +105,11 @@ app.use("/api/telegram", criarRotasTelegram({ authService, eventosService: event
  * grava nada (quem persiste o histórico é o próprio cliente, em notificacoes_enviadas
  * no banco local — ver notificacoes-routes.ts). */
 app.use("/api/notificacoes", criarRotasNotificacoes({ authService }));
+
+/** Agenda de lembretes de vencimento sincronizada pelo cliente (fase 5) — guarda a foto
+ * completa que o cliente manda e serve a listagem de diagnóstico; o disparo de fato roda
+ * no loop em segundo plano (`iniciarDisparoLembretesAgendados`, chamado acima), não aqui. */
+app.use("/api/lembretes-agendados", criarRotasLembretesAgendados({ authService, service: lembretesAgendadosService }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET

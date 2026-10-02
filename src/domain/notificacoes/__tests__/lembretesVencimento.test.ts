@@ -2,7 +2,14 @@ import { describe, expect, it, beforeEach } from "vitest";
 import type { Database } from "sql.js";
 import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { consultar, executar } from "../../../db/connection";
-import { identificarLembretesPendentes, dispararLembretesPendentes } from "../lembretesVencimento";
+import {
+  identificarLembretesPendentes,
+  dispararLembretesPendentes,
+  identificarLembretesFuturos,
+  sincronizarLembretesFuturos,
+  type LembreteFuturo,
+  type LembretesAgendadosApiClient,
+} from "../lembretesVencimento";
 import { listarPorOrigem } from "../notificacoes-db";
 import type { NotificacoesApiClient, ResultadoDisparo } from "../despachoCliente";
 
@@ -369,6 +376,141 @@ describe("lembretesVencimento", () => {
       expect(resultados[0].resultadosDisparo.every((r) => r.status === "pulado")).toBe(true);
       // Nenhum canal com destinatário -> dispararNotificacao nem chega a chamar o apiClient.
       expect(apiClient.chamadas).toHaveLength(0);
+    });
+  });
+
+  describe("identificarLembretesFuturos", () => {
+    it("competência vencendo em 10 dias gera os 2 gatilhos corretos (datas e canal)", () => {
+      const EM_10_DIAS = "2026-11-11";
+      const id = criarCompetenciaAluguel({
+        dataVencimento: EM_10_DIAS,
+        valorDevido: 1500,
+        email: "inquilino@example.com",
+        telefone: null,
+      });
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE });
+      const desteContrato = itens.filter((i) => i.origemId === id);
+      expect(desteContrato).toHaveLength(2); // só e-mail cadastrado -> 1 canal x 2 tipos
+
+      const noDia = desteContrato.find((i) => i.tipoLembrete === "no_dia");
+      expect(noDia).toMatchObject({
+        origemTipo: "lembrete_aluguel",
+        origemId: id,
+        canal: "email",
+        destinatario: "inquilino@example.com",
+        dataDisparoPrevista: EM_10_DIAS,
+      });
+      expect(noDia?.mensagem).toMatch(/vence HOJE/);
+
+      const doisDiasAntes = desteContrato.find((i) => i.tipoLembrete === "2_dias_antes");
+      expect(doisDiasAntes).toMatchObject({
+        origemId: id,
+        canal: "email",
+        dataDisparoPrevista: "2026-11-09", // EM_10_DIAS - 2
+      });
+      expect(doisDiasAntes?.mensagem).toMatch(/vence em 2 dias/i);
+    });
+
+    it("gera uma linha por canal com destinatário — e-mail e WhatsApp juntos vira 2 linhas por tipo de lembrete", () => {
+      const id = criarCompetenciaAluguel({
+        dataVencimento: "2026-11-05",
+        email: "inquilino@example.com",
+        telefone: "11999990000",
+      });
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE }).filter((i) => i.origemId === id);
+      expect(itens).toHaveLength(4); // 2 canais x 2 tipos de lembrete
+      expect(itens.filter((i) => i.canal === "email")).toHaveLength(2);
+      expect(itens.filter((i) => i.canal === "whatsapp")).toHaveLength(2);
+      expect(itens.every((i) => i.canal !== "telegram")).toBe(true); // sem vínculo telegram cadastrado
+    });
+
+    it("competência FORA do horizonte não aparece", () => {
+      const id = criarCompetenciaAluguel({ dataVencimento: "2026-12-20" }); // > HOJE + 45 dias
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE });
+      expect(itens.some((i) => i.origemId === id)).toBe(false);
+    });
+
+    it("competência já paga ('recebido') não aparece, mesmo dentro do horizonte", () => {
+      const id = criarCompetenciaAluguel({ dataVencimento: "2026-11-05", status: "recebido" });
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE });
+      expect(itens.some((i) => i.origemId === id)).toBe(false);
+    });
+
+    it("competência 'cancelada' não aparece", () => {
+      const id = criarCompetenciaAluguel({ dataVencimento: "2026-11-05", status: "cancelado" });
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE });
+      expect(itens.some((i) => i.origemId === id)).toBe(false);
+    });
+
+    it("competência SEM nenhum contato cadastrado não gera nenhuma linha (nunca uma linha 'morta' sem destinatário)", () => {
+      const id = criarCompetenciaAluguel({ dataVencimento: "2026-11-05", email: null, telefone: null });
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE });
+      expect(itens.some((i) => i.origemId === id)).toBe(false);
+    });
+
+    it("honorário dentro do horizonte também é identificado, junto com competências de aluguel", () => {
+      const idAluguel = criarCompetenciaAluguel({ dataVencimento: "2026-11-05" });
+      const idHonorario = criarHonorario({ dataVencimento: "2026-11-15", email: "cliente@example.com", telefone: null });
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE });
+      expect(itens.some((i) => i.origemTipo === "lembrete_aluguel" && i.origemId === idAluguel)).toBe(true);
+      expect(itens.some((i) => i.origemTipo === "lembrete_honorario" && i.origemId === idHonorario)).toBe(true);
+    });
+
+    it("competência vencendo exatamente no último dia do horizonte ainda é incluída", () => {
+      const ULTIMO_DIA = "2026-12-16"; // HOJE (2026-11-01) + 45 dias
+      const id = criarCompetenciaAluguel({ dataVencimento: ULTIMO_DIA, telefone: null });
+
+      const itens = identificarLembretesFuturos(db, { diasHorizonte: 45, dataReferencia: HOJE }).filter((i) => i.origemId === id);
+      expect(itens).toHaveLength(2);
+      expect(itens.find((i) => i.tipoLembrete === "no_dia")?.dataDisparoPrevista).toBe(ULTIMO_DIA);
+    });
+  });
+
+  describe("sincronizarLembretesFuturos", () => {
+    function criarLembretesAgendadosApiClientFake(): LembretesAgendadosApiClient & { chamadas: Array<{ origemTipo: string; lembretes: LembreteFuturo[] }> } {
+      const chamadas: Array<{ origemTipo: string; lembretes: LembreteFuturo[] }> = [];
+      return {
+        chamadas,
+        async sincronizar(dados) {
+          chamadas.push(dados);
+        },
+      };
+    }
+
+    it("sincroniza aluguel e honorário em chamadas separadas, cada uma com só o seu tipo", async () => {
+      criarCompetenciaAluguel({ dataVencimento: "2026-11-05", email: "a@b.com", telefone: null });
+      criarHonorario({ dataVencimento: "2026-11-10", email: "c@d.com", telefone: null });
+      const apiClient = criarLembretesAgendadosApiClientFake();
+
+      const resultado = await sincronizarLembretesFuturos(db, apiClient, { diasHorizonte: 45, dataReferencia: HOJE });
+
+      expect(resultado).toEqual({ aluguel: 2, honorario: 2 }); // 2 tipos de lembrete x 1 canal, cada origem
+      expect(apiClient.chamadas).toHaveLength(2);
+
+      const chamadaAluguel = apiClient.chamadas.find((c) => c.origemTipo === "lembrete_aluguel")!;
+      expect(chamadaAluguel.lembretes).toHaveLength(2);
+      expect(chamadaAluguel.lembretes.every((l) => l.origemTipo === "lembrete_aluguel")).toBe(true);
+
+      const chamadaHonorario = apiClient.chamadas.find((c) => c.origemTipo === "lembrete_honorario")!;
+      expect(chamadaHonorario.lembretes).toHaveLength(2);
+      expect(chamadaHonorario.lembretes.every((l) => l.origemTipo === "lembrete_honorario")).toBe(true);
+    });
+
+    it("sem nada pendente no horizonte, ainda chama o apiClient com arrays vazios (foto completa, mesmo vazia)", async () => {
+      const apiClient = criarLembretesAgendadosApiClientFake();
+
+      const resultado = await sincronizarLembretesFuturos(db, apiClient, { diasHorizonte: 45, dataReferencia: HOJE });
+
+      expect(resultado).toEqual({ aluguel: 0, honorario: 0 });
+      expect(apiClient.chamadas).toHaveLength(2);
+      expect(apiClient.chamadas.every((c) => c.lembretes.length === 0)).toBe(true);
     });
   });
 });
