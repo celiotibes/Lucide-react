@@ -24,33 +24,33 @@ describe("Health Check", () => {
   });
 
   describe("verificarSaudeBD", () => {
-    it("deve retornar ok com BD conectado", () => {
+    it("deve retornar ok com BD conectado", async () => {
       const mockDb = {
         prepare: () => ({
           get: () => ({ ping: 1 }),
         }),
       } as unknown as Database;
 
-      const resultado = verificarSaudeBD(mockDb);
+      const resultado = await verificarSaudeBD(mockDb);
 
       expect(resultado.status).toBe("ok");
       expect(resultado.latencia_ms).toBeLessThan(100);
     });
 
-    it("deve retornar error com BD desconectado", () => {
+    it("deve retornar error com BD desconectado", async () => {
       const mockDb = {
         prepare: () => {
           throw new Error("SQLITE_CANTOPEN");
         },
       } as unknown as Database;
 
-      const resultado = verificarSaudeBD(mockDb);
+      const resultado = await verificarSaudeBD(mockDb);
 
       expect(resultado.status).toBe("error");
       expect(resultado.mensagem).toContain("SQLITE_CANTOPEN");
     });
 
-    it("deve medir latência corretamente", () => {
+    it("deve medir latência corretamente", async () => {
       const mockDb = {
         prepare: () => ({
           get: () => {
@@ -64,7 +64,7 @@ describe("Health Check", () => {
         }),
       } as unknown as Database;
 
-      const resultado = verificarSaudeBD(mockDb);
+      const resultado = await verificarSaudeBD(mockDb);
 
       expect(resultado.latencia_ms).toBeGreaterThanOrEqual(0);
     });

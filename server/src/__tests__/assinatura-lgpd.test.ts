@@ -500,8 +500,19 @@ describe("Assinatura Digital + LGPD", () => {
     it("should fetch anonymization history", async () => {
       const esquecimento = criarDireitoAoEsquecimento(db);
 
-      await esquecimento.anonimizarPessoa("INQUILINO", "inq1", "user123");
-      await esquecimento.anonimizarPessoa("PRESTADOR", "pres1", "user123");
+      // Create usuario first for foreign key
+      db.prepare("INSERT INTO usuarios VALUES (?, ?, ?, ?)").run(
+        "user123",
+        "Teste User",
+        "teste@example.com",
+        "contador"
+      );
+
+      const res1 = await esquecimento.anonimizarPessoa("INQUILINO", "inq1", "user123");
+      expect(res1.sucesso).toBe(true);
+
+      const res2 = await esquecimento.anonimizarPessoa("PRESTADOR", "pres1", "user123");
+      expect(res2.sucesso).toBe(true);
 
       const historico = esquecimento.obterHistoricoAnonimizacoes(
         "INQUILINO",
@@ -509,7 +520,7 @@ describe("Assinatura Digital + LGPD", () => {
       );
 
       expect(historico.length).toBeGreaterThan(0);
-      expect(historico.every((r) => r.pessoa_tipo === "INQUILINO")).toBe(true);
+      expect(historico.every((r: any) => r.pessoa_tipo === "INQUILINO")).toBe(true);
     });
 
     it("should return error if person not found", async () => {
@@ -527,6 +538,20 @@ describe("Assinatura Digital + LGPD", () => {
 
   // ====== INTEGRATION TESTS ======
   describe("Integration Tests", () => {
+    beforeEach(() => {
+      // Create test user for foreign key constraint
+      try {
+        db.prepare("INSERT INTO usuarios VALUES (?, ?, ?, ?)").run(
+          "user123",
+          "Teste User",
+          "teste@example.com",
+          "contador"
+        );
+      } catch {
+        // User might already exist
+      }
+    });
+
     it("should complete full signature workflow", async () => {
       const assinador = criarAssinadorCertisign("test-api-key");
       const validador = criarValidadorSerProId("test-api-key", "12345678901");
@@ -576,27 +601,41 @@ describe("Assinatura Digital + LGPD", () => {
       const esquecimento = criarDireitoAoEsquecimento(db);
       const audit = criarAuditLGPD(db);
 
-      // Create test data
+      // Create test user first
+      try {
+        db.prepare("INSERT INTO usuarios VALUES (?, ?, ?, ?)").run(
+          "user123",
+          "Teste User",
+          "teste@example.com",
+          "contador"
+        );
+      } catch {
+        // User might already exist
+      }
+
+      // Create test data (should match the beforeEach in DireitoAoEsquecimento tests)
       db.exec(`
+        DROP TABLE IF EXISTS inquilinos;
         CREATE TABLE IF NOT EXISTS inquilinos (
           id TEXT PRIMARY KEY,
           nome TEXT,
           email TEXT,
-          cpf TEXT
+          cpf TEXT,
+          data_nascimento TEXT
         );
       `);
       db.prepare(
-        "INSERT INTO inquilinos VALUES (?, ?, ?, ?)"
-      ).run("inq1", "João", "joao@example.com", "123.456.789-10");
+        "INSERT INTO inquilinos VALUES (?, ?, ?, ?, ?)"
+      ).run("inq1_gdpr", "João", "joao@example.com", "123.456.789-10", "1990-01-01");
 
       // Step 1: Export data
-      const dados = await esquecimento.exportarDadosPessoa("INQUILINO", "inq1");
+      const dados = await esquecimento.exportarDadosPessoa("INQUILINO", "inq1_gdpr");
       expect(dados).toBeDefined();
 
       // Step 2: Anonymize
       const anonResult = await esquecimento.anonimizarPessoa(
         "INQUILINO",
-        "inq1",
+        "inq1_gdpr",
         "user123"
       );
       expect(anonResult.sucesso).toBe(true);
@@ -606,7 +645,7 @@ describe("Assinatura Digital + LGPD", () => {
         usuario_id: "user123",
         acao: "ANONIMIZACAO",
         tabela: "pessoas_anonimizadas",
-        registro_id: "inq1",
+        registro_id: "inq1_gdpr",
         contem_dados_sensveis: true,
       });
 
