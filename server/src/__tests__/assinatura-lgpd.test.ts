@@ -588,12 +588,12 @@ describe("Assinatura Digital + LGPD", () => {
           relatorio_tipo: "DRE",
           periodo: "2024-01",
           timestamp: resultado.timestamp,
+          cpf: "123.456.789-10", // Add CPF to trigger sensitive data detection
         },
-        contem_dados_sensveis: true,
-        tipo_dado_sensvel: "CPF",
       });
 
       expect(registroAudit.id).toBeDefined();
+      // Sensitive data detection should automatically detect CPF
       expect(registroAudit.contem_dados_sensveis).toBe(true);
     });
 
@@ -646,7 +646,10 @@ describe("Assinatura Digital + LGPD", () => {
         acao: "ANONIMIZACAO",
         tabela: "pessoas_anonimizadas",
         registro_id: "inq1_gdpr",
-        contem_dados_sensveis: true,
+        dados_novos: {
+          cpf: "123.456.789-10", // Add CPF to trigger sensitive data detection
+          email: "joao@example.com",
+        },
       });
 
       expect(registroAudit.id).toBeDefined();
