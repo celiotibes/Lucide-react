@@ -28,6 +28,7 @@ import { enviarWhatsapp } from "./notificacoes/whatsapp.js";
 import { enviarTelegram } from "./notificacoes/telegram-sender.js";
 import { calcularDREPeriodo, gravarDREPeriodo } from "./domain/relatorios/dre.js";
 import { sincronizarStatusTaxaAsaas } from "./domain/integracoes/pagamentos-reconciliador.js";
+import { conciliarPixOFX } from "./domain/integracoes/conciliacao-pix-ofx.js";
 
 export interface SendersLembretesAgendados {
   enviarEmail: (opcoes: { destinatario: string; assunto: string; corpo: string }) => Promise<void>;
@@ -38,6 +39,7 @@ export interface SendersLembretesAgendados {
 const sendersPadrao: SendersLembretesAgendados = { enviarEmail, enviarWhatsapp, enviarTelegram };
 
 const INTERVALO_MS = 60 * 60 * 1000; // 1 hora — ver justificativa no cabeçalho do arquivo.
+const INTERVALO_PIX_OFX_MS = 3 * 60 * 60 * 1000; // 3 horas — menos frequente que sync taxa
 
 /** Dispara UM lembrete pelo canal certo e grava o resultado (`marcarEnviado`/`marcarFalha`).
  * Nunca lança: qualquer erro do sender vira `marcarFalha` com a mensagem do erro, para o
@@ -147,6 +149,36 @@ export async function sincronizarCobrancasAsaas(db: Database.Database): Promise<
 }
 
 /**
+ * Reconciliação PIX↔OFX a cada 3 horas.
+ * Casa transações Asaas PIX com extratos Pluggy OFX, detecta discrepâncias e
+ * gera lançamentos contábeis automaticamente.
+ *
+ * Não lança: qualquer erro é logado. Mantém o loop rodando mesmo com falhas.
+ */
+export function sincronizarConciliacaoPixOFX(db: Database.Database): void {
+  try {
+    const resultado = conciliarPixOFX(db);
+
+    if (resultado.conciliadas > 0 || resultado.discrepancias > 0 || resultado.pendentes > 0 || resultado.expiradas > 0) {
+      console.info(
+        `[PIX↔OFX] Reconciliação: ${resultado.conciliadas} reconciliadas, ${resultado.discrepancias} discrepâncias, ${resultado.pendentes} pendentes, ${resultado.expiradas} expiradas`
+      );
+    }
+
+    if (resultado.discrepancias > 0) {
+      console.warn(
+        `[PIX↔OFX] ${resultado.discrepancias} discrepância(s) detectada(s) — verificar audit_conciliacao_discrepancias`
+      );
+    }
+  } catch (erro) {
+    console.error(
+      "[PIX↔OFX] Erro ao reconciliar:",
+      erro instanceof Error ? erro.message : erro
+    );
+  }
+}
+
+/**
  * Inicia o loop: uma rodada imediata (boot) e depois uma rodada por hora. Nunca lança —
  * qualquer erro inesperado de uma rodada (ex: erro de banco) só é logado, para não derrubar
  * o processo do servidor por uma falha num loop de background.
@@ -203,4 +235,14 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   console.log(
     `[DRE] Sincronização diária agendada para ${proximaSincDRE.toLocaleString()}, depois daily às 23:55`
   );
+
+  // Reconciliação PIX↔OFX a cada 3 horas
+  function rodarPixOFX(): void {
+    sincronizarConciliacaoPixOFX(db);
+  }
+
+  rodarPixOFX(); // rodada imediata no boot
+  const intervalPixOFX = setInterval(rodarPixOFX, INTERVALO_PIX_OFX_MS);
+  intervalPixOFX.unref(); // não impede o processo de terminar
+  console.log("[PIX↔OFX] Loop de reconciliação agendado (a cada 3h)");
 }

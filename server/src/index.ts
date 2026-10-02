@@ -21,6 +21,7 @@ import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
 import { criarRotasRelatorios } from "../src/routes/dre-routes.js";
 import { criarRotasTransacoes } from "../src/routes/transacoes-routes.js";
+import { criarRotasConciliacaoPixOFX } from "../src/routes/conciliacao-pix-ofx-routes.js";
 
 if (!process.env.API_KEY) {
   throw new Error(
@@ -125,6 +126,13 @@ app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
  * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria
  * retorna { categoria, confianca (0-100), motivo }. */
 app.use("/api/transacoes", criarRotasTransacoes({ db }));
+
+/** Reconciliação automática PIX↔OFX (fase 8) — casa transações Asaas PIX com
+ * extratos Pluggy OFX, detecta discrepâncias e gera lançamentos contábeis.
+ * POST /api/conciliacao/reconciliar-agora — trigger manual
+ * GET /api/conciliacao/status?dias=30 — estatísticas
+ * GET /api/conciliacao/discrepancias?limite=50 — lista de discrepâncias */
+app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
  * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
