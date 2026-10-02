@@ -62,12 +62,27 @@ export function sincronizarVistoriaConcluidaParaProvisionamento(
       [vistoriaId]
     );
 
-    if (!vistoria || vistoria.status !== "concluida") {
+    // BUG real: quando a vistoria não existe, o código caía no mesmo ramo abaixo e tentava
+    // gravar um log de erro com `vistoria_id: vistoriaId` — um id que não existe em
+    // `vistorias`. Como `provisionamento_vistoria_log.vistoria_id` tem `REFERENCES
+    // vistorias(id)` (schema.sql), esse INSERT sempre violava a chave estrangeira e
+    // lançava. A exceção subia até o catch deste função, que tentava registrar o MESMO log
+    // de erro de novo — e falhava exatamente da mesma forma, só que desta vez sem nenhum
+    // catch ao redor, estourando para fora da função inteira em vez de devolver `false`
+    // como a assinatura promete. Descoberto ao testar
+    // sincronizarVistoriaConcluidaParaProvisionamento com um vistoriaId inexistente.
+    // Correção: vistoria inexistente não tem nada que possa satisfazer a FK, então retorna
+    // `false` sem tentar gravar log nenhum.
+    if (!vistoria) {
+      return false;
+    }
+
+    if (vistoria.status !== "concluida") {
       registrarProvisionamentoLog(
         db,
         vistoriaId,
-        0,
-        undefined,
+        vistoria.imovel_id,
+        vistoria.contrato_id,
         StatusProvisionamento.ERRO,
         0,
         0,
