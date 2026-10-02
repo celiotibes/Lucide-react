@@ -1,5 +1,4 @@
-import type { Database } from "sql.js";
-import { consultar } from "../../db/connection";
+import type Database from "better-sqlite3";
 
 export interface ProjecaoFluxo {
   data: string;
@@ -12,15 +11,7 @@ export interface ProjecaoFluxo {
 interface TransacaoDiaria {
   data: string;
   valor: number;
-  tipo: "receita" | "despesa"; // receita = crédito, despesa = débito
-}
-
-interface DadosPorTipo {
-  receitaAluguel: number[];
-  receitaHonorario: number[];
-  despesaFolha: number[];
-  despesaCondominio: number[];
-  despesasGerais: number[];
+  tipo: "receita" | "despesa";
 }
 
 /**
@@ -34,7 +25,6 @@ function calcularMedia(valores: number[]): number {
 
 /**
  * Calcula regressão linear simples: y = a + b*x
- * Retorna { intercepto: a, inclinacao: b, r2: coeficiente de determinação }
  */
 function calcularRegressaoLinear(
   x: number[],
@@ -68,92 +58,94 @@ function calcularRegressaoLinear(
 /**
  * Busca transações dos últimos 90 dias, agrupadas por dia
  */
-function buscarHistoricoUltimos90Dias(db: Database): TransacaoDiaria[] {
-  const resultado = consultar<{
-    data: string;
-    tipo: string;
-    valor: number;
-  }>(
-    db,
-    `SELECT
-       DATE(t.data) AS data,
-       CASE WHEN p.natureza = 'credito' THEN 'receita' ELSE 'despesa' END AS tipo,
-       SUM(ABS(t.valor)) AS valor
-     FROM transacoes t
-     JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
-     WHERE t.data >= date('now', '-90 days')
-       AND p.grupo != 'transferencia'
-     GROUP BY DATE(t.data), tipo
-     ORDER BY data`,
-  );
+function buscarHistoricoUltimos90Dias(db: Database.Database): TransacaoDiaria[] {
+  try {
+    const resultado = db.prepare(`
+      SELECT
+        DATE(t.data) AS data,
+        CASE WHEN p.natureza = 'credito' THEN 'receita' ELSE 'despesa' END AS tipo,
+        SUM(ABS(t.valor)) AS valor
+      FROM transacoes t
+      JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+      WHERE t.data >= date('now', '-90 days')
+        AND p.grupo != 'transferencia'
+      GROUP BY DATE(t.data), tipo
+      ORDER BY data
+    `).all() as Array<{ data: string; tipo: string; valor: number }>;
 
-  // Complementar com lembretes agendados programados para os próximos dias
-  const lembretesAgendados = consultar<{
-    data: string;
-    valor: number;
-    tipo: string;
-  }>(
-    db,
-    `SELECT
-       DATE(la.data_vencimento) AS data,
-       ABS(la.valor) AS valor,
-       CASE WHEN la.tipo = 'receita' THEN 'receita' ELSE 'despesa' END AS tipo
-     FROM lembretes_agendados la
-     WHERE la.data_vencimento >= date('now', '-90 days')
-       AND la.status IN ('pendente', 'agendado')
-     ORDER BY data`,
-  );
-
-  const todos = [...resultado, ...lembretesAgendados];
-
-  // Agrupar por data se houver duplicatas
-  const mapa = new Map<string, { receita: number; despesa: number }>();
-  for (const t of todos) {
-    const chave = t.data;
-    if (!mapa.has(chave)) {
-      mapa.set(chave, { receita: 0, despesa: 0 });
+    // Complementar com lembretes agendados
+    let lembretesAgendados: Array<{ data: string; valor: number; tipo: string }> = [];
+    try {
+      lembretesAgendados = db.prepare(`
+        SELECT
+          DATE(la.data_vencimento) AS data,
+          ABS(la.valor) AS valor,
+          CASE WHEN la.tipo = 'receita' THEN 'receita' ELSE 'despesa' END AS tipo
+        FROM lembretes_agendados la
+        WHERE la.data_vencimento >= date('now', '-90 days')
+          AND la.status IN ('pendente', 'agendado')
+        ORDER BY data
+      `).all() as Array<{ data: string; valor: number; tipo: string }>;
+    } catch {
+      // Tabela não existe, ignore
     }
-    const entry = mapa.get(chave)!;
-    if (t.tipo === "receita") {
-      entry.receita += t.valor;
-    } else {
-      entry.despesa += t.valor;
+
+    const todos = [...resultado, ...lembretesAgendados];
+
+    // Agrupar por data
+    const mapa = new Map<string, { receita: number; despesa: number }>();
+    for (const t of todos) {
+      const chave = t.data;
+      if (!mapa.has(chave)) {
+        mapa.set(chave, { receita: 0, despesa: 0 });
+      }
+      const entry = mapa.get(chave)!;
+      if (t.tipo === "receita") {
+        entry.receita += t.valor;
+      } else {
+        entry.despesa += t.valor;
+      }
     }
-  }
 
-  const resultado_final: TransacaoDiaria[] = [];
-  for (const [data, { receita, despesa }] of mapa) {
-    if (receita > 0) resultado_final.push({ data, valor: receita, tipo: "receita" });
-    if (despesa > 0) resultado_final.push({ data, valor: -despesa, tipo: "despesa" });
-  }
+    const resultado_final: TransacaoDiaria[] = [];
+    for (const [data, { receita, despesa }] of mapa) {
+      if (receita > 0) resultado_final.push({ data, valor: receita, tipo: "receita" });
+      if (despesa > 0) resultado_final.push({ data, valor: -despesa, tipo: "despesa" });
+    }
 
-  return resultado_final;
+    return resultado_final;
+  } catch (erro) {
+    console.error("Erro ao buscar histórico de 90 dias:", erro);
+    return [];
+  }
 }
 
 /**
- * Busca o saldo atual (soma de todas as contas bancárias)
+ * Busca o saldo atual (soma de todas as transações)
  */
-function buscarSaldoAtual(db: Database): number {
-  const [resultado] = consultar<{ saldo_total: number }>(
-    db,
-    `SELECT COALESCE(SUM(t.valor), 0) AS saldo_total
-     FROM transacoes t
-     WHERE t.data <= date('now')`,
-  );
+function buscarSaldoAtual(db: Database.Database): number {
+  try {
+    const resultado = db.prepare(`
+      SELECT COALESCE(SUM(t.valor), 0) AS saldo_total
+      FROM transacoes t
+      WHERE t.data <= date('now')
+    `).get() as { saldo_total: number };
 
-  return resultado?.saldo_total ?? 0;
+    return resultado?.saldo_total ?? 0;
+  } catch (erro) {
+    console.error("Erro ao buscar saldo atual:", erro);
+    return 0;
+  }
 }
 
 /**
  * Algoritmo A: Média Móvel
- * Usa os últimos 90 dias para calcular média diária de receita/despesa
- * e projeta para os próximos diasAdiante dias
  */
-export function forecastMediaMovel(db: Database, diasAdiante: number = 30): ProjecaoFluxo[] {
+export function forecastMediaMovel(db: Database.Database, diasAdiante: number = 30): ProjecaoFluxo[] {
   const saldoAtual = buscarSaldoAtual(db);
   const historico = buscarHistoricoUltimos90Dias(db);
 
-  // Calcular fluxo net diário (receita - despesa)
+  // Calcular fluxo net diário
   const fluxosDiarios: number[] = [];
   const mapa = new Map<string, number>();
 
@@ -166,7 +158,7 @@ export function forecastMediaMovel(db: Database, diasAdiante: number = 30): Proj
     fluxosDiarios.push(valor);
   }
 
-  // Se não há dados suficientes, retornar projeção flat (sem mudança)
+  // Se não há dados, retornar projeção flat
   if (fluxosDiarios.length === 0) {
     return Array.from({ length: diasAdiante }, (_, i) => ({
       data: new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
@@ -208,10 +200,8 @@ export function forecastMediaMovel(db: Database, diasAdiante: number = 30): Proj
 
 /**
  * Algoritmo B: Regressão Linear com Sazonalidade
- * Detecta tendência de crescimento/queda e padrão por dia da semana
- * Usa função: y = a + b*x + sazonalidade[dia_semana]
  */
-export function forecastRegressao(db: Database, diasAdiante: number = 30): ProjecaoFluxo[] {
+export function forecastRegressao(db: Database.Database, diasAdiante: number = 30): ProjecaoFluxo[] {
   const saldoAtual = buscarSaldoAtual(db);
   const historico = buscarHistoricoUltimos90Dias(db);
 
@@ -222,11 +212,22 @@ export function forecastRegressao(db: Database, diasAdiante: number = 30): Proje
     fluxosPorData.set(t.data, valor + t.valor);
   }
 
-  // Ordenar e criar arrays x (dias sequenciais) e y (fluxo)
+  // Se não há dados, retornar projeção flat
+  if (fluxosPorData.size === 0) {
+    return Array.from({ length: diasAdiante }, (_, i) => ({
+      data: new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      saldoEstimado: saldoAtual,
+      min: saldoAtual,
+      max: saldoAtual,
+      metodo: "regressao",
+    }));
+  }
+
+  // Ordenar e criar arrays
   const datas = Array.from(fluxosPorData.keys()).sort();
   const x: number[] = [];
   const y: number[] = [];
-  const diasSemana: number[] = []; // 0 = domingo, ..., 6 = sábado
+  const diasSemana: number[] = [];
 
   for (let i = 0; i < datas.length; i++) {
     const data = new Date(datas[i] + "T00:00:00");
@@ -245,7 +246,6 @@ export function forecastRegressao(db: Database, diasAdiante: number = 30): Proje
     if (!fluxoPorDiaSemana.has(diaSemana)) {
       fluxoPorDiaSemana.set(diaSemana, []);
     }
-    // Remover a tendência: residual = y - (a + b*x)
     const yPredito = regressao.intercepto + regressao.inclinacao * x[i];
     const residual = y[i] - yPredito;
     fluxoPorDiaSemana.get(diaSemana)!.push(residual);
@@ -258,7 +258,7 @@ export function forecastRegressao(db: Database, diasAdiante: number = 30): Proje
     sazonalidade[i] = calcularMedia(fluxos);
   }
 
-  // Calcular desvio padrão dos resíduos para intervalo de confiança
+  // Calcular desvio padrão dos resíduos
   const residuos = y.map((v, i) => {
     const yPredito = regressao.intercepto + regressao.inclinacao * x[i] + sazonalidade[diasSemana[i]];
     return v - yPredito;
@@ -276,10 +276,8 @@ export function forecastRegressao(db: Database, diasAdiante: number = 30): Proje
     const dataStr = data.toISOString().split("T")[0];
     const diaSemana = data.getDay();
 
-    // Calcular dias desde o início do histórico
     const diasDesdeInicio = x.length + i;
 
-    // Projeção: trend + sazonalidade
     const fluxoProjetado = regressao.intercepto + regressao.inclinacao * diasDesdeInicio + sazonalidade[diaSemana];
     saldoProjetado += fluxoProjetado;
 

@@ -82,6 +82,39 @@ export async function executarRodadaDisparo(
 }
 
 /**
+ * Sincronização diária de DRE (Opção B: Histórico, gravado 1x/dia).
+ * Chamada a cada dia (no boot com horário ajustado para 23:55, depois daily via cron).
+ * Calcula o DRE do mês anterior (já fechado) e grava em dre_periodos.
+ *
+ * Não lança: qualquer erro é só logado.
+ */
+export function sincronizarDREDiario(db: Database.Database): void {
+  try {
+    const agora = new Date();
+    const mesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
+    const anoAnterior = mesAnterior.getFullYear();
+    const mesAnteriorNum = mesAnterior.getMonth() + 1;
+
+    // Calcula DRE do mês anterior (período completo)
+    const dataInicio = `${anoAnterior}-${String(mesAnteriorNum).padStart(2, "0")}-01`;
+    const ultimoDiaDoMes = new Date(anoAnterior, mesAnteriorNum, 0).getDate();
+    const dataFim = `${anoAnterior}-${String(mesAnteriorNum).padStart(2, "0")}-${String(ultimoDiaDoMes).padStart(2, "0")}`;
+
+    const dre = calcularDREPeriodo(db, dataInicio, dataFim);
+    gravarDREPeriodo(db, anoAnterior, mesAnteriorNum, dre);
+
+    console.log(
+      `[DRE] Sincronização diária: DRE ${anoAnterior}-${String(mesAnteriorNum).padStart(2, "0")} calculado e gravado (Opção B).`
+    );
+  } catch (erro) {
+    console.error(
+      "[DRE] Erro ao sincronizar DRE diário:",
+      erro instanceof Error ? erro.message : erro
+    );
+  }
+}
+
+/**
  * Inicia o loop: uma rodada imediata (boot) e depois uma rodada por hora. Nunca lança —
  * qualquer erro inesperado de uma rodada (ex: erro de banco) só é logado, para não derrubar
  * o processo do servidor por uma falha num loop de background.
@@ -107,4 +140,23 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   interval.unref(); // não impede o processo de terminar (mesmo padrão de setupSessionCleanup).
 
   console.log("[LembretesAgendados] Loop de disparo agendado (a cada 1h)");
+
+  // Sincronização diária de DRE (Opção B): chamada imediatamente, depois uma vez por dia às 23:55
+  sincronizarDREDiario(db);
+
+  // Agenda próxima sincronização de DRE para amanhã às 23:55
+  const agora = new Date();
+  const proximaSincDRE = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1, 23, 55, 0);
+  const tempoAteSincDRE = proximaSincDRE.getTime() - agora.getTime();
+
+  const timerDREinicial = setTimeout(() => {
+    sincronizarDREDiario(db);
+    // Após a primeira rodada, agenda para rodar todo dia às 23:55
+    setInterval(() => sincronizarDREDiario(db), 24 * 60 * 60 * 1000).unref();
+  }, tempoAteSincDRE);
+
+  timerDREinicial.unref();
+  console.log(
+    `[DRE] Sincronização diária agendada para ${proximaSincDRE.toLocaleString()}, depois daily às 23:55`
+  );
 }

@@ -19,7 +19,7 @@ import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
 import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembretes-agendados-db.js";
 import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
-import { criarRotasRelatorios } from "../src/routes/relatorios-routes.js";
+import { criarRotasRelatorios } from "../src/routes/dre-routes.js";
 
 if (!process.env.API_KEY) {
   throw new Error(

@@ -37,6 +37,8 @@ export default mergeConfig(
         "src/**/*.test.ts",
         "server/src/domain/auth/**/*.test.ts",
         "server/src/domain/erp/**/*.test.ts",
+        "server/src/domain/relatorios/**/*.test.ts",
+        "server/src/routes/**/*.test.ts",
       ],
     },
   }),
