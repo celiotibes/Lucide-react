@@ -123,24 +123,18 @@ export class LembretesAgendadosServiceDB {
    * (ver contrato no cabeçalho do arquivo). Roda tudo dentro de UMA transação:
    *
    *   (a) upsert de cada item do payload pela chave única (`origem_tipo, origem_id,
-   *       tipo_lembrete, canal`) — `ON CONFLICT ... DO UPDATE ... WHERE status = 'pendente'`:
-   *       o SQLite só aplica o UPDATE quando a linha existente ainda está `pendente`; se já
-   *       estiver `enviado`/`falha`/`cancelado`, a cláusula WHERE do upsert falha e a linha
-   *       existente fica EXATAMENTE como estava (nunca perde o resultado real de um disparo
-   *       que já aconteceu, e nunca reabre um lembrete cancelado só porque o cliente mandou
-   *       de novo a mesma chave — ver LIMITAÇÃO abaixo);
+   *       tipo_lembrete, canal`) — `ON CONFLICT ... DO UPDATE ... WHERE status IN
+   *       ('pendente', 'cancelado')`: o SQLite só aplica o UPDATE (e força `status =
+   *       'pendente'` de volta) quando a linha existente ainda está `pendente` OU já foi
+   *       `cancelado` — reviver um `cancelado` é seguro porque a ÚNICA forma de uma linha
+   *       chegar a `cancelado` é o próprio `sincronizar` (passo (b) abaixo) ter decidido
+   *       isso baseado no payload anterior do cliente; se o cliente agora manda a MESMA
+   *       chave de novo, é porque ela voltou a ser válida (ex: competência reaberta depois
+   *       de um pagamento revertido). Já `enviado`/`falha` NUNCA são sobrescritos — são fato
+   *       histórico de uma tentativa de envio real, nunca "desfeitos" por uma sincronização;
    *   (b) cancela qualquer linha `pendente` deste `origemTipo` cuja chave NÃO está no novo
    *       payload — significa que a competência/honorário foi pago/cancelado, ou que o
    *       destinatário daquele canal deixou de existir (ex: e-mail removido do cadastro).
-   *
-   * LIMITAÇÃO conhecida e aceita (consequência direta de (a) + (b) juntos): se uma
-   * competência for cancelada (linha vira `cancelado` aqui) e DEPOIS reaberta/reativada no
-   * cliente, sincronizar de novo a MESMA chave não revive a linha para `pendente` — a
-   * cláusula `WHERE status = 'pendente'` do upsert não bate em `status = 'cancelado'`, e a
-   * chave única impede inserir uma linha nova para a mesma tripla. Corrigir isso exigiria
-   * decidir explicitamente se "reviver" é seguro (poderia escapar quem decidiu cancelar de
-   * propósito) — fora do escopo desta rodada; o caso realista (competência paga permanece
-   * paga) é o caminho comum.
    *
    * Por que `origemTipo` é um parâmetro separado (não um campo dentro de cada item): o
    * cancelamento em (b) precisa de um universo fechado por `origemTipo` para decidir "o que
@@ -160,8 +154,9 @@ export class LembretesAgendadosServiceDB {
            assunto = excluded.assunto,
            mensagem = excluded.mensagem,
            data_disparo_prevista = excluded.data_disparo_prevista,
+           status = 'pendente',
            atualizado_em = CURRENT_TIMESTAMP
-         WHERE lembretes_agendados.status = 'pendente'`,
+         WHERE lembretes_agendados.status IN ('pendente', 'cancelado')`,
       );
       for (const item of lembretes) {
         upsert.run(

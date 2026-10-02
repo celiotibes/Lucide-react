@@ -123,6 +123,22 @@ describe("LembretesAgendadosServiceDB", () => {
       expect(statusDe(db, 2, "no_dia", "email")).toBe("cancelado");
     });
 
+    it("revive para 'pendente' uma linha 'cancelado' cuja chave reaparece numa sincronização seguinte", () => {
+      service.sincronizar("lembrete_aluguel", [item({ origemId: 1 }), item({ origemId: 2 })]);
+      service.sincronizar("lembrete_aluguel", [item({ origemId: 1 })]); // origemId=2 cancelado
+      expect(statusDe(db, 2, "no_dia", "email")).toBe("cancelado");
+
+      // Competência reaberta (ex: pagamento revertido) — origemId=2 volta a aparecer.
+      service.sincronizar("lembrete_aluguel", [
+        item({ origemId: 1 }),
+        item({ origemId: 2, mensagem: "mensagem atualizada após reabertura" }),
+      ]);
+
+      expect(statusDe(db, 2, "no_dia", "email")).toBe("pendente");
+      const linha = service.listarTodos().find((l) => l.origemId === 2)!;
+      expect(linha.mensagem).toBe("mensagem atualizada após reabertura");
+    });
+
     it("payload vazio cancela TUDO que estava pendente para aquele origemTipo", () => {
       service.sincronizar("lembrete_aluguel", [item({ origemId: 1 }), item({ origemId: 2 })]);
       service.sincronizar("lembrete_aluguel", []);
