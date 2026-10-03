@@ -20,47 +20,30 @@
 
 -- =====================================================================
 -- ÍNDICES COMPOSTOS PARA ASAAS COBRANCAS
+-- NOTA: Removidos — tabelas asaas_cobrancas/asaas_reembolsos existem apenas no cliente
 -- =====================================================================
-
--- Query crítica: temBoletoAberto() e buscar cobrancas abertas
--- Otimiza: SELECT * FROM asaas_cobrancas WHERE aluguel_id = ? AND status IN (...)
-CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_aluguel_status_composite
-  ON asaas_cobrancas(aluguel_id, status);
-
--- Query: buscar cobrancas vencidas
--- Otimiza: WHERE status NOT IN ('paga', 'cancelada') AND data_vencimento < DATE('now')
-CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_status_data_vencimento
-  ON asaas_cobrancas(status, data_vencimento);
-
--- Query: buscar cobrancas por imóvel e status
--- Otimiza: WHERE imovel_id = ? AND status = ?
-CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_imovel_status
-  ON asaas_cobrancas(imovel_id, status);
-
--- Query: auditoria por cobrança e data
--- Otimiza: SELECT * FROM asaas_cobrancas_historico WHERE cobranca_id = ? AND acao = ?
-CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_historico_cobranca_acao
-  ON asaas_cobrancas_historico(cobranca_id, acao);
-
--- Query: auditoria por aluguel e período
--- Otimiza: WHERE aluguel_id = ? AND data_acao BETWEEN ? AND ?
-CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_historico_aluguel_data
-  ON asaas_cobrancas_historico(aluguel_id, data_acao DESC);
+-- Índices comentados (tabelas existem apenas no cliente):
+-- CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_aluguel_status_composite
+--   ON asaas_cobrancas(aluguel_id, status);
+-- CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_status_data_vencimento
+--   ON asaas_cobrancas(status, data_vencimento);
+-- CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_imovel_status
+--   ON asaas_cobrancas(imovel_id, status);
+-- CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_historico_cobranca_acao
+--   ON asaas_cobrancas_historico(cobranca_id, acao);
+-- CREATE INDEX IF NOT EXISTS idx_asaas_cobrancas_historico_aluguel_data
+--   ON asaas_cobrancas_historico(aluguel_id, data_acao DESC);
 
 
 -- =====================================================================
 -- ÍNDICES COMPOSTOS PARA REEMBOLSOS ASAAS
+-- NOTA: Removidos — tabelas asaas_reembolsos existem apenas no cliente
 -- =====================================================================
-
--- Query: buscar reembolso por usuário e status
--- Otimiza: WHERE usuario_id = ? AND status = ?
-CREATE INDEX IF NOT EXISTS idx_asaas_reembolsos_usuario_status
-  ON asaas_reembolsos(usuario_id, status);
-
--- Query: buscar histórico de reembolso por período
--- Otimiza: SELECT * FROM asaas_reembolsos_historico WHERE reembolso_id = ? AND acao = ?
-CREATE INDEX IF NOT EXISTS idx_asaas_reembolsos_historico_reembolso_acao
-  ON asaas_reembolsos_historico(reembolso_id, acao);
+-- Índices comentados (tabelas existem apenas no cliente):
+-- CREATE INDEX IF NOT EXISTS idx_asaas_reembolsos_usuario_status
+--   ON asaas_reembolsos(usuario_id, status);
+-- CREATE INDEX IF NOT EXISTS idx_asaas_reembolsos_historico_reembolso_acao
+--   ON asaas_reembolsos_historico(reembolso_id, acao);
 
 
 -- =====================================================================
@@ -104,15 +87,13 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_lgpd_sensivel_criado
 -- ÍNDICES COMPOSTOS PARA CONCILIAÇÃO PIX OFX
 -- =====================================================================
 
--- Query: buscar conciliações por status e período
--- Otimiza: WHERE deletado = 0 AND asaas_charge_id IS NOT NULL
-CREATE INDEX IF NOT EXISTS idx_conciliacoes_pix_ofx_deletado_asaas
-  ON conciliacoes_pix_ofx(deletado, asaas_charge_id);
-
--- Query: buscar conciliação por ID e status de exclusão
--- Otimiza: WHERE id = ? AND deletado = 0
-CREATE INDEX IF NOT EXISTS idx_conciliacoes_pix_ofx_id_deletado
-  ON conciliacoes_pix_ofx(deletado, id);
+-- Índices removidos — coluna 'deletado' não existe na tabela conciliacoes_pix_ofx
+-- (Tabela criada em phase8-conciliacao-pix-ofx.sql sem essa coluna)
+-- Índices comentados para futuro:
+-- CREATE INDEX IF NOT EXISTS idx_conciliacoes_pix_ofx_deletado_asaas
+--   ON conciliacoes_pix_ofx(deletado, asaas_charge_id);
+-- CREATE INDEX IF NOT EXISTS idx_conciliacoes_pix_ofx_id_deletado
+--   ON conciliacoes_pix_ofx(deletado, id);
 
 
 -- =====================================================================
@@ -126,9 +107,10 @@ CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_status
   ON pagamentos_pix_solicitados(status);
 
 -- Query: histórico de pagamento por período
--- Otimiza: SELECT * FROM pagamentos_pix_historico WHERE pagamento_id = ? AND data DESC
-CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_historico_pagamento_data
-  ON pagamentos_pix_historico(pagamento_id, data_acao DESC);
+-- Otimiza: SELECT * FROM pagamentos_pix_historico WHERE pagamento_id = ? AND criado_em DESC
+-- NOTA: Coluna data_acao não existe; tabela tem criado_em em vez disso
+CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_historico_pagamento_criado
+  ON pagamentos_pix_historico(pagamento_id, criado_em DESC);
 
 
 -- =====================================================================
@@ -142,8 +124,9 @@ CREATE INDEX IF NOT EXISTS idx_permissoes_papel_funcao
 
 -- Query: buscar sessão ativa por token
 -- Otimiza: WHERE s.token = ? AND s.ativo = true
-CREATE INDEX IF NOT EXISTS idx_sessions_token_ativo
-  ON sessions(token, ativo);
+-- NOTA: Tabela é "sessoes" (português), não "sessions"
+CREATE INDEX IF NOT EXISTS idx_sessoes_token_ativo
+  ON sessoes(token, ativo);
 
 
 -- =====================================================================

@@ -14,9 +14,11 @@
 -- (SQLite não tem tipo enum; verificamos via CHECK constraint)
 
 -- Tabela de rastreamento de reembolsos/devoluções
+-- Nota: Removido REFERENCES cobrancas_asaas porque a tabela existe apenas no cliente
+-- A integridade referencial é validada em aplicação
 CREATE TABLE IF NOT EXISTS reembolsos_asaas (
   id                        INTEGER PRIMARY KEY,
-  asaas_charge_id           TEXT NOT NULL UNIQUE REFERENCES cobrancas_asaas(asaas_charge_id),
+  asaas_charge_id           TEXT NOT NULL UNIQUE,
   motivo                    TEXT NOT NULL,
   tipo                      TEXT NOT NULL CHECK (tipo IN ('reversao', 'devolucao')),
   status                    TEXT NOT NULL DEFAULT 'processando' CHECK (status IN ('processando', 'sucesso', 'erro')),
@@ -41,6 +43,8 @@ CREATE INDEX IF NOT EXISTS idx_reembolsos_asaas_charge ON reembolsos_asaas(asaas
 -- A aplicação NUNCA deve usar trigger ou stored procedure para validação
 -- (SQLite/sql.js não suporta PL/SQL); tudo fica em TypeScript.
 
--- Índice adicional em cobrancas_asaas para performance em queries de reembolso
-CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_charge_id ON cobrancas_asaas(asaas_charge_id);
-CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_status_v2 ON cobrancas_asaas(status, criado_em DESC);
+-- Índices adicionais em cobrancas_asaas foram removidos
+-- (tabela cobrancas_asaas existe apenas no cliente, não no servidor)
+-- Se criada no servidor em futuro, adicionar:
+-- CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_charge_id ON cobrancas_asaas(asaas_charge_id);
+-- CREATE INDEX IF NOT EXISTS idx_cobrancas_asaas_status_v2 ON cobrancas_asaas(status, criado_em DESC);
