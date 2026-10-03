@@ -207,6 +207,9 @@ export function matrizPadrao(): EntradaPermissao[] {
       ver_indicadores_gestao: null,
       importar_documentos: null,
     },
+    // Papéis externos (inquilino/prestador) começam SEM nenhuma função habilitada
+    inquilino: {},
+    prestador: {},
   };
 
   for (const papel of PAPEIS_VALIDOS) {

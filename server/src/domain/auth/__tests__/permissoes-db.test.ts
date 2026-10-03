@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { PermissoesServiceDB } from "../permissoes-db";
 import { matrizPadrao, FUNCOES_CATALOGO, PAPEIS_VALIDOS } from "../permissoes";
 import type { ContextoAutenticacao } from "../auth-service";
+import { migrarPapeisUsuarios } from "../../../migrations/migrar-papeis-usuarios.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,10 @@ function createTestDatabase(): Database.Database {
     schemaPath = path.join(process.cwd(), "src/migrations-phase2-auth.sql");
   }
   db.exec(fs.readFileSync(schemaPath, "utf-8"));
+
+  // Aplicar migração de papéis (idempotente)
+  migrarPapeisUsuarios(db);
+
   return db;
 }
 

@@ -9,6 +9,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { matrizPadrao } from "./domain/auth/permissoes.js";
+import { migrarPapeisUsuarios } from "./migrations/migrar-papeis-usuarios.js";
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -68,6 +69,10 @@ export function initializeDatabase(): Database.Database {
       logger.info("[Database] Schema already initialized");
     }
 
+    // Migração de papéis para usuários externos (inquilino, prestador) — aplicada em todo
+    // boot, idempotente (verifica o CHECK antes de fazer alterações).
+    migrarPapeisUsuarios(db);
+
     // Fases 3+ (integrações Asaas/MeuPluggy/bot Telegram, vínculos externos de Telegram, e
     // o que vier depois): aplicadas em TODO boot, não só na primeira vez — ver cabeçalho de
     // cada arquivo. Lista cresce a cada fase nova; nenhuma reescreve o que já existe.
@@ -88,6 +93,7 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase11-performance-indexes.sql",
       "migrations-phase12-asaas-webhook-dedup.sql",
       "migrations-phase12-imutabilidade.sql",
+      "migrations-phase13-acl-recursos.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions

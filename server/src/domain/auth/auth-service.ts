@@ -45,7 +45,7 @@
  * abaixo), independente de qual dos 6 papéis o usuário tem.
  */
 
-export type UserRole = "titular" | "administrador" | "contador" | "perito" | "advogado" | "economista";
+export type UserRole = "titular" | "administrador" | "contador" | "perito" | "advogado" | "economista" | "inquilino" | "prestador";
 
 /** Todos os papéis válidos, na ordem em que aparecem em `UserRole` — fonte
  * única para validação de entrada em rotas HTTP (ex: `POST /api/auth/usuarios`)
@@ -58,6 +58,8 @@ export const PAPEIS_VALIDOS: readonly UserRole[] = [
   "perito",
   "advogado",
   "economista",
+  "inquilino",
+  "prestador",
 ];
 
 export interface Usuario {

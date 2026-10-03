@@ -5,6 +5,7 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import { specs } from "./swagger.js";
 import { pluggy, normalizarTransacao } from "./pluggy.js";
@@ -178,6 +179,7 @@ attachSentryHandlers(app);
 
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());
+app.use(cookieParser()); // Parse cookies from request headers
 
 // PERF-001: HTTP Response Compression
 // Compresses responses larger than 1KB (typical threshold)

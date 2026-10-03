@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   -- UserRole/PAPEIS_VALIDOS em auth-service.ts (fonte única desta lista;
   -- mantenha em sincronia com o CHECK abaixo e com o CHECK de `funcao` na
   -- tabela permissoes_papel mais adiante neste arquivo).
-  role TEXT NOT NULL CHECK(role IN ('titular', 'administrador', 'contador', 'perito', 'advogado', 'economista')),
+  -- 'inquilino' e 'prestador' adicionados para suportar usuários externos.
+  role TEXT NOT NULL CHECK(role IN ('titular', 'administrador', 'contador', 'perito', 'advogado', 'economista', 'inquilino', 'prestador')),
   -- prestador_id agora é só um vínculo de identidade opcional com o módulo
   -- de pagamento a prestadores (qualquer um dos 4 papéis pode tê-lo ou não —
   -- não existe mais checagem "papel X exige prestador_id"; ver
@@ -273,7 +274,7 @@ CREATE INDEX idx_prestadores_ativo ON prestadores(ativo);
 -- existente no client (src/domain/operacoes/ordensServico.ts), mas agora
 -- configurável por papel em vez de uma constante fixa global.
 CREATE TABLE IF NOT EXISTS permissoes_papel (
-  papel TEXT NOT NULL CHECK(papel IN ('titular', 'administrador', 'contador', 'perito', 'advogado', 'economista')),
+  papel TEXT NOT NULL CHECK(papel IN ('titular', 'administrador', 'contador', 'perito', 'advogado', 'economista', 'inquilino', 'prestador')),
   funcao TEXT NOT NULL CHECK(funcao IN (
     'gerenciar_usuarios',
     'gerenciar_permissoes',

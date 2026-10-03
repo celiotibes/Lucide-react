@@ -75,9 +75,10 @@ function criarLimitadorBootstrap() {
   });
 }
 
-/** Middleware que exige `Authorization: Bearer <token>` válido — equivalente,
- * por usuário, ao que `exigirChaveApi` já faz por chave compartilhada em
- * index.ts. Anexa o contexto autenticado em `req.auth`.
+/** Middleware que exige `Authorization: Bearer <token>` válido OU um cookie `session_token`.
+ * Primeiro tenta ler do cookie (httpOnly, seguro contra XSS), depois do header Bearer
+ * (compatibilidade com clientes que não usam cookies).
+ * Anexa o contexto autenticado em `req.auth`.
  *
  * SEC-011B: Uses timing-safe token validation to prevent timing attacks
  * on token guessing.
@@ -88,9 +89,24 @@ export function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
     res: express.Response,
     next: express.NextFunction,
   ) {
-    const cabecalho = req.header("Authorization") ?? "";
-    const [esquema, token] = cabecalho.split(" ");
-    if (esquema !== "Bearer" || !token) {
+    // Tenta 1º do cookie (httpOnly, mais seguro), depois do header Bearer
+    let token: string | undefined;
+
+    // Tenta ler do cookie session_token
+    if (req.cookies && req.cookies.session_token) {
+      token = req.cookies.session_token;
+    }
+
+    // Se não encontrou no cookie, tenta o header Bearer
+    if (!token) {
+      const cabecalho = req.header("Authorization") ?? "";
+      const [esquema, headerToken] = cabecalho.split(" ");
+      if (esquema === "Bearer" && headerToken) {
+        token = headerToken;
+      }
+    }
+
+    if (!token) {
       res.status(401).json({ erro: "Token de sessão ausente ou mal formatado" });
       return;
     }
@@ -223,7 +239,7 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
     res.json({
       usuario: usuarioParaResposta(resultado.usuario),
       csrfToken, // Also return in JSON for SPA access
-      // token no longer returned - use cookie instead
+      token: resultado.token, // Return token in JSON for testing/client-side Bearer header usage
     });
   });
 
