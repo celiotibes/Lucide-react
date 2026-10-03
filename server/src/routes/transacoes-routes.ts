@@ -7,7 +7,7 @@
 
 import express from "express";
 import type { Database } from "sql.js";
-import { sugerirCategoria, registrarSugestaoCategoria } from "../domain/transacoes/categorizacaoInteligente.js";
+import { sugerirCategoria, registrarSugestaoCategoria } from "../domain/transacoes/categorizacaoInteligente";
 
 export interface TransacoesRoutesDeps {
   db: Database;
