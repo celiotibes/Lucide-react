@@ -51,6 +51,18 @@ describe("Rotas HTTP de Anomalias", () => {
       next();
     });
 
+    // Mock auth middleware - simula autenticação bem-sucedida
+    app.use((req, res, next) => {
+      (req as any).auth = {
+        usuarioId: "user1",
+        token: "test-token",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      };
+      next();
+    });
+
     // Monta as rotas
     app.use("/api/anomalias", criarRotasAnomalias({ db }));
   });

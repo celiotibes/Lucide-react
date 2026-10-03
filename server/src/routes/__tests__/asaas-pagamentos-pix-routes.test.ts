@@ -59,9 +59,21 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     app = express();
     app.use(express.json());
 
-    // Middleware que injeta usuarioId (simula autenticação)
+    // Middleware que injeta db
     app.use((req, res, next) => {
-      (req as any).usuarioId = "user1";
+      (req as any).db = db;
+      next();
+    });
+
+    // Mock auth middleware - simula autenticação bem-sucedida
+    app.use((req, res, next) => {
+      (req as any).auth = {
+        usuarioId: "user1",
+        token: "test-token",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      };
       next();
     });
 

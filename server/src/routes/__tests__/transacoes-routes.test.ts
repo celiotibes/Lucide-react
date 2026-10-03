@@ -25,6 +25,7 @@ vi.mock("../domain/transacoes/categorizacaoInteligente", () => ({
 describe("Rotas HTTP de Categorização de Transações", () => {
   let app: express.Application;
   let mockDb: any;
+  let mockAuthService: any;
 
   beforeEach(() => {
     // Mock simples do banco de dados
@@ -35,18 +36,41 @@ describe("Rotas HTTP de Categorização de Transações", () => {
       get: vi.fn(),
     };
 
+    // Mock authService
+    mockAuthService = {
+      validarToken: vi.fn().mockReturnValue({
+        usuarioId: "user1",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      }),
+    };
+
     // Cria app com rotas
     app = express();
     app.use(express.json());
 
+    // Mock auth middleware - simula autenticação bem-sucedida
+    app.use((req, res, next) => {
+      (req as any).auth = {
+        usuarioId: "user1",
+        token: "test-token",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      };
+      next();
+    });
+
     // Monta as rotas
-    app.use("/api/transacoes", criarRotasTransacoes({ db: mockDb }));
+    app.use("/api/transacoes", criarRotasTransacoes({ db: mockDb, authService: mockAuthService }));
   });
 
   describe("POST /api/transacoes/:id/sugerir-categoria", () => {
     it("deve sugerir categoria com sucesso", async () => {
       const res = await request(app)
         .post("/api/transacoes/123/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -58,6 +82,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
     it("deve retornar categoria sugerida", async () => {
       const res = await request(app)
         .post("/api/transacoes/123/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -70,6 +95,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
     it("deve validar ID como número inteiro positivo", async () => {
       const res = await request(app)
         .post("/api/transacoes/abc/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(400);
@@ -79,6 +105,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
     it("deve rejeitar ID negativo", async () => {
       const res = await request(app)
         .post("/api/transacoes/-1/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(400);
@@ -88,6 +115,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
     it("deve rejeitar ID zero", async () => {
       const res = await request(app)
         .post("/api/transacoes/0/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(400);
@@ -97,6 +125,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
     it("deve incluir histórico quando disponível", async () => {
       const res = await request(app)
         .post("/api/transacoes/123/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -107,6 +136,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
     it("deve suportar query param forceKeywords", async () => {
       const res = await request(app)
         .post("/api/transacoes/123/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .query({ forceKeywords: true })
         .send({});
 
@@ -118,6 +148,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
       // Este teste assume que a implementação trata transações inexistentes
       const res = await request(app)
         .post("/api/transacoes/999999/sugerir-categoria")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBeGreaterThanOrEqual(200);

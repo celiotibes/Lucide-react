@@ -10,26 +10,37 @@ import { criarRotasBackup } from "../backup-routes";
 
 describe("Rotas HTTP de Backup", () => {
   let app: express.Application;
-  let mockPermissoesService: any;
+  let mockAuthService: any;
 
   beforeEach(() => {
-    // Mock permissoesService
-    mockPermissoesService = {
-      verificarPermissao: vi.fn().mockResolvedValue(true),
+    // Mock authService
+    mockAuthService = {
+      validarToken: vi.fn().mockReturnValue({
+        usuarioId: "user1",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      }),
     };
 
     // Cria app com rotas
     app = express();
     app.use(express.json());
 
-    // Middleware que injeta user
+    // Mock auth middleware - simula autenticação bem-sucedida
     app.use((req, res, next) => {
-      (req as any).user = { id: "user1", email: "test@example.com" };
+      (req as any).auth = {
+        usuarioId: "user1",
+        token: "test-token",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      };
       next();
     });
 
     // Monta as rotas
-    app.use("/api/backup", criarRotasBackup({ permissoesService: mockPermissoesService }));
+    app.use("/api/backup", criarRotasBackup({ authService: mockAuthService }));
   });
 
   describe("GET /api/backup/listar", () => {
@@ -37,12 +48,12 @@ describe("Rotas HTTP de Backup", () => {
       // Remove middleware de autenticação
       const appSemAuth = express();
       appSemAuth.use(express.json());
-      appSemAuth.use("/api/backup", criarRotasBackup({ permissoesService: mockPermissoesService }));
+      appSemAuth.use("/api/backup", criarRotasBackup({ authService: mockAuthService }));
 
       const res = await request(appSemAuth).get("/api/backup/listar").send({});
 
       expect(res.status).toBe(401);
-      expect(res.body.erro).toContain("Não autenticado");
+      expect(res.body.erro).toContain("Token de sessão ausente");
     });
 
     it("deve retornar lista de backups com sucesso", async () => {
@@ -58,12 +69,12 @@ describe("Rotas HTTP de Backup", () => {
     it("deve exigir autenticação", async () => {
       const appSemAuth = express();
       appSemAuth.use(express.json());
-      appSemAuth.use("/api/backup", criarRotasBackup({ permissoesService: mockPermissoesService }));
+      appSemAuth.use("/api/backup", criarRotasBackup({ authService: mockAuthService }));
 
       const res = await request(appSemAuth).post("/api/backup/agora").send({});
 
       expect(res.status).toBe(401);
-      expect(res.body.erro).toContain("Não autenticado");
+      expect(res.body.erro).toContain("Token de sessão ausente");
     });
 
     it("deve executar backup manualmente", async () => {
@@ -79,14 +90,14 @@ describe("Rotas HTTP de Backup", () => {
     it("deve exigir autenticação", async () => {
       const appSemAuth = express();
       appSemAuth.use(express.json());
-      appSemAuth.use("/api/backup", criarRotasBackup({ permissoesService: mockPermissoesService }));
+      appSemAuth.use("/api/backup", criarRotasBackup({ authService: mockAuthService }));
 
       const res = await request(appSemAuth)
         .post("/api/backup/restaurar/file_123")
         .send({});
 
       expect(res.status).toBe(401);
-      expect(res.body.erro).toContain("Não autenticado");
+      expect(res.body.erro).toContain("Token de sessão ausente");
     });
 
     it("deve validar fileId obrigatório", async () => {
