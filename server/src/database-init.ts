@@ -86,6 +86,7 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase10-assinatura-lgpd.sql",
       "migrations-phase11-performance-indexes.sql",
       "migrations-phase12-asaas-webhook-dedup.sql",
+      "migrations-phase12-imutabilidade.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions

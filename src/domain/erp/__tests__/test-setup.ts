@@ -22,6 +22,18 @@ function aplicarMigrations(db: Database): void {
     const sql = readFileSync(join(DIR_MIGRATIONS, arquivo), "utf8");
     db.run(sql);
   }
+  aplicarTriggersImutabilidade(db);
+}
+
+/** Aplica o bloco de triggers de imutabilidade do schema.sql (a mesma fonte da produção). */
+function aplicarTriggersImutabilidade(db: Database): void {
+  const schema = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "contabilidade-reconstituicao", "schema.sql"),
+    "utf8",
+  );
+  const m = /-- BEGIN IMUTABILIDADE LEDGER[\s\S]*?-- END IMUTABILIDADE LEDGER/.exec(schema);
+  if (!m) throw new Error("Bloco IMUTABILIDADE LEDGER não encontrado no schema.sql");
+  db.run(m[0]);
 }
 
 export async function prepararBancoTeste() {

@@ -2160,3 +2160,43 @@ CREATE TABLE IF NOT EXISTS categorias_sugeridas_historico (
 
 CREATE INDEX IF NOT EXISTS idx_categorias_sugeridas_transacao ON categorias_sugeridas_historico(transacao_id);
 CREATE INDEX IF NOT EXISTS idx_categorias_sugeridas_criado ON categorias_sugeridas_historico(criado_em DESC);
+
+-- BEGIN IMUTABILIDADE LEDGER (lido também por src/domain/erp/__tests__/test-setup.ts)
+-- Lançamento oficial é imutável: correção só por estorno (novo lançamento). Os campos de
+-- auditoria/estorno (estornado_por_id, motivo_estorno, auditada, auditado_*) e centro_custo_id
+-- (alocação gerencial) continuam atualizáveis. `IS NOT` (e não `!=`) porque `!=` com NULL
+-- devolve NULL e o trigger deixaria de disparar. CREATE TRIGGER IF NOT EXISTS: o schema roda a
+-- cada abertura do banco e sobrevive à reconstrução de ledger_entries (reconstruirLedgerEntries).
+CREATE TRIGGER IF NOT EXISTS tg_ledger_entries_no_update_dados
+BEFORE UPDATE ON ledger_entries
+FOR EACH ROW
+WHEN (
+    NEW.entidade_id IS NOT OLD.entidade_id
+    OR NEW.periodo_id IS NOT OLD.periodo_id
+    OR NEW.conta_id IS NOT OLD.conta_id
+    OR NEW.valor_debito IS NOT OLD.valor_debito
+    OR NEW.valor_credito IS NOT OLD.valor_credito
+    OR NEW.data_lancamento IS NOT OLD.data_lancamento
+    OR NEW.descricao IS NOT OLD.descricao
+    OR NEW.origem_modulo IS NOT OLD.origem_modulo
+    OR NEW.origem_id IS NOT OLD.origem_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Dados contábeis são imutáveis. Corrija pelo estorno.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_entries_no_delete
+BEFORE DELETE ON ledger_entries
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'Lançamentos contábeis não podem ser excluídos. Use estorno.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_entries_periodo_fechado
+BEFORE INSERT ON ledger_entries
+FOR EACH ROW
+WHEN NEW.periodo_id IN (SELECT id FROM periodos_contabeis WHERE status = 'fechado')
+BEGIN
+    SELECT RAISE(ABORT, 'Período contábil fechado não aceita novos lançamentos.');
+END;
+-- END IMUTABILIDADE LEDGER
