@@ -21,7 +21,6 @@
  */
 
 import type Database from "better-sqlite3";
-import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 
 export type FetchLike = typeof fetch;
@@ -748,7 +747,7 @@ export function atualizarCobrancasVencidas(db: Database.Database): number {
         );
         count++;
       } catch (err) {
-        logger.error(
+        console.error(
           `Erro ao marcar cobrança ${cobranca.id} como vencida:`,
           err instanceof Error ? err.message : err,
         );
@@ -763,7 +762,7 @@ export function atualizarCobrancasVencidas(db: Database.Database): number {
   try {
     return processarLote(cobrancasVencidas);
   } catch (err) {
-    logger.error(
+    console.error(
       "Erro ao processar cobrancas vencidas em lote (transaction rolled back):",
       err instanceof Error ? err.message : err,
     );
