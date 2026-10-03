@@ -83,6 +83,7 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase8-reconciliacao-asaas.sql",
       "migrations-phase9-pagamentos-pix-proativos.sql",
       "migrations-phase10-assinatura-lgpd.sql",
+      "migrations-phase11-performance-indexes.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions
