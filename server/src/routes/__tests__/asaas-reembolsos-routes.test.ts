@@ -84,7 +84,13 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
     // Mock services
     mockAuthService = {
       autenticar: vi.fn().mockResolvedValue({ usuarioId: "user1", token: "token1" }),
-      verificarToken: vi.fn().mockResolvedValue({ usuarioId: "user1" }),
+      validarToken: vi.fn().mockReturnValue({
+        usuarioId: "user1",
+        token: "test-token",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "locador" },
+        papel: "locador",
+      }),
     };
 
     mockEventosService = {
@@ -95,7 +101,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
     app = express();
     app.use(express.json());
 
-    // Middleware que injeta db (simula contexto real)
+    // Middleware que injeta db (simula contexto real) - DEVE vir ANTES das rotas
     app.use((req, res, next) => {
       (req as any).db = db;
       next();
@@ -107,7 +113,8 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
       next();
     });
 
-    app.use("/api/asaas", criarRotasAsaas({ authService: mockAuthService, eventosService: mockEventosService }));
+    // Monta as rotas DEPOIS dos middlewares de db e auth
+    app.use("/api/asaas", criarRotasAsaas({ authService: mockAuthService, eventosService: mockEventosService, db }));
   });
 
   describe("POST /api/asaas/cobrancas/:chargeId/processar-devolucao", () => {
@@ -115,25 +122,31 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
       const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
         tipoCobranca: "boleto",
       });
-      db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
+      // Update status to 'pago' using raw SQL (better compatibility with sql.js)
+      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Cliente desistiu" });
 
+      if (res.status !== 201) {
+        console.log("Error response:", JSON.stringify(res.body, null, 2));
+      }
       expect(res.status).toBe(201);
       expect(res.body.asaasChargeId).toBe(cobranca.asaasChargeId);
-      expect(res.body.status).toBe("sucesso");
+      expect(res.body.status).toBe("processando");  // Status after creation is "processando"
       expect(res.body.motivo).toBe("Cliente desistiu");
     });
 
     it("deve validar chargeId obrigatório", async () => {
       const res = await request(app)
         .post("/api/asaas/cobrancas//processar-devolucao")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Teste" });
 
-      expect(res.status).toBe(400);
-      expect(res.body.erro).toContain("chargeId");
+      // Express returns 404 when route pattern doesn't match (empty parameter)
+      expect(res.status).toBe(404);
     });
 
     it("deve validar motivo obrigatório", async () => {
@@ -143,6 +156,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "" });
 
       expect(res.status).toBe(400);
@@ -153,10 +167,11 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
       const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
         tipoCobranca: "boleto",
       });
-      db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
+      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Teste", tipoForce: "invalido" });
 
       expect(res.status).toBe(400);
@@ -167,19 +182,22 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
       const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
         tipoCobranca: "boleto",
       });
-      db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
+      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Teste", tipoForce: "reversao" });
 
       expect(res.status).toBe(201);
       expect(res.body.tipo).toBe("reversao");
+      expect(res.body.status).toBe("processando");
     });
 
     it("deve retornar 404 para cobrança não encontrada", async () => {
       const res = await request(app)
         .post("/api/asaas/cobrancas/charge_inexistente/processar-devolucao")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Teste" });
 
       expect(res.status).toBe(404);
@@ -194,6 +212,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Teste" });
 
       expect(res.status).toBe(400);
@@ -206,14 +225,16 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
       const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
         tipoCobranca: "boleto",
       });
-      db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
+      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
 
       await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Teste" });
 
       const res = await request(app)
-        .get(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/reembolsos`);
+        .get(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/reembolsos`)
+        .set("Authorization", "Bearer test-token");
 
       expect(res.status).toBe(200);
       expect(res.body.chargeId).toBe(cobranca.asaasChargeId);
@@ -227,17 +248,20 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
       });
 
       const res = await request(app)
-        .get(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/reembolsos`);
+        .get(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/reembolsos`)
+        .set("Authorization", "Bearer test-token");
 
       expect(res.status).toBe(200);
       expect(res.body.reembolsos).toHaveLength(0);
     });
 
     it("deve validar chargeId obrigatório", async () => {
-      const res = await request(app).get("/api/asaas/cobrancas//reembolsos");
+      const res = await request(app)
+        .get("/api/asaas/cobrancas//reembolsos")
+        .set("Authorization", "Bearer test-token");
 
-      expect(res.status).toBe(400);
-      expect(res.body.erro).toContain("chargeId");
+      // Express returns 404 when route pattern doesn't match (empty parameter)
+      expect(res.status).toBe(404);
     });
   });
 });

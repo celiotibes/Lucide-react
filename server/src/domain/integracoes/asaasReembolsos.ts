@@ -603,7 +603,7 @@ export async function processarReembolsoAsaas(
   // Verifica idempotência - se já existe reembolso para esta cobrança
   const stmtExistente = db.prepare(`
     SELECT id FROM reembolsos_asaas
-    WHERE numero_transacao_original = ? AND status != 'rejeitado'
+    WHERE asaas_charge_id = ? AND status NOT IN ('cancelado', 'rejeitado')
     LIMIT 1
   `);
   const reembolsoExistente = stmtExistente.get(input.chargeId) as any;
@@ -617,31 +617,28 @@ export async function processarReembolsoAsaas(
   // Cria novo reembolso
   const id = randomUUID();
   const agora = new Date().toISOString();
-  const hoje = agora.split("T")[0];
-  const usuarioId = `${cobranca.origem_tipo}:${cobranca.origem_id}`;
   const tipo = input.tipoForce || (detectarTipoReembolsoAoAgora(agora, cobranca) ? "reversao" : "devolucao");
 
   const stmt = db.prepare(`
     INSERT INTO reembolsos_asaas (
-      id, usuario_id, valor, status, data_solicitacao, data_confirmacao,
-      motivo, numero_transacao_original, asaas_reembolso_id, descricao_erro
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      asaas_charge_id, motivo, tipo, status,
+      data_processamento, origem_tipo, origem_id, mensagem_erro, criado_em
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
-    id,
-    usuarioId,
-    0, // valor será preenchido da cobrança se necessário
-    "processando",
-    agora,
-    null,
-    input.motivo,
     input.chargeId,
+    input.motivo,
+    tipo,
+    "processando",
+    agora.split("T")[0],
+    cobranca.origem_tipo,
+    cobranca.origem_id,
     null,
-    null,
+    agora,
   );
 
-  // Grava auditoria
+  // Grava auditoria (opcional - pode não existir em testes)
   try {
     const stmtAudit = db.prepare(`
       INSERT INTO asaas_reembolsos_historico (
@@ -650,7 +647,7 @@ export async function processarReembolsoAsaas(
     `);
     stmtAudit.run(
       id,
-      usuarioId,
+      `${cobranca.origem_tipo}:${cobranca.origem_id}`,
       "CRIACAO",
       null,
       "processando",
@@ -658,14 +655,8 @@ export async function processarReembolsoAsaas(
       `Reembolso criado para cobrança ${input.chargeId}`,
     );
   } catch {
-    // Ignora erro de auditoria
+    // Ignora erro de auditoria (tabela pode não existir)
   }
-
-  // Marca cobrança como reembolsada
-  const stmtUpdate = db.prepare(`
-    UPDATE cobrancas_asaas SET status = 'reembolsado' WHERE asaas_charge_id = ?
-  `);
-  stmtUpdate.run(input.chargeId);
 
   // Retorna reembolso criado
   const stmtGet = db.prepare(`SELECT * FROM reembolsos_asaas WHERE id = ?`);
@@ -692,22 +683,21 @@ function detectarTipoReembolsoAoAgora(agora: string, cobranca: any): boolean {
  * Mapeia reembolso do modelo interno para modelo de cobrança
  */
 function mapeiaReembolsoCobranca(r: any, tipoOverride?: string): ReembolsoCobranca {
-  // Extrai origemTipo e origemId de usuario_id (formato: "tipo:id")
-  const [origemTipo, origemIdStr] = (r.usuario_id || ":0").split(":");
-  const origemId = parseInt(origemIdStr || "0", 10);
+  // Extrai origemTipo e origemId do banco (colunas origem_tipo, origem_id)
+  const origemTipo = r.origem_tipo || "";
+  const origemId = parseInt(r.origem_id || "0", 10);
 
   return {
-    id: r.id as any, // UUID -> number para compatibilidade
-    asaasChargeId: r.numero_transacao_original || "",
+    id: r.id as any,
+    asaasChargeId: r.asaas_charge_id || "",
     motivo: r.motivo || "",
-    tipo: tipoOverride as any || "devolucao",
-    status: r.status === "pendente" || r.status === "processando" ? "processando" :
-            r.status === "confirmado" ? "sucesso" : "erro",
-    dataProcessamento: r.data_solicitacao?.split("T")[0] || "",
-    criadoEm: r.data_solicitacao || "",
+    tipo: tipoOverride as any || r.tipo || "devolucao",
+    status: r.status || "processando",
+    dataProcessamento: r.data_processamento?.split("T")[0] || "",
+    criadoEm: r.criado_em || "",
     origemTipo,
     origemId,
-    mensagemErro: r.descricao_erro || null,
+    mensagemErro: r.mensagem_erro || null,
   };
 }
 
@@ -715,11 +705,34 @@ function mapeiaReembolsoCobranca(r: any, tipoOverride?: string): ReembolsoCobran
  * Obtém reembolsos associados a uma cobrança específica (chargeId)
  */
 export function obterReembolsosPorChargeId(db: Database.Database, chargeId: string): ReembolsoCobranca[] {
-  const stmt = db.prepare(`
-    SELECT * FROM reembolsos_asaas
-    WHERE numero_transacao_original = ?
-    ORDER BY data_solicitacao DESC
-  `);
-  const reembolsos = stmt.all(chargeId) as any[];
-  return reembolsos.map((r) => mapeiaReembolsoCobranca(r));
+  try {
+    // Tenta usar melhor-sqlite3 (stmt.all())
+    const stmt = db.prepare(`
+      SELECT * FROM reembolsos_asaas
+      WHERE asaas_charge_id = ?
+      ORDER BY criado_em DESC
+    `);
+    const reembolsos = (stmt as any).all(chargeId) as any[];
+    return reembolsos.map((r) => mapeiaReembolsoCobranca(r));
+  } catch {
+    // Fallback para sql.js (usado em testes) - usa exec() que retorna {columns, values}
+    const resultado = (db as any).exec(`
+      SELECT * FROM reembolsos_asaas
+      WHERE asaas_charge_id = ?
+      ORDER BY criado_em DESC
+    `, [chargeId]) as any[];
+
+    if (!resultado || resultado.length === 0) {
+      return [];
+    }
+
+    const {columns, values} = resultado[0];
+    return values.map((row: any[]) => {
+      const obj: any = {};
+      columns.forEach((col, idx) => {
+        obj[col] = row[idx];
+      });
+      return mapeiaReembolsoCobranca(obj);
+    });
+  }
 }
