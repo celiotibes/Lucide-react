@@ -13,14 +13,19 @@ import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { calcularDREPeriodo, gravarDREPeriodo, buscarDREPeriodo, listarDREPeriodos } from "../domain/relatorios/dre.js";
 import { forecastMediaMovel, forecastRegressao, type ProjecaoFluxo } from "../domain/relatorios/fluxoCaixaForecast.js";
+import type { ResultadoDRE } from "../domain/relatorios/dre.js";
 
 export interface RelatoriosRoutesDeps {
   authService: AuthServiceDB;
   db?: Database.Database;
 }
 
-// Cache simples em memória: key = "dre:${dataInicio}:${dataFim}", value = { resultado, timestamp }
-const dreCache = new Map<string, { resultado: any; timestamp: number }>();
+/**
+ * In-memory cache for DRE results to avoid recalculation within the same period.
+ * Key format: "dre:${dataInicio}:${dataFim}"
+ * TTL: 1 hour
+ */
+const dreCache = new Map<string, { resultado: ResultadoDRE; timestamp: number }>();
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hora
 
 export function criarRotasRelatorios(deps: RelatoriosRoutesDeps): express.Router {
