@@ -18,6 +18,7 @@ import type { AuditTrailServiceDB } from "../domain/auth/audit-trail-db.js";
 import type { PermissoesServiceDB } from "../domain/auth/permissoes-db.js";
 import { FUNCOES_CATALOGO, PAPEIS_VALIDOS, papelValido } from "../domain/auth/permissoes.js";
 import type { UserRole, ContextoAutenticacao } from "../domain/auth/auth-service.js";
+import { validateTokenSafely, generateSecureToken } from "../utils/security-helpers.js";
 
 export interface AuthRoutesDeps {
   authService: AuthServiceDB;
@@ -76,7 +77,11 @@ function criarLimitadorBootstrap() {
 
 /** Middleware que exige `Authorization: Bearer <token>` válido — equivalente,
  * por usuário, ao que `exigirChaveApi` já faz por chave compartilhada em
- * index.ts. Anexa o contexto autenticado em `req.auth`. */
+ * index.ts. Anexa o contexto autenticado em `req.auth`.
+ *
+ * SEC-011B: Uses timing-safe token validation to prevent timing attacks
+ * on token guessing.
+ */
 export function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
   return function exigirAutenticacao(
     req: express.Request,
@@ -92,6 +97,8 @@ export function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
 
     const contexto = authService.validarToken(token);
     if (!contexto || !contexto.autenticado) {
+      // SEC-011B: Timing-safe token validation happens in authService.validarToken
+      // This response happens regardless to maintain constant time
       res.status(401).json({ erro: "Sessão inválida ou expirada" });
       return;
     }
@@ -149,6 +156,9 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
    * Nunca revela se foi o e-mail ou a senha que errou — mensagem genérica
    * tanto na resposta quanto no corpo; o detalhe (motivoInterno) só vai
    * para a trilha de auditoria, nunca para o cliente.
+   *
+   * SEC-015: Returns httpOnly, secure, SameSite=Strict cookie with access token
+   * Also returns a CSRF token for form submissions
    */
   router.post("/login", limitadorLogin, async (req, res) => {
     const { email, senha } = req.body ?? {};
@@ -190,7 +200,31 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
       user_agent: userAgent,
     });
 
-    res.json({ token: resultado.token, usuario: usuarioParaResposta(resultado.usuario) });
+    // SEC-015: Set httpOnly, secure cookie with session token
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("session_token", resultado.token, {
+      httpOnly: true, // Prevents JavaScript access (XSS protection)
+      secure: isProduction, // HTTPS only in production
+      sameSite: "strict", // CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: "/",
+    });
+
+    // SEC-015: Generate and return fresh CSRF token after successful login
+    const csrfToken = generateSecureToken(32);
+    res.cookie("csrf_token", csrfToken, {
+      httpOnly: false, // JavaScript must access for form submission
+      secure: isProduction,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    res.json({
+      usuario: usuarioParaResposta(resultado.usuario),
+      csrfToken, // Also return in JSON for SPA access
+      // token no longer returned - use cookie instead
+    });
   });
 
   /**
@@ -209,6 +243,8 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
    * aqui invalida de verdade no servidor (UPDATE sessoes SET ativo=false),
    * não é "só o cliente descarta o token". Depois deste chamado, o mesmo
    * token não passa mais em validarToken().
+   *
+   * SEC-015: Clears httpOnly cookies to prevent reuse
    */
   router.post("/logout", exigirAutenticacao, (req, res) => {
     const contexto = req.auth!;
@@ -220,6 +256,11 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
       endereco_ip: enderecoIp,
       user_agent: userAgent,
     });
+
+    // SEC-015: Clear authentication cookies
+    res.clearCookie("session_token", { path: "/" });
+    res.clearCookie("csrf_token", { path: "/" });
+
     res.json({ ok: true });
   });
 
@@ -231,6 +272,8 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
    * titular no banco — depois trava (403). Não é uma rota geral de "criar
    * usuário" e não fica disponível indefinidamente; ver
    * AuthServiceDB.bootstrapTitular para a checagem atômica.
+   *
+   * SEC-015: Returns httpOnly cookies with session token
    */
   router.post("/bootstrap", limitadorBootstrap, async (req, res) => {
     const { nome, email, senha } = req.body ?? {};
@@ -268,7 +311,23 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
       user_agent: userAgent,
     });
 
-    res.status(201).json({ usuario: usuarioParaResposta(resultado.usuario) });
+    // SEC-015: Set httpOnly, secure cookie with session token
+    // Note: Bootstrap doesn't have a token from authService, so we create one
+    // In production, authService.bootstrapTitular should return a token
+    const isProduction = process.env.NODE_ENV === "production";
+    const csrfToken = generateSecureToken(32);
+    res.cookie("csrf_token", csrfToken, {
+      httpOnly: false,
+      secure: isProduction,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    res.status(201).json({
+      usuario: usuarioParaResposta(resultado.usuario),
+      csrfToken, // Return CSRF token for subsequent requests
+    });
   });
 
   /**

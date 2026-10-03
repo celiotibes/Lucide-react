@@ -252,6 +252,180 @@ export function createSentryTransaction(
 }
 
 /**
+ * SEC-012: Track database operations with Sentry
+ * Use for monitoring database queries and operations
+ */
+export function trackDatabaseOperation(
+  operationName: string,
+  details?: {
+    table?: string;
+    operation?: "SELECT" | "INSERT" | "UPDATE" | "DELETE";
+    rowsAffected?: number;
+    duration?: number;
+  },
+): Sentry.Span | null {
+  try {
+    const parentTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();
+    if (!parentTransaction) {
+      return null;
+    }
+
+    const span = parentTransaction.startChild({
+      op: "db.query",
+      description: operationName,
+      data: {
+        table: details?.table,
+        operation: details?.operation,
+        rows_affected: details?.rowsAffected,
+        duration_ms: details?.duration,
+      },
+    });
+
+    return span;
+  } catch (error) {
+    logger.debug("[Sentry] Failed to track database operation", { error: String(error) });
+    return null;
+  }
+}
+
+/**
+ * SEC-012: Track payment-related operations
+ */
+export function trackPaymentOperation(
+  operationName: string,
+  details?: {
+    provider?: string;
+    transactionId?: string;
+    amount?: number;
+    status?: string;
+  },
+): void {
+  try {
+    captureMessage(`Payment operation: ${operationName}`, {
+      level: "info",
+      tags: {
+        operation: "payment",
+        provider: details?.provider || "unknown",
+        status: details?.status || "pending",
+      },
+      extra: {
+        transaction_id: details?.transactionId,
+        amount: details?.amount,
+      },
+    });
+
+    // Also track as transaction if available
+    const transaction = createSentryTransaction("payment", operationName, {
+      provider: details?.provider,
+      amount: details?.amount,
+      status: details?.status,
+    });
+
+    if (transaction) {
+      setTimeout(() => {
+        transaction.finish();
+      }, 100);
+    }
+  } catch (error) {
+    logger.debug("[Sentry] Failed to track payment operation", { error: String(error) });
+  }
+}
+
+/**
+ * SEC-012: Track async cobrança reconciliation
+ */
+export function trackCobrancaReconciliation(
+  status: "started" | "completed" | "failed",
+  details?: {
+    recordsProcessed?: number;
+    recordsFailed?: number;
+    duration?: number;
+  },
+): void {
+  try {
+    const level = status === "failed" ? "error" : "info";
+    captureMessage(`Cobrança reconciliation: ${status}`, {
+      level,
+      tags: {
+        operation: "asaas_cobrancas_reconciliador",
+        status,
+      },
+      extra: {
+        records_processed: details?.recordsProcessed,
+        records_failed: details?.recordsFailed,
+        duration_ms: details?.duration,
+      },
+    });
+  } catch (error) {
+    logger.debug("[Sentry] Failed to track cobrança reconciliation", { error: String(error) });
+  }
+}
+
+/**
+ * SEC-012: Track charge creation operations
+ */
+export function trackChargeCreation(
+  status: "started" | "completed" | "failed",
+  details?: {
+    chargeId?: string;
+    amount?: number;
+    customerId?: string;
+    error?: string;
+  },
+): void {
+  try {
+    const level = status === "failed" ? "error" : "info";
+    captureMessage(`Charge creation: ${status}`, {
+      level,
+      tags: {
+        operation: "charge_creation",
+        status,
+      },
+      extra: {
+        charge_id: details?.chargeId,
+        amount: details?.amount,
+        customer_id: details?.customerId,
+        error: details?.error,
+      },
+    });
+  } catch (error) {
+    logger.debug("[Sentry] Failed to track charge creation", { error: String(error) });
+  }
+}
+
+/**
+ * SEC-012: Track payment registration operations
+ */
+export function trackPaymentRegistration(
+  status: "started" | "completed" | "failed",
+  details?: {
+    paymentId?: string;
+    amount?: number;
+    accountId?: string;
+    error?: string;
+  },
+): void {
+  try {
+    const level = status === "failed" ? "error" : "info";
+    captureMessage(`Payment registration: ${status}`, {
+      level,
+      tags: {
+        operation: "payment_registration",
+        status,
+      },
+      extra: {
+        payment_id: details?.paymentId,
+        amount: details?.amount,
+        account_id: details?.accountId,
+        error: details?.error,
+      },
+    });
+  } catch (error) {
+    logger.debug("[Sentry] Failed to track payment registration", { error: String(error) });
+  }
+}
+
+/**
  * Capture an exception to Sentry
  */
 export function captureException(

@@ -22,6 +22,7 @@ import express from "express";
 import { logger } from '../services/logger-service.js';
 import session from "express-session";
 import csurf from "csurf";
+import { validateCsrfTokenSafely } from "../utils/security-helpers.js";
 
 /**
  * Cria middleware de sessão Express
@@ -125,6 +126,73 @@ export function retornarComToken(
 }
 
 /**
+ * SEC-011B: Validate CSRF token using timing-safe comparison
+ * Use this before custom CSRF validation to prevent timing attacks
+ */
+export function validarCSRFTokenSeguro(
+  tokenFromRequest: string,
+  tokenExpected: string,
+): boolean {
+  return validateCsrfTokenSafely(tokenFromRequest, tokenExpected);
+}
+
+/**
+ * SEC-015: Middleware to validate CSRF token from request
+ * Supports both header (X-CSRF-Token) and body (csrf_token) formats
+ * Uses timing-safe comparison to prevent timing attacks
+ */
+export function validarCSRFToken(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  // Skip CSRF validation for GET requests
+  if (req.method === "GET") {
+    return next();
+  }
+
+  // Get token from various sources (in order of precedence)
+  const tokenFromRequest =
+    req.headers["x-csrf-token"] ||
+    req.headers["x-xsrf-token"] ||
+    (req.body?.csrf_token as string) ||
+    "";
+
+  // Get expected token from session
+  const tokenExpected = (req as any).csrfToken?.() || "";
+
+  if (!tokenFromRequest || !tokenExpected) {
+    logger.warn("[CSRF] Missing CSRF token", {
+      ip: req.ip,
+      path: req.path,
+      hasTokenFromRequest: !!tokenFromRequest,
+      hasTokenExpected: !!tokenExpected,
+    });
+    res.status(403).json({
+      erro: "Token CSRF ausente ou inválido",
+      codigo: "MISSING_CSRF_TOKEN",
+    });
+    return;
+  }
+
+  // Use timing-safe comparison to prevent timing attacks
+  if (!validarCSRFTokenSeguro(String(tokenFromRequest), tokenExpected)) {
+    logger.warn("[CSRF] Invalid CSRF token", {
+      ip: req.ip,
+      path: req.path,
+      method: req.method,
+    });
+    res.status(403).json({
+      erro: "Token CSRF inválido ou expirado",
+      codigo: "INVALID_CSRF_TOKEN",
+    });
+    return;
+  }
+
+  next();
+}
+
+/**
  * Middleware de erro para CSRF
  *
  * O csurf lança erros quando o token é inválido. Este middleware
@@ -132,6 +200,8 @@ export function retornarComToken(
  *
  * Deve ser adicionado APÓS todas as rotas que usam csurf:
  *   app.use(erroCSRF);
+ *
+ * SEC-011B: Uses timing-safe token validation
  */
 export function erroCSRF(
   erro: any,

@@ -62,6 +62,7 @@ export interface RegistroAuditoria {
   descricao_alteracao: string;
   valor_anterior?: any;
   valor_novo?: any;
+  campos_acessados?: string[]; // Array de nomes de campos lidos em operações SELECT (LGPD - auditoria de leitura)
   hash_sha256: string; // Hash SHA-256 do registro (para imutabilidade)
   hash_anterior?: string; // Hash do registro anterior (para cadeia)
   status: 'sucesso' | 'erro' | 'pendente';
@@ -412,7 +413,71 @@ export function gerarRelatorioAuditoria(
 }
 
 /**
- * Registra acesso de leitura no ledger
+ * Campos sensíveis que devem ser auditados em cada leitura
+ * Expandir conforme necessário
+ */
+const CAMPOS_SENSIVEIS = new Set([
+  'cpf', 'cnpj', 'email', 'telefone', 'cep', 'endereco',
+  'numero_cartao', 'cvv', 'token_pagamento', 'senha', 'chave_privada',
+  'salario', 'renda', 'patrimonio', 'credito', 'score',
+  'data_nascimento', 'nome_completo', 'mae', 'rg', 'pis'
+]);
+
+/**
+ * Queries que não devem ser auditadas (health checks, métricas, sistema)
+ */
+const QUERIES_IGNORA = [
+  'health', 'heartbeat', 'ping', 'metricas', 'status',
+  'information_schema', 'sqlite_master', 'pragma'
+];
+
+/**
+ * Verifica se uma query deve ser auditada
+ */
+export function deveAuditarQuery(query: string): boolean {
+  const queryLower = query.toLowerCase().trim();
+
+  // Ignorar queries de sistema
+  for (const palavra of QUERIES_IGNORA) {
+    if (queryLower.includes(palavra)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Extrai campos acessados de uma query SELECT
+ * Simples parser: busca por nomes de coluna entre SELECT e FROM
+ */
+export function extrairCamposSelect(query: string): string[] {
+  const selectMatch = query.match(/SELECT\s+([\s\S]*?)\s+FROM/i);
+  if (!selectMatch) return [];
+
+  const columnsStr = selectMatch[1];
+
+  // Se é SELECT *, retorna vazio (significa "todos os campos")
+  if (columnsStr.trim() === '*') return ['*'];
+
+  // Divide por vírgula e limpa
+  const campos = columnsStr
+    .split(',')
+    .map(c => {
+      // Remove aliases (as nome)
+      return c.replace(/\s+as\s+\w+/i, '').trim();
+    })
+    .filter(c => c && c !== '*')
+    .map(c => {
+      // Remove prefixo de tabela (tabela.campo -> campo)
+      return c.split('.').pop()?.trim() || c;
+    });
+
+  return campos;
+}
+
+/**
+ * Registra acesso de leitura no ledger com campos acessados
  */
 export function registrarAcessoLeitura(
   db: any,
@@ -421,7 +486,8 @@ export function registrarAcessoLeitura(
   ip_origem: string,
   entidade_lida: string,
   id_entidade: number,
-  tempo_ms: number
+  tempo_ms: number,
+  campos_acessados?: string[]
 ): void {
   registrarChamadaAPI(db, {
     timestamp: new Date().toISOString(),
@@ -433,6 +499,43 @@ export function registrarAcessoLeitura(
     entidade_afetada: entidade_lida,
     id_entidade,
     descricao_alteracao: `Leitura de ${entidade_lida}`,
+    campos_acessados,
+    status: 'sucesso',
+    tempo_processamento_ms: tempo_ms,
+    assinado: false,
+  });
+}
+
+/**
+ * Registra acesso a campos específicos (granular)
+ * Exemplo: usuario 123 acessou CPF de cliente 456 em 2026-10-03 14:30
+ */
+export function registrarAcessoCampos(
+  db: any,
+  usuario_id: number,
+  usuario_nome: string,
+  ip_origem: string,
+  entidade_tipo: string,
+  id_entidade: number,
+  campos: string[],
+  tempo_ms: number
+): void {
+  // Filtra apenas campos sensíveis
+  const camposSensiveis = campos.filter(c => CAMPOS_SENSIVEIS.has(c.toLowerCase()));
+
+  if (camposSensiveis.length === 0) return; // Não auditamos campos não-sensíveis
+
+  registrarChamadaAPI(db, {
+    timestamp: new Date().toISOString(),
+    usuario_id,
+    usuario_nome,
+    ip_origem,
+    modulo_chamador: 'api-gateway',
+    tipo_operacao: 'leitura',
+    entidade_afetada: entidade_tipo,
+    id_entidade,
+    descricao_alteracao: `Acesso aos campos: ${camposSensiveis.join(', ')} em ${entidade_tipo} ${id_entidade}`,
+    campos_acessados: camposSensiveis,
     status: 'sucesso',
     tempo_processamento_ms: tempo_ms,
     assinado: false,
