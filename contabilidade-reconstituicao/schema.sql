@@ -349,7 +349,9 @@ CREATE TABLE IF NOT EXISTS documentos (
     plano_conta_codigo          TEXT REFERENCES plano_de_contas(codigo),
     texto_extraido              TEXT,             -- texto bruto extraído do PDF/OCR, p/ auditoria e nova tentativa de extração
     criado_em                   DATE NOT NULL,
-    observacoes                 TEXT
+    observacoes                 TEXT,
+    arquivo_hash_sha256         TEXT,             -- hash SHA-256 do arquivo para deduplicação
+    chave_nfe                   TEXT              -- chave de acesso de 44 dígitos da NF-e/NFS-e, extraída do XML
 );
 
 -- A que imóvel(is) o documento se refere, com percentual quando o gasto/produto é
@@ -2167,6 +2169,34 @@ CREATE TABLE IF NOT EXISTS categorias_sugeridas_historico (
 
 CREATE INDEX IF NOT EXISTS idx_categorias_sugeridas_transacao ON categorias_sugeridas_historico(transacao_id);
 CREATE INDEX IF NOT EXISTS idx_categorias_sugeridas_criado ON categorias_sugeridas_historico(criado_em DESC);
+
+-- Deduplicação de documentos: índices ÚNICOS PARCIAIS para arquivo_hash_sha256 e chave_nfe
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documentos_arquivo_hash_unique ON documentos(arquivo_hash_sha256) WHERE arquivo_hash_sha256 IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documentos_chave_nfe_unique ON documentos(chave_nfe) WHERE chave_nfe IS NOT NULL;
+
+-- Revisão de sugestões de IA para campos de documentos — rastreamento completo de ciclo
+-- de vida (pendente → aceita/corrigida/rejeitada) com possibilidade de revisão múltipla,
+-- limite de confiança e registros de quem revisou e quando. Imprescindível para medir
+-- acurácia da IA e garantir que campos com baixa confiança ou documentos de alto valor
+-- passem por revisão humana obrigatória.
+CREATE TABLE IF NOT EXISTS sugestoes_ia_documentos (
+    id                      INTEGER PRIMARY KEY,
+    documento_id            INTEGER REFERENCES documentos(id),  -- NULL até documento ser inserido; depois imutável
+    campo                   TEXT NOT NULL,                     -- nome do campo (ex: 'tipo', 'nome_contraparte', 'valor')
+    valor_sugerido          TEXT NOT NULL,                     -- valor da sugestão (pode ser null em JSON, mas aqui TEXT para simplicidade)
+    confianca               REAL NOT NULL CHECK (confianca BETWEEN 0 AND 1),  -- 0-1 (ex: 0.92 = 92%)
+    modelo                  TEXT,                              -- ex: 'claude-3-5-sonnet', 'ollama-mistral'
+    status                  TEXT NOT NULL CHECK (status IN ('pendente', 'aceita', 'corrigida', 'rejeitada')) DEFAULT 'pendente',
+    valor_final             TEXT,                              -- preenchido quando status = 'corrigida' (valor humano após revisão)
+    revisado_por            TEXT,                              -- email/identificador de quem revisou
+    revisado_em             DATETIME,                          -- timestamp da revisão
+    criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_revisao UNIQUE (id, status)  -- força que cada sugestão mude de status uma única vez
+);
+
+CREATE INDEX IF NOT EXISTS idx_sugestoes_ia_documento ON sugestoes_ia_documentos(documento_id);
+CREATE INDEX IF NOT EXISTS idx_sugestoes_ia_status ON sugestoes_ia_documentos(status);
+CREATE INDEX IF NOT EXISTS idx_sugestoes_ia_criado ON sugestoes_ia_documentos(criado_em DESC);
 
 -- BEGIN IMUTABILIDADE LEDGER (lido também por src/domain/erp/__tests__/test-setup.ts)
 -- Lançamento oficial é imutável: correção só por estorno (novo lançamento). Os campos de

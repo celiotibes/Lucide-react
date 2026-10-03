@@ -13,15 +13,63 @@ export interface NovoDocumento {
   plano_conta_codigo?: string;
   texto_extraido?: string;
   observacoes?: string;
+  arquivo_hash_sha256?: string;  // hash SHA-256 do arquivo para deduplicação
+  chave_nfe?: string;  // chave de acesso NF-e/NFS-e para deduplicação
+}
+
+/** Calcula SHA-256 de um arquivo (Uint8Array). Retorna string hexadecimal. */
+export async function sha256Hex(dados: Uint8Array): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest("SHA-256", dados);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Verifica duplicidade de documento por hash SHA-256 ou chave NF-e.
+ * Retorna o ID do documento existente, ou null se não há duplicata. */
+function verificarDuplicidadeDocumento(
+  db: Database,
+  doc: NovoDocumento,
+): number | null {
+  // Verifica por hash do arquivo
+  if (doc.arquivo_hash_sha256) {
+    const [existente] = consultar<{ id: number }>(
+      db,
+      "SELECT id FROM documentos WHERE arquivo_hash_sha256 = ?",
+      [doc.arquivo_hash_sha256],
+    );
+    if (existente) return existente.id;
+  }
+
+  // Verifica por chave NF-e
+  if (doc.chave_nfe) {
+    const [existente] = consultar<{ id: number }>(
+      db,
+      "SELECT id FROM documentos WHERE chave_nfe = ?",
+      [doc.chave_nfe],
+    );
+    if (existente) return existente.id;
+  }
+
+  return null;
 }
 
 /** Grava o documento e, se já souber a que imóvel(is) se refere, a distribuição percentual
- * (0-100 cada) — pode ficar vazia e ser preenchida depois, antes de vincular a uma transação. */
+ * (0-100 cada) — pode ficar vazia e ser preenchida depois, antes de vincular a uma transação.
+ * Lança erro se documento for duplicado (mesmo hash ou chave NF-e). */
 export function inserirDocumento(db: Database, doc: NovoDocumento, imoveis: { imovelId: number; percentual: number }[] = []): number {
+  const idDuplicado = verificarDuplicidadeDocumento(db, doc);
+  if (idDuplicado) {
+    throw new Error(
+      `Documento duplicado: já existe documento com id ${idDuplicado} ${
+        doc.arquivo_hash_sha256 ? "(hash do arquivo)" : "(chave NF-e)"
+      }`,
+    );
+  }
+
   executar(
     db,
-    `INSERT INTO documentos (tipo, arquivo_nome, valor, data_documento, cnpj_cpf_contraparte, nome_contraparte, descricao_produto_servico, plano_conta_codigo, texto_extraido, criado_em, observacoes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO documentos (tipo, arquivo_nome, valor, data_documento, cnpj_cpf_contraparte, nome_contraparte, descricao_produto_servico, plano_conta_codigo, texto_extraido, criado_em, observacoes, arquivo_hash_sha256, chave_nfe)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       doc.tipo,
       doc.arquivo_nome,
@@ -34,6 +82,8 @@ export function inserirDocumento(db: Database, doc: NovoDocumento, imoveis: { im
       doc.texto_extraido ?? null,
       new Date().toISOString().slice(0, 10),
       doc.observacoes ?? null,
+      doc.arquivo_hash_sha256 ?? null,
+      doc.chave_nfe ?? null,
     ],
   );
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");

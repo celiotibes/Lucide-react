@@ -5,6 +5,7 @@ export interface CamposExtraidosNFe {
   nomeContraparte?: string;
   descricaoProdutoServico?: string;
   numeroDocumento?: string;
+  chaveNFe?: string;  // chave de acesso de 44 dígitos
 }
 
 function formatarCnpj(digitos: string): string {
@@ -49,6 +50,10 @@ function extrairNFeProduto(doc: Document): CamposExtraidosNFe | null {
     .map((el) => el.textContent?.trim())
     .filter((t): t is string => !!t);
 
+  // Extrai chave de acesso (atributo Id de infNFe, formato: "NFe12345678901234567890123456789012345678")
+  const chaveAtributo = infNFe?.getAttribute("Id");
+  const chave = chaveAtributo && chaveAtributo.startsWith("NFe") ? chaveAtributo.slice(3) : undefined;
+
   return {
     cnpjCpf: emitCnpj ? formatarCnpj(emitCnpj) : undefined,
     nomeContraparte: emitNome || undefined,
@@ -56,6 +61,7 @@ function extrairNFeProduto(doc: Document): CamposExtraidosNFe | null {
     data: dhEmi ? dhEmi.slice(0, 10) : undefined,
     descricaoProdutoServico: produtos.length ? produtos.join("; ") : undefined,
     numeroDocumento: nNF || undefined,
+    chaveNFe: chave && /^\d{44}$/.test(chave) ? chave : undefined,
   };
 }
 
@@ -77,6 +83,7 @@ function extrairNFSe(doc: Document): CamposExtraidosNFe | null {
   if (!cnpj && !valorTexto) return null;
 
   const dataTexto = pegar(["DataEmissao", "Competencia"]);
+  const chave = pegar(["CodigoVerificacao", "Chave", "ChaveNfse"]);
 
   return {
     cnpjCpf: cnpj && /^\d{14}$/.test(cnpj) ? formatarCnpj(cnpj) : cnpj,
@@ -85,6 +92,7 @@ function extrairNFSe(doc: Document): CamposExtraidosNFe | null {
     data: dataTexto ? dataTexto.slice(0, 10) : undefined,
     descricaoProdutoServico: pegar(["Discriminacao", "DiscriminacaoServicos", "Descricao"]),
     numeroDocumento: pegar(["Numero", "NumeroNfse"]),
+    chaveNFe: chave && /^\d{44}$/.test(chave) ? chave : undefined,
   };
 }
 
