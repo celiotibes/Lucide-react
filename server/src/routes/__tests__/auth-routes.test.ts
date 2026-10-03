@@ -11,6 +11,7 @@ import { PermissoesServiceDB } from "../../domain/auth/permissoes-db";
 import { matrizPadrao } from "../../domain/auth/permissoes";
 import { gerarHashSenha } from "../../domain/auth/password";
 import { criarRotasAuth } from "../auth-routes";
+import { tokenDoCookie } from "./token-cookie.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -88,13 +89,18 @@ describe("Rotas HTTP de autenticação (/api/auth)", () => {
   });
 
   describe("POST /api/auth/login", () => {
-    it("returns a token and the user on correct credentials", async () => {
+    it("sets an httpOnly session cookie, never returns the token in the body, and the cookie authenticates", async () => {
       const resposta = await request(app)
         .post("/api/auth/login")
         .send({ email: "titular@example.com", senha: SENHA_PADRAO });
 
       expect(resposta.status).toBe(200);
-      expect(resposta.body.token).toBeDefined();
+      expect(resposta.body.token).toBeUndefined(); // SEC-015: token só no cookie httpOnly
+      const setCookie = ([] as string[]).concat(resposta.headers["set-cookie"] ?? []);
+      expect(setCookie.find((c) => c.startsWith("session_token="))).toMatch(/HttpOnly/i);
+      const me = await request(app).get("/api/auth/me").set("Cookie", `session_token=${tokenDoCookie(resposta)}`);
+      expect(me.status).toBe(200);
+      expect(me.body.usuario.email).toBe("titular@example.com");
       expect(resposta.body.usuario.email).toBe("titular@example.com");
       expect(resposta.body.usuario.senha_hash).toBeUndefined();
     });
@@ -169,7 +175,7 @@ describe("Rotas HTTP de autenticação (/api/auth)", () => {
       const login = await request(app)
         .post("/api/auth/login")
         .send({ email: "titular@example.com", senha: SENHA_PADRAO });
-      const token = login.body.token as string;
+      const token = tokenDoCookie(login);
 
       const resposta = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
 
@@ -194,7 +200,7 @@ describe("Rotas HTTP de autenticação (/api/auth)", () => {
       const login = await request(app)
         .post("/api/auth/login")
         .send({ email: "titular@example.com", senha: SENHA_PADRAO });
-      const token = login.body.token as string;
+      const token = tokenDoCookie(login);
 
       const logout = await request(app).post("/api/auth/logout").set("Authorization", `Bearer ${token}`);
       expect(logout.status).toBe(200);
@@ -209,7 +215,7 @@ describe("Rotas HTTP de autenticação (/api/auth)", () => {
       const login = await request(app)
         .post("/api/auth/login")
         .send({ email: "titular@example.com", senha: SENHA_PADRAO });
-      await request(app).post("/api/auth/logout").set("Authorization", `Bearer ${login.body.token}`);
+      await request(app).post("/api/auth/logout").set("Authorization", `Bearer ${tokenDoCookie(login)}`);
 
       const registro = db.prepare("SELECT * FROM auditoria WHERE tipo_acao = 'logout'").get();
       expect(registro).toBeDefined();
@@ -252,14 +258,14 @@ describe("Rotas HTTP de autenticação (/api/auth)", () => {
     const login = await request(app)
       .post("/api/auth/login")
       .send({ email: "contador@example.com", senha: SENHA_PADRAO });
-    return login.body.token as string;
+    return tokenDoCookie(login);
   }
 
   async function tokenTitular(): Promise<string> {
     const login = await request(app)
       .post("/api/auth/login")
       .send({ email: "titular@example.com", senha: SENHA_PADRAO });
-    return login.body.token as string;
+    return tokenDoCookie(login);
   }
 
   describe("GET /api/auth/permissoes", () => {

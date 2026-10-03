@@ -10,6 +10,7 @@ import { gerarHashSenha } from "../../domain/auth/password";
 import { criarRotasAuth } from "../auth-routes";
 import { criarRotasRelatorios } from "../dre-routes";
 import { gravarDREPeriodo, calcularDREPeriodo } from "../../domain/relatorios/dre";
+import { tokenDoCookie } from "./token-cookie.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,7 +57,7 @@ async function criarAppDeTeste(db: Database.Database) {
 async function login(app: express.Express, email: string): Promise<string> {
   const resp = await request(app).post("/api/auth/login").send({ email, senha: SENHA_PADRAO });
   expect(resp.status).toBe(200);
-  return resp.body.token;
+  return tokenDoCookie(resp);
 }
 
 describe("Rotas HTTP de DRE (/api/relatorios/dre)", () => {

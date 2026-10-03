@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import { AuthServiceDB } from "../../domain/auth/auth-service-db";
 import { gerarHashSenha } from "../../domain/auth/password";
 import { criarRotasAuth } from "../auth-routes";
+import { tokenDoCookie } from "./token-cookie.js";
 
 // Mocka o PluggyClient (pluggy-sdk) inteiro — nenhum teste aqui deve tocar a rede real. As
 // três chamadas que `pluggy-meu.ts` faz (fetchItem, fetchAccounts, fetchAllTransactions) ficam
@@ -88,7 +89,7 @@ async function criarAppDeTeste(
 async function login(app: express.Express, email: string): Promise<string> {
   const resp = await request(app).post("/api/auth/login").send({ email, senha: SENHA_PADRAO });
   expect(resp.status).toBe(200);
-  return resp.body.token;
+  return tokenDoCookie(resp);
 }
 
 async function criarUsuarioTitular(db: Database.Database) {

@@ -75,9 +75,27 @@ function criarLimitadorBootstrap() {
   });
 }
 
-/** Middleware que exige `Authorization: Bearer <token>` válido — equivalente,
- * por usuário, ao que `exigirChaveApi` já faz por chave compartilhada em
- * index.ts. Anexa o contexto autenticado em `req.auth`.
+/** Lê um cookie do header `Cookie` sem depender de cookie-parser (que não é dependência do servidor). */
+function lerCookie(cabecalho: string | undefined, nome: string): string | undefined {
+  if (!cabecalho) return undefined;
+  for (const par of cabecalho.split(";")) {
+    const i = par.indexOf("=");
+    if (i < 0) continue;
+    if (par.slice(0, i).trim() !== nome) continue;
+    try {
+      return decodeURIComponent(par.slice(i + 1).trim());
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+/** Middleware que exige sessão válida: cookie `session_token` (httpOnly, definido pelo login —
+ * SEC-015) ou, para clientes sem cookies, `Authorization: Bearer <token>`. Anexa o contexto
+ * autenticado em `req.auth`. O token NUNCA é devolvido no corpo do login; sem esta leitura do cookie
+ * o login gravava a sessão e nenhuma rota autenticada a reconhecia. Requisições que alteram dados
+ * continuam protegidas pelo csurf global (index.ts) e pelo SameSite=Strict do cookie.
  *
  * SEC-011B: Uses timing-safe token validation to prevent timing attacks
  * on token guessing.
@@ -88,9 +106,14 @@ export function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
     res: express.Response,
     next: express.NextFunction,
   ) {
-    const cabecalho = req.header("Authorization") ?? "";
-    const [esquema, token] = cabecalho.split(" ");
-    if (esquema !== "Bearer" || !token) {
+    let token = lerCookie(req.header("Cookie"), "session_token");
+    if (!token) {
+      const cabecalho = req.header("Authorization") ?? "";
+      const [esquema, headerToken] = cabecalho.split(" ");
+      if (esquema === "Bearer" && headerToken) token = headerToken;
+    }
+
+    if (!token) {
       res.status(401).json({ erro: "Token de sessão ausente ou mal formatado" });
       return;
     }
