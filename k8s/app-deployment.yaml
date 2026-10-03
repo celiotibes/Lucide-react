@@ -1,0 +1,218 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lucide-app
+  namespace: default
+  labels:
+    app: lucide-app
+    version: v1
+spec:
+  # Number of replicas — adjust based on load
+  replicas: 2
+
+  # Deployment strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  # Pod selector
+  selector:
+    matchLabels:
+      app: lucide-app
+
+  # Pod template
+  template:
+    metadata:
+      labels:
+        app: lucide-app
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8787"
+        prometheus.io/path: "/metrics"
+
+    spec:
+      # Service account
+      serviceAccountName: default
+
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+      # Init containers (if needed for migrations)
+      # initContainers:
+      #   - name: db-migration
+      #     image: lucide-react:latest
+      #     command: ["node", "server/dist/migrate.js"]
+      #     env:
+      #       - name: DATABASE_URL
+      #         valueFrom:
+      #           configMapKeyRef:
+      #             name: lucide-config
+      #             key: DATABASE_URL
+
+      # Containers
+      containers:
+        - name: lucide-app
+
+          # Image — use specific tag, never 'latest' in production
+          image: lucide-react:latest
+          imagePullPolicy: Always
+
+          # Ports
+          ports:
+            - name: http
+              containerPort: 8787
+              protocol: TCP
+
+          # Environment variables from ConfigMap and Secret
+          envFrom:
+            # ConfigMap: non-sensitive configuration
+            - configMapRef:
+                name: lucide-config
+            # Secret: sensitive data
+            - secretRef:
+                name: lucide-secret
+
+          # Additional environment variables
+          env:
+            # Pod metadata
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
+            # Container resource requests/limits
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=512"
+
+          # Resource requests and limits
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Liveness probe — restart pod if unhealthy
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Readiness probe — remove from load balancer if not ready
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 2
+
+          # Volume mounts
+          volumeMounts:
+            # Database volume
+            - name: data
+              mountPath: /app/data
+            # Logs volume
+            - name: logs
+              mountPath: /app/logs
+            # Config volume (read-only)
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+
+          # Security context for container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+
+          # Lifecycle hooks
+          lifecycle:
+            preStop:
+              exec:
+                # Graceful shutdown: wait for requests to complete
+                command:
+                  - sh
+                  - -c
+                  - sleep 15
+
+          # Termination grace period
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+
+      # Volumes
+      volumes:
+        # Persistent data volume
+        - name: data
+          persistentVolumeClaim:
+            claimName: lucide-data-pvc
+        # Logs volume (emptyDir for single-pod, PVC for shared)
+        - name: logs
+          emptyDir: {}
+        # Config volume (optional, for mounted config files)
+        - name: config
+          configMap:
+            name: lucide-config
+            optional: true
+
+      # Pod disruption budget
+      # podDisruptionBudget:
+      #   minAvailable: 1
+
+      # Affinity rules (spread across nodes)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - lucide-app
+                topologyKey: kubernetes.io/hostname
+
+      # Tolerations (for tainted nodes)
+      # tolerations:
+      #   - key: workload
+      #     operator: Equal
+      #     value: accounting
+      #     effect: NoSchedule
+
+      # Restart policy
+      restartPolicy: Always
+
+      # Termination grace period (give containers time to shut down)
+      terminationGracePeriodSeconds: 30
+
+      # DNS policy
+      dnsPolicy: ClusterFirst

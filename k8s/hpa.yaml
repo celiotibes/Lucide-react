@@ -1,0 +1,161 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: lucide-app-hpa
+  namespace: default
+  labels:
+    app: lucide-app
+    version: v1
+spec:
+  # Target deployment
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: lucide-app
+
+  # Min and max replicas
+  minReplicas: 2
+  maxReplicas: 5
+
+  # Scaling metrics
+  metrics:
+    # CPU-based scaling: scale up when avg CPU > 70%
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    # Memory-based scaling: scale up when avg memory > 80%
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+  # Behavior configuration (v2 only)
+  behavior:
+    scaleDown:
+      # How long to wait before scaling down again
+      stabilizationWindowSeconds: 300
+      # Policies for scaling down
+      policies:
+        - type: Percent
+          value: 50  # Scale down by 50% max
+          periodSeconds: 15
+        - type: Pods
+          value: 1   # Remove max 1 pod at a time
+          periodSeconds: 15
+      # Select the policy that scales down the least
+      selectPolicy: Min
+
+    scaleUp:
+      # No waiting period when scaling up — respond quickly to load
+      stabilizationWindowSeconds: 0
+      # Policies for scaling up
+      policies:
+        - type: Percent
+          value: 100  # Double the replicas (100% increase)
+          periodSeconds: 15
+        - type: Pods
+          value: 2    # Add max 2 pods at a time
+          periodSeconds: 15
+      # Select the policy that scales up the most
+      selectPolicy: Max
+
+---
+# ============================================================================
+# Optional: Vertical Pod Autoscaler (VPA)
+# ============================================================================
+# Use VPA to automatically adjust resource requests/limits based on usage
+# Install: helm repo add fairwinds-stable https://charts.fairwinds.com/stable
+#
+# apiVersion: autoscaling.k8s.io/v1
+# kind: VerticalPodAutoscaler
+# metadata:
+#   name: lucide-app-vpa
+#   namespace: default
+# spec:
+#   targetRef:
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     name: lucide-app
+#   updatePolicy:
+#     updateMode: "Auto"  # Options: Off, Initial, Recreate, Auto
+#   resourcePolicy:
+#     containerPolicies:
+#       - containerName: lucide-app
+#         minAllowed:
+#           cpu: 100m
+#           memory: 128Mi
+#         maxAllowed:
+#           cpu: 2
+#           memory: 2Gi
+
+---
+# ============================================================================
+# Optional: Custom Metrics Autoscaling (requires metrics-server)
+# ============================================================================
+# Scale based on custom metrics (e.g., request latency, queue depth)
+#
+# apiVersion: autoscaling/v2
+# kind: HorizontalPodAutoscaler
+# metadata:
+#   name: lucide-app-custom-hpa
+#   namespace: default
+# spec:
+#   scaleTargetRef:
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     name: lucide-app
+#   minReplicas: 2
+#   maxReplicas: 10
+#   metrics:
+#     # Scale based on HTTP request rate
+#     - type: Pods
+#       pods:
+#         metric:
+#           name: http_requests_per_second
+#         target:
+#           type: AverageValue
+#           averageValue: "1000"
+#     # Scale based on request latency
+#     - type: Pods
+#       pods:
+#         metric:
+#           name: http_request_duration_seconds
+#         target:
+#           type: AverageValue
+#           averageValue: "0.5"
+
+---
+# ============================================================================
+# Notes: HPA Configuration
+# ============================================================================
+#
+# 1. METRICS SERVER REQUIREMENT
+#    - HPA requires metrics-server installed on your cluster
+#    - Check: kubectl get deployment metrics-server -n kube-system
+#    - Install if missing: kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+#
+# 2. SCALING BEHAVIOR
+#    - Scale-up: Aggressive, responds quickly to load spikes
+#    - Scale-down: Conservative (5 min cooldown), prevents flapping
+#
+# 3. MONITORING HPA
+#    - Check status: kubectl get hpa lucide-app-hpa -w
+#    - View events: kubectl describe hpa lucide-app-hpa
+#    - Check metrics: kubectl top pods -l app=lucide-app
+#
+# 4. TROUBLESHOOTING
+#    - "unknown" in metrics: Metrics server not installed or pod not yet ready
+#    - "insufficient": Pod not requesting resources properly
+#    - Not scaling: Check events with kubectl describe hpa
+#
+# 5. RESOURCE REQUESTS
+#    - HPA REQUIRES resource requests to calculate percentages
+#    - Currently configured in app-deployment.yaml:
+#      - CPU: 250m requested, 500m limit
+#      - Memory: 256Mi requested, 512Mi limit

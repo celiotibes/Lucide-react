@@ -1,0 +1,249 @@
+# ============================================================================
+# Kubernetes Ingress for Lucide App
+# ============================================================================
+# This Ingress provides external HTTP/HTTPS routing to the application
+# Requires an ingress controller (e.g., nginx, traefik, aws-alb)
+#
+# IMPORTANT NOTES:
+# 1. Install ingress controller: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/cloud/deploy.yaml
+# 2. Update hostname: Replace "lucide-react.example.com" with your domain
+# 3. TLS certificate: Create secret or use cert-manager for automatic issuance
+# 4. DNS: Point your domain to the ingress load balancer IP
+# ============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lucide-app-ingress
+  namespace: default
+  labels:
+    app: lucide-app
+    version: v1
+  annotations:
+    # Ingress class (nginx is most common)
+    kubernetes.io/ingress.class: "nginx"
+
+    # TLS redirect: redirect HTTP to HTTPS
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # CORS configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://lucide-react.example.com"
+
+    # Rate limiting (prevent abuse)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+
+    # Body size limit
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+
+    # SSL redirect
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+
+    # Modsecurity (WAF) - optional
+    # nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    # nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+
+spec:
+  # TLS configuration
+  tls:
+    - hosts:
+        - lucide-react.example.com
+        - api.lucide-react.example.com
+      secretName: lucide-tls-secret
+
+  # Rules
+  rules:
+    # Main domain
+    - host: lucide-react.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lucide-app
+                port:
+                  number: 80
+
+    # API subdomain (optional)
+    - host: api.lucide-react.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lucide-app
+                port:
+                  number: 80
+
+---
+# ============================================================================
+# TLS Certificate (Using cert-manager + Let's Encrypt)
+# ============================================================================
+# Prerequisites:
+# 1. Install cert-manager: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
+# 2. Create ClusterIssuer (see below)
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Let's Encrypt production server (use letsencrypt-staging for testing)
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: your-email@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      # HTTP-01 solver (requires your domain to be reachable from the internet)
+      - http01:
+          ingress:
+            class: nginx
+
+---
+# ============================================================================
+# Optional: Staging ClusterIssuer (for testing)
+# ============================================================================
+# Use this for testing to avoid Let's Encrypt rate limits
+#
+# apiVersion: cert-manager.io/v1
+# kind: ClusterIssuer
+# metadata:
+#   name: letsencrypt-staging
+# spec:
+#   acme:
+#     server: https://acme-staging-v02.api.letsencrypt.org/directory
+#     email: your-email@example.com
+#     privateKeySecretRef:
+#       name: letsencrypt-staging-key
+#     solvers:
+#       - http01:
+#           ingress:
+#             class: nginx
+
+---
+# ============================================================================
+# Optional: Self-Signed Certificate (Development)
+# ============================================================================
+# For development/testing without cert-manager
+#
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: lucide-tls-secret
+#   namespace: default
+# type: kubernetes.io/tls
+# data:
+#   # Generate with: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+#   tls.crt: <base64-encoded-cert>
+#   tls.key: <base64-encoded-key>
+
+---
+# ============================================================================
+# Optional: NetworkPolicy (Ingress only)
+# ============================================================================
+# Restrict traffic to only ingress controller
+#
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: lucide-app-network-policy
+#   namespace: default
+# spec:
+#   podSelector:
+#     matchLabels:
+#       app: lucide-app
+#   policyTypes:
+#     - Ingress
+#   ingress:
+#     - from:
+#         - namespaceSelector:
+#             matchLabels:
+#               name: ingress-nginx
+#       ports:
+#         - protocol: TCP
+#           port: 8787
+
+---
+# ============================================================================
+# Optional: Alternative Ingress for Traefik
+# ============================================================================
+# Use this if your cluster runs Traefik instead of nginx
+#
+# apiVersion: traefik.containo.us/v1alpha1
+# kind: IngressRoute
+# metadata:
+#   name: lucide-app-traefik
+#   namespace: default
+# spec:
+#   entryPoints:
+#     - websecure
+#   routes:
+#     - match: Host(`lucide-react.example.com`)
+#       kind: Rule
+#       services:
+#         - name: lucide-app
+#           port: 80
+#   tls:
+#     certResolver: letsencrypt
+
+---
+# ============================================================================
+# SETUP INSTRUCTIONS
+# ============================================================================
+#
+# 1. INSTALL INGRESS CONTROLLER (Nginx)
+#    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/cloud/deploy.yaml
+#
+# 2. INSTALL CERT-MANAGER
+#    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.2/cert-manager.yaml
+#    kubectl wait --for=condition=Established crd/certificates.cert-manager.io --timeout=300s
+#
+# 3. UPDATE DOMAIN NAMES
+#    Replace "lucide-react.example.com" with your actual domain
+#    Replace "your-email@example.com" with your email
+#
+# 4. CREATE INGRESS
+#    kubectl apply -f k8s/ingress.yaml
+#
+# 5. VERIFY SETUP
+#    kubectl get ingress lucide-app-ingress -w  # Watch for IP
+#    kubectl get certificate -w                 # Watch TLS cert
+#    kubectl describe certificate lucide-tls-secret
+#
+# 6. DNS SETUP
+#    Point your domain to the ingress controller IP:
+#    - Get IP: kubectl get ingress lucide-app-ingress -o wide
+#    - Create A record: lucide-react.example.com -> <INGRESS_IP>
+#    - Wait for DNS propagation (5-48 hours)
+#
+# 7. TROUBLESHOOTING
+#    # Check ingress
+#    kubectl describe ingress lucide-app-ingress
+#
+#    # Check certificate
+#    kubectl describe certificate lucide-tls-secret
+#
+#    # Check ingress controller logs
+#    kubectl logs -n ingress-nginx deployment/ingress-nginx-controller -f
+#
+#    # Verify DNS
+#    nslookup lucide-react.example.com
+#
+#    # Test connectivity
+#    curl -v https://lucide-react.example.com/api/health
