@@ -8,7 +8,7 @@ import express from "express";
 import request from "supertest";
 import initSqlJs from "sql.js";
 import type { Database } from "sql.js";
-import { emitirCobrancaAluguel } from "../../domain/integracoes/asaasCobranca";
+import { emitirCobrancaAluguel } from "../../../../src/domain/integracoes/asaasCobranca";
 import { criarRotasAsaas } from "../asaas-routes";
 
 describe("Rotas HTTP de Reembolsos Asaas", () => {
