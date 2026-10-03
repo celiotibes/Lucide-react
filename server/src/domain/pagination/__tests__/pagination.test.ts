@@ -225,9 +225,14 @@ describe("Paginação - Edge Cases", () => {
       expect(response.hasMore).toBe(true);
     });
 
-    it("deve ter hasMore=false quando dados estão vazios mas offset é válido", () => {
+    it("deve ter hasMore=true quando dados estão vazios mas offset ainda permite mais", () => {
       const response = createPaginatedResponse([], 50, 10, 10);
-      expect(response.hasMore).toBe(false);
+      expect(response.hasMore).toBe(true); // offset(10) + limit(10) = 20 < total(50)
+    });
+
+    it("deve ter hasMore=false quando offset+limit >= total", () => {
+      const response = createPaginatedResponse([], 50, 10, 40);
+      expect(response.hasMore).toBe(false); // offset(40) + limit(10) = 50 >= total(50)
     });
   });
 });
