@@ -151,6 +151,9 @@
 .kpi-tile:has(.value.good) {
   border-left-color: var(--viz-good);
 }
+.kpi-tile:has(.value.warning) {
+  border-left-color: var(--viz-warning);
+}
 .kpi-tile:has(.value.critical) {
   border-left-color: var(--viz-critical);
   box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--viz-critical) 12%, transparent);
@@ -170,8 +173,23 @@
 .kpi-tile .value.good {
   color: var(--viz-good);
 }
+/* --viz-warning (amarelo) não tem contraste suficiente como cor de texto: escurece-o com a cor do texto. */
+.kpi-tile .value.warning {
+  color: color-mix(in srgb, var(--viz-warning) 55%, var(--ink));
+}
 .kpi-tile .value.critical {
   color: var(--viz-critical);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .section-title {
