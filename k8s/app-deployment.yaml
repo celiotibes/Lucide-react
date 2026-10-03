@@ -154,17 +154,34 @@ spec:
               add:
                 - NET_BIND_SERVICE
 
-          # Lifecycle hooks
+          # Lifecycle hooks for graceful shutdown
           lifecycle:
             preStop:
               exec:
-                # Graceful shutdown: wait for requests to complete
+                # Graceful shutdown sequence:
+                # 1. Wait 5 seconds for load balancer to drain connections
+                # 2. Drain existing connections with timeout
+                # 3. Allow app's shutdown signal handling
                 command:
                   - sh
                   - -c
-                  - sleep 15
+                  - |
+                    set -e
 
-          # Termination grace period
+                    # Give load balancer time to remove this pod from rotation
+                    sleep 5
+
+                    # Allow graceful shutdown for in-flight requests
+                    # Send SIGTERM to the app process
+                    kill -TERM 1 || true
+
+                    # Wait with timeout for app to shut down gracefully
+                    # Monitor the process for max 20 seconds
+                    timeout 20 sh -c 'while kill -0 1 2>/dev/null; do sleep 1; done' || true
+
+                    echo "Graceful shutdown sequence completed"
+
+          # Termination grace period and policies
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
 
@@ -183,13 +200,15 @@ spec:
             name: lucide-config
             optional: true
 
-      # Pod disruption budget
-      # podDisruptionBudget:
-      #   minAvailable: 1
+      # Pod disruption budget (ensures graceful shutdown of at least one pod)
+      podDisruptionBudget:
+        minAvailable: 1
+        unhealthyPodEvictionPolicy: AlwaysAllow
 
-      # Affinity rules (spread across nodes)
+      # Affinity rules (spread across nodes for high availability)
       affinity:
         podAntiAffinity:
+          # Prefer not to run on same node
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               podAffinityTerm:
@@ -208,11 +227,14 @@ spec:
       #     value: accounting
       #     effect: NoSchedule
 
-      # Restart policy
+      # Pod lifecycle and shutdown settings
       restartPolicy: Always
 
-      # Termination grace period (give containers time to shut down)
+      # Termination grace period:
+      # - preStop hook: 5s load balancer drain + 20s app shutdown = 25s max
+      # - Total: 30 seconds to allow graceful completion
+      # - If exceeded, container receives SIGKILL
       terminationGracePeriodSeconds: 30
 
-      # DNS policy
+      # DNS policy for pod name resolution
       dnsPolicy: ClusterFirst
