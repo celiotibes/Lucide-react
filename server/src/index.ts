@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import { specs } from "./swagger.js";
@@ -76,6 +77,41 @@ iniciarScannerAnomaliasDiario(db);
 avisarSeSegredoForTemporario();
 
 const app = express();
+
+// Security headers with helmet.js — positioned as first middleware before all other middlewares
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        fontSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    hsts: {
+      maxAge: 31536000, // 1 year in seconds
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: {
+      action: "deny",
+    },
+    noSniff: true,
+    referrerPolicy: {
+      policy: "strict-origin-when-cross-origin",
+    },
+    xssFilter: true,
+  }),
+);
+
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN ?? "http://localhost:5173" }));
 app.use(express.json());
 
