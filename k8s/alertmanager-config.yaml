@@ -1,0 +1,167 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: lucide-app-config
+  namespace: default
+spec:
+  # Global settings for notifications
+  global:
+    resolve_timeout: 5m
+    slack_api_url_file: /etc/alertmanager/secrets/slack-webhook
+
+  # Route configuration
+  route:
+    # Default receiver for all alerts
+    receiver: default-receiver
+
+    # Group alerts by labels
+    group_by:
+      - alertname
+      - severity
+      - cluster
+
+    # Timing for grouping and notification
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+
+    # Nested routes for specific alert types
+    routes:
+      # Critical alerts route
+      - matchers:
+          - name: severity
+            value: critical
+        receiver: critical-receiver
+        continue: true
+        group_wait: 10s
+        group_interval: 5m
+        repeat_interval: 1h
+
+      # Warning alerts route
+      - matchers:
+          - name: severity
+            value: warning
+        receiver: warning-receiver
+        group_wait: 1m
+        group_interval: 15m
+        repeat_interval: 8h
+
+      # LucideApp component alerts route
+      - matchers:
+          - name: component
+            value: lucide-app
+        receiver: lucide-team
+        continue: true
+
+  # Receivers configuration
+  receivers:
+    # Default receiver (Slack)
+    - name: default-receiver
+      slack_configs:
+        - channel: '#alerts'
+          title: 'Lucide Alert - {{ .GroupLabels.alertname }}'
+          text: |
+            {{ range .Alerts }}
+            *Alert:* {{ .Labels.alertname }}
+            *Severity:* {{ .Labels.severity }}
+            *Description:* {{ .Annotations.description }}
+            {{ end }}
+          send_resolved: true
+          actions:
+            - type: button
+              text: 'View Alert'
+              url: '{{ (index .Alerts 0).GeneratorURL }}'
+            - type: button
+              text: 'View Runbook'
+              url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+
+    # Critical alerts receiver (Slack + Email)
+    - name: critical-receiver
+      slack_configs:
+        - channel: '#critical-alerts'
+          title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+          text: |
+            @channel - Critical Alert
+            {{ range .Alerts }}
+            *Alert:* {{ .Labels.alertname }}
+            *Pod:* {{ .Labels.pod }}
+            *Description:* {{ .Annotations.description }}
+            {{ end }}
+          send_resolved: true
+          color: 'danger'
+          actions:
+            - type: button
+              text: 'Acknowledge'
+              url: '{{ (index .Alerts 0).GeneratorURL }}'
+
+      email_configs:
+        - to: 'devops@example.com'
+          from: 'alertmanager@example.com'
+          smarthost: 'smtp.example.com:587'
+          auth_username: 'alertmanager@example.com'
+          auth_password_file: /etc/alertmanager/secrets/smtp-password
+          headers:
+            Subject: '[CRITICAL] Lucide Alert - {{ .GroupLabels.alertname }}'
+          html: |
+            <h2>Critical Alert</h2>
+            <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+            <p><strong>Severity:</strong> {{ .GroupLabels.severity }}</p>
+            {{ range .Alerts }}
+            <p><strong>Details:</strong> {{ .Annotations.description }}</p>
+            {{ end }}
+
+    # Warning alerts receiver (Slack)
+    - name: warning-receiver
+      slack_configs:
+        - channel: '#warnings'
+          title: '[WARNING] {{ .GroupLabels.alertname }}'
+          text: |
+            {{ range .Alerts }}
+            *Alert:* {{ .Labels.alertname }}
+            *Severity:* {{ .Labels.severity }}
+            *Description:* {{ .Annotations.description }}
+            {{ end }}
+          send_resolved: true
+          color: 'warning'
+
+    # Lucide team specific receiver
+    - name: lucide-team
+      slack_configs:
+        - channel: '#lucide-team'
+          title: 'Lucide App Alert - {{ .GroupLabels.alertname }}'
+          text: |
+            {{ range .Alerts }}
+            *Pod:* {{ .Labels.pod }}
+            *Description:* {{ .Annotations.description }}
+            {{ end }}
+          send_resolved: true
+
+  # Inhibition rules
+  inhibit_rules:
+    # Inhibit warnings when a critical alert exists
+    - source_matchers:
+        - severity=critical
+      target_matchers:
+        - severity=warning
+      equal:
+        - alertname
+        - component
+
+    # Inhibit resolved alerts
+    - source_matchers:
+        - alertstate=resolved
+      target_matchers:
+        - alertstate!=resolved
+      equal:
+        - alertname
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-config-secret
+  namespace: default
+type: Opaque
+stringData:
+  slack-webhook: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+  smtp-password: 'your-smtp-password'
