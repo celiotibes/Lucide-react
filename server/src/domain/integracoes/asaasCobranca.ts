@@ -24,6 +24,12 @@ import type Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 // SEC-012: Sentry Error Tracking
 import { captureException, addSentryBreadcrumb } from "../../services/sentry-service.js";
+// PERF-002: Cache Service
+import { getCacheService } from "../../services/cache-service.js";
+// Observability: Logger Service
+import { getLogger } from "../../services/logger-service.js";
+
+const logger = getLogger("asaasCobranca");
 
 export type FetchLike = typeof fetch;
 
