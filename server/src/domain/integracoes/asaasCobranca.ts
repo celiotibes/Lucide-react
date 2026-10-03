@@ -359,6 +359,11 @@ export function emitirCobranca(db: Database.Database, dados: DadosNovaCobranca):
 
     addSentryBreadcrumb('Charge emitted', { chargeId: id, aluguelId: dados.aluguel_id, valor: dados.valor }, 'charge', 'info');
 
+    // Cache invalidation: after creating a new charge
+    const cache = getCacheService();
+    cache.invalidateByPattern('cobranca:*');
+    cache.invalidateByPattern('cobrancas:list:*');
+
     return obterCobranca(db, id) as Cobranca;
   } catch (error) {
     // SEC-012: Capture charge creation errors
@@ -611,6 +616,11 @@ export function atualizarStatusCobranca(
     logger.error("Erro ao registrar auditoria de atualização de status:", err);
   }
 
+  // Cache invalidation: after updating charge status
+  const cache = getCacheService();
+  cache.invalidateByPattern(`cobranca:${id}`);
+  cache.invalidateByPattern('cobrancas:list:*');
+
   return obterCobranca(db, id) as Cobranca;
 }
 
@@ -694,6 +704,11 @@ export function registrarPagamento(
     }
 
     addSentryBreadcrumb('Payment registered', { chargeId: cobranca_id, amount: valor_pago, method: tipo_pagamento }, 'payment', 'info');
+
+    // Cache invalidation: after registering payment
+    const cache = getCacheService();
+    cache.invalidateByPattern(`cobranca:${cobranca_id}`);
+    cache.invalidateByPattern('cobrancas:list:*');
 
     return obterCobranca(db, cobranca_id) as Cobranca;
   } catch (error) {
