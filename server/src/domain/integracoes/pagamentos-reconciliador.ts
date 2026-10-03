@@ -19,6 +19,8 @@ import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 import { consultarCobranca, type CobrancaAsaas, AsaasApiError } from "../../asaas.js";
+// SEC-012: Sentry Error Tracking & Performance Monitoring
+import { createSentryTransaction, captureException, addSentryBreadcrumb } from '../../services/sentry-service.js';
 
 export interface AuditReconciliacao {
   id: string;
@@ -245,6 +247,13 @@ export async function sincronizarStatusTaxaAsaas(
   db: Database.Database,
   fetchImpl: typeof fetch = fetch,
 ): Promise<ResultadoReconciliacao> {
+  // SEC-012: Create Sentry transaction for performance monitoring
+  const transaction = createSentryTransaction(
+    'reconciliation',
+    'Asaas Payment Reconciliation',
+    { type: 'payment_reconciliation' }
+  );
+
   const resultado: ResultadoReconciliacao = {
     atualizadas: 0,
     discrepancias: 0,
@@ -252,54 +261,121 @@ export async function sincronizarStatusTaxaAsaas(
     detalhes: [],
   };
 
-  const cobrancas = listarCobrancasAtivas(db);
+  try {
+    const cobrancas = listarCobrancasAtivas(db);
 
-  if (cobrancas.length === 0) {
-    resultado.detalhes.push("Nenhuma cobrança ativa para sincronizar");
-    return resultado;
-  }
+    if (cobrancas.length === 0) {
+      resultado.detalhes.push("Nenhuma cobrança ativa para sincronizar");
+      addSentryBreadcrumb("No active charges to reconcile", { count: 0 }, 'reconciliation', 'info');
+      return resultado;
+    }
 
-  logger.info(`🔄 Reconciliação Asaas iniciada... (${cobrancas.length} cobrança(s) ativa(s))`);
+    logger.info(`🔄 Reconciliação Asaas iniciada... (${cobrancas.length} cobrança(s) ativa(s))`);
+    addSentryBreadcrumb("Reconciliation started", { chargeCount: cobrancas.length }, 'reconciliation', 'info');
 
-  // Divide em chunks de 5 para limitar paralelismo
-  const chunks = criarChunks(cobrancas, 5);
+    // Divide em chunks de 5 para limitar paralelismo
+    const chunks = criarChunks(cobrancas, 5);
 
-  for (const chunk of chunks) {
-    // Executa até 5 requisições em paralelo por chunk
-    const resultados = await Promise.all(
-      chunk.map((cobranca) =>
-        sincronizarCobranca(db, cobranca.id, cobranca.asaas_charge_id, fetchImpl),
-      ),
-    );
+    for (const chunk of chunks) {
+      // Executa até 5 requisições em paralelo por chunk
+      const resultados = await Promise.all(
+        chunk.map((cobranca) =>
+          sincronizarCobranca(db, cobranca.id, cobranca.asaas_charge_id, fetchImpl),
+        ),
+      );
 
-    // Processa resultados
-    for (let i = 0; i < resultados.length; i++) {
-      const res = resultados[i];
-      const cobranca = chunk[i];
+      // Processa resultados
+      for (let i = 0; i < resultados.length; i++) {
+        const res = resultados[i];
+        const cobranca = chunk[i];
 
-      if (res.sucesso) {
-        if (res.houveMudanca) {
-          resultado.atualizadas++;
-          resultado.detalhes.push(
-            `✓ ${cobranca.asaas_charge_id}: status=${res.statusMudou ? "SIM" : "NÃO"}, taxa=${res.taxaMudou ? "SIM" : "NÃO"}`,
-          );
+        if (res.sucesso) {
+          if (res.houveMudanca) {
+            resultado.atualizadas++;
+            resultado.detalhes.push(
+              `✓ ${cobranca.asaas_charge_id}: status=${res.statusMudou ? "SIM" : "NÃO"}, taxa=${res.taxaMudou ? "SIM" : "NÃO"}`,
+            );
+          }
+          if (res.discrepancia) {
+            resultado.discrepancias++;
+            resultado.detalhes.push(`⚠️ DISCREPÂNCIA em ${cobranca.asaas_charge_id}`);
+            // Log discrepancy as Sentry breadcrumb
+            addSentryBreadcrumb(
+              `Discrepancy detected in charge ${cobranca.asaas_charge_id}`,
+              { chargeId: cobranca.id, asaasChargeId: cobranca.asaas_charge_id },
+              'reconciliation',
+              'warning'
+            );
+          }
+        } else {
+          resultado.erros++;
+          resultado.detalhes.push(`❌ ${cobranca.asaas_charge_id}: ${res.erro}`);
+          // Capture error context
+          captureException(new Error(res.erro), {
+            tags: {
+              operation: 'asaas_reconciliation',
+              chargeId: cobranca.id,
+              asaasChargeId: cobranca.asaas_charge_id,
+            },
+            level: 'error',
+            extra: {
+              errorDetails: res.erro,
+            },
+          });
         }
-        if (res.discrepancia) {
-          resultado.discrepancias++;
-          resultado.detalhes.push(`⚠️ DISCREPÂNCIA em ${cobranca.asaas_charge_id}`);
-        }
-      } else {
-        resultado.erros++;
-        resultado.detalhes.push(`❌ ${cobranca.asaas_charge_id}: ${res.erro}`);
       }
     }
+
+    logger.info(
+      `🔄 Reconciliação Asaas concluída: ${resultado.atualizadas} atualizadas, ${resultado.discrepancias} discrepâncias, ${resultado.erros} erros`,
+    );
+
+    addSentryBreadcrumb(
+      "Reconciliation completed",
+      {
+        updated: resultado.atualizadas,
+        discrepancies: resultado.discrepancias,
+        errors: resultado.erros,
+      },
+      'reconciliation',
+      'info'
+    );
+
+    return resultado;
+  } catch (error) {
+    // SEC-012: Capture unexpected errors
+    captureException(error, {
+      tags: {
+        operation: 'asaas_reconciliation_main',
+      },
+      level: 'error',
+      extra: {
+        resultsSoFar: {
+          updated: resultado.atualizadas,
+          discrepancies: resultado.discrepancias,
+          errors: resultado.erros,
+        },
+      },
+    });
+
+    logger.error("Erro durante reconciliação Asaas", error instanceof Error ? error : { error: String(error) });
+    resultado.erros++;
+    resultado.detalhes.push(`Erro fatal: ${error instanceof Error ? error.message : String(error)}`);
+
+    return resultado;
+  } finally {
+    // Finish the Sentry transaction
+    if (transaction) {
+      transaction.setTag('operation', 'asaas_reconciliation');
+      transaction.setTag('result_status', resultado.erros === 0 ? 'success' : 'partial_failure');
+      transaction.setData('stats', {
+        updated: resultado.atualizadas,
+        discrepancies: resultado.discrepancias,
+        errors: resultado.erros,
+      });
+      transaction.finish();
+    }
   }
-
-  logger.info(
-    `🔄 Reconciliação Asaas concluída: ${resultado.atualizadas} atualizadas, ${resultado.discrepancias} discrepâncias, ${resultado.erros} erros`,
-  );
-
-  return resultado;
 }
 
 /**

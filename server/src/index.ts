@@ -74,6 +74,8 @@ const envSchema = z.object({
   SERPROID_API_KEY: z.string().optional(),
   ALERTS_EMAIL_PROVIDER: z.string().optional(),
   SLACK_WEBHOOK_URL: z.string().url().optional(),
+  // SEC-012: Sentry Error Tracking
+  SENTRY_DSN: z.string().optional(),
 });
 
 // Parse e validação de variáveis de ambiente no boot
@@ -96,6 +98,9 @@ const PORT = envVars.PORT;
 const ALLOWED_ORIGIN = envVars.ALLOWED_ORIGIN;
 const DATABASE_URL = envVars.DATABASE_URL;
 const NODE_ENV = envVars.NODE_ENV;
+
+// SEC-012: Initialize Sentry FIRST (before any other operations)
+initializeSentry();
 
 logger.info("[Server] Environment", { environment: NODE_ENV, port: PORT, allowedOrigin: ALLOWED_ORIGIN });
 
@@ -164,6 +169,9 @@ app.use(
     xssFilter: true,
   }),
 );
+
+// SEC-012: Sentry request handler — must be before all other middleware
+attachSentryHandlers(app);
 
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());

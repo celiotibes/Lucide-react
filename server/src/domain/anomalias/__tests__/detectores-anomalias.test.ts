@@ -3,7 +3,7 @@
  * 18 testes cobrindo os 3 métodos + agregação + persistência
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
@@ -17,13 +17,19 @@ import {
   marcarAnomaliaRevisada,
   obterAlerta,
   obterEstatisticasAnomalias,
+  invalidarCacheTransacoes,
+  invalidarCacheAnomalias,
 } from "../detectores-anomalias.js";
+import { getCacheService, resetCacheService } from "../../../services/cache-service.js";
 
 describe("Sistema de Detecção de Anomalias", () => {
   let db: Database.Database;
   let dbPath: string;
 
   beforeEach(() => {
+    // Reset cache before each test
+    resetCacheService();
+
     // Cria banco de teste em memória
     dbPath = path.join(process.cwd(), "test-anomalias.db");
     db = new Database(dbPath);
@@ -443,6 +449,78 @@ describe("Sistema de Detecção de Anomalias", () => {
       expect(stats.total).toBeGreaterThan(0);
       expect(stats.revisadas).toBeGreaterThan(0);
       expect(stats.taxa_revisao).toBeGreaterThan(0);
+    });
+
+    it("Teste 19: Cache de transações - hit em chamadas repetidas", () => {
+      const cache = getCacheService();
+      const initialSize = cache.size();
+
+      // Primeira chamada (sem cache)
+      const resultado1 = detectarAnomalia2Sigma(db, 500, 90);
+      expect(resultado1).toBeDefined();
+
+      // Cache deve ter entrado
+      expect(cache.size()).toBeGreaterThan(initialSize);
+
+      // Segunda chamada (com cache)
+      const resultado2 = detectarAnomalia2Sigma(db, 500, 90);
+      expect(resultado2).toEqual(resultado1);
+    });
+
+    it("Teste 20: Cache de transações - hit rate em fluxo de anomalias", () => {
+      const cache = getCacheService();
+
+      // Simula o fluxo de anomalias que chama 3 métodos
+      const valor = 450;
+      const periodo = 90;
+
+      // Chamada 1: 2-Sigma (cache miss)
+      detectarAnomalia2Sigma(db, valor, periodo);
+      const tamanhoApos1 = cache.size();
+
+      // Chamada 2: IQR (cache hit para transações)
+      detectarAnomaliaIQR(db, valor, periodo);
+      const tamanhoApos2 = cache.size();
+
+      // Chamada 3: Percentile (cache hit para transações)
+      detectarAnomaliaPercentile(db, valor, periodo);
+      const tamanhoApos3 = cache.size();
+
+      // Tamanho do cache cresce pouco (só métricas, não transações duplicadas)
+      expect(tamanhoApos3).toBeLessThanOrEqual(tamanhoApos2 + 1);
+    });
+
+    it("Teste 21: Invalidação de cache de transações", () => {
+      const cache = getCacheService();
+
+      // Primeira chamada
+      detectarAnomalia2Sigma(db, 300, 90);
+      const tamanhoAntesInvalidacao = cache.size();
+      expect(tamanhoAntesInvalidacao).toBeGreaterThan(0);
+
+      // Invalida cache
+      invalidarCacheTransacoes(90);
+
+      // Cache foi limpo
+      expect(cache.size()).toBeLessThan(tamanhoAntesInvalidacao);
+    });
+
+    it("Teste 22: Invalidação completa de cache de anomalias", () => {
+      const cache = getCacheService();
+
+      // Popula cache com múltiplas chamadas
+      detectarAnomalia2Sigma(db, 300, 90);
+      detectarAnomaliaIQR(db, 400, 90);
+      detectarAnomaliaPercentile(db, 500, 90);
+
+      const tamanhoAntesInvalidacao = cache.size();
+      expect(tamanhoAntesInvalidacao).toBeGreaterThan(0);
+
+      // Invalida todo o cache de anomalias
+      invalidarCacheAnomalias();
+
+      // Cache foi completamente limpo
+      expect(cache.size()).toBe(0);
     });
   });
 });

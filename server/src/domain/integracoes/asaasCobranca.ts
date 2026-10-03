@@ -22,6 +22,8 @@
 
 import type Database from "better-sqlite3";
 import { randomUUID } from "crypto";
+// SEC-012: Sentry Error Tracking
+import { captureException, addSentryBreadcrumb } from "../../services/sentry-service.js";
 
 export type FetchLike = typeof fetch;
 
@@ -258,86 +260,122 @@ function temBoletoAberto(db: Database.Database, aluguel_id: string): boolean {
  * Cria uma nova cobrança no banco de dados
  */
 export function emitirCobranca(db: Database.Database, dados: DadosNovaCobranca): Cobranca {
-  const validacao = validarDadosCobranca(dados);
-  if (!validacao.valido) {
-    throw new ErroValidacaoCobranca(validacao.erros);
-  }
-
-  // Verifica se não existe boleto aberto para este aluguel
-  if (temBoletoAberto(db, dados.aluguel_id)) {
-    throw new Error(
-      `Já existe um boleto aberto para este aluguel. Cancele ou pague o boleto anterior.`,
-    );
-  }
-
-  const id = randomUUID();
-  const agora = new Date().toISOString();
-
-  const stmt = db.prepare(`
-    INSERT INTO asaas_cobrancas (
-      id,
-      aluguel_id,
-      imovel_id,
-      valor,
-      data_vencimento,
-      status,
-      numero_boleto,
-      linha_digitavel,
-      qr_code_pix,
-      asaas_cobranca_id,
-      data_criacao,
-      data_pagamento,
-      valor_pago,
-      tipo_pagamento,
-      referencia_externa
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  stmt.run(
-    id,
-    dados.aluguel_id,
-    dados.imovel_id,
-    dados.valor,
-    dados.data_vencimento,
-    "pendente",
-    null,
-    null,
-    null,
-    null,
-    agora,
-    null,
-    null,
-    null,
-    dados.referencia_externa || null,
-  );
-
-  // Log de auditoria
   try {
-    const stmtAudit = db.prepare(`
-      INSERT INTO asaas_cobrancas_historico (
-        cobranca_id,
+    const validacao = validarDadosCobranca(dados);
+    if (!validacao.valido) {
+      // SEC-012: Capture validation errors
+      captureException(new Error(`Validation failed: ${validacao.erros.join(', ')}`), {
+        tags: {
+          operation: 'emit_charge',
+          error_type: 'validation',
+        },
+        level: 'warning',
+        extra: {
+          errors: validacao.erros,
+          data: { aluguel_id: dados.aluguel_id, valor: dados.valor },
+        },
+      });
+      throw new ErroValidacaoCobranca(validacao.erros);
+    }
+
+    // Verifica se não existe boleto aberto para este aluguel
+    if (temBoletoAberto(db, dados.aluguel_id)) {
+      throw new Error(
+        `Já existe um boleto aberto para este aluguel. Cancele ou pague o boleto anterior.`,
+      );
+    }
+
+    const id = randomUUID();
+    const agora = new Date().toISOString();
+
+    const stmt = db.prepare(`
+      INSERT INTO asaas_cobrancas (
+        id,
         aluguel_id,
-        acao,
-        status_anterior,
-        status_novo,
-        data_acao,
-        descricao
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        imovel_id,
+        valor,
+        data_vencimento,
+        status,
+        numero_boleto,
+        linha_digitavel,
+        qr_code_pix,
+        asaas_cobranca_id,
+        data_criacao,
+        data_pagamento,
+        valor_pago,
+        tipo_pagamento,
+        referencia_externa
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmtAudit.run(
+
+    stmt.run(
       id,
       dados.aluguel_id,
-      "CRIACAO",
-      null,
+      dados.imovel_id,
+      dados.valor,
+      dados.data_vencimento,
       "pendente",
+      null,
+      null,
+      null,
+      null,
       agora,
-      `Cobrança criada com vencimento em ${dados.data_vencimento}`,
+      null,
+      null,
+      null,
+      dados.referencia_externa || null,
     );
-  } catch (err) {
-    logger.error("Erro ao registrar auditoria de cobrança:", err);
-  }
 
-  return obterCobranca(db, id) as Cobranca;
+    // Log de auditoria
+    try {
+      const stmtAudit = db.prepare(`
+        INSERT INTO asaas_cobrancas_historico (
+          cobranca_id,
+          aluguel_id,
+          acao,
+          status_anterior,
+          status_novo,
+          data_acao,
+          descricao
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmtAudit.run(
+        id,
+        dados.aluguel_id,
+        "CRIACAO",
+        null,
+        "pendente",
+        agora,
+        `Cobrança criada com vencimento em ${dados.data_vencimento}`,
+      );
+    } catch (err) {
+      logger.error("Erro ao registrar auditoria de cobrança:", err);
+      // SEC-012: Capture audit trail errors (non-critical)
+      captureException(err, {
+        tags: { operation: 'charge_audit_trail' },
+        level: 'warning',
+      });
+    }
+
+    addSentryBreadcrumb('Charge emitted', { chargeId: id, aluguelId: dados.aluguel_id, valor: dados.valor }, 'charge', 'info');
+
+    return obterCobranca(db, id) as Cobranca;
+  } catch (error) {
+    // SEC-012: Capture charge creation errors
+    captureException(error, {
+      tags: {
+        operation: 'emit_charge',
+        error_type: error instanceof ErroValidacaoCobranca ? 'validation' : 'database',
+      },
+      level: 'error',
+      extra: {
+        aluguelId: dados.aluguel_id,
+        imovelId: dados.imovel_id,
+        valor: dados.valor,
+      },
+    });
+    throw error;
+  }
 }
 
 /**
@@ -586,52 +624,93 @@ export function registrarPagamento(
   tipo_pagamento: TipoPagamento,
   data_pagamento?: string,
 ): Cobranca {
-  const cobranca = obterCobranca(db, cobranca_id);
-  if (!cobranca) {
-    throw new Error(`Cobrança ${cobranca_id} não encontrada`);
-  }
-
-  if (valor_pago <= 0) {
-    throw new Error("valor_pago deve ser positivo");
-  }
-
-  const dataPagamento = data_pagamento || new Date().toISOString();
-
-  const stmt = db.prepare(`
-    UPDATE asaas_cobrancas
-    SET status = ?, data_pagamento = ?, valor_pago = ?, tipo_pagamento = ?
-    WHERE id = ?
-  `);
-
-  stmt.run("paga", dataPagamento, valor_pago, tipo_pagamento, cobranca_id);
-
-  // Log de auditoria
   try {
-    const stmtAudit = db.prepare(`
-      INSERT INTO asaas_cobrancas_historico (
-        cobranca_id,
-        aluguel_id,
-        acao,
-        status_anterior,
-        status_novo,
-        data_acao,
-        descricao
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmtAudit.run(
-      cobranca_id,
-      cobranca.aluguel_id,
-      "PAGAMENTO_RECEBIDO",
-      cobranca.status,
-      "paga",
-      new Date().toISOString(),
-      `Pagamento recebido: R$ ${valor_pago.toFixed(2)} via ${tipo_pagamento}`,
-    );
-  } catch (err) {
-    logger.error("Erro ao registrar auditoria de pagamento:", err);
-  }
+    const cobranca = obterCobranca(db, cobranca_id);
+    if (!cobranca) {
+      // SEC-012: Capture charge not found error
+      captureException(new Error(`Cobrança ${cobranca_id} não encontrada`), {
+        tags: {
+          operation: 'register_payment',
+          error_type: 'charge_not_found',
+        },
+        level: 'error',
+        extra: { chargeId: cobranca_id },
+      });
+      throw new Error(`Cobrança ${cobranca_id} não encontrada`);
+    }
 
-  return obterCobranca(db, cobranca_id) as Cobranca;
+    if (valor_pago <= 0) {
+      // SEC-012: Capture invalid payment value
+      captureException(new Error(`Invalid payment amount: ${valor_pago}`), {
+        tags: {
+          operation: 'register_payment',
+          error_type: 'invalid_value',
+        },
+        level: 'warning',
+        extra: { chargeId: cobranca_id, amount: valor_pago },
+      });
+      throw new Error("valor_pago deve ser positivo");
+    }
+
+    const dataPagamento = data_pagamento || new Date().toISOString();
+
+    const stmt = db.prepare(`
+      UPDATE asaas_cobrancas
+      SET status = ?, data_pagamento = ?, valor_pago = ?, tipo_pagamento = ?
+      WHERE id = ?
+    `);
+
+    stmt.run("paga", dataPagamento, valor_pago, tipo_pagamento, cobranca_id);
+
+    // Log de auditoria
+    try {
+      const stmtAudit = db.prepare(`
+        INSERT INTO asaas_cobrancas_historico (
+          cobranca_id,
+          aluguel_id,
+          acao,
+          status_anterior,
+          status_novo,
+          data_acao,
+          descricao
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmtAudit.run(
+        cobranca_id,
+        cobranca.aluguel_id,
+        "PAGAMENTO_RECEBIDO",
+        cobranca.status,
+        "paga",
+        new Date().toISOString(),
+        `Pagamento recebido: R$ ${valor_pago.toFixed(2)} via ${tipo_pagamento}`,
+      );
+    } catch (err) {
+      logger.error("Erro ao registrar auditoria de pagamento:", err);
+      // SEC-012: Capture audit trail errors (non-critical)
+      captureException(err, {
+        tags: { operation: 'payment_audit_trail' },
+        level: 'warning',
+      });
+    }
+
+    addSentryBreadcrumb('Payment registered', { chargeId: cobranca_id, amount: valor_pago, method: tipo_pagamento }, 'payment', 'info');
+
+    return obterCobranca(db, cobranca_id) as Cobranca;
+  } catch (error) {
+    // SEC-012: Capture payment registration errors
+    captureException(error, {
+      tags: {
+        operation: 'register_payment',
+      },
+      level: 'error',
+      extra: {
+        chargeId: cobranca_id,
+        amount: valor_pago,
+        paymentMethod: tipo_pagamento,
+      },
+    });
+    throw error;
+  }
 }
 
 /**

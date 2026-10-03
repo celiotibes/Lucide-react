@@ -14,6 +14,7 @@
 
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
+import { getCacheService } from "../../services/cache-service.js";
 
 // ============================================================
 // TYPES
@@ -122,11 +123,23 @@ function calcularPercentil(valores: number[], percentil: number): number {
 
 /**
  * Recupera transações dos últimos N dias (ignorando NULL, segue ordem de criação)
+ *
+ * Usa cache com TTL de 60 segundos para evitar queries repetidas.
+ * A chave de cache inclui o período para diferentes períodos usarem caches separados.
  */
 function obterTransacoesDosPeriodo(
   db: Database.Database,
   periodo_dias: number,
 ): number[] {
+  const cacheService = getCacheService();
+  const cacheKey = `transacoes:periodo_${periodo_dias}`;
+
+  // Tenta recuperar do cache (TTL: 60 segundos)
+  const cached = cacheService.get<number[]>(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
   const dataLimite = new Date();
   dataLimite.setDate(dataLimite.getDate() - periodo_dias);
 
@@ -141,7 +154,12 @@ function obterTransacoesDosPeriodo(
   `);
 
   const transacoes = stmt.all(dataLimite.toISOString()) as Array<{ valor: number }>;
-  return transacoes.filter((t) => t.valor > 0).map((t) => t.valor);
+  const resultado = transacoes.filter((t) => t.valor > 0).map((t) => t.valor);
+
+  // Armazena no cache por 60 segundos
+  cacheService.set(cacheKey, resultado, 60000);
+
+  return resultado;
 }
 
 /**
@@ -710,4 +728,27 @@ export function obterEstatisticasAnomalias(
     revisadas,
     taxa_revisao: total > 0 ? Math.round((revisadas / total) * 100) : 0,
   };
+}
+
+// ============================================================
+// CACHE INVALIDATION: Chamado quando transações mudam
+// ============================================================
+
+/**
+ * Invalida cache de transações quando uma nova transação é criada.
+ * Chame esta função após inserir/atualizar uma transação.
+ */
+export function invalidarCacheTransacoes(periodo_dias: number = 90): void {
+  const cacheService = getCacheService();
+  const cacheKey = `transacoes:periodo_${periodo_dias}`;
+  cacheService.clear(cacheKey);
+}
+
+/**
+ * Invalida todo o cache de anomalias quando há mudanças estruturais.
+ * Use esta função quando transações forem deletadas ou status for alterado.
+ */
+export function invalidarCacheAnomalias(): void {
+  const cacheService = getCacheService();
+  cacheService.clear('transacoes:');
 }
