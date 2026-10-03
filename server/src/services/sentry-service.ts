@@ -234,6 +234,11 @@ export function createSentryTransaction(
   data?: Record<string, unknown>,
 ): Sentry.Transaction | null {
   try {
+    // Check if Sentry.startTransaction exists (Sentry may not be initialized)
+    if (!Sentry.startTransaction) {
+      return null;
+    }
+
     const transaction = Sentry.startTransaction({
       op,
       name,
