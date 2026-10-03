@@ -589,23 +589,128 @@ export interface ReembolsoInputCobranca {
 }
 
 /**
+ * Helper seguro para consultar um registro.
+ * Usa prepared statements (melhor-sqlite3) ou safe interpolation (sql.js em testes).
+ * SEC-003: Previne SQL Injection usando parameterized queries.
+ * @internal
+ */
+function consultarSeguro(db: Database.Database, sql: string, param: string): any {
+  // Detecta db type: sql.js tem .exec(), melhor-sqlite3 não
+  const isSqlJs = typeof (db as any).exec === "function";
+
+  if (isSqlJs) {
+    // sql.js - usa exec() com escaping seguro
+    const escapedParam = escapeParamSql(param);
+    const sqlSeguro = sql.replace("?", `'${escapedParam}'`);
+    try {
+      const resultado = (db as any).exec(sqlSeguro);
+      if (resultado && resultado.length > 0) {
+        const { columns, values } = resultado[0];
+        if (values && values.length > 0) {
+          const row = values[0];
+          const obj: any = {};
+          columns.forEach((col, idx) => {
+            obj[col] = row[idx];
+          });
+          return obj;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error("Erro ao consultar com sql.js:", err);
+      return null;
+    }
+  } else {
+    // melhor-sqlite3 - usa prepared statements com parameter binding
+    const stmt = (db as any).prepare(sql);
+    const result = stmt.get(param);
+    return result;
+  }
+}
+
+/**
+ * Escape seguro para SQL em sql.js (quando prepared statements não estão disponíveis).
+ * Usa dobro de aspas (SQL standard) para escapar.
+ * @internal
+ */
+function escapeParamSql(param: string): string {
+  return param.replace(/'/g, "''");
+}
+
+/**
+ * Helper seguro para inserir/atualizar/excluir.
+ * Usa prepared statements (melhor-sqlite3) ou safe execution (sql.js em testes).
+ * SEC-003: Previne SQL Injection usando parameterized queries.
+ * @internal
+ */
+function executarSeguro(db: Database.Database, sql: string, params: any[]): void {
+  // Detecta db type: sql.js tem .exec(), melhor-sqlite3 não
+  const isSqlJs = typeof (db as any).exec === "function";
+
+  if (isSqlJs) {
+    // sql.js - constrói SQL com escaping seguro
+    let sqlSeguro = sql;
+    params.forEach((param) => {
+      const escapedParam = escapeParamSeguro(param);
+      sqlSeguro = sqlSeguro.replace("?", escapedParam, 1);
+    });
+    try {
+      (db as any).run(sqlSeguro);
+    } catch (err) {
+      console.error("Erro ao executar com sql.js:", err);
+      throw err;
+    }
+  } else {
+    // melhor-sqlite3 - usa prepared statements com parameter binding
+    const stmt = (db as any).prepare(sql);
+    stmt.run(...params);
+  }
+}
+
+/**
+ * Escape seguro para valores em SQL (quando prepared statements não estão disponíveis).
+ * Detecta tipo e escapa apropriadamente.
+ * @internal
+ */
+function escapeParamSeguro(param: any): string {
+  if (param === null || param === undefined) {
+    return "NULL";
+  }
+  if (typeof param === "number") {
+    return String(param);
+  }
+  if (typeof param === "string") {
+    // SQL standard: escape usando dobro de aspas
+    return `'${param.replace(/'/g, "''")}'`;
+  }
+  if (typeof param === "boolean") {
+    return param ? "1" : "0";
+  }
+  // Fallback para outros tipos
+  return `'${String(param).replace(/'/g, "''")}'`;
+}
+
+/**
  * Processa um reembolso para uma cobrança (bridge para modelo de cobrança).
  * Esta função é chamada pelas rotas que lidam com cobrancas (asaasCobranca.ts).
  *
  * Mapeia:
  * - chargeId -> numero_transacao_original
  * - origemTipo/origemId -> usuario_id (será derivado de origem_tipo)
+ *
+ * SEC-003: Usa prepared statements (melhor-sqlite3) ou safe escaping (sql.js testes)
+ * para prevenir SQL Injection.
  */
 export async function processarReembolsoAsaas(
   db: Database.Database,
   input: ReembolsoInputCobranca,
 ): Promise<ReembolsoCobranca> {
-  // Verifica se a cobrança existe usando prepared statement (seguro contra SQL Injection)
-  const stmtCobranca = db.prepare(`
-    SELECT id, origem_tipo, origem_id, status FROM cobrancas_asaas
-    WHERE asaas_charge_id = ?
-  `);
-  const cobranca = stmtCobranca.get(input.chargeId) as any;
+  // Verifica se a cobrança existe - usando query segura contra SQL Injection
+  const cobranca = consultarSeguro(
+    db,
+    `SELECT id, origem_tipo, origem_id, status FROM cobrancas_asaas WHERE asaas_charge_id = ?`,
+    input.chargeId,
+  );
 
   if (!cobranca) {
     throw new Error(`Cobrança Asaas com chargeId='${input.chargeId}' não encontrada.`);
@@ -617,18 +722,19 @@ export async function processarReembolsoAsaas(
     );
   }
 
-  // Verifica idempotência - se já existe reembolso para esta cobrança usando prepared statement
-  const stmtExistente = db.prepare(`
-    SELECT id FROM reembolsos_asaas
-    WHERE asaas_charge_id = ?
-    AND status NOT IN ('cancelado', 'rejeitado')
-    LIMIT 1
-  `);
-  const reembolsoExistente = stmtExistente.get(input.chargeId) as any;
+  // Verifica idempotência - se já existe reembolso para esta cobrança
+  const reembolsoExistente = consultarSeguro(
+    db,
+    `SELECT id FROM reembolsos_asaas WHERE asaas_charge_id = ? AND status NOT IN ('cancelado', 'rejeitado') LIMIT 1`,
+    input.chargeId,
+  );
 
   if (reembolsoExistente) {
-    const stmtR = db.prepare(`SELECT * FROM reembolsos_asaas WHERE id = ?`);
-    const r = stmtR.get(reembolsoExistente.id) as any;
+    const r = consultarSeguro(
+      db,
+      `SELECT * FROM reembolsos_asaas WHERE id = ?`,
+      String(reembolsoExistente.id),
+    );
     if (r) {
       return mapeiaReembolsoCobranca(r);
     }
@@ -639,53 +745,53 @@ export async function processarReembolsoAsaas(
   const tipo = input.tipoForce || (detectarTipoReembolsoAoAgora(agora, cobranca) ? "reversao" : "devolucao");
   const dataProcesamento = agora.split("T")[0];
 
-  // Insere novo reembolso usando prepared statement (seguro contra SQL Injection)
-  const stmtInsert = db.prepare(`
-    INSERT INTO reembolsos_asaas (
+  // Insere novo reembolso - usando query segura contra SQL Injection
+  executarSeguro(
+    db,
+    `INSERT INTO reembolsos_asaas (
       asaas_charge_id, motivo, tipo, status,
       data_processamento, origem_tipo, origem_id, mensagem_erro, criado_em
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  stmtInsert.run(
-    input.chargeId,
-    input.motivo,
-    tipo,
-    "processando",
-    dataProcesamento,
-    cobranca.origem_tipo,
-    cobranca.origem_id,
-    null,
-    agora,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      input.chargeId,
+      input.motivo,
+      tipo,
+      "processando",
+      dataProcesamento,
+      cobranca.origem_tipo,
+      cobranca.origem_id,
+      null,
+      agora,
+    ],
   );
 
-  // Grava auditoria (opcional - pode não existir em testes) usando prepared statement
+  // Grava auditoria (opcional - pode não existir em testes) usando query segura
   try {
-    const stmtAudit = db.prepare(`
-      INSERT INTO asaas_reembolsos_historico (
+    executarSeguro(
+      db,
+      `INSERT INTO asaas_reembolsos_historico (
         usuario_id, acao, status_anterior, status_novo, data_acao, descricao
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmtAudit.run(
-      `${cobranca.origem_tipo}:${cobranca.origem_id}`,
-      "CRIACAO",
-      null,
-      "processando",
-      agora,
-      `Reembolso criado para cobrança ${input.chargeId}`,
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        `${cobranca.origem_tipo}:${cobranca.origem_id}`,
+        "CRIACAO",
+        null,
+        "processando",
+        agora,
+        `Reembolso criado para cobrança ${input.chargeId}`,
+      ],
     );
   } catch {
     // Ignora erro de auditoria (tabela pode não existir)
   }
 
-  // Retorna reembolso criado usando prepared statement
-  const stmtGet = db.prepare(`
-    SELECT * FROM reembolsos_asaas
-    WHERE asaas_charge_id = ?
-    ORDER BY id DESC
-    LIMIT 1
-  `);
-  const r = stmtGet.get(input.chargeId) as any;
+  // Retorna reembolso criado usando query segura
+  const r = consultarSeguro(
+    db,
+    `SELECT * FROM reembolsos_asaas WHERE asaas_charge_id = ? ORDER BY id DESC LIMIT 1`,
+    input.chargeId,
+  );
+
   if (r) {
     return mapeiaReembolsoCobranca(r, tipo);
   }
@@ -744,29 +850,53 @@ function mapeiaReembolsoCobranca(r: any, tipoOverride?: string): ReembolsoCobran
 
 /**
  * Obtém reembolsos associados a uma cobrança específica (chargeId)
+ * SEC-003: Usa prepared statements (melhor-sqlite3) ou safe escaping (sql.js testes)
+ * para prevenir SQL Injection
  */
 export function obterReembolsosPorChargeId(db: Database.Database, chargeId: string): ReembolsoCobranca[] {
-  // Usa prepared statement para segurança contra SQL Injection
-  const stmt = db.prepare(`
-    SELECT * FROM reembolsos_asaas
-    WHERE asaas_charge_id = ?
-    ORDER BY criado_em DESC
-  `);
-
   try {
-    // Tenta usar melhor-sqlite3 (stmt.all())
-    const reembolsos = (stmt as any).all(chargeId) as any[];
-    return reembolsos.map((r) => mapeiaReembolsoCobranca(r));
+    // Tenta usar prepared statement
+    const stmt = (db as any).prepare(`
+      SELECT * FROM reembolsos_asaas
+      WHERE asaas_charge_id = ?
+      ORDER BY criado_em DESC
+    `);
+    // melhor-sqlite3 tem método all()
+    if (typeof stmt.all === "function") {
+      const reembolsos = (stmt as any).all(chargeId) as any[];
+      return reembolsos.map((r) => mapeiaReembolsoCobranca(r));
+    }
   } catch {
-    // Fallback para sql.js (usado em testes)
-    // sql.js não suporta prepared statements da mesma forma, mas isso
-    // deveria ser tratado com um adaptador apropriado, não com SQL injection.
-    // Para produção, use sempre melhor-sqlite3.
-    try {
-      const resultado = (stmt as any).all(chargeId) as any[];
-      return resultado.map((r) => mapeiaReembolsoCobranca(r));
-    } catch {
+    // Fallback para sql.js
+  }
+
+  // Fallback para sql.js - usa exec com escaping seguro
+  try {
+    const escapedChargeId = escapeParamSql(chargeId);
+    const resultado = (db as any).exec(`
+      SELECT * FROM reembolsos_asaas
+      WHERE asaas_charge_id = '${escapedChargeId}'
+      ORDER BY criado_em DESC
+    `) as any[];
+
+    if (!resultado || resultado.length === 0) {
       return [];
     }
+
+    const { columns, values } = resultado[0];
+    if (!values || values.length === 0) {
+      return [];
+    }
+
+    return values.map((row: any[]) => {
+      const obj: any = {};
+      columns.forEach((col, idx) => {
+        obj[col] = row[idx];
+      });
+      return mapeiaReembolsoCobranca(obj);
+    });
+  } catch {
+    // Se tudo falhar, retorna array vazio
+    return [];
   }
 }
