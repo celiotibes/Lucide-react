@@ -9,6 +9,8 @@ import { specs } from "./swagger.js";
 import { pluggy, normalizarTransacao } from "./pluggy.js";
 // SEC-011: Structured Logging
 import { logger } from "./services/logger-service.js";
+// SEC-012: Sentry Error Tracking & Performance Monitoring
+import { initializeSentry, attachSentryHandlers, setSentryUser, clearSentryUser } from "./services/sentry-service.js";
 import { requestIdMiddleware } from "./middleware/request-id-middleware.js";
 // SEC-013: CSRF Protection
 import {
