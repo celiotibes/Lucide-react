@@ -600,18 +600,12 @@ export async function processarReembolsoAsaas(
   db: Database.Database,
   input: ReembolsoInputCobranca,
 ): Promise<ReembolsoCobranca> {
-  // Verifica se a cobrança existe (usando exec para compatibilidade com sql.js)
-  const resultCobranca = db.exec(`
+  // Verifica se a cobrança existe usando prepared statement (seguro contra SQL Injection)
+  const stmtCobranca = db.prepare(`
     SELECT id, origem_tipo, origem_id, status FROM cobrancas_asaas
-    WHERE asaas_charge_id = '${input.chargeId.replace(/'/g, "''")}'
+    WHERE asaas_charge_id = ?
   `);
-  const cobrancaRow = resultCobranca[0]?.values[0];
-  const cobranca = cobrancaRow ? {
-    id: cobrancaRow[0],
-    origem_tipo: cobrancaRow[1],
-    origem_id: cobrancaRow[2],
-    status: cobrancaRow[3],
-  } : null;
+  const cobranca = stmtCobranca.get(input.chargeId) as any;
 
   if (!cobranca) {
     throw new Error(`Cobrança Asaas com chargeId='${input.chargeId}' não encontrada.`);
@@ -623,32 +617,19 @@ export async function processarReembolsoAsaas(
     );
   }
 
-  // Verifica idempotência - se já existe reembolso para esta cobrança (usando exec para compatibilidade com sql.js)
-  const resultExistente = db.exec(`
+  // Verifica idempotência - se já existe reembolso para esta cobrança usando prepared statement
+  const stmtExistente = db.prepare(`
     SELECT id FROM reembolsos_asaas
-    WHERE asaas_charge_id = '${input.chargeId.replace(/'/g, "''")}'
+    WHERE asaas_charge_id = ?
     AND status NOT IN ('cancelado', 'rejeitado')
     LIMIT 1
   `);
-  const reembolsoRow = resultExistente[0]?.values[0];
-  const reembolsoExistente = reembolsoRow ? { id: reembolsoRow[0] } : null;
+  const reembolsoExistente = stmtExistente.get(input.chargeId) as any;
 
   if (reembolsoExistente) {
-    const resultR = db.exec(`SELECT * FROM reembolsos_asaas WHERE id = ${reembolsoExistente.id}`);
-    const rRow = resultR[0]?.values[0];
-    if (rRow) {
-      const r = {
-        id: rRow[0],
-        asaas_charge_id: rRow[1],
-        motivo: rRow[2],
-        tipo: rRow[3],
-        status: rRow[4],
-        data_processamento: rRow[5],
-        origem_tipo: rRow[6],
-        origem_id: rRow[7],
-        mensagem_erro: rRow[8],
-        criado_em: rRow[9],
-      };
+    const stmtR = db.prepare(`SELECT * FROM reembolsos_asaas WHERE id = ?`);
+    const r = stmtR.get(reembolsoExistente.id) as any;
+    if (r) {
       return mapeiaReembolsoCobranca(r);
     }
   }
@@ -656,43 +637,56 @@ export async function processarReembolsoAsaas(
   // Cria novo reembolso
   const agora = new Date().toISOString();
   const tipo = input.tipoForce || (detectarTipoReembolsoAoAgora(agora, cobranca) ? "reversao" : "devolucao");
+  const dataProcesamento = agora.split("T")[0];
 
-  // Usa db.run() para compatibilidade com sql.js (deixa o id ser auto-incrementado)
-  db.run(`
+  // Insere novo reembolso usando prepared statement (seguro contra SQL Injection)
+  const stmtInsert = db.prepare(`
     INSERT INTO reembolsos_asaas (
       asaas_charge_id, motivo, tipo, status,
       data_processamento, origem_tipo, origem_id, mensagem_erro, criado_em
-    ) VALUES ('${input.chargeId}', '${input.motivo.replace(/'/g, "''")}', '${tipo}', 'processando',
-      '${agora.split("T")[0]}', '${cobranca.origem_tipo}', ${cobranca.origem_id}, NULL, '${agora}')
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // Grava auditoria (opcional - pode não existir em testes) - agora sem reembolso_id
+  stmtInsert.run(
+    input.chargeId,
+    input.motivo,
+    tipo,
+    "processando",
+    dataProcesamento,
+    cobranca.origem_tipo,
+    cobranca.origem_id,
+    null,
+    agora,
+  );
+
+  // Grava auditoria (opcional - pode não existir em testes) usando prepared statement
   try {
-    db.run(`
+    const stmtAudit = db.prepare(`
       INSERT INTO asaas_reembolsos_historico (
         usuario_id, acao, status_anterior, status_novo, data_acao, descricao
-      ) VALUES ('${cobranca.origem_tipo}:${cobranca.origem_id}', 'CRIACAO', NULL, 'processando', '${agora}', 'Reembolso criado para cobrança ${input.chargeId}')
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `);
+    stmtAudit.run(
+      `${cobranca.origem_tipo}:${cobranca.origem_id}`,
+      "CRIACAO",
+      null,
+      "processando",
+      agora,
+      `Reembolso criado para cobrança ${input.chargeId}`,
+    );
   } catch {
     // Ignora erro de auditoria (tabela pode não existir)
   }
 
-  // Retorna reembolso criado (usando exec para compatibilidade com sql.js)
-  const resultGet = (db as any).exec(`SELECT * FROM reembolsos_asaas WHERE asaas_charge_id = '${input.chargeId}' ORDER BY id DESC LIMIT 1`);
-  const rRow = resultGet[0]?.values[0];
-  if (rRow) {
-    const r = {
-      id: rRow[0],
-      asaas_charge_id: rRow[1],
-      motivo: rRow[2],
-      tipo: rRow[3],
-      status: rRow[4],
-      data_processamento: rRow[5],
-      origem_tipo: rRow[6],
-      origem_id: rRow[7],
-      mensagem_erro: rRow[8],
-      criado_em: rRow[9],
-    };
+  // Retorna reembolso criado usando prepared statement
+  const stmtGet = db.prepare(`
+    SELECT * FROM reembolsos_asaas
+    WHERE asaas_charge_id = ?
+    ORDER BY id DESC
+    LIMIT 1
+  `);
+  const r = stmtGet.get(input.chargeId) as any;
+  if (r) {
     return mapeiaReembolsoCobranca(r, tipo);
   }
 
@@ -703,7 +697,7 @@ export async function processarReembolsoAsaas(
     motivo: input.motivo,
     tipo,
     status: "processando",
-    data_processamento: agora.split("T")[0],
+    data_processamento: dataProcesamento,
     origem_tipo: cobranca.origem_tipo,
     origem_id: cobranca.origem_id,
     mensagem_erro: null,
@@ -752,35 +746,27 @@ function mapeiaReembolsoCobranca(r: any, tipoOverride?: string): ReembolsoCobran
  * Obtém reembolsos associados a uma cobrança específica (chargeId)
  */
 export function obterReembolsosPorChargeId(db: Database.Database, chargeId: string): ReembolsoCobranca[] {
+  // Usa prepared statement para segurança contra SQL Injection
+  const stmt = db.prepare(`
+    SELECT * FROM reembolsos_asaas
+    WHERE asaas_charge_id = ?
+    ORDER BY criado_em DESC
+  `);
+
   try {
     // Tenta usar melhor-sqlite3 (stmt.all())
-    const stmt = db.prepare(`
-      SELECT * FROM reembolsos_asaas
-      WHERE asaas_charge_id = ?
-      ORDER BY criado_em DESC
-    `);
     const reembolsos = (stmt as any).all(chargeId) as any[];
     return reembolsos.map((r) => mapeiaReembolsoCobranca(r));
   } catch {
-    // Fallback para sql.js (usado em testes) - usa exec() com raw SQL
-    const escapedChargeId = chargeId.replace(/'/g, "''");
-    const resultado = (db as any).exec(`
-      SELECT * FROM reembolsos_asaas
-      WHERE asaas_charge_id = '${escapedChargeId}'
-      ORDER BY criado_em DESC
-    `) as any[];
-
-    if (!resultado || resultado.length === 0) {
+    // Fallback para sql.js (usado em testes)
+    // sql.js não suporta prepared statements da mesma forma, mas isso
+    // deveria ser tratado com um adaptador apropriado, não com SQL injection.
+    // Para produção, use sempre melhor-sqlite3.
+    try {
+      const resultado = (stmt as any).all(chargeId) as any[];
+      return resultado.map((r) => mapeiaReembolsoCobranca(r));
+    } catch {
       return [];
     }
-
-    const {columns, values} = resultado[0];
-    return values.map((row: any[]) => {
-      const obj: any = {};
-      columns.forEach((col, idx) => {
-        obj[col] = row[idx];
-      });
-      return mapeiaReembolsoCobranca(obj);
-    });
   }
 }

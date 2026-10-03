@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { z } from "zod";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -38,13 +39,56 @@ import { enviarAlertaEmail } from "../src/utils/email-alertas.js";
 import { enviarAlertaSlack } from "../src/utils/slack-alertas.js";
 import { executarHealthCheck, executarHealthCheckLeve } from "../src/utils/health-check.js";
 
-if (!process.env.API_KEY) {
+/**
+ * SEC-010: Environment Variables Schema - Validação no boot do servidor
+ * Garante que todas as variáveis obrigatórias estão presentes e com tipos/formatos corretos.
+ * Se alguma variável for inválida, o servidor não inicia.
+ */
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  API_KEY: z
+    .string()
+    .min(1, "API_KEY é obrigatória")
+    .min(32, "API_KEY deve ter pelo menos 32 caracteres para segurança"),
+  SESSION_SECRET: z.string().optional(),
+  ALLOWED_ORIGIN: z
+    .string()
+    .url("ALLOWED_ORIGIN deve ser uma URL válida")
+    .default("http://localhost:5173"),
+  PORT: z.coerce.number().int().positive().default(8787),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
+  // Variáveis opcionais de integração
+  CERTISIGN_API_KEY: z.string().optional(),
+  SERPROID_API_KEY: z.string().optional(),
+  ALERTS_EMAIL_PROVIDER: z.string().optional(),
+  SLACK_WEBHOOK_URL: z.string().url().optional(),
+});
+
+// Parse e validação de variáveis de ambiente no boot
+let envVars: z.infer<typeof envSchema>;
+try {
+  envVars = envSchema.parse(process.env);
+} catch (error) {
+  if (error instanceof z.ZodError) {
+    console.error(
+      "[Server] Erro na validação das variáveis de ambiente:\n" +
+        error.errors.map((e) => `  - ${e.path.join(".")}: ${e.message}`).join("\n"),
+    );
+  }
   throw new Error(
-    "Defina API_KEY no .env (veja .env.example — gere um valor aleatório, ex: openssl rand -hex 32) antes de iniciar o servidor. " +
-      "Sem isso, qualquer pessoa que descubra a URL deste backend consegue ler seus extratos bancários — ver auditoria de segurança.",
+    "Falha ao validar variáveis de ambiente no boot. Verifique .env — consulte .env.example.",
   );
 }
-const API_KEY = process.env.API_KEY;
+
+const API_KEY = envVars.API_KEY;
+const PORT = envVars.PORT;
+const ALLOWED_ORIGIN = envVars.ALLOWED_ORIGIN;
+const DATABASE_URL = envVars.DATABASE_URL;
+const NODE_ENV = envVars.NODE_ENV;
+
+console.log(`[Server] Environment: ${NODE_ENV}`);
+console.log(`[Server] Port: ${PORT}`);
+console.log(`[Server] Allowed Origin: ${ALLOWED_ORIGIN}`);
 
 // Phase 2: Initialize database and services on startup
 console.log("[Server] Initializing database...");
@@ -112,7 +156,7 @@ app.use(
   }),
 );
 
-app.use(cors({ origin: process.env.ALLOWED_ORIGIN ?? "http://localhost:5173" }));
+app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());
 
 // Attach services to app context for use in routes
@@ -401,14 +445,13 @@ app.use((erro: unknown, _req: express.Request, res: express.Response, _next: exp
   res.status(status).json({ erro: "Requisição inválida ou falha interna." });
 });
 
-const porta = Number(process.env.PORT) || 8787;
-const server = app.listen(porta, () => {
-  console.log(`Servidor de integração Pluggy rodando em http://localhost:${porta}`);
+const server = app.listen(PORT, () => {
+  console.log(`Servidor de integração Pluggy rodando em http://localhost:${PORT}`);
   // Phase 9: Log dos serviços inicializados
   const cacheStats = cache.stats();
   console.log(`[Cache] Inicializado com ${cacheStats.total} entradas`);
   console.log(
-    `[Alertas] Email (${process.env.ALERTS_EMAIL_PROVIDER || "none"}), Slack (${process.env.SLACK_WEBHOOK_URL ? "configurado" : "desabilitado"})`,
+    `[Alertas] Email (${envVars.ALERTS_EMAIL_PROVIDER || "none"}), Slack (${envVars.SLACK_WEBHOOK_URL ? "configurado" : "desabilitado"})`,
   );
 });
 
