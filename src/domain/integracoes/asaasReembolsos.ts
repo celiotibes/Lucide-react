@@ -126,13 +126,8 @@ export async function processarReembolsoAsaas(
     throw new Error(`Cobrança Asaas com chargeId='${input.chargeId}' não encontrada.`);
   }
 
-  if (cobranca.status !== "pago") {
-    throw new Error(
-      `Cobrança ${input.chargeId} está '${cobranca.status}' — só é possível reembolsar uma cobrança com status 'pago'.`,
-    );
-  }
-
-  // 2. Verifica idempotência — se já existe reembolso ativo, retorna o existente
+  // 2. Verifica idempotência PRIMEIRO — se já existe reembolso ativo, retorna o existente
+  // Isso permite reprocessar idempotentemente, mesmo que a cobrança tenha sido atualizada para 'reembolsado'
   const [reembolsoExistente] = consultar<LinhaReembolso>(
     db,
     "SELECT * FROM reembolsos_asaas WHERE asaas_charge_id = ? AND status = 'sucesso' LIMIT 1",
@@ -143,10 +138,17 @@ export async function processarReembolsoAsaas(
     return paraReembolso(reembolsoExistente);
   }
 
-  // 3. Detecta tipo
+  // 3. Verifica se cobrança está paga (agora que sabemos que não há reembolso existente)
+  if (cobranca.status !== "pago") {
+    throw new Error(
+      `Cobrança ${input.chargeId} está '${cobranca.status}' — só é possível reembolsar uma cobrança com status 'pago'.`,
+    );
+  }
+
+  // 4. Detecta tipo
   const tipo = detectarTipoReembolso(db, input.chargeId, input.tipoForce);
 
-  // 4. Registra reembolso
+  // 5. Registra reembolso
   const dataProcessamento = hoje();
   executar(
     db,
@@ -158,7 +160,7 @@ export async function processarReembolsoAsaas(
 
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
 
-  // 5. Atualiza status da cobrança
+  // 6. Atualiza status da cobrança
   executar(db, "UPDATE cobrancas_asaas SET status = 'reembolsado' WHERE asaas_charge_id = ?", [input.chargeId]);
 
   // Retorna o reembolso criado

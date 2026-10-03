@@ -187,16 +187,16 @@ describe("asaasReembolsos", () => {
         tipoCobranca: "boleto",
       });
 
-      expect(
+      await expect(
         processarReembolsoAsaas(db, {
           chargeId: cobranca.asaasChargeId,
           motivo: "Cliente desistiu",
         }),
-      ).rejects.toThrow("status 'pendente'");
+      ).rejects.toThrow("'pendente'");
     });
 
     it("deve rejeitar reembolso de cobrança não encontrada", async () => {
-      expect(
+      await expect(
         processarReembolsoAsaas(db, {
           chargeId: "charge_inexistente",
           motivo: "Cliente desistiu",
