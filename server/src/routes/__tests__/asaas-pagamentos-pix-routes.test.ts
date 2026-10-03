@@ -85,6 +85,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve criar pagamento PIX com sucesso", async () => {
       const res = await request(app)
         .post("/api/asaas/pagamentos-pix/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           beneficiarioId: "benef_123",
           beneficiarioNome: "João Silva",
@@ -104,6 +105,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve validar campos obrigatórios", async () => {
       const res = await request(app)
         .post("/api/asaas/pagamentos-pix/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           beneficiarioId: "benef_123",
           // Faltam outros campos
@@ -116,6 +118,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve validar tipo de chave PIX", async () => {
       const res = await request(app)
         .post("/api/asaas/pagamentos-pix/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           beneficiarioId: "benef_123",
           beneficiarioNome: "João Silva",
@@ -132,6 +135,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve rejeitar valor inválido", async () => {
       const res = await request(app)
         .post("/api/asaas/pagamentos-pix/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           beneficiarioId: "benef_123",
           beneficiarioNome: "João Silva",
@@ -163,6 +167,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve buscar pagamento com sucesso", async () => {
       const res = await request(app)
         .get("/api/asaas/pagamentos-pix/pag_1")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -174,6 +179,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve retornar 404 para pagamento inexistente", async () => {
       const res = await request(app)
         .get("/api/asaas/pagamentos-pix/inexistente")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(404);
@@ -196,6 +202,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve listar pagamentos com sucesso", async () => {
       const res = await request(app)
         .get("/api/asaas/pagamentos-pix")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -207,6 +214,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve filtrar por status", async () => {
       const res = await request(app)
         .get("/api/asaas/pagamentos-pix")
+        .set("Authorization", "Bearer test-token")
         .query({ status: "PENDING" })
         .send({});
 
@@ -217,6 +225,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve filtrar por beneficiarioId", async () => {
       const res = await request(app)
         .get("/api/asaas/pagamentos-pix")
+        .set("Authorization", "Bearer test-token")
         .query({ beneficiarioId: "benef_1" })
         .send({});
 
@@ -241,6 +250,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve sincronizar pagamento com sucesso", async () => {
       const res = await request(app)
         .post("/api/asaas/pagamentos-pix/pag_1/sincronizar")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -252,6 +262,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     it("deve retornar 404 para pagamento inexistente", async () => {
       const res = await request(app)
         .post("/api/asaas/pagamentos-pix/inexistente/sincronizar")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(404);

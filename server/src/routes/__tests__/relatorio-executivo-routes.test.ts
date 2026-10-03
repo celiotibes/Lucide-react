@@ -71,6 +71,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve retornar dashboard com sucesso", async () => {
       const res = await request(app)
         .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10, ano: 2026 })
         .send({});
 
@@ -82,6 +83,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar mes obrigatório", async () => {
       const res = await request(app)
         .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
         .query({ ano: 2026 })
         .send({});
 
@@ -92,6 +94,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar ano obrigatório", async () => {
       const res = await request(app)
         .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10 })
         .send({});
 
@@ -102,6 +105,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar mes entre 1 e 12", async () => {
       const res1 = await request(app)
         .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 0, ano: 2026 })
         .send({});
 
@@ -110,6 +114,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
 
       const res2 = await request(app)
         .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 13, ano: 2026 })
         .send({});
 
@@ -119,6 +124,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar ano entre 2000 e 2100", async () => {
       const res = await request(app)
         .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10, ano: 1999 })
         .send({});
 
@@ -131,6 +137,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve fazer download com sucesso", async () => {
       const res = await request(app)
         .get("/api/relatorios/executivo/download/10/2026")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -140,6 +147,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar mes entre 1 e 12", async () => {
       const res = await request(app)
         .get("/api/relatorios/executivo/download/0/2026")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(400);
@@ -148,6 +156,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar ano entre 2000 e 2100", async () => {
       const res = await request(app)
         .get("/api/relatorios/executivo/download/10/1999")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(400);
@@ -158,6 +167,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve gerar relatório com sucesso", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/gerar")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10, ano: 2026 })
         .send({});
 
@@ -170,6 +180,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar mes obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/gerar")
+        .set("Authorization", "Bearer test-token")
         .query({ ano: 2026 })
         .send({});
 
@@ -180,6 +191,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar ano obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/gerar")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10 })
         .send({});
 
@@ -190,6 +202,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar mes entre 1 e 12", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/gerar")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 13, ano: 2026 })
         .send({});
 
@@ -201,6 +214,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve enviar email com sucesso", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/enviar-email")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10, ano: 2026, email: "user@example.com" })
         .send({});
 
@@ -211,6 +225,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar mes obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/enviar-email")
+        .set("Authorization", "Bearer test-token")
         .query({ ano: 2026, email: "user@example.com" })
         .send({});
 
@@ -221,6 +236,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar ano obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/enviar-email")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10, email: "user@example.com" })
         .send({});
 
@@ -231,6 +247,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar email obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/enviar-email")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10, ano: 2026 })
         .send({});
 
@@ -241,6 +258,7 @@ describe("Rotas HTTP de Relatório Executivo", () => {
     it("deve validar formato de email", async () => {
       const res = await request(app)
         .post("/api/relatorios/executivo/enviar-email")
+        .set("Authorization", "Bearer test-token")
         .query({ mes: 10, ano: 2026, email: "invalido" })
         .send({});
 

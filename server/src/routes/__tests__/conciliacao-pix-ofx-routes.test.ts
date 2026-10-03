@@ -12,6 +12,7 @@ import { criarRotasConciliacaoPixOFX } from "../conciliacao-pix-ofx-routes";
 describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
   let app: express.Application;
   let db: Database.Database;
+  let mockAuthService: any;
 
   beforeEach(() => {
     // Cria banco de dados em memória
@@ -50,6 +51,16 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
         ('charge_2', 200.00, 150.00, '2024-10-02', '2024-10-02', 'discrepancia', 1)
     `).run();
 
+    // Mock authService
+    mockAuthService = {
+      validarToken: vi.fn().mockReturnValue({
+        usuarioId: "user1",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      }),
+    };
+
     // Cria app com rotas
     app = express();
     app.use(express.json());
@@ -73,13 +84,14 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     });
 
     // Monta as rotas
-    app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db }));
+    app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db, authService: mockAuthService }));
   });
 
   describe("POST /api/conciliacao/reconciliar-agora", () => {
     it("deve executar reconciliação com sucesso", async () => {
       const res = await request(app)
         .post("/api/conciliacao/reconciliar-agora")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -91,6 +103,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve retornar resultado com métricas", async () => {
       const res = await request(app)
         .post("/api/conciliacao/reconciliar-agora")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -106,6 +119,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve retornar status de conciliação com sucesso", async () => {
       const res = await request(app)
         .get("/api/conciliacao/status")
+        .set("Authorization", "Bearer test-token")
         .query({ dias: 30 })
         .send({});
 
@@ -119,6 +133,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve retornar status com período padrão", async () => {
       const res = await request(app)
         .get("/api/conciliacao/status")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -128,6 +143,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve validar dias como número", async () => {
       const res = await request(app)
         .get("/api/conciliacao/status")
+        .set("Authorization", "Bearer test-token")
         .query({ dias: "invalido" })
         .send({});
 
@@ -138,6 +154,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve retornar estatísticas corretas", async () => {
       const res = await request(app)
         .get("/api/conciliacao/status")
+        .set("Authorization", "Bearer test-token")
         .query({ dias: 30 })
         .send({});
 
@@ -154,6 +171,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve listar discrepâncias com sucesso", async () => {
       const res = await request(app)
         .get("/api/conciliacao/discrepancias")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -170,6 +188,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
 
       const res = await request(app)
         .get("/api/conciliacao/discrepancias")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(200);
@@ -180,6 +199,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve suportar paginação com limite e offset", async () => {
       const res = await request(app)
         .get("/api/conciliacao/discrepancias")
+        .set("Authorization", "Bearer test-token")
         .query({ limite: 10, offset: 0 })
         .send({});
 
@@ -191,6 +211,7 @@ describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
     it("deve retornar paginação correta", async () => {
       const res = await request(app)
         .get("/api/conciliacao/discrepancias")
+        .set("Authorization", "Bearer test-token")
         .query({ limite: 50, offset: 0 })
         .send({});
 

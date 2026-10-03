@@ -97,6 +97,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve enviar desafio 2FA com sucesso", async () => {
       const res = await request(app)
         .post("/api/relatorios/desafio-2fa")
+        .set("Authorization", "Bearer test-token")
         .send({
           usuario_id: "user1",
           usuario_cpf: "12345678901",
@@ -111,6 +112,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve validar usuario_id obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/desafio-2fa")
+        .set("Authorization", "Bearer test-token")
         .send({
           usuario_cpf: "12345678901",
           contexto: "assinatura_relatorio_dre_2024_01",
@@ -123,6 +125,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve validar usuario_cpf obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/desafio-2fa")
+        .set("Authorization", "Bearer test-token")
         .send({
           usuario_id: "user1",
           contexto: "assinatura_relatorio_dre_2024_01",
@@ -135,6 +138,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve validar contexto obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/desafio-2fa")
+        .set("Authorization", "Bearer test-token")
         .send({
           usuario_id: "user1",
           usuario_cpf: "12345678901",
@@ -149,6 +153,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve validar código 2FA com sucesso", async () => {
       const res = await request(app)
         .post("/api/relatorios/validar-2fa")
+        .set("Authorization", "Bearer test-token")
         .send({
           nonce: "nonce_123",
           codigo_sms: "123456",
@@ -162,6 +167,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve validar nonce obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/validar-2fa")
+        .set("Authorization", "Bearer test-token")
         .send({
           codigo_sms: "123456",
         });
@@ -173,6 +179,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve validar codigo_sms obrigatório", async () => {
       const res = await request(app)
         .post("/api/relatorios/validar-2fa")
+        .set("Authorization", "Bearer test-token")
         .send({
           nonce: "nonce_123",
         });
@@ -197,6 +204,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve exigir nonce_2fa", async () => {
       const res = await request(app)
         .post("/api/relatorios/relatorio_1/assinar")
+        .set("Authorization", "Bearer test-token")
         .send({
           usuario_id: "user1",
           usuario_nome: "João Silva",
@@ -212,6 +220,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve exigir usuario_id", async () => {
       const res = await request(app)
         .post("/api/relatorios/relatorio_1/assinar")
+        .set("Authorization", "Bearer test-token")
         .send({
           nonce_2fa: "nonce_123",
           usuario_nome: "João Silva",
@@ -227,6 +236,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
     it("deve exigir pdf_url", async () => {
       const res = await request(app)
         .post("/api/relatorios/relatorio_1/assinar")
+        .set("Authorization", "Bearer test-token")
         .send({
           nonce_2fa: "nonce_123",
           usuario_id: "user1",

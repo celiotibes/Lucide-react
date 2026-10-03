@@ -12,6 +12,7 @@ import { criarRotasAnomalias } from "../anomalias-routes";
 describe("Rotas HTTP de Anomalias", () => {
   let app: express.Application;
   let db: Database.Database;
+  let mockAuthService: any;
 
   beforeEach(() => {
     // Cria banco de dados em memória
@@ -41,6 +42,16 @@ describe("Rotas HTTP de Anomalias", () => {
       );
     `);
 
+    // Mock authService
+    mockAuthService = {
+      validarToken: vi.fn().mockReturnValue({
+        usuarioId: "user1",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        papel: "admin",
+      }),
+    };
+
     // Cria app com rotas
     app = express();
     app.use(express.json());
@@ -64,13 +75,14 @@ describe("Rotas HTTP de Anomalias", () => {
     });
 
     // Monta as rotas
-    app.use("/api/anomalias", criarRotasAnomalias({ db }));
+    app.use("/api/anomalias", criarRotasAnomalias({ db, authService: mockAuthService }));
   });
 
   describe("POST /api/anomalias/analisar/:transacaoId", () => {
     it("deve analisar anomalia com sucesso", async () => {
       const res = await request(app)
         .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
         .query({ valor: 1500.50, periodo_dias: 90 })
         .send({});
 
@@ -84,6 +96,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve validar parâmetro 'valor' obrigatório", async () => {
       const res = await request(app)
         .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
         .query({})
         .send({});
 
@@ -94,6 +107,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve validar se valor é numérico", async () => {
       const res = await request(app)
         .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
         .query({ valor: "abc" })
         .send({});
 
@@ -104,6 +118,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve usar período padrão de 90 dias", async () => {
       const res = await request(app)
         .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
         .query({ valor: 1000 })
         .send({});
 
@@ -126,7 +141,8 @@ describe("Rotas HTTP de Anomalias", () => {
     });
 
     it("deve listar alertas com sucesso", async () => {
-      const res = await request(app).get("/api/anomalias/alertas").send({});
+      const res = await request(app).get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token").send({});
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty("alertas");
@@ -137,6 +153,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve filtrar alertas por severidade", async () => {
       const res = await request(app)
         .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
         .query({ severidade: "media" })
         .send({});
 
@@ -147,6 +164,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve rejeitar severidade inválida", async () => {
       const res = await request(app)
         .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
         .query({ severidade: "invalida" })
         .send({});
 
@@ -160,6 +178,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve retornar estatísticas com sucesso", async () => {
       const res = await request(app)
         .get("/api/anomalias/estatisticas")
+        .set("Authorization", "Bearer test-token")
         .query({ dias: 30 })
         .send({});
 
@@ -170,7 +189,8 @@ describe("Rotas HTTP de Anomalias", () => {
     });
 
     it("deve usar período padrão de 30 dias", async () => {
-      const res = await request(app).get("/api/anomalias/estatisticas").send({});
+      const res = await request(app).get("/api/anomalias/estatisticas")
+        .set("Authorization", "Bearer test-token").send({});
 
       expect(res.status).toBe(200);
       expect(res.body.periodo_dias).toBe(30);
@@ -192,6 +212,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve marcar alerta como revisado com sucesso", async () => {
       const res = await request(app)
         .patch("/api/anomalias/alertas/alerta_1/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({
           usuario_id: "user123",
           motivo: "falso positivo",
@@ -206,6 +227,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve validar usuario_id obrigatório", async () => {
       const res = await request(app)
         .patch("/api/anomalias/alertas/alerta_1/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "falso positivo" });
 
       expect(res.status).toBe(400);
@@ -215,6 +237,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve validar motivo obrigatório", async () => {
       const res = await request(app)
         .patch("/api/anomalias/alertas/alerta_1/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({ usuario_id: "user123" });
 
       expect(res.status).toBe(400);
@@ -224,6 +247,7 @@ describe("Rotas HTTP de Anomalias", () => {
     it("deve retornar 404 para alerta inexistente", async () => {
       const res = await request(app)
         .patch("/api/anomalias/alertas/inexistente/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({
           usuario_id: "user123",
           motivo: "falso positivo",
