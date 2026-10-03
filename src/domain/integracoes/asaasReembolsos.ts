@@ -267,7 +267,7 @@ export function aplicarEventoReembolsoWebhook(
   );
 
   if (!cobranca) {
-    return { aplicado: false, motivo: `Nenhuma cobrança encontrada para chargeId='${chargeId}'` };
+    return { aplicado: false, motivo: `nenhuma cobrança encontrada para chargeId='${chargeId}'` };
   }
 
   // Se já existe reembolso registrado, não processa novamente
@@ -282,7 +282,8 @@ export function aplicarEventoReembolsoWebhook(
   }
 
   // Registra o reembolso automaticamente via webhook
-  const dataProcessamento = evento.payment?.refundDate ?? hoje();
+  // Extrai refundDate do webhook (data de devolução da Asaas)
+  const dataProcessamento = evento.payment?.refundDate ? String(evento.payment.refundDate) : hoje();
   executar(
     db,
     `INSERT INTO reembolsos_asaas

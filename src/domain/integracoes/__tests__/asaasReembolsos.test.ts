@@ -235,8 +235,15 @@ describe("asaasReembolsos", () => {
         motivo: "Erro na cobrança",
       });
 
-      const [atualizada] = db.exec("SELECT status FROM cobrancas_asaas WHERE asaas_charge_id = ?", [cobranca.asaasChargeId]);
-      expect(atualizada?.[0]?.[0]).toBe("reembolsado");
+      const stmt = db.prepare("SELECT status FROM cobrancas_asaas WHERE asaas_charge_id = ?");
+      stmt.bind([cobranca.asaasChargeId]);
+      let status: string | undefined;
+      if (stmt.step()) {
+        const row = stmt.getAsObject() as { status: string };
+        status = row.status;
+      }
+      stmt.free();
+      expect(status).toBe("reembolsado");
     });
 
     it("deve permitir tipoForce para override manual", async () => {
@@ -456,8 +463,15 @@ describe("asaasReembolsos", () => {
       expect(resultado.aplicado).toBe(true);
 
       // Verifica se cobrança foi marcada como reembolsada
-      const [linha] = db.exec("SELECT status FROM cobrancas_asaas WHERE asaas_charge_id = ?", [cobranca.asaasChargeId]);
-      expect(linha?.[0]?.[0]).toBe("reembolsado");
+      const stmt = db.prepare("SELECT status FROM cobrancas_asaas WHERE asaas_charge_id = ?");
+      stmt.bind([cobranca.asaasChargeId]);
+      let status: string | undefined;
+      if (stmt.step()) {
+        const row = stmt.getAsObject() as { status: string };
+        status = row.status;
+      }
+      stmt.free();
+      expect(status).toBe("reembolsado");
     });
 
     it("deve ignorar webhook sem payment.id", () => {
@@ -519,8 +533,15 @@ describe("asaasReembolsos", () => {
         },
       });
 
-      const [linha] = db.exec("SELECT data_processamento FROM reembolsos_asaas WHERE asaas_charge_id = ?", [cobranca.asaasChargeId]);
-      expect(linha?.[0]?.[0]).toBe("2025-12-25");
+      const stmt = db.prepare("SELECT data_processamento FROM reembolsos_asaas WHERE asaas_charge_id = ?");
+      stmt.bind([cobranca.asaasChargeId]);
+      let dataProcessamento: string | undefined;
+      if (stmt.step()) {
+        const row = stmt.getAsObject() as { data_processamento: string };
+        dataProcessamento = row.data_processamento;
+      }
+      stmt.free();
+      expect(dataProcessamento).toBe("2025-12-25");
     });
   });
 });
