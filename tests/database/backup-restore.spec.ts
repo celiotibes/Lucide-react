@@ -166,21 +166,18 @@ describe("Database Backup/Restore", () => {
 
     // Criar backup
     expect(() => {
-      backupDatabase(db, TEST_BACKUP_PATH);
+      backupDatabase(db, TEST_BACKUP_DIR);
     }).not.toThrow();
 
-    // Verificar que arquivo foi criado
-    expect(fs.existsSync(TEST_BACKUP_PATH)).toBe(true);
-
-    // Verificar que ZIP é válido
-    const zip = new AdmZip(TEST_BACKUP_PATH);
-    expect(zip.getEntry("app.db")).toBeDefined();
-    expect(zip.getEntry("backup-metadata.json")).toBeDefined();
+    // Verificar que arquivos foram criados
+    expect(fs.existsSync(TEST_BACKUP_DB_PATH)).toBe(true);
+    expect(fs.existsSync(TEST_BACKUP_METADATA_PATH)).toBe(true);
 
     // Verificar metadata
-    const metadata = JSON.parse(zip.readAsText("backup-metadata.json"));
+    const metadata = JSON.parse(fs.readFileSync(TEST_BACKUP_METADATA_PATH, "utf-8"));
     expect(metadata.rowCounts.usuarios).toBe(2);
     expect(metadata.tables).toContain("usuarios");
+    expect(metadata.version).toBe("1.0");
   });
 
   it("deve restaurar banco de dados em DB limpo", () => {
@@ -198,7 +195,7 @@ describe("Database Backup/Restore", () => {
     const originalCounts = getTableRowCounts(db);
 
     // Criar backup
-    backupDatabase(db, TEST_BACKUP_PATH);
+    backupDatabase(db, TEST_BACKUP_DIR);
     db.close();
 
     // Limpar arquivo original
@@ -206,7 +203,7 @@ describe("Database Backup/Restore", () => {
 
     // Restaurar de backup
     const restoreDbPath = path.join(process.cwd(), "test-restore.db");
-    restoreDatabase(TEST_BACKUP_PATH, restoreDbPath);
+    restoreDatabase(TEST_BACKUP_DIR, restoreDbPath);
 
     // Abrir banco restaurado
     const restoredDb = new Database(restoreDbPath);
@@ -255,17 +252,16 @@ describe("Database Backup/Restore", () => {
     insertMany(1000);
 
     // Capturar dados originais
-    const originalRows = db.prepare("SELECT * FROM usuarios").all();
     const originalChecksum = calculateTableChecksum(db, "usuarios");
 
     // Criar backup
-    backupDatabase(db, TEST_BACKUP_PATH);
+    backupDatabase(db, TEST_BACKUP_DIR);
     db.close();
 
     // Restaurar de backup
     cleanupTestDatabase(TEST_DB_PATH);
     const restoreDbPath = path.join(process.cwd(), "test-restore-1000.db");
-    restoreDatabase(TEST_BACKUP_PATH, restoreDbPath);
+    restoreDatabase(TEST_BACKUP_DIR, restoreDbPath);
 
     const restoredDb = new Database(restoreDbPath);
     restoredDb.pragma("foreign_keys = ON");
