@@ -293,6 +293,27 @@ export async function backupSQLiteToGoogleDrive(): Promise<{
 }
 
 /**
+ * Envia um arquivo arbitrário (ex.: backup já criptografado e seu manifesto) para a pasta de
+ * backups do Drive. Diferente de backupSQLiteToGoogleDrive, NÃO lê o banco ao vivo.
+ */
+export async function enviarArquivoParaGoogleDrive(
+  caminho: string,
+  nomeRemoto: string,
+): Promise<{ sucesso: boolean; erros: string[] }> {
+  try {
+    const drive = inicializarDriveClient();
+    if (!drive) return { sucesso: false, erros: ["Google Drive não configurado — defina GOOGLE_CREDENTIALS_JSON"] };
+    if (!fs.existsSync(caminho)) return { sucesso: false, erros: [`Arquivo não encontrado: ${caminho}`] };
+    const folderId = await encontrarOuCriarPastaBackup(drive);
+    if (!folderId) return { sucesso: false, erros: ["Erro ao encontrar/criar pasta no Google Drive"] };
+    const ok = await fazerUploadParaDrive(drive, folderId, caminho, nomeRemoto);
+    return ok ? { sucesso: true, erros: [] } : { sucesso: false, erros: ["Erro ao fazer upload para Google Drive"] };
+  } catch (erro) {
+    return { sucesso: false, erros: [erro instanceof Error ? erro.message : String(erro)] };
+  }
+}
+
+/**
  * Lista todos os backups no Google Drive
  */
 export async function listarBackupsNoGoogleDrive(): Promise<
