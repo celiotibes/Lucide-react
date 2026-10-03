@@ -15,6 +15,8 @@
  * Se nenhum provider configurado, logs vão só pro stdout (graceful degradation).
  */
 
+import { logger } from "../services/logger-service.js";
+
 export type ProvedorEmail = "resend" | "sendgrid" | "none";
 export type SeveridadeAlerta = "info" | "warning" | "critical";
 

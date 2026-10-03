@@ -18,6 +18,8 @@
  * - critical: 🔴 vermelho (#DC3545)
  *
  * Uso recomendado: combine com email-alertas para redundância
+
+import { logger } from "../services/logger-service.js";
  * (email = lento mas confiável, Slack = rápido mas depende de conectividade/notificação)
  */
 
