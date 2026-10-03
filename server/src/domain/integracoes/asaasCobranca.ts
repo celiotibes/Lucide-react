@@ -27,9 +27,7 @@ import { captureException, addSentryBreadcrumb } from "../../services/sentry-ser
 // PERF-002: Cache Service
 import { getCacheService } from "../../services/cache-service.js";
 // Observability: Logger Service
-import { getLogger } from "../../services/logger-service.js";
-
-const logger = getLogger("asaasCobranca");
+import { logger } from "../../services/logger-service.js";
 
 export type FetchLike = typeof fetch;
 
