@@ -554,8 +554,8 @@ function criarSaldosProximoPeriodo(
  * 1. Rejeita estorno duplo: se lançamento já foi estornado (estornado_por_id NOT NULL),
  *    lança erro em vez de criar duplicata.
  * 2. Lança em período aberto: se período original está fechado, lança no período aberto
- *    que contém a data atual. NÃO cria período: se não houver nenhum aberto, lança erro
- *    explicando (abrir período é decisão contábil explícita).
+ *    que contém a data atual, abrindo-o sob demanda se ainda não existir (mesma convenção de
+ *    baixarCompetencia). Se o período de hoje existir FECHADO, lança erro.
  *
  * Lança `Error` em vez de devolver `boolean` puro — o `boolean` antigo nem sequer dizia
  * por que a operação falhou, o pior caso das três convenções que este arquivo misturava.
@@ -610,15 +610,26 @@ export function estornarLancamento(
     const anoHoje = hoje.getFullYear();
     const mesHoje = hoje.getMonth() + 1;
 
-    const [periodoHoje] = consultar<{ id: number }>(
-      db,
-      "SELECT id FROM periodos_contabeis WHERE entidade_id = ? AND ano = ? AND mes = ? AND status = 'aberto'",
-      [original.entidade_id, anoHoje, mesHoje],
-    );
-
+    // Mesma convenção de baixarCompetencia (resolverPeriodoParaData): o período do mês corrente é
+    // aberto sob demanda se ainda não existe; se existir FECHADO, não se lança nele.
+    const buscarHoje = () =>
+      consultar<{ id: number; status: string }>(
+        db,
+        "SELECT id, status FROM periodos_contabeis WHERE entidade_id = ? AND ano = ? AND mes = ?",
+        [original.entidade_id, anoHoje, mesHoje],
+      )[0];
+    let periodoHoje = buscarHoje();
     if (!periodoHoje) {
+      executar(
+        db,
+        "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, ?, ?, 'aberto')",
+        [original.entidade_id, anoHoje, mesHoje],
+      );
+      periodoHoje = buscarHoje();
+    }
+    if (!periodoHoje || periodoHoje.status !== "aberto") {
       throw new Error(
-        `Lançamento #${lancamento_id} está em período fechado (${obterDescricaoPeriodo(db, original.periodo_id)}) e não há nenhum período aberto para hoje (${mesHoje}/${anoHoje}) — impossível criar estorno.`,
+        `Lançamento #${lancamento_id} está em período fechado (${obterDescricaoPeriodo(db, original.periodo_id)}) e o período de hoje (${mesHoje}/${anoHoje}) também está fechado — reabra o período antes de estornar.`,
       );
     }
 

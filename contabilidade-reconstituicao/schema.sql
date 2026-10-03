@@ -2199,4 +2199,37 @@ WHEN NEW.periodo_id IN (SELECT id FROM periodos_contabeis WHERE status = 'fechad
 BEGIN
     SELECT RAISE(ABORT, 'Período contábil fechado não aceita novos lançamentos.');
 END;
+-- Trilha de centro de custo: centro_custo_id continua editável (alocação gerencial, rateios),
+-- mas TODA troca vira uma linha append-only, gravada por trigger — pega qualquer escritor,
+-- inclusive os que não passam por reclassificarCentro (ex.: alocarLancamentoACentro).
+CREATE TABLE IF NOT EXISTS ledger_centro_custo_historico (
+    id                          INTEGER PRIMARY KEY,
+    ledger_entry_id             INTEGER NOT NULL,
+    centro_custo_anterior_id    INTEGER,
+    centro_custo_novo_id        INTEGER,
+    alterado_em                 TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ledger_cc_hist_lancamento ON ledger_centro_custo_historico(ledger_entry_id);
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_cc_hist_no_update
+BEFORE UPDATE ON ledger_centro_custo_historico
+BEGIN
+    SELECT RAISE(ABORT, 'A trilha de centro de custo é append-only.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_cc_hist_no_delete
+BEFORE DELETE ON ledger_centro_custo_historico
+BEGIN
+    SELECT RAISE(ABORT, 'A trilha de centro de custo é append-only.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_entries_centro_custo_trilha
+AFTER UPDATE OF centro_custo_id ON ledger_entries
+FOR EACH ROW
+WHEN NEW.centro_custo_id IS NOT OLD.centro_custo_id
+BEGIN
+    INSERT INTO ledger_centro_custo_historico (ledger_entry_id, centro_custo_anterior_id, centro_custo_novo_id)
+    VALUES (OLD.id, OLD.centro_custo_id, NEW.centro_custo_id);
+END;
 -- END IMUTABILIDADE LEDGER

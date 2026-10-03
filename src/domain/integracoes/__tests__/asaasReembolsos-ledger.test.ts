@@ -156,8 +156,12 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
     const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, { tipoCobranca: "boleto", cpfCnpj: "52998224725" });
     executar(db, "UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
     expect(baixarCompetencia(db, 1, conta_bancaria_id, "2025-01-20", entidade_id).sucesso).toBe(true);
-    // Fecha o período da baixa; não existe período aberto para hoje, então o estorno é impossível.
+    // Fecha o período da baixa E o do mês de hoje: sem período aberto, o estorno é impossível.
     executar(db, "UPDATE periodos_contabeis SET status = 'fechado'");
+    const hoje = new Date();
+    executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, ?, ?, 'fechado')", [
+      entidade_id, hoje.getFullYear(), hoje.getMonth() + 1,
+    ]);
 
     await expect(
       processarReembolsoAsaas(db, { chargeId: cobranca.asaasChargeId, motivo: "x" }),
