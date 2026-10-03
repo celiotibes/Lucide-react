@@ -120,7 +120,7 @@ describe("Rotas HTTP de Backup", () => {
 
   describe("GET /api/backup/status", () => {
     it("deve retornar status de backup com sucesso", async () => {
-      const res = await request(app).get("/api/backup/status").send({});
+      const res = await request(app).get("/api/backup/status").set("Authorization", "Bearer test-token").send({});
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty("sucesso");
@@ -129,7 +129,7 @@ describe("Rotas HTTP de Backup", () => {
     });
 
     it("deve indicar se Google Drive está configurado", async () => {
-      const res = await request(app).get("/api/backup/status").send({});
+      const res = await request(app).get("/api/backup/status").set("Authorization", "Bearer test-token").send({});
 
       expect(res.status).toBe(200);
       expect(typeof res.body.backup.googleDriveConfigured).toBe("boolean");

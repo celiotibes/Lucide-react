@@ -56,6 +56,11 @@ export interface OpcoesBuscaTransacoes {
 
 let clienteCache: PluggyClient | null = null;
 
+/** Limpa o cache do cliente (uso interno para testes). */
+export function _limparCacheClientePluggy(): void {
+  clienteCache = null;
+}
+
 /** Instancia o PluggyClient só quando alguma função deste módulo é de fato
  * chamada — nunca no topo do arquivo. `server/src/pluggy-meu-routes.ts` e
  * `index.ts` podem importar este módulo mesmo sem PLUGGY_MEU_CLIENT_ID/

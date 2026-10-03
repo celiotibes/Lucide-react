@@ -20,16 +20,20 @@ const { fetchItemMock, fetchAccountsMock, fetchAllTransactionsMock, pluggyClient
   pluggyClientConstructorMock: vi.fn(),
 }));
 
-vi.mock("pluggy-sdk", () => ({
-  PluggyClient: vi.fn().mockImplementation((params: unknown) => {
-    pluggyClientConstructorMock(params);
-    return {
-      fetchItem: fetchItemMock,
-      fetchAccounts: fetchAccountsMock,
-      fetchAllTransactions: fetchAllTransactionsMock,
-    };
-  }),
-}));
+vi.mock("pluggy-sdk", () => {
+  class PluggyClientMock {
+    constructor(params: unknown) {
+      pluggyClientConstructorMock(params);
+    }
+    fetchItem = fetchItemMock;
+    fetchAccounts = fetchAccountsMock;
+    fetchAllTransactions = fetchAllTransactionsMock;
+  }
+
+  return {
+    PluggyClient: PluggyClientMock,
+  };
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -133,11 +137,13 @@ describe("Rotas HTTP do fluxo MeuPluggy (/api/pluggy-meu)", () => {
   // obterClientePluggyMeu com sucesso antes), porque o cache do cliente dentro desse módulo
   // sobrevive entre testes do mesmo arquivo — ver comentário em criarAppDeTeste.
   it("retorna erro claro quando PLUGGY_MEU_CLIENT_ID/PLUGGY_MEU_CLIENT_SECRET não estão definidos", async () => {
-    vi.resetModules();
     delete process.env.PLUGGY_MEU_CLIENT_ID;
     delete process.env.PLUGGY_MEU_CLIENT_SECRET;
 
     const { criarRotasPluggyMeu } = await import("../pluggy-meu-routes");
+    const { _limparCacheClientePluggy } = await import("../../pluggy-meu");
+    _limparCacheClientePluggy();
+
     const { app } = await criarAppDeTeste(db, criarRotasPluggyMeu);
     const token = await login(app, "titular@example.com");
 
@@ -148,12 +154,14 @@ describe("Rotas HTTP do fluxo MeuPluggy (/api/pluggy-meu)", () => {
   });
 
   it("retorna erro claro quando PLUGGY_MEU_ITEM_IDS não está definido", async () => {
-    vi.resetModules();
     process.env.PLUGGY_MEU_CLIENT_ID = "id-de-teste";
     process.env.PLUGGY_MEU_CLIENT_SECRET = "secret-de-teste";
     delete process.env.PLUGGY_MEU_ITEM_IDS;
 
     const { criarRotasPluggyMeu } = await import("../pluggy-meu-routes");
+    const { _limparCacheClientePluggy } = await import("../../pluggy-meu");
+    _limparCacheClientePluggy();
+
     const { app } = await criarAppDeTeste(db, criarRotasPluggyMeu);
     const token = await login(app, "titular@example.com");
 
@@ -163,11 +171,19 @@ describe("Rotas HTTP do fluxo MeuPluggy (/api/pluggy-meu)", () => {
   });
 
   describe("com credenciais e Item IDs configurados", () => {
-    beforeEach(() => {
-      vi.resetModules();
+    beforeEach(async () => {
       process.env.PLUGGY_MEU_CLIENT_ID = "id-de-teste";
       process.env.PLUGGY_MEU_CLIENT_SECRET = "secret-de-teste";
       process.env.PLUGGY_MEU_ITEM_IDS = "item-1, item-2";
+
+      // Reset all mocks
+      fetchItemMock.mockReset();
+      fetchAccountsMock.mockReset();
+      fetchAllTransactionsMock.mockReset();
+      pluggyClientConstructorMock.mockReset();
+
+      const { _limparCacheClientePluggy } = await import("../../pluggy-meu");
+      _limparCacheClientePluggy();
     });
 
     it("lista as contas de todos os Items configurados, normalizadas", async () => {
