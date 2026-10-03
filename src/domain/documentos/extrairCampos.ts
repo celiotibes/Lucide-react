@@ -77,6 +77,7 @@ export interface CamposExtraidosDocumento {
   tipo?: TipoDocumento;
   usouIA?: boolean;
   confiancaIA?: "alta" | "media" | "baixa";
+  chaveNFe?: string;  // chave de acesso NF-e/NFS-e para deduplicação
   /** Proveniência de qual chamada de IA (se houve) produziu tipo/nomeContraparte — ver
    * classificarComIA.ts e src/domain/ia/proveniencia.ts. Ausente quando a heurística
    * determinística bastou (nenhuma IA foi chamada). */
@@ -100,7 +101,7 @@ export interface CamposExtraidosDocumento {
 export async function extrairCamposDeTexto(texto: string, apiKeyIA?: string): Promise<CamposExtraidosDocumento> {
   if (pareceSerXmlNota(texto)) {
     const campos = extrairCamposXmlNota(texto);
-    if (campos) return { ...campos, tipo: "nota_fiscal" };
+    if (campos) return { ...campos, tipo: "nota_fiscal", chaveNFe: campos.chaveNFe };
     // XML não reconhecido (layout de NFS-e não coberto) — cai para o regex genérico abaixo.
   }
 
