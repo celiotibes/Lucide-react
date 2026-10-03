@@ -35,8 +35,53 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Security audit
-        run: npm audit --audit-level=moderate
+      - name: Security audit (fail on critical/high)
+        run: |
+          echo "Running npm audit with strict vulnerability checking..."
+          npm audit --audit-level=high --json > audit-report.json || AUDIT_STATUS=$?
+
+          # Parse audit report and fail if critical/high vulnerabilities found
+          if [ "$AUDIT_STATUS" -ne 0 ]; then
+            echo "⚠️  Critical or High severity vulnerabilities detected!"
+            cat audit-report.json
+            exit 1
+          fi
+
+          # Also run without json for readable output
+          npm audit --audit-level=moderate
+
+      - name: Setup Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Build Docker image
+        run: |
+          docker build -t lucide-react:${GITHUB_SHA:0:7} \
+                       -t lucide-react:latest \
+                       --build-arg NODE_ENV=production \
+                       -f Dockerfile .
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'lucide-react:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy'
 
       - name: Build project
         run: npm run build 2>&1
