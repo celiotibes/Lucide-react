@@ -16,11 +16,14 @@
  * (ASAAS_WEBHOOK_TOKEN) no header `asaas-access-token`, não por Bearer token.
  */
 import express from "express";
+import crypto from "crypto";
+import { randomUUID } from "crypto";
 import { logger } from '../services/logger-service.js';
 import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type { EventosExternosServiceDB } from "../domain/integracoes/eventos-externos-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
+import { validateTokenSafely } from "../utils/security-helpers.js";
 import {
   criarClienteAsaas,
   criarCobranca,
@@ -236,17 +239,21 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
    * antes desse passo existir. Assim que `ASAAS_WEBHOOK_TOKEN` for definido, a validação
    * passa a ser estrita (header ausente ou errado = 401).
    *
-   * O corpo é só enfileirado (eventosService.registrarEvento) — este servidor não tem
-   * acesso ao banco local do cliente para já atualizar `cobrancas_asaas` aqui; o cliente
-   * consome por polling em GET /api/eventos-externos/pendentes?tipo=webhook_asaas (ver
-   * aplicarEventosWebhookAsaas em src/domain/integracoes/asaasCobranca.ts).
+   * SEC-011B: Usa validateTokenSafely para comparação timing-safe do token.
+   *
+   * Idempotência: verifica asaas_webhook_eventos para evitar reprocessamento.
+   * O corpo é enfileirado apenas se o evento não foi visto antes.
+   *
+   * O cliente consome por polling em GET /api/eventos-externos/pendentes?tipo=webhook_asaas
+   * (ver aplicarEventosWebhookAsaas em src/domain/integracoes/asaasCobranca.ts).
    */
   router.post("/webhooks/asaas", (req, res) => {
     const tokenEsperado = process.env.ASAAS_WEBHOOK_TOKEN;
-    const tokenRecebido = req.header("asaas-access-token");
+    const tokenRecebido = req.header("asaas-access-token") ?? "";
 
+    // SEC-011B: Timing-safe token validation
     if (tokenEsperado) {
-      if (tokenRecebido !== tokenEsperado) {
+      if (!validateTokenSafely(tokenRecebido, tokenEsperado)) {
         res.status(401).json({ erro: "Token de webhook ausente ou inválido" });
         return;
       }
@@ -258,7 +265,49 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
       );
     }
 
-    eventosService.registrarEvento("webhook_asaas", req.body);
+    // Valida formato mínimo do payload: campos obrigatórios event e payment.id
+    const body = req.body ?? {};
+    if (typeof body.event !== "string" || !body.event.trim()) {
+      res.status(400).json({ erro: "Campo 'event' obrigatório no payload" });
+      return;
+    }
+
+    const payment = body.payment ?? {};
+    if (typeof payment.id !== "string" || !payment.id.trim()) {
+      res.status(400).json({ erro: "Campo 'payment.id' obrigatório no payload" });
+      return;
+    }
+
+    // Idempotência: a chave é o id do evento (body.id) ou, na falta dele, o hash do corpo.
+    // NUNCA payment.id: uma mesma cobrança gera vários eventos distintos (criada, confirmada,
+    // recebida, estornada) e todos descartados após o primeiro perderiam o pagamento.
+    if (db) {
+      try {
+        const payloadHash = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+        const chaveEvento = typeof body.id === "string" && body.id.trim() ? body.id : payloadHash;
+
+        const inserido = db
+          .prepare(
+            `INSERT OR IGNORE INTO asaas_webhook_eventos (id, id_evento_asaas, tipo, payment_id, payload_hash)
+             VALUES (?, ?, ?, ?, ?)`,
+          )
+          .run(randomUUID(), chaveEvento, body.event, payment.id, payloadHash);
+
+        if (inserido.changes === 0) {
+          logger.info(`[asaas-routes] Webhook duplicado (chave ${chaveEvento.slice(0, 12)}…) — 200 sem reprocessar`);
+          res.json({ recebido: true, duplicado: true });
+          return;
+        }
+      } catch (erro) {
+        logger.error(
+          "[asaas-routes] Erro ao registrar evento em asaas_webhook_eventos:",
+          erro instanceof Error ? erro.message : erro,
+        );
+        // Continua mesmo com erro na deduplicação — preferível enfileirar duplicado a perder evento
+      }
+    }
+
+    eventosService.registrarEvento("webhook_asaas", body);
     res.json({ recebido: true });
   });
 

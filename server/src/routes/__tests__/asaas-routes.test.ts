@@ -1,3 +1,4 @@
+import { logger } from "../../services/logger-service.js";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
@@ -34,6 +35,7 @@ function createTestDatabase(): Database.Database {
   db.pragma("foreign_keys = ON");
   db.exec(resolverSchema("migrations-phase2-auth.sql"));
   db.exec(resolverSchema("migrations-phase3-integracoes.sql"));
+  db.exec(resolverSchema("migrations-phase12-asaas-webhook-dedup.sql"));
   return db;
 }
 
@@ -50,7 +52,7 @@ async function criarAppDeTeste(db: Database.Database) {
       permissoesService: { listarMatriz: () => [] } as any,
     }),
   );
-  app.use("/api/asaas", criarRotasAsaas({ authService, eventosService }));
+  app.use("/api/asaas", criarRotasAsaas({ authService, eventosService, db }));
   return { app, eventosService };
 }
 
@@ -260,7 +262,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
     });
 
     it("accepts without ASAAS_WEBHOOK_TOKEN configured (sandbox/dev default) and logs a warning", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       const resp = await request(app)
         .post("/api/asaas/webhooks/asaas")
         .send({ event: "PAYMENT_CONFIRMED", payment: { id: "pay_2" } });
@@ -304,6 +306,73 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
       const payload = pendentes[0].payload as { event: string; payment: { id: string } };
       expect(payload.payment.id).toBe("pay_fila_1");
       expect(payload.event).toBe("PAYMENT_RECEIVED");
+    });
+
+    it("rejects payload without 'event' field (400 Bad Request)", async () => {
+      const resp = await request(app)
+        .post("/api/asaas/webhooks/asaas")
+        .send({ payment: { id: "pay_invalid_1" } });
+      expect(resp.status).toBe(400);
+      expect(resp.body.erro).toContain("event");
+    });
+
+    it("rejects payload without 'payment.id' field (400 Bad Request)", async () => {
+      const resp = await request(app)
+        .post("/api/asaas/webhooks/asaas")
+        .send({ event: "PAYMENT_RECEIVED", payment: {} });
+      expect(resp.status).toBe(400);
+      expect(resp.body.erro).toContain("payment.id");
+    });
+
+    it("rejects empty event string", async () => {
+      const resp = await request(app)
+        .post("/api/asaas/webhooks/asaas")
+        .send({ event: "", payment: { id: "pay_5" } });
+      expect(resp.status).toBe(400);
+    });
+
+    it("returns 200 and deduplicates repeated webhook (idempotent)", async () => {
+      // Primeiro envio
+      const resp1 = await request(app)
+        .post("/api/asaas/webhooks/asaas")
+        .send({ event: "PAYMENT_RECEIVED", payment: { id: "pay_dedup_1", value: 500 } });
+      expect(resp1.status).toBe(200);
+      expect(resp1.body.recebido).toBe(true);
+
+      // Segundo envio do mesmo evento (mesmo payment.id)
+      const resp2 = await request(app)
+        .post("/api/asaas/webhooks/asaas")
+        .send({ event: "PAYMENT_RECEIVED", payment: { id: "pay_dedup_1", value: 500 } });
+      expect(resp2.status).toBe(200);
+      expect(resp2.body.duplicado).toBe(true);
+
+      // Verifica que só um evento foi enfileirado (não dois)
+      const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
+      const eventsWithPayDedup1 = pendentes.filter(
+        (e) => (e.payload as any)?.payment?.id === "pay_dedup_1"
+      );
+      expect(eventsWithPayDedup1).toHaveLength(1);
+    });
+
+    it("does NOT drop distinct events of the same payment (created, confirmed, received)", async () => {
+      for (const event of ["PAYMENT_CREATED", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]) {
+        const r = await request(app)
+          .post("/api/asaas/webhooks/asaas")
+          .send({ event, payment: { id: "pay_multi_1", status: event } });
+        expect(r.status).toBe(200);
+        expect(r.body.duplicado).toBeUndefined();
+      }
+      const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
+      const doPagamento = pendentes.filter((e) => (e.payload as any)?.payment?.id === "pay_multi_1");
+      expect(doPagamento).toHaveLength(3);
+    });
+
+    it("uses the Asaas event id (body.id) as dedup key when present", async () => {
+      const corpo = { id: "evt_abc123", event: "PAYMENT_RECEIVED", payment: { id: "pay_evt_1" } };
+      const r1 = await request(app).post("/api/asaas/webhooks/asaas").send(corpo);
+      const r2 = await request(app).post("/api/asaas/webhooks/asaas").send(corpo);
+      expect(r1.body.duplicado).toBeUndefined();
+      expect(r2.body.duplicado).toBe(true);
     });
   });
 });
