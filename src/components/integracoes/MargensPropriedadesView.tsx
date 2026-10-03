@@ -222,7 +222,7 @@ export const MargensPropriedadesView: React.FC = () => {
             <Tooltip
               formatter={(value: number) => {
                 if (typeof value === "number") {
-                  return value.toFixed(2) + (typeof value > 100 ? " R$" : "%");
+                  return value.toFixed(2) + (value > 100 ? " R$" : "%");
                 }
                 return value;
               }}
@@ -270,7 +270,7 @@ export const MargensPropriedadesView: React.FC = () => {
       {/* Indicadores de status */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="text-green-700 text-sm font-semibold">Muito Rentável (>70%)</div>
+          <div className="text-green-700 text-sm font-semibold">Muito Rentável (&gt;70%)</div>
           <div className="text-2xl font-bold text-green-900 mt-2">{top5.filter((i) => i.status === "OK").length}</div>
         </div>
         <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
@@ -278,7 +278,7 @@ export const MargensPropriedadesView: React.FC = () => {
           <div className="text-2xl font-bold text-yellow-900 mt-2">{(top5.concat(bottom5)).filter((i) => i.status === "ATENÇÃO").length}</div>
         </div>
         <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-          <div className="text-red-700 text-sm font-semibold">Crítico (<50%)</div>
+          <div className="text-red-700 text-sm font-semibold">Crítico (&lt;50%)</div>
           <div className="text-2xl font-bold text-red-900 mt-2">{(top5.concat(bottom5)).filter((i) => i.status === "CRÍTICO").length}</div>
         </div>
       </div>

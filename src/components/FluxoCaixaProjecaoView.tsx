@@ -248,7 +248,7 @@ export function FluxoCaixaProjecaoView() {
         <KpiTile
           label="Dias de Caixa Negativo"
           value={String(projecao.resumo.diasCaixaNegativo)}
-          variant={projecao.resumo.diasCaixaNegativo === 0 ? "good" : "warning"}
+          variant={projecao.resumo.diasCaixaNegativo === 0 ? "good" : "critical"}
         />
         <KpiTile
           label="Período"

@@ -7,7 +7,6 @@ import {
   deveAuditarQuery,
   extrairCamposSelect,
   registrarAcessoCampos,
-  type DadosCriptografados,
 } from '../compliance-audit-log';
 
 describe('Audit Trail - SELECT Queries', () => {

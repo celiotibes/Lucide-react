@@ -31,6 +31,7 @@ describe("asaasReembolsos", () => {
       pixQrCode: "00020126580014br.gov.bcb.brcode0136123e4567-e12b-12d1-a456-426655440000520400005303986540510.005802BR5913Fulano de Tal6009BRASILIA62110503***63041234",
     }),
     consultarCobranca: async (chargeId: string) => ({
+      asaasChargeId: chargeId,
       id: chargeId,
       status: "RECEIVED",
       boletoUrl: "https://example.com/boleto",

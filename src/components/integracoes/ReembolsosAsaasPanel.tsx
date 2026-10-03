@@ -45,13 +45,13 @@ export function ReembolsosAsaasPanel({
   isCarregando = false,
 }: ReembolsosAsaasPanelProps) {
   const [motivo, setMotivo] = useState("");
-  const [tipoForce, setTipoForce] = useState<"reversao" | "devolucao" | "">("auto");
+  const [tipoForce, setTipoForce] = useState<"reversao" | "devolucao" | "auto">("auto");
   const [isProcessando, setIsProcessando] = useState(false);
-  const { exibirSucesso, exibirErro } = useToast();
+  const { avisar } = useToast();
 
   async function handleProcessarReembolso() {
     if (!motivo.trim()) {
-      exibirErro("Informe um motivo para o reembolso");
+      avisar("critical", "Informe um motivo para o reembolso");
       return;
     }
 
@@ -61,12 +61,13 @@ export function ReembolsosAsaasPanel({
         motivo,
         tipoForce === "auto" ? undefined : tipoForce,
       );
-      exibirSucesso("Reembolso processado com sucesso");
+      avisar("good", "Reembolso processado com sucesso");
       setMotivo("");
       setTipoForce("auto");
       setTimeout(onFechar, 1000);
     } catch (erro) {
-      exibirErro(
+      avisar(
+        "critical",
         erro instanceof Error ? erro.message : "Falha ao processar reembolso",
       );
     } finally {
@@ -193,7 +194,7 @@ export function ReembolsosAsaasPanel({
                       className="w-4 h-4"
                     />
                     <span className="text-sm text-slate-700 dark:text-slate-300">
-                      Automático (< 24h: reverter, ≥ 24h: devolução)
+                      Automático (&lt; 24h: reverter, ≥ 24h: devolução)
                     </span>
                   </label>
                   <label className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
