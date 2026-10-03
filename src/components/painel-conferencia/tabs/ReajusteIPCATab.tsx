@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { ReajusteIPCA } from "@/domain/apontamentos";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Button, Badge } from "../ui";
+import { ReajusteIPCA } from "../../../domain/apontamentos";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import ModalPropostaReajuste from "../modals/ModalPropostaReajuste";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
 
 interface ReajusteIPCATabProps {
   reajusteIPCA: ReajusteIPCA | null;

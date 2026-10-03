@@ -1,31 +1,16 @@
 import { useState } from "react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui";
+import { useDb } from "../../../db/useDb";
+import { rejeitarMovimentacao } from "../data/painelConferenciaRepo";
 import {
   Movimentacao,
   FiltrosMovimentacoes,
   TipoMovimentacao,
   StatusMovimentacao,
-} from "@/domain/apontamentos";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+} from "../../../domain/apontamentos";
 import { Check, RotateCcw, RefreshCw, X } from "lucide-react";
 import ModalAprovacaoMovimentacao from "../modals/ModalAprovacaoMovimentacao";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
 
 interface MovimentacoesFinanceirasProps {
   movimentacoes: Movimentacao[];
@@ -44,6 +29,7 @@ const MovimentacoesFinanceiras: React.FC<MovimentacoesFinanceirasProps> = ({
   onRefresh,
   usuarioId,
 }) => {
+  const { db, persistir } = useDb();
   const [modalAprovacao, setModalAprovacao] = useState<{
     aberta: boolean;
     movimentacao?: Movimentacao;
@@ -69,26 +55,14 @@ const MovimentacoesFinanceiras: React.FC<MovimentacoesFinanceirasProps> = ({
         return;
       }
 
-      const response = await fetch(`/api/movimentacoes/${id}/rejeitar`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          motivo_rejeicao: motivo,
-        }),
-      });
-
-      if (response.ok) {
-        onRefresh();
-      } else {
-        alert("Erro ao rejeitar movimentação");
-      }
+      // Antes: PUT /api/movimentacoes/:id/rejeitar — rota inexistente.
+      if (!db) throw new Error("Banco de dados indisponível");
+      rejeitarMovimentacao(db, id, motivo);
+      await persistir();
+      onRefresh();
     } catch (error) {
       console.error("Erro ao rejeitar:", error);
-      alert("Erro ao rejeitar movimentação");
+      alert(error instanceof Error ? error.message : "Erro ao rejeitar movimentação");
     } finally {
       setRejeitando(null);
     }

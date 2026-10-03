@@ -2,12 +2,15 @@ import { useMemo, useState } from "react";
 import { Plus, Pencil } from "lucide-react";
 import { useDb } from "../../db/useDb";
 import { consultar, executar } from "../../db/connection";
+import { VincularTelegramExterno } from "../integracoes/VincularTelegramExterno";
 
 interface Prestador {
   id: number;
   nome: string;
   cpf_cnpj?: string;
   servico: string;
+  email?: string;
+  telefone?: string;
 }
 
 interface Formulario {
@@ -15,9 +18,11 @@ interface Formulario {
   nome: string;
   cpf_cnpj: string;
   servico: string;
+  email: string;
+  telefone: string;
 }
 
-const FORM_VAZIO: Formulario = { id: null, nome: "", cpf_cnpj: "", servico: "" };
+const FORM_VAZIO: Formulario = { id: null, nome: "", cpf_cnpj: "", servico: "", email: "", telefone: "" };
 
 export function PrestadoresForm() {
   const { db, versao, persistir } = useDb();
@@ -26,15 +31,23 @@ export function PrestadoresForm() {
   const prestadores = useMemo<Prestador[]>(() => (db ? consultar<Prestador>(db, "SELECT * FROM prestadores ORDER BY nome") : []), [db, versao]);
 
   function abrirEdicao(p: Prestador) {
-    setForm({ id: p.id, nome: p.nome, cpf_cnpj: p.cpf_cnpj ?? "", servico: p.servico });
+    setForm({ id: p.id, nome: p.nome, cpf_cnpj: p.cpf_cnpj ?? "", servico: p.servico, email: p.email ?? "", telefone: p.telefone ?? "" });
   }
 
   async function salvar() {
     if (!db || !form || form.nome.trim() === "" || form.servico.trim() === "") return;
     if (form.id === null) {
-      executar(db, "INSERT INTO prestadores (nome, cpf_cnpj, servico) VALUES (?, ?, ?)", [form.nome.trim(), form.cpf_cnpj.trim() || null, form.servico.trim()]);
+      executar(
+        db,
+        "INSERT INTO prestadores (nome, cpf_cnpj, servico, email, telefone) VALUES (?, ?, ?, ?, ?)",
+        [form.nome.trim(), form.cpf_cnpj.trim() || null, form.servico.trim(), form.email.trim() || null, form.telefone.trim() || null],
+      );
     } else {
-      executar(db, "UPDATE prestadores SET nome = ?, cpf_cnpj = ?, servico = ? WHERE id = ?", [form.nome.trim(), form.cpf_cnpj.trim() || null, form.servico.trim(), form.id]);
+      executar(
+        db,
+        "UPDATE prestadores SET nome = ?, cpf_cnpj = ?, servico = ?, email = ?, telefone = ? WHERE id = ?",
+        [form.nome.trim(), form.cpf_cnpj.trim() || null, form.servico.trim(), form.email.trim() || null, form.telefone.trim() || null, form.id],
+      );
     }
     await persistir();
     setForm(null);
@@ -64,28 +77,41 @@ export function PrestadoresForm() {
               Serviço *
               <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.servico} onChange={(e) => setForm({ ...form, servico: e.target.value })} placeholder="ex: faxina, portaria, gestão de Airbnb, reforma" />
             </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              E-mail
+              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="para notificar ordens de serviço" />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              Telefone
+              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} placeholder="ex: (11) 99999-0000" />
+            </label>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: form.id !== null ? 16 : 0 }}>
             <button className="btn primary" disabled={form.nome.trim() === "" || form.servico.trim() === ""} onClick={salvar}>Salvar</button>
             <button className="btn" onClick={() => setForm(null)}>Cancelar</button>
           </div>
+          {form.id !== null && (
+            <VincularTelegramExterno referenciaTipo="prestador" referenciaId={form.id} nomeExibicao={form.nome} />
+          )}
         </div>
       )}
 
       <div className="table-wrap">
         <table className="data-table">
-          <thead><tr><th>Nome</th><th>CPF/CNPJ</th><th>Serviço</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>CPF/CNPJ</th><th>Serviço</th><th>E-mail</th><th>Telefone</th><th></th></tr></thead>
           <tbody>
             {prestadores.map((p) => (
               <tr key={p.id}>
                 <td>{p.nome}</td>
                 <td>{p.cpf_cnpj ?? "—"}</td>
                 <td>{p.servico}</td>
+                <td>{p.email ?? "—"}</td>
+                <td>{p.telefone ?? "—"}</td>
                 <td><button className="btn" style={{ padding: "4px 7px" }} onClick={() => abrirEdicao(p)}><Pencil size={13} /></button></td>
               </tr>
             ))}
             {prestadores.length === 0 && (
-              <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum prestador cadastrado.</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>Nenhum prestador cadastrado.</td></tr>
             )}
           </tbody>
         </table>

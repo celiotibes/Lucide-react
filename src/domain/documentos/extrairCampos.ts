@@ -2,6 +2,7 @@ import { extrairTextoPdf } from "../parsers/pdfDocumento";
 import { ocrImagem } from "../parsers/ocrImagem";
 import { extrairCamposXmlNota, pareceSerXmlNota } from "./parseNFe";
 import { classificarDocumentoComIA } from "./classificarComIA";
+import { avaliarQualidadeTexto } from "../ia/qualidadeOcr";
 import type { TipoDocumento } from "../types";
 
 const REGEX_VALOR = /(?:R\$\s?)?(\d{1,3}(?:\.\d{3})*,\d{2})/;
@@ -76,6 +77,11 @@ export interface CamposExtraidosDocumento {
   tipo?: TipoDocumento;
   usouIA?: boolean;
   confiancaIA?: "alta" | "media" | "baixa";
+  /** Proveniência de qual chamada de IA (se houve) produziu tipo/nomeContraparte — ver
+   * classificarComIA.ts e src/domain/ia/proveniencia.ts. Ausente quando a heurística
+   * determinística bastou (nenhuma IA foi chamada). */
+  provedorIA?: string;
+  modeloIA?: string;
 }
 
 /** Extração de valor, data, CNPJ/CPF, nome da contraparte e tipo do documento do texto —
@@ -86,7 +92,11 @@ export interface CamposExtraidosDocumento {
  * comuns em boleto/contrato/recibo/fatura brasileiros, sempre revisáveis no formulário antes
  * de salvar (nunca aplicadas sem confirmação). Se heurística falha (tipo e nomeContraparte
  * ambos undefined), tenta IA como fallback (requer apiKey ou backend configurado). Nunca envia
- * dados sensíveis completos — apenas máx 1000 caracteres do documento (minimiza risco). */
+ * dados sensíveis completos — apenas máx 1000 caracteres do documento (minimiza risco).
+ *
+ * Antes de chamar IA, avalia a qualidade do próprio texto (ver src/domain/ia/qualidadeOcr.ts)
+ * — é esse critério, não o texto em si, que decide se o roteador de IA (src/domain/ia/roteador.ts)
+ * escalona direto para um provedor pago ou tenta primeiro um modelo local (Ollama). */
 export async function extrairCamposDeTexto(texto: string, apiKeyIA?: string): Promise<CamposExtraidosDocumento> {
   if (pareceSerXmlNota(texto)) {
     const campos = extrairCamposXmlNota(texto);
@@ -107,7 +117,8 @@ export async function extrairCamposDeTexto(texto: string, apiKeyIA?: string): Pr
 
   // Fallback para IA se heurística não conseguiu extrair tipo e/ou fornecedor
   if (!tipo || !nomeContraparte) {
-    const resultadoIA = await classificarDocumentoComIA(texto, apiKeyIA);
+    const avaliacaoQualidade = avaliarQualidadeTexto(texto);
+    const resultadoIA = await classificarDocumentoComIA(texto, apiKeyIA, avaliacaoQualidade);
     return {
       valor,
       data,
@@ -116,6 +127,8 @@ export async function extrairCamposDeTexto(texto: string, apiKeyIA?: string): Pr
       tipo: tipo || resultadoIA.tipo,
       usouIA: !!(resultadoIA.tipo || resultadoIA.nomeContraparte),
       confiancaIA: resultadoIA.confianca,
+      provedorIA: resultadoIA.provedor,
+      modeloIA: resultadoIA.modelo,
     };
   }
 

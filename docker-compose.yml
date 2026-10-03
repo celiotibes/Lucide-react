@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Application Backend (Express.js + TypeScript)
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: lucide-app
+    ports:
+      - "8787:8787"
+    environment:
+      # Core Configuration
+      NODE_ENV: development
+      PORT: 8787
+
+      # Database
+      DATABASE_URL: file:./data/lucide.sqlite
+
+      # Security
+      API_KEY: ${API_KEY:-change-me-in-development-only}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-session-secret}
+
+      # CORS
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
+
+      # Integrations (Optional)
+      ASAAS_API_KEY: ${ASAAS_API_KEY:-}
+      ASAAS_SANDBOX: ${ASAAS_SANDBOX:-true}
+      CERTISIGN_API_KEY: ${CERTISIGN_API_KEY:-}
+      SERPROID_API_KEY: ${SERPROID_API_KEY:-}
+      PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
+      PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
+
+      # Notifications (Optional)
+      ALERTS_EMAIL_PROVIDER: ${ALERTS_EMAIL_PROVIDER:-none}
+      ALERTS_EMAIL_API_KEY: ${ALERTS_EMAIL_API_KEY:-}
+      ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
+      ALERTS_EMAIL_TO_ADMIN: ${ALERTS_EMAIL_TO_ADMIN:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+
+      # Sentry (Optional)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+
+      # Google Drive Backup (Optional)
+      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
+
+      # Anthropic Claude API (Optional)
+      VITE_ANTHROPIC_API_KEY: ${VITE_ANTHROPIC_API_KEY:-}
+
+      # Cache Configuration (Optional)
+      CACHE_TTL_DRE: ${CACHE_TTL_DRE:-3600000}
+      CACHE_TTL_FLUXO: ${CACHE_TTL_FLUXO:-7200000}
+      CACHE_TTL_MARGENS: ${CACHE_TTL_MARGENS:-7200000}
+      CACHE_TTL_RECONCILIACAO: ${CACHE_TTL_RECONCILIACAO:-1800000}
+
+    volumes:
+      # Persistent database volume
+      - ./data:/app/data
+      # Development: live reload of source (comment out for production-like builds)
+      - ./server/src:/app/server/src:ro
+      # Logs
+      - ./logs:/app/logs
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8787/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Network
+    networks:
+      - lucide-network
+
+    # Resource limits (adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Container dependency on database initialization (if needed)
+    # depends_on:
+    #   - database
+
+  # ============================================================================
+  # Optional: Database Service (for persistent SQLite or PostgreSQL)
+  # ============================================================================
+  # Uncomment below if you want to use a separate database service
+  # database:
+  #   image: postgres:16-alpine
+  #   container_name: lucide-db
+  #   environment:
+  #     POSTGRES_DB: lucide_accounting
+  #     POSTGRES_USER: lucide_user
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U lucide_user"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - lucide-network
+  #   restart: unless-stopped
+
+  # ============================================================================
+  # Development: Frontend Service (Optional, for live development)
+  # ============================================================================
+  # Uncomment below if developing frontend alongside backend
+  # frontend:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.frontend
+  #   container_name: lucide-frontend
+  #   ports:
+  #     - "5173:5173"
+  #   environment:
+  #     VITE_API_URL: http://app:8787
+  #   volumes:
+  #     - ./src:/app/src
+  #     - ./public:/app/public
+  #   networks:
+  #     - lucide-network
+  #   restart: unless-stopped
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  # postgres_data:
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  lucide-network:
+    driver: bridge

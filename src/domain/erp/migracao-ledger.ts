@@ -1,21 +1,133 @@
 /**
- * Migração: Transações Existentes → Ledger Integrado
- * Bridge entre o sistema legado (transacoes) e nova arquitetura contábil
+ * Migração: transações bancárias (`transacoes`) → razão contábil (`ledger_entries`).
+ *
+ * É a ponte entre o que o app registra (extrato: uma linha, um valor com sinal) e o que a
+ * contabilidade exige (partida dobrada: duas pernas que se anulam). Sem ela o razão fica
+ * vazio — era por isso que o Painel mostrava quase R$ 1,9 milhão e os Relatórios
+ * Integrados, com exatamente os mesmos dados, mostravam R$ 0,00: leem tabelas diferentes
+ * e nada nunca atravessou de uma para a outra. A função existia, mas nunca era chamada, e
+ * se fosse teria produzido lixo (ver o histórico dos três defeitos abaixo).
+ *
+ * REGRA DE LANÇAMENTO. Toda transação vira DUAS linhas de mesmo valor:
+ *   - entrada (valor > 0): débito em Caixa, crédito na contrapartida
+ *   - saída   (valor < 0): crédito em Caixa, débito na contrapartida
+ * A regra é a mesma para qualquer natureza de contrapartida, e é o que faz o razão fechar
+ * por construção: cada transação contribui com débito == crédito.
+ *
+ * Qual é a contrapartida, isso quem decide é `contaContrapartida()` em
+ * mapeamentoPlanoApp.ts, que traduz o código do plano do app para o do razão conta a
+ * conta. Não é tradução por igualdade de código: os dois planos usam os mesmos números
+ * para contas diferentes.
+ *
+ * O QUE FOI CORRIGIDO AQUI (a versão anterior tinha três defeitos, cada um sozinho
+ * suficiente para inutilizar o razão):
+ *   1. Casava os planos por string de código (`ON c.codigo = p.codigo`), com fallback
+ *      `codigo LIKE '1.%'`/`'2.%'` — receita de aluguel virava caixa, condomínio virava
+ *      capital social, e o que não casava caía numa conta arbitrária da faixa.
+ *   2. Gravava UMA perna por transação, sem contrapartida. O razão nascia
+ *      permanentemente desbalanceado e nenhum período jamais fecharia.
+ *   3. Jogava TODAS as transações históricas no período do mês corrente. Num sistema de
+ *      reconstituição contábil isso é o oposto do objetivo: cada lançamento precisa cair
+ *      na competência da própria data.
  */
 
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import { registrarLancamentoContabil } from "./ledger";
+import { CONTA_CAIXA_ERP, contaContrapartida } from "./mapeamentoPlanoApp";
 
 export interface MigracaoStatus {
   total_transacoes: number;
   transacoes_migradas: number;
+  /** Já estavam no razão de uma execução anterior — a migração é idempotente. */
+  transacoes_ja_migradas: number;
   transacoes_falhadas: number;
+  /** Migradas, porém contra a conta transitória: entraram no razão e no saldo de caixa,
+   * mas continuam pendentes de classificação e aparecem como tal no balancete. */
+  transacoes_sem_classificacao: number;
   erros: Array<{ transacao_id: number; erro: string }>;
   tempo_ms: number;
 }
 
-/** Migrar todas as transações existentes para o ledger */
+interface TransacaoOrigem {
+  id: number;
+  data: string | null;
+  data_competencia: string | null;
+  valor: number;
+  descricao_original: string;
+  plano_conta_codigo: string | null;
+}
+
+const MESES_PT: Record<string, number> = {
+  JANEIRO: 1, FEVEREIRO: 2, MARCO: 3, MARÇO: 3, ABRIL: 4, MAIO: 5, JUNHO: 6,
+  JULHO: 7, AGOSTO: 8, SETEMBRO: 9, OUTUBRO: 10, NOVEMBRO: 11, DEZEMBRO: 12,
+};
+
+/** Tenta extrair a competência (mês do fato gerador) da descrição crua do extrato, no
+ * padrão "REF <MÊS>/<ANO>" (ex.: "CONDOMINIO REF DEZEMBRO/2024"). Usado apenas como
+ * fallback quando `data_competencia` não foi preenchida manualmente na triagem — ver
+ * comentário no topo do arquivo e em __auditoria__/competencia-vs-caixa.test.ts. */
+function inferirCompetenciaDaDescricao(descricao: string): { ano: number; mes: number } | null {
+  const match = /REF\.?\s*([A-ZÇÃÕ]+)\s*\/\s*(\d{4})/i.exec(descricao);
+  if (!match) return null;
+  const mes = MESES_PT[match[1].toUpperCase()];
+  if (!mes) return null;
+  return { ano: Number(match[2]), mes };
+}
+
+/** Resolve a data de competência efetiva de uma transação: coluna explícita
+ * (`data_competencia`, preenchida na triagem) tem prioridade; na ausência dela, tenta
+ * inferir da descrição do extrato; por fim cai na data do extrato (regime de caixa). */
+function resolverCompetencia(txn: TransacaoOrigem): { ano: number; mes: number } | null {
+  if (txn.data_competencia) {
+    const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(txn.data_competencia);
+    if (partes) return { ano: Number(partes[1]), mes: Number(partes[2]) };
+  }
+  const inferida = inferirCompetenciaDaDescricao(txn.descricao_original);
+  if (inferida) return inferida;
+  return null;
+}
+
+/** Período contábil (entidade, ano, mês), criando-o aberto se ainda não existir.
+ * Devolve null se não for possível — o chamador registra o erro na transação, em vez de
+ * empurrar o lançamento para outro mês. */
+function resolverPeriodo(
+  db: Database,
+  entidade_id: number,
+  ano: number,
+  mes: number,
+  cache: Map<string, { id: number; status: string } | null>,
+): { id: number; status: string } | null {
+  const chave = `${ano}-${mes}`;
+  const emCache = cache.get(chave);
+  if (emCache !== undefined) return emCache;
+
+  const buscar = () =>
+    consultar<{ id: number; status: string }>(
+      db,
+      "SELECT id, status FROM periodos_contabeis WHERE entidade_id = ? AND ano = ? AND mes = ?",
+      [entidade_id, ano, mes],
+    )[0] ?? null;
+
+  let periodo = buscar();
+  if (!periodo) {
+    executar(
+      db,
+      "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, ?, ?, 'aberto')",
+      [entidade_id, ano, mes],
+    );
+    periodo = buscar();
+  }
+
+  cache.set(chave, periodo);
+  return periodo;
+}
+
+/** Migra as transações bancárias ainda ausentes do razão.
+ *
+ * Idempotente: o que já foi migrado antes é reconhecido pela origem
+ * (`origem_modulo = 'transacoes'` + `origem_id`) e pulado, não duplicado. Pode ser
+ * chamada quantas vezes for preciso — após cada importação de extrato, por exemplo. */
 export function migrarTransacoesParaLedger(
   db: Database,
   entidade_id: number,
@@ -23,388 +135,157 @@ export function migrarTransacoesParaLedger(
   const inicio = Date.now();
   const erros: Array<{ transacao_id: number; erro: string }> = [];
   let migradas = 0;
+  let ja_migradas = 0;
+  let sem_classificacao = 0;
+  let transacoes: TransacaoOrigem[] = [];
 
-  // 1. Obter ou criar período padrão para transações antigas
-  const hoje = new Date();
-  const [periodo] = consultar<{ id: number }>(
-    db,
-    `SELECT id FROM periodos_contabeis
-     WHERE entidade_id = ? AND ano = ? AND mes = ?`,
-    [entidade_id, hoje.getFullYear(), hoje.getMonth() + 1],
-  );
-
-  if (!periodo) {
-    // Criar período atual
-    executar(
+  // BEGIN explícito: o laço abaixo abre um SAVEPOINT por transação (RELEASE/ROLLBACK TO
+  // em caso de falha na segunda perna — ver comentário mais abaixo). SAVEPOINT sem uma
+  // transação já aberta funciona em SQLite (que abre uma implicitamente sozinho), mas o
+  // PostgreSQL recusa com "SAVEPOINT can only be used in transaction blocks" — BUG REAL
+  // encontrado nesta função, só visível ao portar para Postgres/Supabase, porque em
+  // SQLite o efeito é indistinguível de estar correto. `executar`/`consultar` (API
+  // parametrizada) não cobrem controle de transação — por isso BEGIN/COMMIT/SAVEPOINT
+  // aqui usam a API do sql.js diretamente, como a própria connection.ts faz.
+  db.run("BEGIN");
+  try {
+    transacoes = consultar<TransacaoOrigem>(
       db,
-      `INSERT INTO periodos_contabeis (entidade_id, ano, mes, status)
-       VALUES (?, ?, ?, 'aberto')`,
-      [entidade_id, hoje.getFullYear(), hoje.getMonth() + 1],
+      `SELECT id, data, data_competencia, valor, descricao_original, plano_conta_codigo
+       FROM transacoes
+       ORDER BY data ASC, id ASC`,
+      [],
     );
-  }
 
-  const [periodo_atual] = consultar<{ id: number }>(
-    db,
-    `SELECT id FROM periodos_contabeis
-     WHERE entidade_id = ? AND ano = ? AND mes = ?`,
-    [entidade_id, hoje.getFullYear(), hoje.getMonth() + 1],
-  );
+    // Uma consulta só, em vez de um SELECT por transação dentro do laço.
+    const ja_no_razao = new Set(
+      consultar<{ origem_id: number }>(
+        db,
+        "SELECT DISTINCT origem_id FROM ledger_entries WHERE origem_modulo = 'transacoes'",
+        [],
+      ).map((linha) => linha.origem_id),
+    );
 
-  if (!periodo_atual) {
-    return {
-      total_transacoes: 0,
-      transacoes_migradas: 0,
-      transacoes_falhadas: 1,
-      erros: [{ transacao_id: 0, erro: "Não conseguiu criar período contábil" }],
-      tempo_ms: Date.now() - inicio,
-    };
-  }
+    const periodos = new Map<string, { id: number; status: string } | null>();
 
-  // 2. Obter todas as transações
-  const transacoes = consultar<{
-    id: number;
-    data: string;
-    valor: number;
-    descricao_original: string;
-    imovel_id?: number;
-    contrato_id?: number;
-    plano_conta_codigo?: string;
-  }>(
-    db,
-    `SELECT t.id, t.data, t.valor, t.descricao_original,
-            t.imovel_id, t.contrato_id, t.plano_conta_codigo
-     FROM transacoes t
-     ORDER BY t.data ASC`,
-    [],
-  );
+    for (const txn of transacoes) {
+      if (ja_no_razao.has(txn.id)) {
+        ja_migradas++;
+        continue;
+      }
 
-  // 3. Mapear plano_de_contas para novo plano_contas
-  const contas_map = consultar<{ codigo: string; conta_nova_id: number }>(
-    db,
-    `SELECT p.codigo, c.id as conta_nova_id
-     FROM plano_de_contas p
-     LEFT JOIN contas_plano_contas c ON c.codigo = p.codigo
-       AND c.entidade_id = ?`,
-    [entidade_id],
-  );
+      try {
+        const valor = Number(txn.valor);
+        if (!Number.isFinite(valor) || valor === 0) {
+          throw new Error("Valor ausente ou zero — não há partida a registrar");
+        }
 
-  const mapa_contas: Record<string, number> = Object.fromEntries(
-    contas_map.map((row) => [row.codigo, row.conta_nova_id || 0]),
-  );
+        // A competência decide o PERÍODO CONTÁBIL do lançamento: `data_competencia`
+        // (preenchida na triagem) ou, na ausência dela, o padrão "REF <MÊS>/<ANO>" na
+        // descrição do extrato têm prioridade sobre a data do extrato — ver
+        // resolverCompetencia(). `data_lancamento` continua usando a data do EXTRATO
+        // (abaixo, em `comum`), para o fluxo de caixa em regime de caixa continuar correto.
+        const competencia = resolverCompetencia(txn);
+        let ano: number;
+        let mes: number;
+        if (competencia) {
+          ano = competencia.ano;
+          mes = competencia.mes;
+        } else {
+          // Formato do schema é DATE 'AAAA-MM-DD'; qualquer outra coisa é erro da
+          // transação, não motivo para chutar o mês corrente.
+          const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(txn.data ?? "");
+          if (!partes) {
+            throw new Error(`Data inválida ou ausente ("${txn.data ?? ""}") — competência indeterminável`);
+          }
+          ano = Number(partes[1]);
+          mes = Number(partes[2]);
+        }
 
-  // 4. Migrar cada transação
-  transacoes.forEach((txn) => {
-    try {
-      // Determinar conta do plano (mapeamento)
-      let conta_id = txn.plano_conta_codigo ? mapa_contas[txn.plano_conta_codigo] : undefined;
+        const periodo = resolverPeriodo(db, entidade_id, ano, mes, periodos);
+        if (!periodo) {
+          throw new Error(`Não foi possível abrir o período contábil ${mes}/${ano}`);
+        }
+        if (periodo.status !== "aberto") {
+          throw new Error(
+            `Período ${String(mes).padStart(2, "0")}/${ano} está fechado — lançar exigiria reabrir o período ou registrar um ajuste no período corrente`,
+          );
+        }
 
-      if (!conta_id) {
-        // Fallback: procurar conta padrão por tipo de valor
-        const [conta_default] = consultar<{ id: number }>(
-          db,
-          `SELECT id FROM contas_plano_contas
-           WHERE entidade_id = ? AND codigo LIKE ?
-           LIMIT 1`,
-          [entidade_id, txn.valor > 0 ? "1.%%" : "2.%%"],
+        const { conta_id: conta_contrapartida, classificada } = contaContrapartida(
+          txn.plano_conta_codigo,
         );
 
-        conta_id = conta_default?.id;
+        const montante = Math.abs(valor);
+        const entrada = valor > 0;
+        const comum = {
+          entidade_id,
+          periodo_id: periodo.id,
+          data_lancamento: txn.data as string,
+          descricao: txn.descricao_original,
+          origem_modulo: "transacoes" as const,
+          origem_id: txn.id,
+          referencia_documento: `TXN-${txn.id}`,
+        };
+
+        // SAVEPOINT por transação: se a segunda perna falhar, a primeira não pode ficar
+        // sozinha no razão — uma perna órfã desbalanceia o período inteiro e impede o
+        // fechamento, que é exatamente o defeito que esta reescrita veio consertar. Agora
+        // aninha dentro do BEGIN de cima (nunca é o savepoint mais externo).
+        db.run(`SAVEPOINT txn_${txn.id}`);
+        try {
+          registrarLancamentoContabil(db, {
+            ...comum,
+            conta_id: CONTA_CAIXA_ERP,
+            valor_debito: entrada ? montante : undefined,
+            valor_credito: entrada ? undefined : montante,
+          });
+          registrarLancamentoContabil(db, {
+            ...comum,
+            conta_id: conta_contrapartida,
+            valor_debito: entrada ? undefined : montante,
+            valor_credito: entrada ? montante : undefined,
+          });
+          db.run(`RELEASE txn_${txn.id}`);
+        } catch (erro) {
+          db.run(`ROLLBACK TO txn_${txn.id}`);
+          db.run(`RELEASE txn_${txn.id}`);
+          throw erro;
+        }
+
+        migradas++;
+        if (!classificada) sem_classificacao++;
+      } catch (erro) {
+        // Erro de UMA transação (validação, ou a própria SAVEPOINT acima já desfeita) —
+        // registrado em `erros` e a migração segue para a próxima. Não escapa até o
+        // BEGIN/COMMIT externo, que por isso sempre chega ao COMMIT abaixo.
+        erros.push({
+          transacao_id: txn.id,
+          erro: erro instanceof Error ? erro.message : String(erro),
+        });
       }
-
-      if (!conta_id) {
-        throw new Error("Conta não encontrada para plano_conta_codigo");
-      }
-
-      // Registrar no ledger
-      registrarLancamentoContabil(db, {
-        entidade_id,
-        periodo_id: periodo_atual.id,
-        conta_id,
-        data_lancamento: txn.data || new Date().toISOString().split("T")[0],
-        valor_debito: txn.valor > 0 ? txn.valor : undefined,
-        valor_credito: txn.valor < 0 ? Math.abs(txn.valor) : undefined,
-        descricao: txn.descricao_original,
-        origem_modulo: "transacoes",
-        origem_id: txn.id,
-        referencia_documento: `TXN-${txn.id}`,
-        criado_por: 0, // Sistema
-      });
-
-      migradas++;
-    } catch (erro) {
-      erros.push({
-        transacao_id: txn.id,
-        erro: erro instanceof Error ? erro.message : String(erro),
-      });
     }
-  });
+
+    db.run("COMMIT");
+  } catch (erro) {
+    // Só chega aqui por falha ANTES do laço (ex.: o SELECT de transações) ou alguma
+    // exceção que escapou do try por-transação acima — nos dois casos, nada do que este
+    // BEGIN abriu deve ficar meio aplicado.
+    try {
+      db.run("ROLLBACK");
+    } catch {
+      /* já fora de transação */
+    }
+    throw erro;
+  }
 
   return {
     total_transacoes: transacoes.length,
     transacoes_migradas: migradas,
+    transacoes_ja_migradas: ja_migradas,
     transacoes_falhadas: erros.length,
+    transacoes_sem_classificacao: sem_classificacao,
     erros,
     tempo_ms: Date.now() - inicio,
   };
-}
-
-/** Criar plano de contas padrão (39 contas) */
-export function garantirPlanoContasPadrao(
-  db: Database,
-  entidade_id: number,
-): void {
-  const contas_padrao = [
-    // ATIVO CIRCULANTE
-    { codigo: "1.1.01", descricao: "Caixa", grupo: "ativo", natureza: "debito" },
-    {
-      codigo: "1.1.02",
-      descricao: "Bancos Conta Corrente",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-    {
-      codigo: "1.1.03",
-      descricao: "Bancos Poupança/Investimento",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-    {
-      codigo: "1.2.01",
-      descricao: "Receita de Aluguel a Receber",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-    {
-      codigo: "1.2.02",
-      descricao: "Rateio de Despesa a Receber",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-    {
-      codigo: "1.3.01",
-      descricao: "Caução a Devolver (Ativo Circulante)",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-
-    // ATIVO NÃO-CIRCULANTE
-    {
-      codigo: "2.1.01",
-      descricao: "Imóvel para Locação",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-    {
-      codigo: "2.1.02",
-      descricao: "Imóvel Uso Pessoal",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-    {
-      codigo: "2.2.01",
-      descricao: "Depreciação Acumulada - Imóveis",
-      grupo: "ativo",
-      natureza: "credito",
-    },
-    {
-      codigo: "2.2.02",
-      descricao: "Móveis e Equipamentos",
-      grupo: "ativo",
-      natureza: "debito",
-    },
-    {
-      codigo: "2.2.03",
-      descricao: "Depreciação Acumulada - Móveis",
-      grupo: "ativo",
-      natureza: "credito",
-    },
-
-    // PASSIVO CIRCULANTE
-    {
-      codigo: "3.1.01",
-      descricao: "Caução a Devolver (Passivo)",
-      grupo: "passivo",
-      natureza: "credito",
-    },
-    {
-      codigo: "3.1.02",
-      descricao: "Financiamento a Pagar (Curto Prazo)",
-      grupo: "passivo",
-      natureza: "credito",
-    },
-    {
-      codigo: "3.1.03",
-      descricao: "Fornecedores a Pagar",
-      grupo: "passivo",
-      natureza: "credito",
-    },
-    {
-      codigo: "3.1.04",
-      descricao: "Impostos a Pagar",
-      grupo: "passivo",
-      natureza: "credito",
-    },
-
-    // PASSIVO NÃO-CIRCULANTE
-    {
-      codigo: "3.2.01",
-      descricao: "Financiamento Imobiliário (LP)",
-      grupo: "passivo",
-      natureza: "credito",
-    },
-
-    // PATRIMÔNIO LÍQUIDO
-    {
-      codigo: "4.1.01",
-      descricao: "Capital",
-      grupo: "patrimonio_liquido",
-      natureza: "credito",
-    },
-    {
-      codigo: "4.1.02",
-      descricao: "Lucros/Prejuízos Acumulados",
-      grupo: "patrimonio_liquido",
-      natureza: "credito",
-    },
-
-    // RECEITAS
-    {
-      codigo: "5.1.01",
-      descricao: "Receita de Aluguel",
-      grupo: "receita",
-      natureza: "credito",
-    },
-    {
-      codigo: "5.1.02",
-      descricao: "Receita de Reajuste Contratual",
-      grupo: "receita",
-      natureza: "credito",
-    },
-    {
-      codigo: "5.1.03",
-      descricao: "Receita de Rateio",
-      grupo: "receita",
-      natureza: "credito",
-    },
-    {
-      codigo: "5.2.01",
-      descricao: "Receita de Juros",
-      grupo: "receita",
-      natureza: "credito",
-    },
-    {
-      codigo: "5.3.01",
-      descricao: "Outras Receitas",
-      grupo: "receita",
-      natureza: "credito",
-    },
-
-    // DESPESAS
-    {
-      codigo: "6.1.01",
-      descricao: "Despesa com Condomínio",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.1.02",
-      descricao: "Despesa com Água/Esgoto",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.1.03",
-      descricao: "Despesa com Eletricidade",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.1.04",
-      descricao: "Despesa com Internet/Telefone",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.1.05",
-      descricao: "Despesa com Manutenção",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.1.06",
-      descricao: "Despesa com Limpeza/Higiene",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.1.07",
-      descricao: "Despesa com Seguros",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.2.01",
-      descricao: "Depreciação - Imóveis",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.2.02",
-      descricao: "Depreciação - Móveis e Equipamentos",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.3.01",
-      descricao: "Despesa de Juros (Financiamentos)",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.3.02",
-      descricao: "Despesa com Multa/Juros de Mora",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.4.01",
-      descricao: "Provisão para Devedora (Inadimplência)",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.5.01",
-      descricao: "Despesa com Serviços Profissionais",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.5.02",
-      descricao: "Despesa Tributária/Fiscal",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-    {
-      codigo: "6.6.01",
-      descricao: "Outras Despesas Operacionais",
-      grupo: "despesa",
-      natureza: "debito",
-    },
-  ];
-
-  contas_padrao.forEach((conta) => {
-    executar(
-      db,
-      `INSERT OR IGNORE INTO contas_plano_contas
-       (entidade_id, codigo, descricao, grupo, natureza, analisavel, ativo)
-       VALUES (?, ?, ?, ?, ?, 1, 1)`,
-      [
-        entidade_id,
-        conta.codigo,
-        conta.descricao,
-        conta.grupo,
-        conta.natureza,
-      ],
-    );
-  });
 }

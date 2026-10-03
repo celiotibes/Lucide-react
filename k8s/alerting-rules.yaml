@@ -1,0 +1,103 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lucide-app-alerts
+  namespace: default
+  labels:
+    app: lucide-app
+spec:
+  groups:
+    - name: lucide-app.rules
+      interval: 30s
+      rules:
+        # CPU usage alert
+        - alert: LucideAppHighCPU
+          expr: |
+            (sum(rate(container_cpu_usage_seconds_total{pod=~"lucide-app-.*"}[5m])) by (pod) * 100) > 80
+          for: 5m
+          labels:
+            severity: warning
+            component: lucide-app
+          annotations:
+            summary: "Lucide App {{ $labels.pod }} CPU usage is high"
+            description: "Pod {{ $labels.pod }} CPU usage is {{ $value | humanize }}% (threshold: 80%)"
+            runbook_url: "https://example.com/runbooks/cpu-high"
+
+        # Memory usage alert
+        - alert: LucideAppHighMemory
+          expr: |
+            (sum(container_memory_usage_bytes{pod=~"lucide-app-.*"}) by (pod) / sum(container_spec_memory_limit_bytes{pod=~"lucide-app-.*"}) by (pod) * 100) > 85
+          for: 5m
+          labels:
+            severity: warning
+            component: lucide-app
+          annotations:
+            summary: "Lucide App {{ $labels.pod }} memory usage is high"
+            description: "Pod {{ $labels.pod }} memory usage is {{ $value | humanize }}% (threshold: 85%)"
+            runbook_url: "https://example.com/runbooks/memory-high"
+
+        # Pod restart count alert
+        - alert: LucideAppHighRestartCount
+          expr: |
+            increase(kube_pod_container_status_restarts_total{pod=~"lucide-app-.*"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: critical
+            component: lucide-app
+          annotations:
+            summary: "Lucide App {{ $labels.pod }} has restarted {{ $value | humanize }} times in the last hour"
+            description: "Pod {{ $labels.pod }} has restarted {{ $value | humanize }} times in the last hour (threshold: 3)"
+            runbook_url: "https://example.com/runbooks/high-restart-count"
+
+        # Pod not ready alert
+        - alert: LucideAppPodNotReady
+          expr: |
+            kube_pod_status_ready{condition="false", pod=~"lucide-app-.*"} > 0
+          for: 10m
+          labels:
+            severity: critical
+            component: lucide-app
+          annotations:
+            summary: "Lucide App {{ $labels.pod }} is not ready"
+            description: "Pod {{ $labels.pod }} has not been ready for more than 10 minutes"
+            runbook_url: "https://example.com/runbooks/pod-not-ready"
+
+        # Container OOMKilled alert
+        - alert: LucideAppOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{reason="OOMKilled", pod=~"lucide-app-.*"} > 0
+          for: 1m
+          labels:
+            severity: critical
+            component: lucide-app
+          annotations:
+            summary: "Lucide App {{ $labels.pod }} was killed due to out of memory"
+            description: "Pod {{ $labels.pod }} was terminated due to out of memory"
+            runbook_url: "https://example.com/runbooks/oomkilled"
+
+        # Network I/O errors alert
+        - alert: LucideAppNetworkErrors
+          expr: |
+            rate(container_network_receive_errors_total{pod=~"lucide-app-.*"}[5m]) > 0.1 or
+            rate(container_network_transmit_errors_total{pod=~"lucide-app-.*"}[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            component: lucide-app
+          annotations:
+            summary: "Lucide App {{ $labels.pod }} experiencing network errors"
+            description: "Pod {{ $labels.pod }} network errors rate: {{ $value | humanize }}/s"
+            runbook_url: "https://example.com/runbooks/network-errors"
+
+        # Deployment replica mismatch
+        - alert: LucideAppReplicaMismatch
+          expr: |
+            kube_deployment_spec_replicas{deployment="lucide-app"} != kube_deployment_status_replicas_available{deployment="lucide-app"}
+          for: 10m
+          labels:
+            severity: warning
+            component: lucide-app
+          annotations:
+            summary: "Lucide App deployment replica mismatch"
+            description: "Deployment lucide-app desired replicas: {{ $value }} but only available: {{ (kube_deployment_status_replicas_available{deployment=\"lucide-app\"}) | humanize }}"
+            runbook_url: "https://example.com/runbooks/replica-mismatch"

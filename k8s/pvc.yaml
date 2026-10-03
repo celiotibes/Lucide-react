@@ -1,0 +1,126 @@
+# ============================================================================
+# Persistent Volume Claim for Database
+# ============================================================================
+# This PVC stores the SQLite database and application data
+# The PV must exist beforehand, or the cluster must support dynamic provisioning
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lucide-data-pvc
+  namespace: default
+  labels:
+    app: lucide-app
+    component: database
+spec:
+  # Storage class (depends on your cluster)
+  # Common options:
+  # - standard: GKE, AKS, EKS
+  # - fast-ssd: high-performance
+  # - nfs: NFS-backed storage
+  # - local: local node storage
+  storageClassName: standard
+
+  # Access mode
+  accessModes:
+    - ReadWriteOnce  # Only one node can mount at a time
+
+  # Storage size
+  resources:
+    requests:
+      storage: 10Gi  # Adjust based on your data volume
+
+---
+# ============================================================================
+# Optional: Persistent Volume (Manual provisioning)
+# ============================================================================
+# Use this if your cluster doesn't support dynamic provisioning
+# Or if you want to manually manage PV lifecycle
+#
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: lucide-data-pv
+#   labels:
+#     app: lucide-app
+#     component: database
+# spec:
+#   capacity:
+#     storage: 10Gi
+#   accessModes:
+#     - ReadWriteOnce
+#   storageClassName: standard
+#   # hostPath: Local storage on node (development only)
+#   hostPath:
+#     path: /data/lucide
+#     type: DirectoryOrCreate
+#   # OR nfs: NFS-backed storage
+#   # nfs:
+#   #   server: 10.0.0.1
+#   #   path: "/export/lucide"
+
+---
+# ============================================================================
+# Optional: StorageClass (if not using cluster default)
+# ============================================================================
+# Define custom storage class for specific performance requirements
+#
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: lucide-standard
+# provisioner: kubernetes.io/gce-pd  # GKE
+# parameters:
+#   type: pd-standard
+#   replication-type: none
+# allowVolumeExpansion: true
+
+---
+# ============================================================================
+# Optional: VolumeSnapshot (for backups)
+# ============================================================================
+# Create snapshots of the database for disaster recovery
+# Requires VolumeSnapshotClass on your cluster
+#
+# apiVersion: snapshot.storage.k8s.io/v1
+# kind: VolumeSnapshot
+# metadata:
+#   name: lucide-data-snapshot
+#   namespace: default
+# spec:
+#   volumeSnapshotClassName: csi-hostpath-snapclass
+#   source:
+#     persistentVolumeClaimName: lucide-data-pvc
+
+---
+# ============================================================================
+# Notes
+# ============================================================================
+#
+# 1. STORAGE CLASS
+#    - List available: kubectl get storageclass
+#    - GKE default: "standard" (SSD is "premium")
+#    - AKS default: "default" or "managed-premium"
+#    - EKS default: "gp2" (EBS)
+#
+# 2. SIZE PLANNING
+#    Current estimate: 10Gi (SQLite + logs + uploads)
+#    Adjust based on:
+#    - Number of transactions: 1000+ txn/month = ~1Gi
+#    - Document scanning: 100+ docs/month = ~1-2Gi
+#    - Backup retention: Keep 30 days = ~size x 30
+#
+# 3. BACKUP STRATEGY
+#    - Database backups to Google Drive (see server code)
+#    - VolumeSnapshot backups (cluster-level)
+#    - Regular exports via kubectl (operational backups)
+#
+# 4. EXPANDING VOLUME
+#    - Enable allowVolumeExpansion: true in StorageClass
+#    - Update PVC: kubectl patch pvc lucide-data-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+#    - Note: Volume must be expanded on the mounted filesystem
+#
+# 5. MONITORING
+#    - Check capacity: kubectl describe pvc lucide-data-pvc
+#    - Monitor usage: df -h (inside container)
+#    - Set alerts for >80% usage

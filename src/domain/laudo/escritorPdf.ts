@@ -6,9 +6,18 @@ import type { default as jsPDF } from "jspdf";
  * esses sinais de menos matemáticos, que quebram o kerning e renderizam letra por letra
  * (bug real encontrado e corrigido nesta seção). Aplicado a TODO texto que passa por
  * paragrafo()/linhaTabela(), não só às strings fixas — texto dinâmico (nome de
- * locatário, descrição bancária crua do OFX) pode conter o mesmo caractere. */
+ * locatário, descrição bancária crua do OFX) pode conter o mesmo caractere.
+ *
+ * Também normaliza NBSP (espaço não separável, U+00A0 — comum em texto colado de extrato
+ * bancário/OFX) para espaço ASCII comum: NBSP impede quebra de linha naquele ponto, o que
+ * pode estourar a largura da coluna em linhaTabela()/paragrafo() sem nenhum sinal visual
+ * de que o caractere é diferente de um espaço normal.
+ * BUG REAL CORRIGIDO: esta segunda substituição antes usava `.replace(/ /g, " ")` — tanto
+ * o caractere casado pela regex quanto o da string de troca eram o mesmo espaço ASCII
+ * comum (U+0020), então a chamada não fazia absolutamente nada (comparação byte a byte
+ * confirmou os dois lados idênticos). A normalização de NBSP nunca chegou a rodar. */
 export function sanitizarTextoPdf(texto: string): string {
-  return texto.replace(/[−‐‑‒―]/g, "-").replace(/ /g, " ");
+  return texto.replace(/[−‐‑‒―]/g, "-").replace(/ /g, " ");
 }
 
 export const MARGEM = 18;

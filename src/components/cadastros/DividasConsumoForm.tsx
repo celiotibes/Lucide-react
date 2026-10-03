@@ -5,6 +5,9 @@ import { consultar, executar } from "../../db/connection";
 import { ROTULO_TIPO_DIVIDA } from "../../domain/patrimonio/balancoPatrimonial";
 import type { DividaConsumo, TipoDividaConsumo } from "../../domain/types";
 import { formatarMoeda } from "../../domain/formatarMoeda";
+import { useToast } from "../../ui/useToast";
+import { RateioDestinoDivida } from "./RateioDestinoDivida";
+import { HistoricoPagamentosDivida } from "./HistoricoPagamentosDivida";
 
 interface Formulario {
   id: number | null;
@@ -27,6 +30,7 @@ function formVazio(): Formulario {
 
 export function DividasConsumoForm() {
   const { db, versao, persistir } = useDb();
+  const { avisar } = useToast();
   const [form, setForm] = useState<Formulario | null>(null);
 
   const dividas = useMemo<DividaConsumo[]>(() => (db ? consultar<DividaConsumo>(db, "SELECT * FROM dividas_consumo ORDER BY saldo_devedor_atual DESC") : []), [db, versao]);
@@ -49,21 +53,33 @@ export function DividasConsumoForm() {
     const parcelaMensal = Number.parseFloat(form.parcela_mensal.replace(",", "."));
     if (Number.isNaN(saldoDevedor) || Number.isNaN(parcelaMensal)) return;
 
-    if (form.id === null) {
-      executar(
-        db,
-        "INSERT INTO dividas_consumo (tipo, instituicao, valor_contratado, saldo_devedor_atual, parcela_mensal, data_referencia_saldo, observacoes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [form.tipo, form.instituicao.trim(), valorContratado, saldoDevedor, parcelaMensal, form.data_referencia_saldo, form.observacoes.trim() || null],
-      );
-    } else {
+    try {
+      if (form.id === null) {
+        executar(
+          db,
+          "INSERT INTO dividas_consumo (tipo, instituicao, valor_contratado, saldo_devedor_atual, parcela_mensal, data_referencia_saldo, observacoes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [form.tipo, form.instituicao.trim(), valorContratado, saldoDevedor, parcelaMensal, form.data_referencia_saldo, form.observacoes.trim() || null],
+        );
+        const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() as id");
+        await persistir();
+        // Mantém o form aberto, agora em modo edição — só depois de salva a dívida tem um
+        // id para as linhas de rateio de destino se referirem (divida_rateio_destinos.divida_id).
+        setForm({ ...form, id });
+        avisar("good", "Dívida cadastrada. Agora você pode classificar o rateio de destino abaixo.");
+        return;
+      }
       executar(
         db,
         "UPDATE dividas_consumo SET tipo = ?, instituicao = ?, valor_contratado = ?, saldo_devedor_atual = ?, parcela_mensal = ?, data_referencia_saldo = ?, observacoes = ? WHERE id = ?",
         [form.tipo, form.instituicao.trim(), valorContratado, saldoDevedor, parcelaMensal, form.data_referencia_saldo, form.observacoes.trim() || null, form.id],
       );
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : String(erro));
+      return;
     }
     await persistir();
     setForm(null);
+    avisar("good", "Dívida atualizada.");
   }
 
   return (
@@ -114,6 +130,16 @@ export function DividasConsumoForm() {
             Observações
             <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
           </label>
+
+          {form.id !== null && <RateioDestinoDivida dividaTipo="divida_consumo" dividaId={form.id} />}
+          {form.id !== null && <HistoricoPagamentosDivida dividaTipo="divida_consumo" dividaId={form.id} />}
+          {form.id === null && (
+            <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "0 0 12px" }}>
+              Salve a dívida primeiro para poder classificar o rateio de destino (PF / empresa / advocacia) e
+              registrar o histórico de pagamentos.
+            </p>
+          )}
+
           <div style={{ display: "flex", gap: 8 }}>
             <button
               className="btn primary"
@@ -122,7 +148,7 @@ export function DividasConsumoForm() {
             >
               Salvar
             </button>
-            <button className="btn" onClick={() => setForm(null)}>Cancelar</button>
+            <button className="btn" onClick={() => setForm(null)}>{form.id !== null ? "Fechar" : "Cancelar"}</button>
           </div>
         </div>
       )}

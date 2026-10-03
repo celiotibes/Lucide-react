@@ -8,6 +8,20 @@ import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import { registrarLancamentoContabil } from "./ledger";
 
+/** As duas contas abaixo eram `conta_id: 27` e `conta_id: 4` — números que nunca
+ * existiram em `contas_plano_contas`: o plano autoritativo (PLANO_DE_CONTAS_ERP, em
+ * planoDeContasErp.ts) só semeia os ids ali listados (1101, 3301, 5502…), nunca 4 nem 27.
+ * Como schema.sql liga `PRAGMA foreign_keys = ON` e `ledger_entries.conta_id REFERENCES
+ * contas_plano_contas(id)`, todo lançamento de provisão de dano de vistoria estourava
+ * violação de chave estrangeira (mascarada por um try/catch em
+ * integracao-vistorias-provisionamento.ts, que reportava "erro ao provisionar" para
+ * qualquer vistoria com dano real). Substituídas pelas contas que já existem e que
+ * mapeamentoPlanoApp.ts usa para o mesmo significado: "Inadimplência e perdas com
+ * locatário" (5502, despesa) para a provisão do dano e "Depósitos caução recebidos"
+ * (3301, passivo) para o desconto na caução. */
+const CONTA_PROVISAO_DANOS_VISTORIA = 5502; // Inadimplência e perdas com locatário
+const CONTA_CAUCAO_A_DEVOLVER = 3301; // Depósitos caução recebidos
+
 export interface VistoriaProvisao {
   vistoria_id: number;
   imovel_id: number;
@@ -55,8 +69,14 @@ export function provisarDanosVistoria(
     [vistoria_id],
   );
 
-  if (!vistoria || vistoria.status !== "concluida") {
-    return false; // Só provisiona se vistoria está concluída
+  // Aceita "concluida" (o caminho normal, disparado por
+  // integracao-vistorias-provisionamento.ts::sincronizarVistoriaConcluidaParaProvisionamento)
+  // e "aprovada" (o próximo estágio do workflow — vistorias.status CHECK só permite um
+  // dos dois por vez). Sem o segundo, finalizarVistoriaContabil() logo abaixo — cujo
+  // próprio guard exige status 'aprovada' — nunca conseguia provisionar nada: delegava
+  // para esta função, que recusava toda vistoria 'aprovada' por não ser 'concluida'.
+  if (!vistoria || (vistoria.status !== "concluida" && vistoria.status !== "aprovada")) {
+    return false; // Só provisiona vistoria concluída ou já aprovada
   }
 
   // 2. Calcular valor total de danos
@@ -66,12 +86,12 @@ export function provisarDanosVistoria(
     return false; // Sem danos estimados
   }
 
-  // 3. Registrar no ledger: Débito em "Provisão para Devedora" (Conta 27)
+  // 3. Registrar no ledger: Débito em "Inadimplência e perdas com locatário" (provisão do dano)
   registrarLancamentoContabil(db, {
     entidade_id,
     periodo_id,
     centro_custo_id: undefined,
-    conta_id: 27, // Provisão para Devedora
+    conta_id: CONTA_PROVISAO_DANOS_VISTORIA,
     data_lancamento: new Date().toISOString().split("T")[0],
     valor_debito: valor_danos,
     descricao: `Provisão danos vistoria - Imóvel ${vistoria.imovel_id}`,
@@ -80,7 +100,7 @@ export function provisarDanosVistoria(
     referencia_documento: `VIST-${vistoria_id}-PROV`,
   });
 
-  // 4. Registrar crédito em "Caução a Devolver" (Conta 4, reduzindo o ativo/passivo)
+  // 4. Registrar crédito em "Depósitos caução recebidos" (reduzindo o passivo de caução)
   // se houver caução. Caso contrário, é despesa de resultado direto.
   if (vistoria.contrato_id) {
     const [caucao] = consultar<{ valor_inicial: number }>(
@@ -90,11 +110,11 @@ export function provisarDanosVistoria(
     );
 
     if (caucao && caucao.valor_inicial > 0) {
-      // Há caução em aberto: deduzir da caução (crédito em conta 4)
+      // Há caução em aberto: deduzir da caução (crédito na conta de caução)
       registrarLancamentoContabil(db, {
         entidade_id,
         periodo_id,
-        conta_id: 4, // Caução a Devolver
+        conta_id: CONTA_CAUCAO_A_DEVOLVER,
         data_lancamento: new Date().toISOString().split("T")[0],
         valor_credito: Math.min(valor_danos, caucao.valor_inicial),
         descricao: `Desconto caução por danos - Vistoria ${vistoria_id}`,

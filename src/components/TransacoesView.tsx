@@ -1,12 +1,16 @@
-import { Fragment, useMemo, useState } from "react";
-import { Wand2, Split, Scissors, Trash2, Download, Plus, X } from "lucide-react";
+import { Fragment, useMemo, useState, useCallback } from "react";
+import { Wand2, Split, Scissors, Trash2, Download, Plus, X, FileSearch, Fingerprint, Copy, Check, ShieldOff, Sparkles } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
+import { useToast } from "../ui/useToast";
 import type { ContaBancaria, Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
+import { sugestoesPendentesPorTransacao, aceitarSugestao, rejeitarSugestao, gerarSugestoesPendentes } from "../domain/categorize/sugestaoClassificacaoIA";
 import { classificarPfNegocio, gerarMapaConciliacao, gerarCsvConciliacao, gerarXlsxConciliacao, type ClassificacaoPfNegocio } from "../domain/reports/conciliacaoBancaria";
 import { criarTransacaoManual, excluirTransacao, dividirTransacao, type ParteDivisao } from "../domain/transacoes/transacaoManual";
+import { provasDasTransacoes } from "../domain/importacao/cofre";
+import { reclassificarTransacao } from "../domain/reclassificacao/reclassificarTransacao";
 
 /** Filtro inicial vindo de outra tela (drill-down do Painel: clicar numa barra da cascata do
  * DRE ou numa célula do mapa de calor navega pra cá já filtrado pela categoria/mês/imóvel que
@@ -41,9 +45,25 @@ const ROTULO_CRITERIO: Record<CriterioRateio, string> = {
   por_unidade: "Igual entre unidades",
 };
 
+/** O que cada valor de `categorizado_por` significa — explica a pergunta "qual regra
+ * classificou este valor" por trás do pill que já existe na coluna Origem. */
+const ROTULO_CATEGORIZADO_POR: Record<string, string> = {
+  regra: "Classificado automaticamente por uma regra aprendida (padrão de texto salvo em 'Salvar como regra')",
+  ia: "Classificado por sugestão de IA",
+  manual: "Classificado manualmente, clicando na categoria desta transação",
+};
+
+function formatarDataHora(valor: string | null): string {
+  if (!valor) return "—";
+  return new Date(valor.replace(" ", "T") + "Z").toLocaleString("pt-BR");
+}
+
 export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransacoesInicial | null }) {
   const { db, versao, persistir } = useDb();
+  const { avisar } = useToast();
   const [somentePendentes, setSomentePendentes] = useState(false);
+  const [provenanciaAbertaId, setProvenanciaAbertaId] = useState<number | null>(null);
+  const [hashCopiado, setHashCopiado] = useState<string | null>(null);
   const [rateioAbertoId, setRateioAbertoId] = useState<number | null>(null);
   const [regraAbertaId, setRegraAbertaId] = useState<number | null>(null);
   const [padraoRegra, setPadraoRegra] = useState("");
@@ -54,6 +74,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [divisaoAbertaId, setDivisaoAbertaId] = useState<number | null>(null);
   const [partesDivisao, setPartesDivisao] = useState<{ valor: string; planoContaCodigo: string; imovelId: number | "" }[]>([]);
+  const [gerandoSugestoesIA, setGerandoSugestoesIA] = useState(false);
   const [formManualAberto, setFormManualAberto] = useState(false);
   const [formManual, setFormManual] = useState({ contaId: "" as number | "", data: "", valor: "", descricao: "", planoContaCodigo: "", imovelId: "" as number | "" });
 
@@ -122,10 +143,110 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     [db, versao],
   );
 
+  // Procedência de cada transação da página atual, numa ÚNICA consulta (ver
+  // provasDasTransacoes em domain/importacao/cofre.ts) — não uma consulta por linha
+  // renderizada. A demonstração tem ~1100 transações; mesmo paginada em 300 (LIMIT da
+  // query acima), uma consulta por linha no render seria centenas de round-trips ao SQLite
+  // a cada nova versão do banco. Transação sem chave no Map (dado de demonstração,
+  // lançamento manual, ou importada antes do cofre existir) é tratada explicitamente na
+  // renderização — ver bloco "sem prova" abaixo.
+  const provas = useMemo(
+    () => (db ? provasDasTransacoes(db, transacoes.map((t) => t.id)) : new Map()),
+    [db, versao, transacoes],
+  );
+
+  // Sugestões de classificação por IA (ver src/domain/categorize/sugestaoClassificacaoIA.ts)
+  // — já geradas antes desta tela abrir (rodar a geração sob demanda fica para depois; aqui
+  // só CONSOME o que já existe). Mesma ideia de `provas` acima: uma consulta só para a
+  // página inteira, não uma por linha renderizada. Só têm sentido para transações ainda
+  // sem categoria — uma vez aceita/rejeitada, a sugestão some da consulta (status != 'pendente').
+  const sugestoesIA = useMemo(
+    () => (db ? sugestoesPendentesPorTransacao(db, transacoes.filter((t) => !t.plano_conta_codigo).map((t) => t.id)) : new Map()),
+    [db, versao, transacoes],
+  );
+
+  const copiarHashProva = useCallback(
+    async (hash: string) => {
+      try {
+        await navigator.clipboard.writeText(hash);
+        setHashCopiado(hash);
+        setTimeout(() => setHashCopiado((atual) => (atual === hash ? null : atual)), 2000);
+      } catch {
+        avisar("warning", "O navegador bloqueou a cópia. Selecione o hash na tela e copie manualmente.");
+      }
+    },
+    [avisar],
+  );
+
   async function categorizar(transacaoId: number, codigo: string) {
     if (!db) return;
-    executar(db, "UPDATE transacoes SET plano_conta_codigo = ?, categorizado_por = 'manual' WHERE id = ?", [codigo || null, transacaoId]);
+    // Nunca UPDATE direto: uma reclassificação já migrada ao razão precisa de
+    // estorno+relançamento da perna de contrapartida, senão o razão fica com a
+    // classificação antiga para sempre (migrarTransacoesParaLedger é idempotente por
+    // origem e nunca revisita uma transação já migrada).
+    const resultado = reclassificarTransacao(db, transacaoId, codigo || null, { categorizado_por: "manual" });
+    if (!resultado.sucesso) {
+      avisar("warning", resultado.mensagem);
+      return;
+    }
     await persistir();
+  }
+
+  // Aceitar/rejeitar uma sugestão de IA: nunca um UPDATE direto — aceitarSugestao() passa
+  // por reclassificarTransacao() por baixo (estorno + relançamento no razão quando
+  // aplicável), exatamente o mesmo caminho de categorizar() acima. A IA nunca classifica
+  // sozinha: isto só roda quando o próprio usuário clica em "Aceitar".
+  async function aceitarSugestaoIA(sugestaoId: number) {
+    if (!db) return;
+    const resultado = aceitarSugestao(db, sugestaoId);
+    if (!resultado.sucesso) {
+      avisar("warning", resultado.mensagem);
+      return;
+    }
+    await persistir();
+  }
+
+  async function rejeitarSugestaoIA(sugestaoId: number) {
+    if (!db) return;
+    const resultado = rejeitarSugestao(db, sugestaoId);
+    if (!resultado.sucesso) {
+      avisar("warning", resultado.mensagem);
+      return;
+    }
+    await persistir();
+  }
+
+  // Dispara a geração de sugestões de IA sob demanda (ver gerarSugestoesPendentes em
+  // sugestaoClassificacaoIA.ts) — a tela já sabia CONSUMIR sugestões já geradas (bloco
+  // "Sugestões de classificação por IA" acima), mas nada ainda disparava a geração; era
+  // só chamado por teste. `gerarSugestoesPendentes` nunca lança (falha de rede, nenhum
+  // provedor de IA configurado ou resposta ilegível vira `ignoradasPorErro` por transação,
+  // sem interromper o lote) — o try/catch aqui é só um cinto de segurança extra para algo
+  // inesperado (ex: banco indisponível), nunca para deixar a tela quebrar.
+  async function gerarSugestoesIA() {
+    if (!db || gerandoSugestoesIA) return;
+    setGerandoSugestoesIA(true);
+    try {
+      const resultado = await gerarSugestoesPendentes(db);
+      await persistir();
+      if (resultado.candidatas === 0) {
+        avisar("good", "Nenhuma transação pendente sem sugestão para gerar agora — todas já têm sugestão ou já foram classificadas.");
+      } else if (resultado.geradas === 0) {
+        avisar(
+          "warning",
+          `Não foi possível gerar nenhuma sugestão (${resultado.ignoradasPorErro} de ${resultado.candidatas} transação(ões) falharam) — verifique a conexão ou se algum provedor de IA está configurado.`,
+        );
+      } else {
+        const partes = [`${resultado.geradas} sugestão(ões) de IA gerada(s) de ${resultado.candidatas} transação(ões) avaliada(s)`];
+        if (resultado.comPergunta > 0) partes.push(`${resultado.comPergunta} com pergunta para decisão humana`);
+        if (resultado.ignoradasPorErro > 0) partes.push(`${resultado.ignoradasPorErro} sem sugestão por erro`);
+        avisar("good", partes.join(" — ") + ".");
+      }
+    } catch (erro) {
+      avisar("warning", `Não foi possível gerar sugestões de IA: ${(erro as Error).message}`);
+    } finally {
+      setGerandoSugestoesIA(false);
+    }
   }
 
   async function atribuirImovel(transacaoId: number, imovelId: string) {
@@ -260,7 +381,11 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <h2 className="section-title">Transações {totalPendentes > 0 && <span className="pill warning">{totalPendentes} pendente(s) de categorização</span>}</h2>
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        {/* flexWrap: "wrap" — sem ele esta fileira (checkbox + 3 botões de texto longo)
+            não cabe em 390px e, como o item não encolhe sozinho, empurra rolagem
+            horizontal na PÁGINA inteira (mesmo bug de .toolbar-actions sem flex-wrap,
+            aqui como estilo local em vez da classe compartilhada). */}
+        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
           <label
             style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5, opacity: pendentesIndisponivel ? 0.5 : 1 }}
             title={
@@ -279,6 +404,14 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
             />
             Mostrar apenas pendentes
           </label>
+          <button
+            className="btn"
+            disabled={!db || gerandoSugestoesIA}
+            onClick={gerarSugestoesIA}
+            title="Chama a IA para sugerir uma classificação para transações pendentes que ainda não têm sugestão — nunca classifica sozinha, cada sugestão precisa ser aceita ou rejeitada por um humano na coluna Categoria"
+          >
+            <Sparkles size={13} /> {gerandoSugestoesIA ? "Gerando sugestões…" : "Gerar sugestões de IA"}
+          </button>
           <button className="btn" onClick={exportarMapaConciliacao} title="Exporta todas as transações com Data, Descrição, Valor, Categoria, Imóvel e PF/Negócio">
             <Download size={13} /> Exportar mapa de conciliação (CSV)
           </button>
@@ -354,18 +487,31 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
           </>
         ) : (
           <>
-            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+            {/* minWidth: 0 no <label> (item flex) + maxWidth no <select>: sem os dois, a
+                descrição mais longa do plano de contas vira a largura intrínseca do
+                <select> fechado (o navegador dimensiona pelo texto da maior <option>), que
+                não encolhe sozinha e empurra rolagem horizontal na página em 390px — mesmo
+                bug de fundo do .grid-2 sem min-width:0, aqui num <select> num flex row. */}
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, minWidth: 0 }}>
               Categoria:
-              <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+              <select
+                value={filtroCategoria}
+                onChange={(e) => setFiltroCategoria(e.target.value)}
+                style={{ maxWidth: 180 }}
+              >
                 <option value="">— todas —</option>
                 {planoContas.map((p) => (
                   <option key={p.codigo} value={p.codigo}>{p.codigo} · {p.descricao}</option>
                 ))}
               </select>
             </label>
-            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, minWidth: 0 }}>
               Imóvel:
-              <select value={filtroImovel} onChange={(e) => setFiltroImovel(e.target.value ? Number(e.target.value) : "")}>
+              <select
+                value={filtroImovel}
+                onChange={(e) => setFiltroImovel(e.target.value ? Number(e.target.value) : "")}
+                style={{ maxWidth: 160 }}
+              >
                 <option value="">— todos —</option>
                 {imoveis.map((i) => (
                   <option key={i.id} value={i.id}>{i.apelido}</option>
@@ -437,6 +583,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
               <th>Imóvel</th>
               <th>PF × Negócio</th>
               <th>Origem</th>
+              <th>Procedência</th>
               <th></th>
             </tr>
           </thead>
@@ -460,6 +607,63 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                           </option>
                         ))}
                       </select>
+                      {!t.plano_conta_codigo &&
+                        (() => {
+                          const sugestao = sugestoesIA.get(t.id);
+                          if (!sugestao) return null;
+                          const contaSugerida = sugestao.plano_conta_codigo_sugerido
+                            ? planoContasPorCodigo.get(sugestao.plano_conta_codigo_sugerido)
+                            : undefined;
+                          return (
+                            <div
+                              style={{
+                                marginTop: 5,
+                                padding: "6px 8px",
+                                border: "1px solid var(--border)",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4,
+                                maxWidth: 260,
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                <Sparkles size={12} style={{ flexShrink: 0, color: "var(--ink-soft)" }} />
+                                <strong>Sugestão de IA</strong>
+                                <span className={`pill ${sugestao.confianca === "alta" ? "good" : sugestao.confianca === "media" ? "warning" : "critical"}`}>
+                                  {sugestao.confianca}
+                                </span>
+                              </div>
+                              {sugestao.plano_conta_codigo_sugerido && (
+                                <div>
+                                  {sugestao.plano_conta_codigo_sugerido}
+                                  {contaSugerida ? ` · ${contaSugerida.descricao}` : ""}
+                                </div>
+                              )}
+                              <div style={{ color: "var(--ink-soft)" }}>{sugestao.explicacao}</div>
+                              {sugestao.pergunta_para_decisao && (
+                                <div style={{ color: "var(--viz-despesa)" }}>
+                                  <strong>Pergunta:</strong> {sugestao.pergunta_para_decisao}
+                                </div>
+                              )}
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button
+                                  className="btn primary"
+                                  style={{ padding: "3px 8px", fontSize: 11.5 }}
+                                  disabled={!sugestao.plano_conta_codigo_sugerido}
+                                  title={sugestao.plano_conta_codigo_sugerido ? "Aplicar esta classificação" : "A IA não chegou a um código sugerido — responda a pergunta e classifique manualmente"}
+                                  onClick={() => aceitarSugestaoIA(sugestao.id)}
+                                >
+                                  Aceitar
+                                </button>
+                                <button className="btn" style={{ padding: "3px 8px", fontSize: 11.5 }} onClick={() => rejeitarSugestaoIA(sugestao.id)}>
+                                  Rejeitar
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
                     </td>
                     <td>
                       {rateios.length > 0 ? (
@@ -497,7 +701,32 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                         return <span className={`pill ${classe}`.trim()}>{classificacao}</span>;
                       })()}
                     </td>
-                    <td>{t.categorizado_por ? <span className="pill good">{t.categorizado_por}</span> : <span className="pill warning">pendente</span>}</td>
+                    <td>
+                      {t.categorizado_por ? (
+                        <span className="pill good" title={ROTULO_CATEGORIZADO_POR[t.categorizado_por] ?? undefined}>
+                          {t.categorizado_por}
+                        </span>
+                      ) : (
+                        <span className="pill warning">pendente</span>
+                      )}
+                    </td>
+                    <td>
+                      {(() => {
+                        const prova = provas.get(t.id);
+                        return (
+                          <button
+                            type="button"
+                            className={`pill ${prova ? "good" : "critical"}`}
+                            style={{ cursor: "pointer", border: "none", font: "inherit", display: "inline-flex", gap: 4, alignItems: "center" }}
+                            title={prova ? "Clique para ver de onde este valor veio e quem aprovou" : "Sem documento-fonte com hash registrado — clique para ver o motivo"}
+                            onClick={() => setProvenanciaAbertaId((atual) => (atual === t.id ? null : t.id))}
+                          >
+                            {prova ? <FileSearch size={12} /> : <ShieldOff size={12} />}
+                            {prova ? "com prova" : "sem prova"}
+                          </button>
+                        );
+                      })()}
+                    </td>
                     <td style={{ display: "flex", gap: 4 }}>
                       {t.plano_conta_codigo && (
                         <button className="btn" title="Salvar como regra" style={{ padding: "4px 7px" }} onClick={() => abrirSalvarRegra(t)}>
@@ -515,9 +744,68 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                       </button>
                     </td>
                   </tr>
+                  {provenanciaAbertaId === t.id && (() => {
+                    const prova = provas.get(t.id);
+                    return (
+                      <tr>
+                        <td colSpan={9} style={{ background: "var(--surface-2)" }}>
+                          <div style={{ padding: "10px 4px", fontSize: 13 }}>
+                            {prova ? (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                <div>
+                                  <strong>Arquivo de origem:</strong> {prova.arquivo_nome} · linha {prova.linha_numero} do arquivo
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  <Fingerprint size={13} style={{ flexShrink: 0, color: "var(--ink-soft)" }} />
+                                  <span>SHA-256 do arquivo:</span>
+                                  <code style={{ fontSize: 11.5, wordBreak: "break-all" }}>{prova.arquivo_hash_sha256}</code>
+                                  <button className="btn" style={{ padding: "2px 7px", fontSize: 11.5 }} onClick={() => copiarHashProva(prova.arquivo_hash_sha256)}>
+                                    {hashCopiado === prova.arquivo_hash_sha256 ? <><Check size={11} /> copiado</> : <><Copy size={11} /> copiar</>}
+                                  </button>
+                                </div>
+                                <div style={{ color: "var(--ink-soft)" }}>
+                                  Arquivo importado em {formatarDataHora(prova.importado_em)}
+                                </div>
+                                <div>
+                                  <strong>Aprovado por:</strong>{" "}
+                                  {prova.decidido_por ?? "—"} em {formatarDataHora(prova.decidido_em)}
+                                </div>
+                                {t.plano_conta_codigo && (
+                                  <div style={{ color: "var(--ink-soft)" }}>
+                                    <strong>Classificação:</strong> {t.plano_conta_codigo} · {planoContasPorCodigo.get(t.plano_conta_codigo)?.descricao ?? ""}
+                                    {t.categorizado_por && ` — ${ROTULO_CATEGORIZADO_POR[t.categorizado_por] ?? t.categorizado_por}`}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                <ShieldOff size={15} style={{ flexShrink: 0, marginTop: 2, color: "var(--viz-despesa)" }} />
+                                <p style={{ margin: 0 }}>
+                                  {t.documento_fonte ? (
+                                    <>
+                                      Nome de arquivo registrado no lançamento: <strong>{t.documento_fonte}</strong> — mas sem hash de
+                                      conteúdo nem número de linha: foi importado antes de o cofre de evidências existir, ou
+                                      associado por casamento de documento (que grava só o nome do arquivo). Nome sozinho não prova
+                                      nada — dois arquivos podem ter o mesmo nome, e um arquivo pode ser alterado sem trocar de nome.
+                                    </>
+                                  ) : (
+                                    <>
+                                      Sem documento-fonte registrado para este lançamento. É um lançamento manual, um dado de
+                                      demonstração gerado por código, ou foi importado antes de qualquer registro de origem existir
+                                      — não há arquivo para provar este valor.
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })()}
                   {regraAbertaId === t.id && (
                     <tr>
-                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={9} style={{ background: "var(--surface-2)" }}>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 4px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13 }}>Padrão (regex):</span>
                           <input value={padraoRegra} onChange={(e) => setPadraoRegra(e.target.value)} style={{ flex: 1, minWidth: 160, padding: "5px 8px" }} />
@@ -542,7 +830,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                   )}
                   {rateioAbertoId === t.id && (
                     <tr>
-                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={9} style={{ background: "var(--surface-2)" }}>
                         <div style={{ padding: "10px 4px" }}>
                           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
                             {imoveis.map((i) => (
@@ -600,7 +888,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
                   )}
                   {divisaoAbertaId === t.id && (
                     <tr>
-                      <td colSpan={8} style={{ background: "var(--surface-2)" }}>
+                      <td colSpan={9} style={{ background: "var(--surface-2)" }}>
                         <div style={{ padding: "10px 4px" }}>
                           <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: "0 0 10px" }}>
                             Divide este lançamento (valor total {t.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em partes com
@@ -665,7 +953,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
             })}
             {transacoes.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
+                <td colSpan={9} style={{ textAlign: "center", color: "var(--ink-soft)", padding: 24 }}>
                   Nenhuma transação encontrada. Importe documentos ou carregue os dados de demonstração.
                 </td>
               </tr>

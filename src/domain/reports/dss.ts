@@ -37,16 +37,42 @@ export function gerarDss(db: Database, contratoId: number, dataInicio: string, d
     [contrato.percentual_aluguel_efetivo, contratoId, dataInicio, dataFim],
   );
 
+  // ACHADO (gravidade ALTA, corrigido): esta consulta somava só as transações lançadas
+  // DIRETO no imóvel (t.imovel_id = ?), ignorando por completo a tabela `rateios` — mas as
+  // 3 categorias de CATEGORIAS_CUSTEIO_COLETIVO (condomínio, manutenção, prestadores) são
+  // exatamente o tipo de despesa de prédio que costuma ser ratead*a* entre várias unidades
+  // (ver `rateios`/motorRateio.ts, e o mesmo padrão já tratado em dre.ts::gerarDre e
+  // irpfCarneLeao.ts::calcularCarneLeaoPorImovel). Uma transação rateada não aparece com
+  // `t.imovel_id` igual ao deste imóvel — sua fatia mora numa linha em `rateios` com
+  // `imovel_id` próprio — então todo condomínio/manutenção coletiva rateada entre kitnets do
+  // mesmo prédio ficava de fora do `totalDespendido`, subestimando o gasto real e inflando
+  // artificialmente o saldo do DSS para "superávit" (o relatório que o contrato obriga
+  // enviar ao locatário reportaria menos gasto do que o de fato incorrido). Corrigido unindo
+  // as transações diretas com a fatia rateada deste imóvel, mesmo padrão de gerarDre.
   const linhasDespesa = consultar<{ codigo: string; descricao: string; total: number }>(
     db,
-    `SELECT p.codigo AS codigo, p.descricao AS descricao, SUM(ABS(t.valor)) AS total
-     FROM transacoes t
-     JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
-     WHERE t.imovel_id = ? AND t.plano_conta_codigo IN (${CATEGORIAS_CUSTEIO_COLETIVO.map(() => "?").join(",")})
-       AND t.data BETWEEN ? AND ?
-     GROUP BY p.codigo, p.descricao
-     ORDER BY p.codigo`,
-    [contrato.imovel_id, ...CATEGORIAS_CUSTEIO_COLETIVO, dataInicio, dataFim],
+    `SELECT codigo, descricao, SUM(total) AS total FROM (
+       SELECT p.codigo AS codigo, p.descricao AS descricao, ABS(t.valor) AS total
+       FROM transacoes t
+       JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+       WHERE t.imovel_id = ? AND t.plano_conta_codigo IN (${CATEGORIAS_CUSTEIO_COLETIVO.map(() => "?").join(",")})
+         AND t.data BETWEEN ? AND ?
+
+       UNION ALL
+
+       SELECT p.codigo AS codigo, p.descricao AS descricao, ABS(r.valor_rateado) AS total
+       FROM rateios r
+       JOIN transacoes t ON t.id = r.transacao_id
+       JOIN plano_de_contas p ON p.codigo = t.plano_conta_codigo
+       WHERE r.imovel_id = ? AND t.plano_conta_codigo IN (${CATEGORIAS_CUSTEIO_COLETIVO.map(() => "?").join(",")})
+         AND t.data BETWEEN ? AND ?
+     )
+     GROUP BY codigo, descricao
+     ORDER BY codigo`,
+    [
+      contrato.imovel_id, ...CATEGORIAS_CUSTEIO_COLETIVO, dataInicio, dataFim,
+      contrato.imovel_id, ...CATEGORIAS_CUSTEIO_COLETIVO, dataInicio, dataFim,
+    ],
   );
 
   const totalDespendido = linhasDespesa.reduce((acc, l) => acc + l.total, 0);

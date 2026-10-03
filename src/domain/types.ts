@@ -293,6 +293,37 @@ export interface Vistoria {
   atualizado_em: string;
 }
 
+/** Inquilino cadastrado num imóvel — histórico (várias linhas por imovel_id ao longo do
+ * tempo); "atual" é quem tem `contrato_id` ligado a um contrato ainda vigente (ver
+ * comentário em schema.sql). */
+export interface Inquilino {
+  id: number;
+  imovel_id: number;
+  nome: string;
+  cpf_cnpj?: string;
+  telefone?: string;
+  email?: string;
+  contrato_id?: number;
+  observacoes?: string;
+  criado_em: string;
+}
+
+export type StatusManutencao = "agendada" | "em_andamento" | "concluida" | "cancelada";
+
+export interface Manutencao {
+  id: number;
+  imovel_id: number;
+  tipo: string;
+  descricao: string;
+  data_agendada: string;
+  data_conclusao?: string;
+  custo?: number;
+  status: StatusManutencao;
+  prestador_id?: number;
+  observacoes?: string;
+  criado_em: string;
+}
+
 export interface VistoriaItem {
   id: number;
   vistoria_id: number;
@@ -331,6 +362,15 @@ export type TipoMovimentacaoFinanceira = "vale" | "emprestimo" | "adiantamento";
 export type StatusMovimentacao = "pendente" | "aprovado" | "descontado" | "rejeitado";
 export type StatusFechamento = "aberto" | "fechado" | "aprovado" | "pago";
 export type StatusEmprestimo = "ativo" | "pago" | "cancelado";
+
+// Faltava exportado — PortalPrestador.tsx importava este tipo daqui, mas só existia
+// (duplicado, local) em PrestadoresForm.tsx. Espelha a tabela `prestadores` do schema.sql.
+export interface Prestador {
+  id: number;
+  nome: string;
+  cpf_cnpj?: string;
+  servico: string;
+}
 
 export interface ApontamentoDiario {
   id: number;

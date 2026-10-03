@@ -4,6 +4,9 @@ import { useDb } from "../../db/useDb";
 import { consultar, executar } from "../../db/connection";
 import { registrarLog, resumirDiferenca } from "../../domain/auditoria/logAlteracoes";
 import type { Imovel } from "../../domain/types";
+import { useToast } from "../../ui/useToast";
+import { RateioDestinoDivida } from "./RateioDestinoDivida";
+import { HistoricoPagamentosDivida } from "./HistoricoPagamentosDivida";
 
 type Sistema = "SAC" | "PRICE" | "OUTRO";
 
@@ -46,6 +49,7 @@ function formVazio(imovelPadrao: number | null): Formulario {
 
 export function FinanciamentosForm() {
   const { db, versao, persistir } = useDb();
+  const { avisar } = useToast();
   const [form, setForm] = useState<Formulario | null>(null);
 
   const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis WHERE financiado = 1 ORDER BY apelido") : []), [db, versao]);
@@ -73,34 +77,48 @@ export function FinanciamentosForm() {
     const dataReferenciaSaldoManual = form.data_referencia_saldo_manual || null;
 
     const dadosAnteriores = form.id !== null ? (consultar<Financiamento>(db, "SELECT * FROM financiamentos WHERE id = ?", [form.id])[0] as unknown as Record<string, unknown>) ?? null : null;
+    const criandoNovo = form.id === null;
 
-    if (form.id === null) {
-      executar(
-        db,
-        `INSERT INTO financiamentos
-           (imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total,
-            saldo_devedor_manual, parcela_mensal_manual, data_referencia_saldo_manual, observacoes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [form.imovel_id, form.instituicao.trim(), form.sistema, valorContratado, taxaJuros, form.data_contrato, parcelas,
-          saldoDevedorManual, parcelaMensalManual, dataReferenciaSaldoManual, form.observacoes.trim() || null],
-      );
-    } else {
-      executar(
-        db,
-        `UPDATE financiamentos SET imovel_id = ?, instituicao = ?, sistema = ?, valor_contratado = ?, taxa_juros_mensal = ?,
-           data_contrato = ?, parcelas_total = ?, saldo_devedor_manual = ?, parcela_mensal_manual = ?,
-           data_referencia_saldo_manual = ?, observacoes = ? WHERE id = ?`,
-        [form.imovel_id, form.instituicao.trim(), form.sistema, valorContratado, taxaJuros, form.data_contrato, parcelas,
-          saldoDevedorManual, parcelaMensalManual, dataReferenciaSaldoManual, form.observacoes.trim() || null, form.id],
-      );
+    try {
+      if (criandoNovo) {
+        executar(
+          db,
+          `INSERT INTO financiamentos
+             (imovel_id, instituicao, sistema, valor_contratado, taxa_juros_mensal, data_contrato, parcelas_total,
+              saldo_devedor_manual, parcela_mensal_manual, data_referencia_saldo_manual, observacoes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [form.imovel_id, form.instituicao.trim(), form.sistema, valorContratado, taxaJuros, form.data_contrato, parcelas,
+            saldoDevedorManual, parcelaMensalManual, dataReferenciaSaldoManual, form.observacoes.trim() || null],
+        );
+      } else {
+        executar(
+          db,
+          `UPDATE financiamentos SET imovel_id = ?, instituicao = ?, sistema = ?, valor_contratado = ?, taxa_juros_mensal = ?,
+             data_contrato = ?, parcelas_total = ?, saldo_devedor_manual = ?, parcela_mensal_manual = ?,
+             data_referencia_saldo_manual = ?, observacoes = ? WHERE id = ?`,
+          [form.imovel_id, form.instituicao.trim(), form.sistema, valorContratado, taxaJuros, form.data_contrato, parcelas,
+            saldoDevedorManual, parcelaMensalManual, dataReferenciaSaldoManual, form.observacoes.trim() || null, form.id],
+        );
+      }
+
+      const idRegistro = form.id ?? consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id")[0].id;
+      const dadosNovos = consultar<Financiamento>(db, "SELECT * FROM financiamentos WHERE id = ?", [idRegistro])[0] as unknown as Record<string, unknown>;
+      registrarLog(db, "financiamentos", idRegistro, criandoNovo ? "criacao" : "edicao", resumirDiferenca(dadosAnteriores, dadosNovos), dadosAnteriores, dadosNovos);
+
+      await persistir();
+      if (criandoNovo) {
+        // Mantém o form aberto, agora em modo edição — só depois de salvo o financiamento tem
+        // um id para as linhas de rateio de destino se referirem (divida_rateio_destinos.divida_id).
+        setForm({ ...form, id: idRegistro });
+        avisar("good", "Financiamento cadastrado. Agora você pode classificar o rateio de destino abaixo.");
+        return;
+      }
+    } catch (erro) {
+      avisar("critical", erro instanceof Error ? erro.message : String(erro));
+      return;
     }
-
-    const idRegistro = form.id ?? consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id")[0].id;
-    const dadosNovos = consultar<Financiamento>(db, "SELECT * FROM financiamentos WHERE id = ?", [idRegistro])[0] as unknown as Record<string, unknown>;
-    registrarLog(db, "financiamentos", idRegistro, form.id === null ? "criacao" : "edicao", resumirDiferenca(dadosAnteriores, dadosNovos), dadosAnteriores, dadosNovos);
-
-    await persistir();
     setForm(null);
+    avisar("good", "Financiamento atualizado.");
   }
 
   return (
@@ -181,9 +199,21 @@ export function FinanciamentosForm() {
             </>
           )}
 
+          {form.id !== null && <RateioDestinoDivida dividaTipo="financiamento" dividaId={form.id} />}
+          {/* Só faz sentido pedir upload/extração de pagamentos para sistema='OUTRO': SAC e
+              Price já têm cronograma exato calculado (financiamento/amortizacao.ts) — não
+              precisam (e não deveriam) de um histórico de pagamentos lido de contrato por IA. */}
+          {form.id !== null && form.sistema === "OUTRO" && <HistoricoPagamentosDivida dividaTipo="financiamento" dividaId={form.id} />}
+          {form.id === null && (
+            <p style={{ fontSize: 11.5, color: "var(--ink-soft)", margin: "0 0 12px" }}>
+              Salve o financiamento primeiro para poder classificar o rateio de destino (PF / empresa / advocacia)
+              {" "}e, se o sistema for "Outro", registrar o histórico de pagamentos.
+            </p>
+          )}
+
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn primary" disabled={form.imovel_id === null || form.instituicao.trim() === "" || form.data_contrato === ""} onClick={salvar}>Salvar</button>
-            <button className="btn" onClick={() => setForm(null)}>Cancelar</button>
+            <button className="btn" onClick={() => setForm(null)}>{form.id !== null ? "Fechar" : "Cancelar"}</button>
           </div>
         </div>
       )}

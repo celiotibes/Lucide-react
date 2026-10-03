@@ -77,6 +77,10 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  /* Sem o wrap a fileira de botões de backup passa de 500px e empurra rolagem
+     horizontal na página inteira no celular — o .app-header já quebra linha, mas a
+     quebra precisa valer também dentro do grupo. */
+  flex-wrap: wrap;
 }
 .btn {
   display: inline-flex;
@@ -228,15 +232,15 @@
 }
 .pill.good {
   background: color-mix(in srgb, var(--viz-good) 16%, transparent);
-  color: var(--viz-good);
+  color: var(--pill-good-ink);
 }
 .pill.warning {
   background: color-mix(in srgb, var(--viz-warning) 22%, transparent);
-  color: #8a5a00;
+  color: var(--pill-warning-ink);
 }
 .pill.critical {
   background: color-mix(in srgb, var(--viz-critical) 16%, transparent);
-  color: var(--viz-critical);
+  color: var(--pill-critical-ink);
   /* Único uso de "glow" no sistema, e propositalmente sutil (baixa opacidade, sem neon) —
      é o mesmo princípio do research (gradiente/brilho pra guiar atenção a prazo/alerta
      urgente), aplicado só onde já significa "crítico" de verdade, nunca decorativo. */
@@ -265,6 +269,12 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+}
+/* Item de grid nasce com min-width:auto e por isso se recusa a encolher abaixo do
+   min-width:640px da .data-table: o cartão estoura a viewport e a página inteira passa
+   a rolar na horizontal, em vez de rolar só a tabela dentro do .table-wrap. */
+.grid-2 > * {
+  min-width: 0;
 }
 @media (max-width: 760px) {
   .grid-2 {
@@ -361,4 +371,182 @@
   font-size: 12.5px;
   color: var(--viz-text-primary);
   box-shadow: var(--shadow);
+}
+
+/* ── Bento grid ─────────────────────────────────────────────────────────────
+   Grade de 6 colunas pra montar painéis em blocos de larguras diferentes, no
+   lugar de empilhar .grid-2 aninhado. O filho declara quantas colunas ocupa em
+   data-span (1–6); sem data-span ocupa 2, que é o tamanho de um cartão de KPI.
+   Abaixo de 900px vira 2 colunas (blocos de span >= 3 tomam a linha toda) e
+   abaixo de 560px, uma só — nenhum bloco fica estreito demais pra um número. */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.bento-grid > * {
+  grid-column: span 2;
+  min-width: 0; /* sem isto, tabela/gráfico largo estica a coluna e quebra a grade */
+}
+.bento-grid > [data-span="1"] {
+  grid-column: span 1;
+}
+.bento-grid > [data-span="3"] {
+  grid-column: span 3;
+}
+.bento-grid > [data-span="4"] {
+  grid-column: span 4;
+}
+.bento-grid > [data-span="6"] {
+  grid-column: span 6;
+}
+@media (max-width: 900px) {
+  .bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .bento-grid > *,
+  .bento-grid > [data-span="1"] {
+    grid-column: span 1;
+  }
+  .bento-grid > [data-span="3"],
+  .bento-grid > [data-span="4"],
+  .bento-grid > [data-span="6"] {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 560px) {
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+  .bento-grid > *,
+  .bento-grid > [data-span="1"],
+  .bento-grid > [data-span="3"],
+  .bento-grid > [data-span="4"],
+  .bento-grid > [data-span="6"] {
+    grid-column: span 1;
+  }
+}
+
+/* ── Densidade das tabelas ──────────────────────────────────────────────────
+   Quem passa o dia conferindo lançamento quer mais linhas na tela; quem está
+   revisando um caso quer respiro. O modo é escolha do usuário (data-density no
+   <html>), não do componente, então vale pra toda .data-table de uma vez. */
+:root[data-density="compact"] .data-table {
+  font-size: 12.5px;
+}
+:root[data-density="compact"] .data-table th,
+:root[data-density="compact"] .data-table td {
+  padding: 4px 10px;
+}
+:root[data-density="compact"] .kpi-tile {
+  padding: 11px 14px;
+}
+:root[data-density="compact"] .kpi-tile .value {
+  font-size: 20px;
+}
+
+/* Cabeçalho que gruda ao rolar tabela longa (extrato, razão, competências):
+   sem isto o usuário perde de vista qual coluna é qual na linha 200. */
+.table-wrap[data-sticky-head="true"] {
+  max-height: 68svh;
+  overflow-y: auto;
+}
+.table-wrap[data-sticky-head="true"] .data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* --surface-2 do thead é translúcido em nenhum tema, mas a borda inferior some ao
+     rolar porque border não acompanha sticky — o box-shadow redesenha a linha. */
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+/* ── Toasts ────────────────────────────────────────────────────────────────
+   Retorno de ação que não bloqueia a tela (salvou, importou, falhou). Vive em
+   aria-live="polite" pra leitor de tela anunciar sem roubar o foco de quem
+   está digitando. */
+.toast-region {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(380px, calc(100vw - 40px));
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink-soft);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  color: var(--ink);
+  box-shadow: var(--shadow-hover);
+  pointer-events: auto;
+  animation: entrar-toast 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.toast.good {
+  border-left-color: var(--viz-good);
+}
+.toast.critical {
+  border-left-color: var(--viz-critical);
+}
+.toast.warning {
+  border-left-color: var(--viz-warning);
+}
+.toast .toast-icone {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.toast.good .toast-icone {
+  color: var(--viz-good);
+}
+.toast.critical .toast-icone {
+  color: var(--viz-critical);
+}
+.toast.warning .toast-icone {
+  color: var(--viz-warning);
+}
+.toast .toast-corpo {
+  flex: 1;
+  min-width: 0;
+}
+.toast .toast-fechar {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color var(--ease);
+}
+.toast .toast-fechar:hover {
+  color: var(--ink);
+}
+@keyframes entrar-toast {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+/* Botões só-ícone do cabeçalho (tema, densidade): mesma altura dos .btn vizinhos. */
+.btn.icon-only {
+  padding: 8px;
 }

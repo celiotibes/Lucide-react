@@ -1,6 +1,7 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import { detectarDuplicatas, detectarLacunasMensais, detectarCaucoesSemTransacao, detectarTransacoesCaucaoSemRegistro, detectarFinanciamentosSemLancamento, detectarRateiosComBaseIncompleta } from "./auditoriaForense";
+import { obterDividasComRateioIncompleto } from "../dividas/rateioDividas";
 import { gerarCompetencias, conciliar } from "../reconcile/contratos";
 import { calcularInadimplencia } from "../reconcile/inadimplencia";
 import { calcularPatrimonioLiquido } from "../patrimonio/balancoPatrimonial";
@@ -177,6 +178,19 @@ export function gerarPainelPendencias(db: Database, hoje: string): ItemPendencia
       descricao: `Consórcio ou outro financiamento sem cronograma teórico precisa de parcela mensal manual para entrar no comprometimento de renda: ${financiamentosOutroSemParcela.map((f) => `${f.apelido} · ${f.instituicao}`).join(", ")}.`,
       severidade: "critica",
       aba: "financiamentos",
+    });
+  }
+
+  const dividasComRateioIncompleto = obterDividasComRateioIncompleto(db);
+  if (dividasComRateioIncompleto.length > 0) {
+    itens.push({
+      id: "dividas-rateio-destino-incompleto",
+      titulo: `${dividasComRateioIncompleto.length} dívida(s)/financiamento(s) sem rateio de destino completo`,
+      descricao: `Ainda falta classificar quanto é pessoal, empresa de fato (imóveis de locação/Airbnb) ou advocacia: ${dividasComRateioIncompleto
+        .map((d) => `${d.descricao} (${d.percentualClassificado}% classificado)`)
+        .join(", ")}.`,
+      severidade: "atencao",
+      aba: "cadastros",
     });
   }
 

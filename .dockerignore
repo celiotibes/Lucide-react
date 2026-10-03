@@ -1,0 +1,91 @@
+# Version Control
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log
+npm-error.log
+yarn-error.log
+.npm
+.eslintcache
+
+# Development
+.env
+.env.local
+.env.*.local
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+.cache
+.vite
+
+# Testing
+.nyc_output
+coverage
+.vitest
+__tests__
+*.test.ts
+*.spec.ts
+.playwright
+
+# Build outputs
+dist
+build
+out
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Documentation
+docs
+*.md
+CHANGELOG.md
+README.md
+
+# Runtime/Logs
+logs
+*.log
+pm2.log
+pm2.conf.js
+
+# Database
+*.sqlite
+*.db
+data/
+
+# Backup
+backups/
+*.backup
+*.bak
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker related
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# PM2 specific
+ecosystem.config.js
+PM2-*.md
+PM2-*
+
+# Kubernetes
+k8s/
+*.yaml
+*.yml
+
+# Other
+.editorconfig
+tsconfig.json
+vite.config.ts
+vitest.config.ts

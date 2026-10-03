@@ -3,7 +3,7 @@ import {
   FechamentoSemanal,
   FiltrosFechamentos,
   StatusFechamento,
-} from "@/domain/apontamentos";
+} from "../../../domain/apontamentos";
 import {
   Table,
   TableBody,
@@ -11,20 +11,20 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
+  Button,
+  Badge,
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "../ui";
 import { Check, CreditCard, Eye, RefreshCw, RotateCcw } from "lucide-react";
 import ModalVisualizacaoFechamento from "../modals/ModalVisualizacaoFechamento";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
+import { useDb } from "../../../db/useDb";
+import { aprovarFechamento, gerarPagamentoFechamento } from "../data/painelConferenciaRepo";
 
 interface FechamentosSemamanaisProps {
   fechamentos: FechamentoSemanal[];
@@ -43,6 +43,7 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
   onRefresh,
   usuarioId,
 }) => {
+  const { db, persistir } = useDb();
   const [modalVisualizacao, setModalVisualizacao] = useState<{
     aberta: boolean;
     fechamento?: FechamentoSemanal;
@@ -61,26 +62,15 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
   const handleAprovar = async (id: string) => {
     setAprovando(id);
     try {
-      const response = await fetch(`/api/fechamentos-semanais/${id}/aprovar`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          motivo: "Aprovado pelo gestor",
-        }),
-      });
-
-      if (response.ok) {
-        onRefresh();
-      } else {
-        alert("Erro ao aprovar fechamento");
-      }
+      // Antes: PUT /api/fechamentos-semanais/:id/aprovar — rota inexistente (o banco
+      // contábil vive no navegador, o servidor em server/ só tem Pluggy e health).
+      if (!db) throw new Error("Banco de dados indisponível");
+      aprovarFechamento(db, id);
+      await persistir();
+      onRefresh();
     } catch (error) {
       console.error("Erro ao aprovar:", error);
-      alert("Erro ao aprovar fechamento");
+      alert(error instanceof Error ? error.message : "Erro ao aprovar fechamento");
     } finally {
       setAprovando(null);
     }
@@ -89,27 +79,14 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
   const handleGerarPagamento = async (id: string) => {
     setGerando(id);
     try {
-      const response = await fetch(`/api/fechamentos-semanais/${id}/gerar-pagamento`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          metodo_pagamento: "transferencia_bancaria",
-        }),
-      });
-
-      if (response.ok) {
-        alert("Pagamento gerado com sucesso!");
-        onRefresh();
-      } else {
-        alert("Erro ao gerar pagamento");
-      }
+      if (!db) throw new Error("Banco de dados indisponível");
+      gerarPagamentoFechamento(db, id);
+      await persistir();
+      alert("Pagamento gerado com sucesso!");
+      onRefresh();
     } catch (error) {
       console.error("Erro ao gerar pagamento:", error);
-      alert("Erro ao gerar pagamento");
+      alert(error instanceof Error ? error.message : "Erro ao gerar pagamento");
     } finally {
       setGerando(null);
     }

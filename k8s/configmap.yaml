@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lucide-config
+  namespace: default
+  labels:
+    app: lucide-app
+    version: v1
+data:
+  # ===================================
+  # Core Configuration
+  # ===================================
+
+  # Environment: development | production | test
+  NODE_ENV: "production"
+
+  # Server port (internal to pod)
+  PORT: "8787"
+
+  # Database URL
+  # For SQLite: file:./data/lucide.sqlite
+  # For PostgreSQL: postgresql://user:password@postgres-service:5432/lucide
+  DATABASE_URL: "file:./data/lucide.sqlite"
+
+  # CORS allowed origin — adjust for your domain
+  ALLOWED_ORIGIN: "https://yourdomain.com"
+
+  # ===================================
+  # Logging Configuration
+  # ===================================
+
+  LOG_LEVEL: "info"
+  LOG_REQUESTS: "true"
+
+  # ===================================
+  # Integrations Configuration
+  # ===================================
+
+  # Asaas sandbox mode (use false in production)
+  ASAAS_SANDBOX: "false"
+
+  # Sentry environment
+  SENTRY_ENVIRONMENT: "production"
+
+  # ===================================
+  # Cache Configuration (in milliseconds)
+  # ===================================
+
+  # DRE (Income Statement) cache TTL — 1 hour = 3600000ms
+  CACHE_TTL_DRE: "3600000"
+
+  # Cash Flow cache TTL — 2 hours = 7200000ms
+  CACHE_TTL_FLUXO: "7200000"
+
+  # Margins cache TTL — 2 hours = 7200000ms
+  CACHE_TTL_MARGENS: "7200000"
+
+  # Reconciliation cache TTL — 30 minutes = 1800000ms
+  CACHE_TTL_RECONCILIACAO: "1800000"
+
+  # ===================================
+  # Alerts Configuration
+  # ===================================
+
+  # Email alerts: resend | sendgrid | none
+  ALERTS_EMAIL_PROVIDER: "resend"
+
+  # Alerts sender email
+  ALERTS_EMAIL_FROM: "alerts@yourdomain.com"
+
+  # Admin email(s) for alerts — comma-separated
+  ALERTS_EMAIL_TO_ADMIN: "admin@yourdomain.com,ops@yourdomain.com"
+
+  # ===================================
+  # Application Configuration
+  # ===================================
+
+  # Debug mode (development only)
+  DEBUG_CORS: "false"
+  DEBUG_SQL: "false"
+
+  # ===================================
+  # Multi-environment overrides
+  # ===================================
+  # These values can be overridden per environment by creating
+  # multiple ConfigMaps (e.g., lucide-config-staging, lucide-config-prod)
+  # and patching the deployment to reference the appropriate one
+
+---
+# ============================================================================
+# Staging Configuration (optional)
+# ============================================================================
+# Uncomment and adjust for staging environment
+#
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: lucide-config-staging
+#   namespace: default
+#   labels:
+#     app: lucide-app
+#     environment: staging
+# data:
+#   NODE_ENV: "production"
+#   PORT: "8787"
+#   DATABASE_URL: "postgresql://staging_user:password@postgres-staging:5432/lucide_staging"
+#   ALLOWED_ORIGIN: "https://staging.yourdomain.com"
+#   LOG_LEVEL: "debug"
+#   ASAAS_SANDBOX: "true"
+#   SENTRY_ENVIRONMENT: "staging"
+#   ALERTS_EMAIL_PROVIDER: "resend"
+#   ALERTS_EMAIL_FROM: "alerts-staging@yourdomain.com"
+#   ALERTS_EMAIL_TO_ADMIN: "dev-team@yourdomain.com"
+
+---
+# ============================================================================
+# Database ConfigMap (optional, for database migrations/initialization)
+# ============================================================================
+# Uncomment if you want to store database initialization scripts
+#
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: lucide-db-init
+#   namespace: default
+# data:
+#   init-migrations.sh: |
+#     #!/bin/sh
+#     set -e
+#     echo "Running database migrations..."
+#     # Add migration commands here
+#     echo "Migrations complete"

@@ -22,3 +22,17 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.db
+
+# Arquivos de runtime do SQLite. O `*.db` acima não os alcança porque a extensão
+# real é `.db-shm` / `.db-wal` — por isso os dois estavam versionados e apareciam
+# como alteração binária a cada vez que o servidor subia.
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Resíduo de testes de geração de PDF (laudo/RAD): jsPDF chama `.save()`, que no ambiente
+# Node dos testes grava um arquivo físico na raiz do repo em vez de só devolver bytes —
+# nunca é intencional, nunca deve ser versionado.
+/laudo-*.pdf
+/rad-*.pdf

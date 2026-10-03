@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lucide-app
+  namespace: default
+  labels:
+    app: lucide-app
+    version: v1
+  annotations:
+    # Service documentation
+    description: "Lucide React Accounting System API"
+spec:
+  # Service type
+  # - ClusterIP: Internal only (default, for use with Ingress)
+  # - NodePort: External access on all nodes
+  # - LoadBalancer: External load balancer (cloud providers)
+  type: ClusterIP
+
+  # Pod selector
+  selector:
+    app: lucide-app
+
+  # Session affinity (optional: ClientIP for sticky sessions)
+  # sessionAffinity: ClientIP
+  # sessionAffinityConfig:
+  #   clientIP:
+  #     timeoutSeconds: 10800
+
+  # Ports
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8787
+
+  # Optional: Publish not ready addresses (for debugging)
+  # publishNotReadyAddresses: true
+
+---
+# ============================================================================
+# Optional: LoadBalancer Service (for external access without Ingress)
+# ============================================================================
+# Uncomment below to expose service externally via LoadBalancer
+#
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: lucide-app-loadbalancer
+#   namespace: default
+#   labels:
+#     app: lucide-app
+#     version: v1
+# spec:
+#   type: LoadBalancer
+#   selector:
+#     app: lucide-app
+#   ports:
+#     - name: http
+#       protocol: TCP
+#       port: 80
+#       targetPort: 8787
+#   # Optional: Specify load balancer IP (if your cloud provider supports it)
+#   # loadBalancerIP: 203.0.113.0
+
+---
+# ============================================================================
+# Optional: NodePort Service (for direct node access)
+# ============================================================================
+# Uncomment below for NodePort access (useful for development/testing)
+#
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: lucide-app-nodeport
+#   namespace: default
+#   labels:
+#     app: lucide-app
+#     version: v1
+# spec:
+#   type: NodePort
+#   selector:
+#     app: lucide-app
+#   ports:
+#     - name: http
+#       protocol: TCP
+#       port: 8787
+#       targetPort: 8787
+#       # Optional: specify nodePort (30000-32767)
+#       nodePort: 30787

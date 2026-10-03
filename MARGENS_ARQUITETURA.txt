@@ -1,0 +1,278 @@
+╔═════════════════════════════════════════════════════════════════════════════╗
+║            SISTEMA DE ANÁLISE DE MARGENS POR PROPRIEDADE                    ║
+║                        Arquitetura e Fluxo de Dados                         ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              FRONTEND (React)                               │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │ MargensPropriedadesView.tsx                                         │    │
+│  │                                                                     │    │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │    │
+│  │  │ 1. Seletor de Período (YYYY-MM)                              │  │    │
+│  │  │    └─→ Carrega ranking para período                          │  │    │
+│  │  └──────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                     │    │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │    │
+│  │  │ 2. Cards de Status                                           │  │    │
+│  │  │    ├─→ 🟢 OK (> 70%)                                         │  │    │
+│  │  │    ├─→ 🟡 ATENÇÃO (50-70%)                                  │  │    │
+│  │  │    └─→ 🔴 CRÍTICO (< 50%)                                   │  │    │
+│  │  └──────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                     │    │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │    │
+│  │  │ 3. Tabela de Ranking (Top 5 + Bottom 5)                      │  │    │
+│  │  │    ├─→ Rank | Nome | Receita | Despesa | Margem % | Status  │  │    │
+│  │  │    └─→ Clique → Expande histórico                            │  │    │
+│  │  └──────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                     │    │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │    │
+│  │  │ 4. Histórico Expansível (onClick)                            │  │    │
+│  │  │    ├─→ Gráfico de tendência (12 meses)                       │  │    │
+│  │  │    ├─→ Última receita / despesa                              │  │    │
+│  │  │    └─→ Cards de detalhes                                      │  │    │
+│  │  └──────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                     │    │
+│  │  API Calls: GET /api/relatorios/margens                            │    │
+│  │             GET /api/relatorios/margens/ranking                    │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            BACKEND (Node.js)                               │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ ROTAS HTTP (relatorios-routes.ts)                                    │   │
+│  │                                                                       │   │
+│  │  1. GET /api/relatorios/margens?imovelId=X                           │   │
+│  │     ├─→ Valida imovelId, dataInicio, dataFim                         │   │
+│  │     └─→ Chama: obterMargensHistorico()                               │   │
+│  │                                                                       │   │
+│  │  2. GET /api/relatorios/margens/ranking?periodoMes=YYYY-MM           │   │
+│  │     ├─→ Valida período                                              │   │
+│  │     └─→ Chama: obterMargensRanking()                                 │   │
+│  │                                                                       │   │
+│  │  3. POST /api/relatorios/margens/calcular                            │   │
+│  │     ├─→ Valida ano, mes                                              │   │
+│  │     └─→ Chama: calcularEGravarMargensDoMes()                         │   │
+│  │                                                                       │   │
+│  │  4. GET /api/relatorios/margens/imovel/:id/ultimo                    │   │
+│  │     └─→ Query DB para última margem                                  │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                    ▼                                         │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ DOMÍNIO (margensPorPropriedade.ts)                                   │   │
+│  │                                                                       │   │
+│  │  ┌────────────────────────────────────────────────────────────────┐ │   │
+│  │  │ calcularMargensImovel(db, imovelId, ano, mes)                  │ │   │
+│  │  │                                                                 │ │   │
+│  │  │  1. Query: Aluguel recebido (RECEITA tipo)                     │ │   │
+│  │  │  2. Query: Despesas (IPTU, condomínio, manutenção)             │ │   │
+│  │  │  3. Fórmula: (Aluguel - Despesas) / Aluguel * 100              │ │   │
+│  │  │  4. Status: OK (>70%) | ATENÇÃO (50-70%) | CRÍTICO (<50%)      │ │   │
+│  │  │  5. Return: MargemImovel { receita, despesa, margem, status }  │ │   │
+│  │  └────────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                       │   │
+│  │  ┌────────────────────────────────────────────────────────────────┐ │   │
+│  │  │ gravarMargensImovel(db, ano, mes, margem)                      │ │   │
+│  │  │                                                                 │ │   │
+│  │  │  1. Validação: receita/despesa ≥ 0, margem 0-100               │ │   │
+│  │  │  2. INSERT OR UPDATE em margens_propriedades_periodo            │ │   │
+│  │  │  3. UPSERT: Atualiza se já existe (imovel_id, ano, mes)         │ │   │
+│  │  └────────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                       │   │
+│  │  ┌────────────────────────────────────────────────────────────────┐ │   │
+│  │  │ obterMargensHistorico(db, imovelId, dataInicio, dataFim)        │ │   │
+│  │  │                                                                 │ │   │
+│  │  │  1. Query: margens_propriedades_periodo (filtro: imovel, data)  │ │   │
+│  │  │  2. Return: Array de 12 últimos períodos                        │ │   │
+│  │  │  3. Para: Gráfico de tendência                                  │ │   │
+│  │  └────────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                       │   │
+│  │  ┌────────────────────────────────────────────────────────────────┐ │   │
+│  │  │ obterMargensRanking(db, ano, mes)                               │ │   │
+│  │  │                                                                 │ │   │
+│  │  │  1. Query TOP 5: ORDER BY margem DESC LIMIT 5                   │ │   │
+│  │  │  2. Query BOTTOM 5: ORDER BY margem ASC LIMIT 5                 │ │   │
+│  │  │  3. Return: { top5: [], bottom5: [] }                           │ │   │
+│  │  └────────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                       │   │
+│  │  ┌────────────────────────────────────────────────────────────────┐ │   │
+│  │  │ calcularEGravarMargensDoMes(db, ano, mes)                       │ │   │
+│  │  │                                                                 │ │   │
+│  │  │  1. Loop: Todos os imóveis (status = ATIVO)                     │ │   │
+│  │  │  2. Para cada: calcularMargensImovel()                          │ │   │
+│  │  │  3. Depois: gravarMargensImovel()                               │ │   │
+│  │  │  4. Return: Array de todas as margens calculadas                │ │   │
+│  │  │  5. Uso: Job cron diário (23:55)                                │ │   │
+│  │  └────────────────────────────────────────────────────────────────┘ │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           BANCO DE DADOS (SQLite)                          │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │ Tabelas:                                                            │    │
+│  │                                                                     │    │
+│  │  imoveis                                                            │    │
+│  │  ├─ id (PK)                                                        │    │
+│  │  ├─ nome                                                           │    │
+│  │  └─ status                                                         │    │
+│  │                                                                     │    │
+│  │  transacoes                                                        │    │
+│  │  ├─ id (PK)                                                        │    │
+│  │  ├─ imovel_id (FK)                                                 │    │
+│  │  ├─ tipo (RECEITA|DESPESA)                                         │    │
+│  │  ├─ descricao                                                      │    │
+│  │  ├─ categoria                                                      │    │
+│  │  ├─ valor                                                          │    │
+│  │  └─ data                                                           │    │
+│  │                                                                     │    │
+│  │  margens_propriedades_periodo (NEW)                                │    │
+│  │  ├─ id (PK)                                                        │    │
+│  │  ├─ periodo (YYYY-MM)                                              │    │
+│  │  ├─ ano, mes                                                       │    │
+│  │  ├─ imovel_id (FK)                                                 │    │
+│  │  ├─ receita                                                        │    │
+│  │  ├─ despesa                                                        │    │
+│  │  ├─ margem (0-100%)                                                │    │
+│  │  ├─ status (OK|ATENÇÃO|CRÍTICO)                                    │    │
+│  │  ├─ calculado_em, criado_em, atualizado_em                         │    │
+│  │  └─ UNIQUE(imovel_id, ano, mes)                                    │    │
+│  │                                                                     │    │
+│  │ Índices (para performance):                                        │    │
+│  │  ├─ idx_margens_imovel_periodo (busca por imóvel)                  │    │
+│  │  ├─ idx_margens_periodo (busca por período)                        │    │
+│  │  ├─ idx_margens_status (filtro por status)                         │    │
+│  │  └─ idx_margens_calculado (histórico recente)                      │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                           FLUXO DE CÁLCULO DIÁRIO                           ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+23:55 → Job Cron Dispara
+  │
+  ├─→ calcularEGravarMargensDoMes(db, 2026, 10)
+  │    │
+  │    ├─→ Loop: Todos os imóveis (imovel_id = 1, 2, 3, ...)
+  │    │
+  │    ├─→ Para cada imóvel:
+  │    │    │
+  │    │    ├─→ calcularMargensImovel(db, imovelId, 2026, 10)
+  │    │    │    │
+  │    │    │    ├─→ SELECT SUM(valor) FROM transacoes WHERE ... tipo='RECEITA'
+  │    │    │    │   Resultado: 5000.00 (aluguel de outubro)
+  │    │    │    │
+  │    │    │    ├─→ SELECT SUM(valor) FROM transacoes WHERE ... tipo='DESPESA'
+  │    │    │    │   Resultado: 1500.00 (IPTU 500 + condomínio 500 + manutenção 500)
+  │    │    │    │
+  │    │    │    ├─→ Cálculo: (5000 - 1500) / 5000 * 100 = 70%
+  │    │    │    │
+  │    │    │    └─→ Return: MargemImovel { receita: 5000, despesa: 1500, margem: 70, status: "OK" }
+  │    │    │
+  │    │    └─→ gravarMargensImovel(db, 2026, 10, margem)
+  │    │         │
+  │    │         ├─→ INSERT INTO margens_propriedades_periodo (...)
+  │    │         │   ON CONFLICT (imovel_id, ano, mes) DO UPDATE
+  │    │         │
+  │    │         └─→ ✅ Persistido em DB
+  │    │
+  │    └─→ Retorna: Array de 15 MargemImovel (se 15 imóveis ativos)
+  │
+  └─→ ✅ Completo! Pronto para dashboard consultar
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                          FLUXO DE USUÁRIO (UI)                             ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+Usuário abre Dashboard
+  │
+  ├─→ React monta MargensPropriedadesView
+  │    │
+  │    ├─→ GET /api/relatorios/margens/ranking?periodoMes=2026-10
+  │    │   │
+  │    │   └─→ Response: { top5: [...], bottom5: [...] }
+  │    │
+  │    └─→ Renderiza tabelas com cores:
+  │        ├─ 🟢 Verde: Apto 101 (70%, status: OK)
+  │        ├─ 🟡 Amarelo: Casa 42 (65%, status: ATENÇÃO)
+  │        └─ 🔴 Vermelho: Loja 8 (45%, status: CRÍTICO)
+  │
+  └─→ Usuário clica em "Apto 101"
+       │
+       ├─→ GET /api/relatorios/margens?imovelId=1&dataInicio=...&dataFim=...
+       │   │
+       │   └─→ Response: { nomePropriedade: "Apto 101", periodos: [
+       │                     { periodo: "2025-10", margem: 65% },
+       │                     { periodo: "2025-11", margem: 68% },
+       │                     { periodo: "2025-12", margem: 70% },
+       │                     ...
+       │                   ]}
+       │
+       └─→ Renderiza gráfico de tendência (12 meses)
+           └─→ Fica claro: margem está subindo! ✅
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                            CATEGORIZAÇÃO                                   ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ RECEITA (é aluguel mensal)                                                   │
+│                                                                              │
+│  Descritores (case-insensitive):                                            │
+│  - "aluguel", "rent", "locação"                                             │
+│                                                                              │
+│  Exemplo: "aluguel referente outubro 2026" → ✅ Incluída                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DESPESA (propriedade)                                                        │
+│                                                                              │
+│  Categorias/Descritores (case-insensitive):                                 │
+│                                                                              │
+│  ✅ Impostos:                                                               │
+│     - "IPTU", "INSS"                                                        │
+│     - categoria: "Impostos"                                                 │
+│                                                                              │
+│  ✅ Condomínio:                                                             │
+│     - "condominio", "condomínio"                                            │
+│     - categoria: "Condomínio"                                               │
+│                                                                              │
+│  ✅ Manutenção:                                                             │
+│     - "manutencao", "manutenção", "conserto", "reforma"                    │
+│     - categoria: "Manutenção"                                               │
+│                                                                              │
+│  ❌ Outras (ignoradas):                                                     │
+│     - "Gasolina", "Alimentação", "Pessoal", etc.                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                            VALIDAÇÕES                                       ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ calcularMargensImovel()                                                      │
+│                                                                              │
+│  ❌ imovelId <= 0 → Erro: "imovelId inválido"                              │
+│  ❌ imovelId não existe → Erro: "Imóvel não encontrado"                    │
+│  ❌ ano < 2000 ou ano > 2100 → Erro: "ano inválido"                        │
+│  ❌ mes < 1 ou mes > 12 → Erro: "mes inválido"                             │
+│  ✅ Sem receita → margem = 0%, status = CRÍTICO                            │
+│  ✅ Sem despesa → margem = 100%, status = OK                               │
+│  ✅ Despesa > receita → margem clamped a 0%                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ gravarMargensImovel()                                                        │
+│                                                                              │
+│  ❌ receita < 0 → Erro: "receita não pode ser negativa"                    │
+│  ❌ despesa < 0 → Erro: "despesa não pode ser negativa"                    │
+│  ❌ margem < 0 ou margem > 100 → Erro: "margem deve estar entre 0 e 100"   │
+│  ❌ imovelId <= 0 → Erro: "imovelId inválido"                              │
+│  ✅ Duplicata (imovel_id, ano, mes) → UPDATE ao invés de INSERT            │
+└─────────────────────────────────────────────────────────────────────────────┘
+

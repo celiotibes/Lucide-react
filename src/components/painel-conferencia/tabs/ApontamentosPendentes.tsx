@@ -3,7 +3,7 @@ import {
   Apontamento,
   FiltrosApontamentos,
   StatusApontamento,
-} from "@/domain/apontamentos";
+} from "../../../domain/apontamentos";
 import {
   Table,
   TableBody,
@@ -11,21 +11,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
+  Button,
+  Badge,
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "../ui";
 import { AlertCircle, Check, Eye, RefreshCw, RotateCcw } from "lucide-react";
 import ModalVisualizacaoApontamento from "../modals/ModalVisualizacaoApontamento";
 import ModalRetificacao from "../modals/ModalRetificacao";
-import { formatarMoeda } from "@/domain/formatarMoeda";
+import { formatarMoeda } from "../../../domain/formatarMoeda";
+import { useDb } from "../../../db/useDb";
+import { aprovarApontamento, rejeitarApontamento } from "../data/painelConferenciaRepo";
 
 interface ApontamentosPendentesProps {
   apontamentos: Apontamento[];
@@ -56,6 +56,7 @@ const ApontamentosPendentes: React.FC<ApontamentosPendentesProps> = ({
 
   const [aprovando, setAprovando] = useState<string | null>(null);
   const [rejeitando, setRejeitando] = useState<string | null>(null);
+  const { db, persistir } = useDb();
 
   const statusOptions: StatusApontamento[] = [
     "rascunho",
@@ -66,28 +67,15 @@ const ApontamentosPendentes: React.FC<ApontamentosPendentesProps> = ({
   ];
 
   const handleAprovar = async (id: string) => {
+    if (!db) return;
     setAprovando(id);
     try {
-      const response = await fetch(`/api/apontamentos/${id}/aprovar`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          motivo: "Aprovado pelo gestor",
-        }),
-      });
-
-      if (response.ok) {
-        onRefresh();
-      } else {
-        alert("Erro ao aprovar apontamento");
-      }
+      aprovarApontamento(db, id);
+      await persistir();
+      onRefresh();
     } catch (error) {
       console.error("Erro ao aprovar:", error);
-      alert("Erro ao aprovar apontamento");
+      alert(error instanceof Error ? error.message : "Erro ao aprovar apontamento");
     } finally {
       setAprovando(null);
     }
@@ -96,26 +84,12 @@ const ApontamentosPendentes: React.FC<ApontamentosPendentesProps> = ({
   const handleRejeitar = async (id: string) => {
     setRejeitando(id);
     try {
-      const response = await fetch(`/api/apontamentos/${id}/rejeitar`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.REACT_APP_API_KEY || "",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          motivo: "Rejeitado pelo gestor",
-        }),
-      });
-
-      if (response.ok) {
-        onRefresh();
-      } else {
-        alert("Erro ao rejeitar apontamento");
-      }
+      // Ver nota de limitações em data/painelConferenciaRepo.ts: o schema atual não tem um
+      // status "rejeitado" para apontamentos_diarios, então isto sempre lança um erro claro.
+      rejeitarApontamento();
     } catch (error) {
       console.error("Erro ao rejeitar:", error);
-      alert("Erro ao rejeitar apontamento");
+      alert(error instanceof Error ? error.message : "Erro ao rejeitar apontamento");
     } finally {
       setRejeitando(null);
     }

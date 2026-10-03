@@ -61,7 +61,10 @@ export function gerarExportacaoECD(
   // Obter dados da entidade
   const [entidade] = consultar<{ nome: string; cnpj: string }>(
     db,
-    "SELECT nome, cnpj FROM entidades WHERE id = ?",
+    // A tabela é entidades_legais e a coluna é cpf_cnpj (ver schema.sql). "entidades" e
+    // "cnpj" não existem no banco do app: a exportação ECD derrubava a tela com
+    // "no such table: entidades" antes de gerar qualquer linha.
+    "SELECT nome, cpf_cnpj AS cnpj FROM entidades_legais WHERE id = ?",
     [entidade_id],
   );
 
@@ -115,7 +118,12 @@ export function gerarExportacaoECD(
   registros.push(registroBlocoInicio);
 
   // Obter todas as contas e seus lançamentos
-  const [contas] = consultar<{
+  // consultar() devolve um array de linhas (uma por conta distinta), não uma linha só —
+  // `const [contas] = consultar(...)` pegava a PRIMEIRA conta e a nomeava (no singular
+  // sob nome plural) como se fosse a lista inteira; `Array.isArray(contas)` então era
+  // sempre falso (era um objeto {id, codigo, descricao}, não array) e o laço abaixo nunca
+  // rodava — a exportação ECD saía sempre sem nenhum lançamento, em silêncio.
+  const contas = consultar<{
     id: number;
     codigo: string;
     descricao: string;
@@ -136,8 +144,8 @@ export function gerarExportacaoECD(
 
   if (contas && Array.isArray(contas)) {
     for (const conta of contas) {
-      // Obter lançamentos da conta
-      const [lancamentos] = consultar<{
+      // Obter lançamentos da conta — mesmo caso: várias linhas por conta, não uma só.
+      const lancamentos = consultar<{
         id: number;
         data_lancamento: string;
         descricao: string;

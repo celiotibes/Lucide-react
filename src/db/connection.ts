@@ -6,7 +6,7 @@ import schemaSql from "../../contabilidade-reconstituicao/schema.sql?raw";
 // nível superior do módulo, só dentro de corpos de função chamados depois de ambos os
 // módulos avaliados.
 import { garantirPlanoDeContasPadrao } from "../domain/planoDeContas";
-import { garantirColunasAtualizadas } from "./migracoes";
+import { garantirColunasAtualizadas, reconstruirLedgerEntries } from "./migracoes";
 
 const IDB_KEY = "contabilidade-db-v1";
 
@@ -26,10 +26,17 @@ async function criarBancoVazio(): Promise<Database> {
  * (idempotente: todo CREATE TABLE/INDEX usa IF NOT EXISTS) cria as tabelas que faltam;
  * garantirColunasAtualizadas() cobre o caso de coluna nova numa tabela que já existia,
  * via ALTER TABLE ADD COLUMN. Sem isso, qualquer usuário que já tinha dados salvos antes
- * de uma migração aditiva quebraria ao usar a feature nova. */
+ * de uma migração aditiva quebraria ao usar a feature nova.
+ *
+ * Mudança de CONSTRAINT (e não de coluna) não é alcançável por nenhuma das duas: em
+ * SQLite exige reconstruir a tabela. Daí reconstruirLedgerEntries(), que roda depois das
+ * colunas estarem todas presentes (para a cópia não perder dado) e antes de um segundo
+ * db.run(schemaSql), que recria os índices que caíram junto com a tabela antiga. */
 function migrarBancoExistente(db: Database): void {
   db.run(schemaSql);
   garantirColunasAtualizadas(db, schemaSql);
+  reconstruirLedgerEntries(db, schemaSql);
+  db.run(schemaSql);
   garantirPlanoDeContasPadrao(db);
 }
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useDb } from "../db/useDb";
+import { consultar } from "../db/connection";
 import {
   calcularKPIRentabilidade,
   calcularTendencia,
@@ -43,15 +44,18 @@ export function AnalyticsIntegradosView() {
     "kpi",
   );
 
-  // Obter períodos
+  // Obter períodos. consultar() já devolve o array de linhas como objetos
+  // ({id, ano, mes}[]) — ao contrário de db.exec()[0]?.values, que devolvia um array de
+  // tuplas posicionais (daí o `as Array<[number, number, number]>` que havia aqui).
   const periodosDisp = useMemo(() => {
     if (!db) return [];
-    const periodos = db
-      .exec(`SELECT id, ano, mes FROM periodos_contabeis ORDER BY ano DESC, mes DESC LIMIT 12`)[0]
-      ?.values as Array<[number, number, number]>;
-    return (periodos || []).map((p) => ({
-      id: p[0],
-      label: `${p[1]}/${String(p[2]).padStart(2, "0")}`,
+    const periodos = consultar<{ id: number; ano: number; mes: number }>(
+      db,
+      `SELECT id, ano, mes FROM periodos_contabeis ORDER BY ano DESC, mes DESC LIMIT 12`,
+    );
+    return periodos.map((p) => ({
+      id: p.id,
+      label: `${p.ano}/${String(p.mes).padStart(2, "0")}`,
     }));
   }, [db]);
 
