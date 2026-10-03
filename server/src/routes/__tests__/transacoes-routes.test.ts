@@ -41,7 +41,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
       validarToken: vi.fn().mockReturnValue({
         usuarioId: "user1",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
         papel: "admin",
       }),
     };
@@ -56,7 +56,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
         papel: "admin",
       };
       next();

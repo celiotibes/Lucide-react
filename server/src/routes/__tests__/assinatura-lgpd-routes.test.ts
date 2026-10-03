@@ -63,7 +63,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
       validarToken: vi.fn().mockReturnValue({
         usuarioId: "user1",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
       }),
     };
 
@@ -83,7 +83,7 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
         papel: "admin",
       };
       next();

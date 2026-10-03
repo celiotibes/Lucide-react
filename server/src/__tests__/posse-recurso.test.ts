@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { AuthServiceDB } from "../domain/auth/auth-service-db";
 import { gerarHashSenha } from "../domain/auth/password";
-import { criarRotasAuth } from "../routes/auth-routes";
+import { criarRotasAuth, criarMiddlewareAutenticacao } from "../routes/auth-routes";
 import { criarExigirPosse } from "../middleware/posse-recurso";
 import { tokenDoCookie } from "../routes/__tests__/token-cookie.js";
 
@@ -52,23 +52,8 @@ async function criarAppDeTeste(db: Database.Database) {
 
   const exigirPosse = criarExigirPosse(db);
 
-  // Rota de teste que usa o middleware
-  app.get("/api/teste/cobranca/:id", (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const authService2 = new AuthServiceDB(db);
-    const middleware = criarRotasAuth({
-      authService: authService2,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
-    });
-    const mdAuth = middleware.stack.find((layer: any) => layer.name === "exigirAutenticacao")?.handle;
-    if (mdAuth) {
-      mdAuth(req, res, next);
-    } else {
-      next();
-    }
-  });
-
-  app.get("/api/teste/cobranca/:id", exigirPosse("cobranca", "id"), (req: express.Request, res: express.Response) => {
+  const exigirAutenticacao = criarMiddlewareAutenticacao(authService, { permitirPapeisExternos: true });
+  app.get("/api/teste/cobranca/:id", exigirAutenticacao, exigirPosse("cobranca", "id"), (_req: express.Request, res: express.Response) => {
     res.json({ ok: true });
   });
 

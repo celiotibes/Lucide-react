@@ -108,8 +108,8 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
         // Já está ativa — retorna 200 idempotente
         res.json({ ok: true, mensagem: "Acesso já está concedido" });
 
-        auditService.registrarAcao(contexto, "acl_concessao", "acl_recurso", aclExistente.id, {
-          descricao: `Tentativa de reconcessão de acesso já ativo: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
+        auditService.registrarAcao(contexto, "atualizar_permissoes", "acl_recurso", aclExistente.id, {
+          descricao: `ACL — reconcessão de acesso já ativo: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
           resultado: "sucesso",
         });
         return;
@@ -117,12 +117,12 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
 
       if (aclExistente) {
         // Reativar
-        db.prepare("UPDATE acl_recursos SET revogado_em = NULL, concedido_em = datetime('now') WHERE id = ?").run(
-          aclExistente.id,
-        );
+        db.prepare(
+          "UPDATE acl_recursos SET revogado_em = NULL, concedido_em = datetime('now'), concedido_por = ? WHERE id = ?",
+        ).run(contexto.usuario!.id, aclExistente.id);
 
-        auditService.registrarAcao(contexto, "acl_reativacao", "acl_recurso", aclExistente.id, {
-          descricao: `ACL reativada: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
+        auditService.registrarAcao(contexto, "atualizar_permissoes", "acl_recurso", aclExistente.id, {
+          descricao: `ACL — acesso reativado: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
           resultado: "sucesso",
         });
 
@@ -140,8 +140,8 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
 
       const id = resultado.lastInsertRowid;
 
-      auditService.registrarAcao(contexto, "acl_concessao", "acl_recurso", String(id), {
-        descricao: `Acesso concedido: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
+      auditService.registrarAcao(contexto, "atualizar_permissoes", "acl_recurso", String(id), {
+        descricao: `ACL — acesso concedido: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
         resultado: "sucesso",
       });
 
@@ -152,7 +152,8 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
         res.status(201).json({ ok: true, mensagem: "Acesso já estava concedido" });
         return;
       }
-      throw erro;
+      // Handler async no Express 4: relançar vira rejeição não tratada e a requisição fica pendurada.
+      res.status(500).json({ erro: "Erro ao conceder acesso" });
     }
   });
 
@@ -219,8 +220,8 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
       // Revogar
       db.prepare("UPDATE acl_recursos SET revogado_em = datetime('now') WHERE id = ?").run(id);
 
-      auditService.registrarAcao(contexto, "acl_revogacao", "acl_recurso", id, {
-        descricao: `Acesso revogado: usuário ${acl.usuario_id}, recurso ${acl.tipo_recurso}/${acl.recurso_id}`,
+      auditService.registrarAcao(contexto, "atualizar_permissoes", "acl_recurso", id, {
+        descricao: `ACL — acesso revogado: usuário ${acl.usuario_id}, recurso ${acl.tipo_recurso}/${acl.recurso_id}`,
         resultado: "sucesso",
       });
 

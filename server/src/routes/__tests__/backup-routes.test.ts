@@ -18,7 +18,7 @@ describe("Rotas HTTP de Backup", () => {
       validarToken: vi.fn().mockReturnValue({
         usuarioId: "user1",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
         papel: "admin",
       }),
     };
@@ -33,7 +33,7 @@ describe("Rotas HTTP de Backup", () => {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
         papel: "admin",
       };
       next();

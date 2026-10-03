@@ -110,7 +110,7 @@ describe("Rotas HTTP de Anomalias", () => {
       validarToken: vi.fn().mockReturnValue({
         usuarioId: "user1",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
         papel: "admin",
       }),
     };
@@ -131,7 +131,7 @@ describe("Rotas HTTP de Anomalias", () => {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
         papel: "admin",
       };
       next();

@@ -106,7 +106,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "locador" },
+        usuario: { id: "user1", email: "test@example.com", role: "titular" },
         papel: "locador",
       }),
     };

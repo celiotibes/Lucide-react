@@ -22,10 +22,7 @@ export type TipoAcao =
   | "logout"
   | "criar_usuario"
   | "atualizar_permissoes"
-  | "acesso_negado"
-  | "acl_concessao"
-  | "acl_reativacao"
-  | "acl_revogacao";
+  | "acesso_negado";
 
 export interface RegistroAuditoria {
   id: string;
