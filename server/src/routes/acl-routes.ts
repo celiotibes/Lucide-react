@@ -34,7 +34,7 @@ export interface AclRoutesDeps {
   db: Database.Database;
 }
 
-function requerTitularOuAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+function requerTitularOuAdmin(req: express.Request, res: express.Response, next: express.NextFunction): void {
   const contexto = req.auth as ContextoAutenticacao;
   const papel = contexto.usuario?.role;
 
@@ -110,7 +110,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
 
         auditService.registrarAcao(contexto, "acl_concessao", "acl_recurso", aclExistente.id, {
           descricao: `Tentativa de reconcessão de acesso já ativo: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
-          resultado: "nenhuma_mudanca",
+          resultado: "sucesso",
         });
         return;
       }
@@ -163,7 +163,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
    * Lista todas as concessões de ACL (ativas e revogadas) para um usuário específico.
    * Se usuarioId não for fornecido, lista TODAS.
    */
-  router.get("/", exigirAutenticacao, requerTitularOuAdmin, (req, res) => {
+  router.get("/", exigirAutenticacao, requerTitularOuAdmin, (req: express.Request, res: express.Response) => {
     const { usuarioId } = req.query;
 
     try {
@@ -198,7 +198,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
    * Revoga uma concessão de ACL (marca com revogado_em = agora, nunca apaga a linha).
    * Idempotente: se já foi revogada, retorna 200.
    */
-  router.delete("/:id", exigirAutenticacao, requerTitularOuAdmin, (req, res) => {
+  router.delete("/:id", exigirAutenticacao, requerTitularOuAdmin, (req: express.Request, res: express.Response) => {
     const contexto = req.auth as ContextoAutenticacao;
     const { id } = req.params;
 

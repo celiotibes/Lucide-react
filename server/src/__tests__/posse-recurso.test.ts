@@ -53,14 +53,14 @@ async function criarAppDeTeste(db: Database.Database) {
   const exigirPosse = criarExigirPosse(db);
 
   // Rota de teste que usa o middleware
-  app.get("/api/teste/cobranca/:id", (req, res, next) => {
+  app.get("/api/teste/cobranca/:id", (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authService2 = new AuthServiceDB(db);
     const middleware = criarRotasAuth({
       authService: authService2,
       auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
       permissoesService: { listarMatriz: () => [] } as any,
     });
-    const mdAuth = middleware.stack.find((layer) => layer.name === "exigirAutenticacao")?.handle;
+    const mdAuth = middleware.stack.find((layer: any) => layer.name === "exigirAutenticacao")?.handle;
     if (mdAuth) {
       mdAuth(req, res, next);
     } else {
@@ -68,7 +68,7 @@ async function criarAppDeTeste(db: Database.Database) {
     }
   });
 
-  app.get("/api/teste/cobranca/:id", exigirPosse("cobranca", "id"), (req, res) => {
+  app.get("/api/teste/cobranca/:id", exigirPosse("cobranca", "id"), (req: express.Request, res: express.Response) => {
     res.json({ ok: true });
   });
 

@@ -222,7 +222,7 @@ describe("Rotas de ACL (/api/acl)", () => {
       expect(resp.body.mensagem).toContain("reativado");
 
       // Verificar que revogado_em foi limpo
-      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE usuario_id = ? AND recurso_id = ?").get("user_inquilino_1", "cob_123");
+      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE usuario_id = ? AND recurso_id = ?").get("user_inquilino_1", "cob_123") as any;
       expect(acl.revogado_em).toBeNull();
     });
 
@@ -311,7 +311,7 @@ describe("Rotas de ACL (/api/acl)", () => {
       expect(resp.body.ok).toBe(true);
 
       // Verificar que foi revogada
-      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE id = ?").get(aclId);
+      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE id = ?").get(aclId) as any;
       expect(acl.revogado_em).not.toBeNull();
     });
 
