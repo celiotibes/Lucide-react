@@ -24,6 +24,7 @@ import {
   criarClienteAsaas,
   criarCobranca,
   consultarCobranca,
+  atualizarCobranca,
   AsaasConfiguracaoAusenteError,
   AsaasApiError,
   type TipoCobrancaAsaas,

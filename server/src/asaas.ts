@@ -63,7 +63,7 @@ function chaveApi(): string {
 
 async function chamar<T>(
   fetchImpl: FetchLike,
-  metodo: "GET" | "POST",
+  metodo: "GET" | "POST" | "PUT",
   caminho: string,
   corpo?: unknown,
 ): Promise<T> {
@@ -166,4 +166,20 @@ export async function consultarCobranca(
   fetchImpl: FetchLike = fetch,
 ): Promise<CobrancaAsaas> {
   return chamar<CobrancaAsaas>(fetchImpl, "GET", `/payments/${encodeURIComponent(asaasChargeId)}`);
+}
+
+export interface DadosAtualizacaoCobranca {
+  description?: string;
+  dueDate?: string;
+}
+
+/** PUT /payments/{id} — atualiza metadados de uma cobrança (descrição, data de vencimento).
+ * Alguns campos não são atualizáveis via API (valor, tipo de cobrança) — somente leitura
+ * após criação. */
+export async function atualizarCobranca(
+  asaasChargeId: string,
+  dados: DadosAtualizacaoCobranca,
+  fetchImpl: FetchLike = fetch,
+): Promise<CobrancaAsaas> {
+  return chamar<CobrancaAsaas>(fetchImpl, "PUT", `/payments/${encodeURIComponent(asaasChargeId)}`, dados);
 }

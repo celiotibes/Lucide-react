@@ -16,8 +16,9 @@ export interface TransacoesRoutesDeps {
   authService: AuthServiceDB;
 }
 
-export function criarRotasTransacoes({ db }: TransacoesRoutesDeps): express.Router {
+export function criarRotasTransacoes({ db, authService }: TransacoesRoutesDeps): express.Router {
   const router = express.Router();
+  const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
 
   /**
    * POST /api/transacoes/:id/sugerir-categoria
@@ -36,7 +37,7 @@ export function criarRotasTransacoes({ db }: TransacoesRoutesDeps): express.Rout
    *   historico_match?: { count: number, categoria: string }
    * }
    */
-  router.post("/:id/sugerir-categoria", (req, res) => {
+  router.post("/:id/sugerir-categoria", exigirAutenticacao, (req, res) => {
     try {
       const transacaoId = Number(req.params.id);
       if (!Number.isInteger(transacaoId) || transacaoId <= 0) {

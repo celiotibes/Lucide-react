@@ -1,39 +1,40 @@
 /**
- * Rotas de backup para o cliente
+ * Backup Routes — Google Drive backup management
  *
- * GET /api/backup/listar — lista backups no Google Drive
- * POST /api/backup/agora — executa backup imediato
- * POST /api/backup/restaurar/:fileId — restaura um backup específico
+ * Provides endpoints for listing, creating, and restoring database backups stored on Google Drive.
+ *
+ * Endpoints:
+ * - GET /api/backup/listar — list all available backups on Google Drive
+ * - POST /api/backup/agora — execute an immediate manual backup
+ * - POST /api/backup/restaurar/:fileId — restore a specific backup (admin recommended)
+ * - GET /api/backup/status — check backup configuration status
+ *
+ * All routes require authentication via the exigirAutenticacao middleware.
+ * Admin verification is recommended for restore operations (currently commented out).
  */
 
 import { Router, Request, Response } from "express";
+import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
+import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { backupSQLiteToGoogleDrive, listarBackupsNoGoogleDrive, restaurarBackupDoGoogleDrive } from "../utils/googleDriveBackup.js";
-import { verificarAutorizacao } from "../domain/auth/auth-middleware.js";
+import type { AuthenticatedRequest } from "../types/express.js";
 
 export interface BackupRoutesOptions {
-  permissoesService: any; // PermissoesServiceDB
+  authService: AuthServiceDB;
 }
 
 export function criarRotasBackup(options: BackupRoutesOptions): Router {
   const router = Router();
-  const { permissoesService } = options;
+  const { authService } = options;
+  const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
 
   /**
    * GET /api/backup/listar
    * Lista todos os backups disponíveis no Google Drive
-   * Requer permissão de admin
+   * Requer autenticação
    */
-  router.get("/listar", async (req: Request, res: Response) => {
+  router.get("/listar", exigirAutenticacao, async (req: Request, res: Response) => {
     try {
-      // Verifica permissão (requer ser admin ou ter permissão específica)
-      const usuarioId = (req as any).user?.id;
-      if (!usuarioId) {
-        return res.status(401).json({ erro: "Não autenticado" });
-      }
-
-      // Opcional: verificar se tem permissão específica de backup
-      // await verificarAutorizacao(permissoesService, usuarioId, "backup.listar");
-
       const backups = await listarBackupsNoGoogleDrive();
 
       if (backups === null) {
@@ -60,18 +61,11 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
   /**
    * POST /api/backup/agora
    * Executa um backup imediato (manual) do banco de dados
-   * Requer permissão de admin
+   * Requer autenticação
    */
-  router.post("/agora", async (req: Request, res: Response) => {
+  router.post("/agora", exigirAutenticacao, async (req: Request, res: Response) => {
     try {
-      const usuarioId = (req as any).user?.id;
-      if (!usuarioId) {
-        return res.status(401).json({ erro: "Não autenticado" });
-      }
-
-      // Opcional: verificar permissão específica
-      // await verificarAutorizacao(permissoesService, usuarioId, "backup.criar");
-
+      const usuarioId = (req.auth as any)?.usuario?.id;
       console.log("[BackupRoutes] Backup manual solicitado por usuário:", usuarioId);
 
       const resultado = await backupSQLiteToGoogleDrive();
@@ -101,18 +95,11 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
   /**
    * POST /api/backup/restaurar/:fileId
    * Restaura um backup específico
-   * Requer permissão de admin (muito cuidado!)
+   * Requer autenticação
    */
-  router.post("/restaurar/:fileId", async (req: Request, res: Response) => {
+  router.post("/restaurar/:fileId", exigirAutenticacao, async (req: Request, res: Response) => {
     try {
-      const usuarioId = (req as any).user?.id;
-      if (!usuarioId) {
-        return res.status(401).json({ erro: "Não autenticado" });
-      }
-
-      // Verificar permissão (pode ser uma permissão especial)
-      // await verificarAutorizacao(permissoesService, usuarioId, "backup.restaurar");
-
+      const usuarioId = (req.auth as any)?.usuario?.id;
       const { fileId } = req.params;
 
       if (!fileId) {
@@ -148,8 +135,9 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
   /**
    * GET /api/backup/status
    * Verifica o status da configuração de backup
+   * Requer autenticação
    */
-  router.get("/status", (req: Request, res: Response) => {
+  router.get("/status", exigirAutenticacao, (req: Request, res: Response) => {
     try {
       const googleDriveConfigured = !!process.env.GOOGLE_CREDENTIALS_JSON;
 

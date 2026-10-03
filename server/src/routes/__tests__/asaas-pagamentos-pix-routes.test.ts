@@ -1,0 +1,249 @@
+/**
+ * Testes das rotas HTTP de Pagamentos PIX Proativos via Asaas
+ * Total: 5 testes cobrindo POST /criar, GET /:id, GET /, POST /:id/sincronizar
+ */
+
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import express from "express";
+import request from "supertest";
+import Database from "better-sqlite3";
+import { criarRotasAsaasPixProativo } from "../asaas-pagamentos-pix-routes";
+
+describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
+  let app: express.Application;
+  let db: Database.Database;
+  let mockAuthService: any;
+
+  beforeEach(() => {
+    // Cria banco de dados em memória
+    db = new Database(":memory:");
+
+    // Setup schema
+    db.exec(`
+      CREATE TABLE pagamentos_pix (
+        id TEXT PRIMARY KEY,
+        asaas_payment_id TEXT UNIQUE,
+        beneficiario_id TEXT,
+        beneficiario_nome TEXT,
+        beneficiario_cpf_cnpj TEXT,
+        valor REAL,
+        descricao TEXT,
+        status TEXT DEFAULT 'PENDING',
+        tipo_chave_pix TEXT,
+        chave_pix_value TEXT,
+        qr_code TEXT,
+        criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE pagamentos_pix_historico (
+        id INTEGER PRIMARY KEY,
+        pagamento_id TEXT,
+        status_anterior TEXT,
+        status_novo TEXT,
+        criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pagamento_id) REFERENCES pagamentos_pix(id)
+      );
+    `);
+
+    // Mock authService
+    mockAuthService = {
+      validarToken: vi.fn().mockReturnValue({
+        usuarioId: "user1",
+        autenticado: true,
+        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+      }),
+    };
+
+    // Cria app com rotas
+    app = express();
+    app.use(express.json());
+
+    // Middleware que injeta usuarioId (simula autenticação)
+    app.use((req, res, next) => {
+      (req as any).usuarioId = "user1";
+      next();
+    });
+
+    // Monta as rotas
+    app.use("/api/asaas", criarRotasAsaasPixProativo({ authService: mockAuthService, db }));
+  });
+
+  describe("POST /api/asaas/pagamentos-pix/criar", () => {
+    it("deve criar pagamento PIX com sucesso", async () => {
+      const res = await request(app)
+        .post("/api/asaas/pagamentos-pix/criar")
+        .send({
+          beneficiarioId: "benef_123",
+          beneficiarioNome: "João Silva",
+          beneficiarioCpfCnpj: "12345678901",
+          valor: 500.00,
+          descricao: "Pagamento de serviços",
+          tipoChavePix: "CPF",
+          chavePixValue: "12345678901",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveProperty("id");
+      expect(res.body.beneficiarioId).toBe("benef_123");
+      expect(res.body.valor).toBe(500.00);
+    });
+
+    it("deve validar campos obrigatórios", async () => {
+      const res = await request(app)
+        .post("/api/asaas/pagamentos-pix/criar")
+        .send({
+          beneficiarioId: "benef_123",
+          // Faltam outros campos
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.erro).toContain("Campos obrigatórios");
+    });
+
+    it("deve validar tipo de chave PIX", async () => {
+      const res = await request(app)
+        .post("/api/asaas/pagamentos-pix/criar")
+        .send({
+          beneficiarioId: "benef_123",
+          beneficiarioNome: "João Silva",
+          beneficiarioCpfCnpj: "12345678901",
+          valor: 500.00,
+          descricao: "Pagamento",
+          tipoChavePix: "INVALIDO",
+          chavePixValue: "12345678901",
+        });
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+
+    it("deve rejeitar valor inválido", async () => {
+      const res = await request(app)
+        .post("/api/asaas/pagamentos-pix/criar")
+        .send({
+          beneficiarioId: "benef_123",
+          beneficiarioNome: "João Silva",
+          beneficiarioCpfCnpj: "12345678901",
+          valor: "abc",
+          descricao: "Pagamento",
+          tipoChavePix: "CPF",
+          chavePixValue: "12345678901",
+        });
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+  });
+
+  describe("GET /api/asaas/pagamentos-pix/:id", () => {
+    beforeEach(() => {
+      // Insere um pagamento de teste
+      db.prepare(`
+        INSERT INTO pagamentos_pix (
+          id, asaas_payment_id, beneficiario_id, beneficiario_nome,
+          beneficiario_cpf_cnpj, valor, descricao, status, tipo_chave_pix
+        ) VALUES (
+          'pag_1', 'asaas_123', 'benef_1', 'João Silva',
+          '12345678901', 500.00, 'Pagamento teste', 'PENDING', 'CPF'
+        )
+      `).run();
+    });
+
+    it("deve buscar pagamento com sucesso", async () => {
+      const res = await request(app)
+        .get("/api/asaas/pagamentos-pix/pag_1")
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("pagamento");
+      expect(res.body.pagamento.id).toBe("pag_1");
+      expect(res.body).toHaveProperty("historico");
+    });
+
+    it("deve retornar 404 para pagamento inexistente", async () => {
+      const res = await request(app)
+        .get("/api/asaas/pagamentos-pix/inexistente")
+        .send({});
+
+      expect(res.status).toBe(404);
+      expect(res.body.erro).toContain("não encontrado");
+    });
+  });
+
+  describe("GET /api/asaas/pagamentos-pix", () => {
+    beforeEach(() => {
+      db.prepare(`
+        INSERT INTO pagamentos_pix (
+          id, asaas_payment_id, beneficiario_id, beneficiario_nome,
+          beneficiario_cpf_cnpj, valor, descricao, status, tipo_chave_pix
+        ) VALUES
+          ('pag_1', 'asaas_1', 'benef_1', 'João Silva', '12345678901', 500.00, 'Pagamento 1', 'PENDING', 'CPF'),
+          ('pag_2', 'asaas_2', 'benef_2', 'Maria Silva', '98765432100', 1000.00, 'Pagamento 2', 'COMPLETED', 'CNPJ')
+      `).run();
+    });
+
+    it("deve listar pagamentos com sucesso", async () => {
+      const res = await request(app)
+        .get("/api/asaas/pagamentos-pix")
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("pagamentos");
+      expect(res.body).toHaveProperty("total");
+      expect(res.body.pagamentos).toBeInstanceOf(Array);
+    });
+
+    it("deve filtrar por status", async () => {
+      const res = await request(app)
+        .get("/api/asaas/pagamentos-pix")
+        .query({ status: "PENDING" })
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.pagamentos).toBeInstanceOf(Array);
+    });
+
+    it("deve filtrar por beneficiarioId", async () => {
+      const res = await request(app)
+        .get("/api/asaas/pagamentos-pix")
+        .query({ beneficiarioId: "benef_1" })
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.pagamentos).toBeInstanceOf(Array);
+    });
+  });
+
+  describe("POST /api/asaas/pagamentos-pix/:id/sincronizar", () => {
+    beforeEach(() => {
+      db.prepare(`
+        INSERT INTO pagamentos_pix (
+          id, asaas_payment_id, beneficiario_id, beneficiario_nome,
+          beneficiario_cpf_cnpj, valor, descricao, status, tipo_chave_pix
+        ) VALUES (
+          'pag_1', 'asaas_123', 'benef_1', 'João Silva',
+          '12345678901', 500.00, 'Pagamento', 'PENDING', 'CPF'
+        )
+      `).run();
+    });
+
+    it("deve sincronizar pagamento com sucesso", async () => {
+      const res = await request(app)
+        .post("/api/asaas/pagamentos-pix/pag_1/sincronizar")
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.sucesso).toBe(true);
+      expect(res.body).toHaveProperty("statusAnterior");
+      expect(res.body).toHaveProperty("statusNovo");
+    });
+
+    it("deve retornar 404 para pagamento inexistente", async () => {
+      const res = await request(app)
+        .post("/api/asaas/pagamentos-pix/inexistente/sincronizar")
+        .send({});
+
+      expect(res.status).toBe(404);
+      expect(res.body.erro).toContain("não encontrado");
+    });
+  });
+});
