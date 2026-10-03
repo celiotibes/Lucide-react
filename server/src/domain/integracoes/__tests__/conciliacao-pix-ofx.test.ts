@@ -278,7 +278,7 @@ describe("Reconciliação PIX↔OFX", () => {
     expect(lancamento).toBeDefined();
     expect(lancamento.valor).toBe(450);
     expect(lancamento.tipo).toBe("entrada_pix");
-    expect(lancamento.status).toBe("reconciliado");
+    expect(lancamento.status).toBe("proposta"); // razao do servidor é fila de propostas, não lançamento final
   });
 
   it("11: gerarLancamentoContabil lança erro se charge não existe", () => {
@@ -484,6 +484,10 @@ describe("Reconciliação PIX↔OFX", () => {
     };
 
     inserirChargePaga(db, "charge-pix-1", 1500, "Cliente PIX");
+    db.prepare(
+      `INSERT INTO conciliacoes_pix_ofx (id, asaas_charge_id, pluggy_ofx_id, valor_asaas, valor_ofx, data_asaas, data_ofx, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(conciliacao.id, conciliacao.asaas_charge_id, conciliacao.pluggy_ofx_id, conciliacao.valor_asaas, conciliacao.valor_ofx, conciliacao.data_asaas, conciliacao.data_ofx, "reconciliado");
 
     const lancamentoId = gerarLancamentoContabil(db, conciliacao);
     expect(lancamentoId).toBeDefined();
@@ -514,6 +518,10 @@ describe("Reconciliação PIX↔OFX", () => {
     };
 
     inserirChargePaga(db, "charge-proposta-1", 800, "Cliente Proposta");
+    db.prepare(
+      `INSERT INTO conciliacoes_pix_ofx (id, asaas_charge_id, pluggy_ofx_id, valor_asaas, valor_ofx, data_asaas, data_ofx, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(conciliacao.id, conciliacao.asaas_charge_id, conciliacao.pluggy_ofx_id, conciliacao.valor_asaas, conciliacao.valor_ofx, conciliacao.data_asaas, conciliacao.data_ofx, "reconciliado");
 
     const lancamentoId = gerarLancamentoContabil(db, conciliacao);
 

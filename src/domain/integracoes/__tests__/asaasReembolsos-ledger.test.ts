@@ -13,6 +13,7 @@ import type { Database } from "sql.js";
 import { consultar, executar } from "../../../db/connection";
 import { processarReembolsoAsaas } from "../asaasReembolsos";
 import { baixarCompetencia } from "../../erp/aluguel-competencias";
+import { criarEntidadeLegal } from "../../erp/entidadeLegal";
 import { emitirCobrancaAluguel } from "../asaasCobranca";
 
 const mockApiClient = {
@@ -35,38 +36,41 @@ const mockApiClient = {
 
 describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
   let db: Database;
+  let entidade_id: number;
+  let conta_bancaria_id: number;
 
   beforeEach(async () => {
     db = await criarBancoDeTeste();
+    const r = criarEntidadeLegal(db, { nome: "Titular de Teste", cpf_cnpj: "52998224725" });
+    if (!r.entidade_id) throw new Error(`Fixture não criou a entidade: ${r.mensagem}`);
+    entidade_id = r.entidade_id;
 
-    // Setup mínimo: contrato, competência, cobrança
-    executar(
-      db,
-      `INSERT INTO contratos_locacao
-       (id, imovel_id, locatario, tipo, valor_referencia, dia_vencimento, data_inicio)
-       VALUES (1, 1, 'João Silva', 'residencial_fixo', 1500, 15, '2025-01-01')`,
-    );
+    executar(db, "INSERT INTO imoveis (apelido, tipo) VALUES ('Kitnet Teste', 'kitnet')");
+    const imovel_id = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id")[0].id;
 
     executar(
       db,
-      `INSERT INTO aluguel_competencias
-       (id, contrato_id, imovel_id, ano, mes, data_vencimento, valor_devido, status)
-       VALUES (1, 1, 1, 2025, 1, '2025-01-15', 1500, 'pendente')`,
+      `INSERT INTO contratos_locacao (id, imovel_id, locatario, tipo, valor_referencia, dia_vencimento, data_inicio)
+       VALUES (1, ?, 'João Silva', 'residencial_fixo', 1500, 15, '2025-01-01')`,
+      [imovel_id],
     );
-
-    // Conta bancária para baixa
     executar(
       db,
-      `INSERT INTO contas_bancarias
-       (id, banco, agencia, numero, titular, tipo)
-       VALUES (1, 'Banco Teste', '0001', '123456', 'Titular', 'corrente')`,
+      `INSERT INTO aluguel_competencias (id, contrato_id, imovel_id, ano, mes, data_vencimento, valor_devido, status, criado_em)
+       VALUES (1, 1, ?, 2025, 1, '2025-01-15', 1500, 'pendente', '2025-01-01T00:00:00Z')`,
+      [imovel_id],
     );
+    executar(
+      db,
+      "INSERT INTO contas_bancarias (banco, agencia, numero, titular, tipo) VALUES ('Banco Teste', '0001', '123456', 'Titular', 'corrente')",
+    );
+    conta_bancaria_id = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id")[0].id;
   });
 
   it("deve estornar baixa contábil quando reembolso de aluguel baixado", async () => {
     // 1. Emitir cobrança
     const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-      tipoCobranca: "boleto",
+      tipoCobranca: "boleto", cpfCnpj: "52998224725",
     });
 
     // 2. Marcar cobrança como paga
@@ -75,14 +79,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
     ]);
 
     // 3. BAIXAR competência (gera lançamento no razão)
-    const resultadoBaixa = baixarCompetencia(
-      db,
-      1, // competencia_id
-      1, // conta_bancaria_id
-      "2025-01-20",
-      1, // entidade_id (padrão fixture)
-      999, // usuario_id
-    );
+    const resultadoBaixa = baixarCompetencia(db, 1, conta_bancaria_id, "2025-01-20", entidade_id);
 
     expect(resultadoBaixa.sucesso).toBe(true);
     expect(resultadoBaixa.ledger_entry_id_baixa).toBeGreaterThan(0);
@@ -129,9 +126,9 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
   });
 
   it("estorna as DUAS pernas: razão balanceado e saldo do Caixa volta a zero", async () => {
-    const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, { tipoCobranca: "boleto" });
+    const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, { tipoCobranca: "boleto", cpfCnpj: "52998224725" });
     executar(db, "UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
-    const baixa = baixarCompetencia(db, 1, 1, "2025-01-20", 1, 999);
+    const baixa = baixarCompetencia(db, 1, conta_bancaria_id, "2025-01-20", entidade_id);
     expect(baixa.sucesso).toBe(true);
 
     await processarReembolsoAsaas(db, { chargeId: cobranca.asaasChargeId, motivo: "Cliente desistiu" });
@@ -156,9 +153,9 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
   });
 
   it("falha de estorno NÃO é silenciosa: lança erro, marca o reembolso como erro e não dá a cobrança por reembolsada", async () => {
-    const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, { tipoCobranca: "boleto" });
+    const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, { tipoCobranca: "boleto", cpfCnpj: "52998224725" });
     executar(db, "UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
-    expect(baixarCompetencia(db, 1, 1, "2025-01-20", 1, 999).sucesso).toBe(true);
+    expect(baixarCompetencia(db, 1, conta_bancaria_id, "2025-01-20", entidade_id).sucesso).toBe(true);
     // Fecha o período da baixa; não existe período aberto para hoje, então o estorno é impossível.
     executar(db, "UPDATE periodos_contabeis SET status = 'fechado'");
 
@@ -173,12 +170,12 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
     expect(r.status).toBe("erro");
     expect(r.mensagem_erro).toContain("Estorno contábil");
     const [c] = consultar<{ status: string }>(db, "SELECT status FROM cobrancas_asaas WHERE id = ?", [cobranca.id]);
-    expect(c.status).not.toBe("reembolsado");
+    expect(c.status).toBe("pago");
   });
 
   it("não deve estornar quando reembolso de aluguel ainda não baixado", async () => {
     const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-      tipoCobranca: "boleto",
+      tipoCobranca: "boleto", cpfCnpj: "52998224725",
     });
     executar(db, "UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [
       cobranca.id,
@@ -212,20 +209,13 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
   it("deve ser idempotente: segundo reembolso não duplica estorno", async () => {
     // 1. Setup: baixar competência
     const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-      tipoCobranca: "boleto",
+      tipoCobranca: "boleto", cpfCnpj: "52998224725",
     });
     executar(db, "UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [
       cobranca.id,
     ]);
 
-    const resultadoBaixa = baixarCompetencia(
-      db,
-      1,
-      1,
-      "2025-01-20",
-      1,
-      999,
-    );
+    const resultadoBaixa = baixarCompetencia(db, 1, conta_bancaria_id, "2025-01-20", entidade_id);
     const ledgerEntryBaixa = resultadoBaixa.ledger_entry_id_baixa!;
 
     // 2. Primeiro reembolso

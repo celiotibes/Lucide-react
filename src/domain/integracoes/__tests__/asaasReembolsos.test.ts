@@ -229,7 +229,7 @@ describe("asaasReembolsos", () => {
       expect(reembolso1.motivo).toBe(reembolso2.motivo);
     });
 
-    it("deve atualizar cobrança para status 'reembolsado'", async () => {
+    it("deve atualizar cobrança para status 'cancelado' (schema real não aceita 'reembolsado')", async () => {
       const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
         tipoCobranca: "pix",
       });
@@ -248,7 +248,7 @@ describe("asaasReembolsos", () => {
         status = row.status;
       }
       stmt.free();
-      expect(status).toBe("reembolsado");
+      expect(status).toBe("cancelado");
     });
 
     it("deve permitir tipoForce para override manual", async () => {
@@ -495,7 +495,7 @@ describe("asaasReembolsos", () => {
         status = row.status;
       }
       stmt.free();
-      expect(status).toBe("reembolsado");
+      expect(status).toBe("cancelado");
     });
 
     it("deve ignorar webhook sem payment.id", () => {

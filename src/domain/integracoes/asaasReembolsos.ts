@@ -107,7 +107,7 @@ export function detectarTipoReembolso(db: Database, chargeId: string, tipoForce?
  * 2. Verifica idempotência (se já existe reembolso ativo, retorna o existente)
  * 3. Detecta tipo (< 24h = reversao, ≥ 24h = devolucao)
  * 4. Registra reembolso em tabela própria
- * 5. Atualiza status da cobrança para 'reembolsado'
+ * 5. Atualiza status da cobrança para 'cancelado' (o schema não aceita 'reembolsado')
  */
 export async function processarReembolsoAsaas(
   db: Database,
@@ -182,8 +182,10 @@ export async function processarReembolsoAsaas(
   // NOTA: honorários ainda não têm modelo equivalente de baixa/estorno — deixar para
   // migração futura quando houver estorno_baixa_honorario() similar.
 
-  // 6. Atualiza status da cobrança
-  executar(db, "UPDATE cobrancas_asaas SET status = 'reembolsado' WHERE asaas_charge_id = ?", [input.chargeId]);
+  // 6. Cobrança reembolsada deixa de valer. O CHECK de cobrancas_asaas.status (schema.sql) só aceita
+  // pendente|pago|atrasado|cancelado: gravar 'reembolsado' violava a constraint e o reembolso quebrava
+  // sempre no banco real. O tipo e o motivo ficam em reembolsos_asaas.
+  executar(db, "UPDATE cobrancas_asaas SET status = 'cancelado' WHERE asaas_charge_id = ?", [input.chargeId]);
 
   // Retorna o reembolso criado
   const [reembolso] = consultar<LinhaReembolso>(db, "SELECT * FROM reembolsos_asaas WHERE id = ?", [id]);
@@ -325,7 +327,7 @@ export function aplicarEventoReembolsoWebhook(
   );
 
   // Atualiza status da cobrança
-  executar(db, "UPDATE cobrancas_asaas SET status = 'reembolsado' WHERE asaas_charge_id = ?", [chargeId]);
+  executar(db, "UPDATE cobrancas_asaas SET status = 'cancelado' WHERE asaas_charge_id = ?", [chargeId]);
 
   return { aplicado: true };
 }
