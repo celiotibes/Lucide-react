@@ -31,9 +31,11 @@ function aplicarTriggersImutabilidade(db: Database): void {
     join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "contabilidade-reconstituicao", "schema.sql"),
     "utf8",
   );
-  const m = /-- BEGIN IMUTABILIDADE LEDGER[\s\S]*?-- END IMUTABILIDADE LEDGER/.exec(schema);
-  if (!m) throw new Error("Bloco IMUTABILIDADE LEDGER não encontrado no schema.sql");
-  db.run(m[0]);
+  for (const nome of ["IMUTABILIDADE LEDGER", "TITULARIDADE ECONOMICA"]) {
+    const m = new RegExp(`-- BEGIN ${nome}[\\s\\S]*?-- END ${nome}`).exec(schema);
+    if (!m) throw new Error(`Bloco ${nome} não encontrado no schema.sql`);
+    db.run(m[0]);
+  }
 }
 
 export async function prepararBancoTeste() {

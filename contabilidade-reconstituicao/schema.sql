@@ -2278,3 +2278,43 @@ BEGIN
     SELECT RAISE(ABORT, 'Encerramento contábil é append-only: não pode ser excluído.');
 END;
 -- END IMUTABILIDADE PERIODOS
+
+-- BEGIN TITULARIDADE ECONOMICA
+-- Separação retroativa PF x empresa SEM reescrever o razão: ledger_entries.entidade_id continua
+-- sendo quem registrou o lançamento (hoje o CPF); este overlay append-only diz a quem o lançamento
+-- pertence economicamente. A atribuição vigente é a de maior id; mudar de ideia é inserir outra
+-- (substitui_id aponta a anterior), nunca UPDATE. Sem atribuição, o titular é o próprio entidade_id.
+CREATE TABLE IF NOT EXISTS ledger_atribuicoes_titularidade (
+    id                      INTEGER PRIMARY KEY,
+    ledger_entry_id         INTEGER NOT NULL REFERENCES ledger_entries(id),
+    titular_economico_id    INTEGER NOT NULL REFERENCES entidades_legais(id),
+    motivo                  TEXT NOT NULL,
+    regra                   TEXT,        -- lote/regra que gerou (ex.: 'CORTE-PJ-2026-01'); NULL = manual
+    atribuido_por           INTEGER,     -- usuario_id
+    atribuido_em            TEXT NOT NULL DEFAULT (datetime('now')),
+    substitui_id            INTEGER REFERENCES ledger_atribuicoes_titularidade(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ledger_atrib_lancamento ON ledger_atribuicoes_titularidade(ledger_entry_id, id);
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_atrib_no_update
+BEFORE UPDATE ON ledger_atribuicoes_titularidade
+BEGIN
+    SELECT RAISE(ABORT, 'Atribuição de titularidade é append-only: registre uma nova atribuição.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_atrib_no_delete
+BEFORE DELETE ON ledger_atribuicoes_titularidade
+BEGIN
+    SELECT RAISE(ABORT, 'Atribuição de titularidade é append-only: não pode ser excluída.');
+END;
+
+CREATE VIEW IF NOT EXISTS v_ledger_titular_atual AS
+SELECT le.*,
+       COALESCE(
+         (SELECT a.titular_economico_id FROM ledger_atribuicoes_titularidade a
+           WHERE a.ledger_entry_id = le.id ORDER BY a.id DESC LIMIT 1),
+         le.entidade_id
+       ) AS titular_economico_id
+FROM ledger_entries le;
+-- END TITULARIDADE ECONOMICA

@@ -35,6 +35,16 @@ async function aguardarMicrotasks() {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
 
+/** O registro de auditoria é assíncrono (encadeia hash). Uma espera fixa de 10ms fica curta sob
+ * carga e o teste ficava intermitente; aqui se espera o registro aparecer, com teto de 3s. */
+async function aguardarRegistros(db: Awaited<ReturnType<typeof criarBancoDeTeste>>, usuario_id: number) {
+  const limite = Date.now() + 3000;
+  while (Date.now() < limite) {
+    if (listarAcessosUsuario(db, usuario_id).length > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 function chamadaBase(overrides: Partial<Parameters<typeof registrarChamadaAPI>[1]> = {}) {
   return {
     timestamp: "2026-01-15T10:00:00",
@@ -181,7 +191,7 @@ describe("compliance-audit-log: relatório, exportação e consulta por usuário
   it("registrarAcessoLeitura grava uma entrada de leitura sem o chamador precisar montar o objeto inteiro", async () => {
     const db = await criarBancoDeTeste();
     registrarAcessoLeitura(db, 5, "Carla", "10.0.0.1", "documento", 42, 12);
-    await aguardarMicrotasks();
+    await aguardarRegistros(db, 5);
 
     const registros = listarAcessosUsuario(db, 5);
     expect(registros).toHaveLength(1);
@@ -193,7 +203,7 @@ describe("compliance-audit-log: relatório, exportação e consulta por usuário
   it("registrarErro grava status='erro' com a mensagem original preservada", async () => {
     const db = await criarBancoDeTeste();
     registrarErro(db, 7, "conciliacao", "extrato", "arquivo OFX malformado", "10.0.0.2");
-    await aguardarMicrotasks();
+    await aguardarRegistros(db, 7);
 
     const registros = listarAcessosUsuario(db, 7);
     expect(registros).toHaveLength(1);

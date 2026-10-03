@@ -10,6 +10,7 @@ import {
   obterDescricaoPeriodo,
 } from "./ledger-period-validation";
 import { CONTA_LUCROS_ACUMULADOS_ERP } from "./mapeamentoPlanoApp";
+import { herdarTitularidade } from "./titularidade-economica";
 
 /** SHA-256 pela Web Crypto API — a mesma que src/domain/backupIntegridade.ts usa.
  *
@@ -738,6 +739,9 @@ export function estornarLancamento(
     db,
     "SELECT last_insert_rowid() as id",
   );
+
+  // O contra-lançamento herda a titularidade econômica do original (ver titularidade-economica.ts)
+  herdarTitularidade(db, lancamento_id, reverso.id);
 
   // Marcar original como estornado
   executar(

@@ -163,6 +163,9 @@ export function reconstruirLedgerEntries(db: Database, schemaSql: string): void 
     db.run(
       `INSERT INTO ledger_entries_migracao (${lista}) SELECT ${lista} FROM ledger_entries`,
     );
+    // A view de titularidade referencia ledger_entries; com a tabela dropada ela ficaria pendente e
+    // o RENAME falharia. O db.run(schemaSql) que roda logo depois a recria (IF NOT EXISTS).
+    db.run("DROP VIEW IF EXISTS v_ledger_titular_atual");
     db.run("DROP TABLE ledger_entries");
     db.run("ALTER TABLE ledger_entries_migracao RENAME TO ledger_entries");
     db.run("COMMIT");
