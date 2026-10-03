@@ -8,8 +8,26 @@ import express from "express";
 import request from "supertest";
 import initSqlJs from "sql.js";
 import type { Database } from "sql.js";
-import { emitirCobrancaAluguel } from "../../../../src/domain/integracoes/asaasCobranca";
 import { criarRotasAsaas } from "../asaas-routes";
+
+/**
+ * Helper to create a test cobrança (charge) in the database
+ */
+function criarCobrancaTeste(db: Database, origem_tipo: string, origem_id: number, status: string = "pendente") {
+  const chargeId = `charge_${Date.now()}`;
+  const agora = new Date().toISOString();
+
+  // Use raw SQL for sql.js compatibility
+  db.run(`
+    INSERT INTO cobrancas_asaas (
+      origem_tipo, origem_id, asaas_charge_id, tipo_cobranca, valor,
+      data_vencimento, status, boleto_url, linha_digitavel, pix_qrcode, criado_em
+    ) VALUES ('${origem_tipo}', ${origem_id}, '${chargeId}', 'boleto', 1500,
+      '2025-12-31', '${status}', 'https://example.com/boleto', '12345.67890', 'qrcode', '${agora}')
+  `);
+
+  return { asaasChargeId: chargeId, id: 1, status };
+}
 
 describe("Rotas HTTP de Reembolsos Asaas", () => {
   let app: express.Application;
@@ -119,11 +137,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
 
   describe("POST /api/asaas/cobrancas/:chargeId/processar-devolucao", () => {
     it("deve processar devolução com sucesso", async () => {
-      const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-        tipoCobranca: "boleto",
-      });
-      // Update status to 'pago' using raw SQL (better compatibility with sql.js)
-      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
+      const cobranca = criarCobrancaTeste(db, "locacao", 1, "pago");
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
@@ -150,9 +164,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
     });
 
     it("deve validar motivo obrigatório", async () => {
-      const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-        tipoCobranca: "boleto",
-      });
+      const cobranca = criarCobrancaTeste(db, "locacao", 1, "pago");
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
@@ -164,10 +176,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
     });
 
     it("deve validar tipoForce se fornecido", async () => {
-      const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-        tipoCobranca: "boleto",
-      });
-      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
+      const cobranca = criarCobrancaTeste(db, "locacao", 1, "pago");
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
@@ -179,10 +188,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
     });
 
     it("deve permitir tipoForce válido", async () => {
-      const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-        tipoCobranca: "boleto",
-      });
-      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
+      const cobranca = criarCobrancaTeste(db, "locacao", 1, "pago");
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
@@ -205,10 +211,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
     });
 
     it("deve retornar 400 para cobrança não paga", async () => {
-      const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-        tipoCobranca: "boleto",
-      });
-      // Não atualiza status para pago
+      const cobranca = criarCobrancaTeste(db, "locacao", 1, "pendente");
 
       const res = await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
@@ -222,10 +225,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
 
   describe("GET /api/asaas/cobrancas/:chargeId/reembolsos", () => {
     it("deve listar reembolsos de uma cobrança", async () => {
-      const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-        tipoCobranca: "boleto",
-      });
-      db.run(`UPDATE cobrancas_asaas SET status = 'pago' WHERE asaas_charge_id = '${cobranca.asaasChargeId}'`);
+      const cobranca = criarCobrancaTeste(db, "locacao", 1, "pago");
 
       await request(app)
         .post(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/processar-devolucao`)
@@ -243,9 +243,7 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
     });
 
     it("deve retornar lista vazia para cobrança sem reembolsos", async () => {
-      const cobranca = await emitirCobrancaAluguel(db, mockApiClient, 1, {
-        tipoCobranca: "boleto",
-      });
+      const cobranca = criarCobrancaTeste(db, "locacao", 1, "pendente");
 
       const res = await request(app)
         .get(`/api/asaas/cobrancas/${cobranca.asaasChargeId}/reembolsos`)
