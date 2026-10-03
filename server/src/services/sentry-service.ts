@@ -352,4 +352,262 @@ export function addSentryBreadcrumb(
   }
 }
 
+/**
+ * OBS-002: Start a Sentry transaction for critical DB operations
+ * Tracks performance of long-running database queries and operations
+ * @param operationName - Name of the database operation
+ * @param queryType - Type of query (SELECT, INSERT, UPDATE, DELETE, etc.)
+ * @returns Transaction object for child spans
+ */
+export function startDbTransaction(
+  operationName: string,
+  queryType: string = "db.query"
+): Sentry.Transaction | null {
+  try {
+    if (!Sentry.startTransaction) return null;
+
+    const transaction = Sentry.startTransaction({
+      op: "db",
+      name: operationName,
+      description: `Database operation: ${queryType}`,
+      tags: {
+        "db.operation": operationName,
+        "db.query_type": queryType,
+      },
+    });
+
+    return transaction;
+  } catch (error) {
+    logger.error("[Sentry] Failed to start DB transaction", error instanceof Error ? error : { error: String(error) });
+    return null;
+  }
+}
+
+/**
+ * OBS-002: Add child span to transaction for tracing DB statement execution
+ * Tracks individual SQL statement execution within a transaction
+ * @param parentTransaction - Parent transaction created by startDbTransaction
+ * @param sqlStatement - SQL query being executed
+ * @param table - Table name being accessed
+ * @returns Span object to finish tracking
+ */
+export function createDbStatementSpan(
+  parentTransaction: Sentry.Transaction | null,
+  sqlStatement: string,
+  table: string = "unknown"
+): Sentry.Span | null {
+  try {
+    if (!parentTransaction) return null;
+
+    // Add breadcrumb for each statement execution
+    addSentryBreadcrumb(
+      `Executing SQL: ${sqlStatement.substring(0, 100)}...`,
+      {
+        table,
+        statement_length: sqlStatement.length,
+      },
+      "db.statement",
+      "debug"
+    );
+
+    // Create child span
+    const span = parentTransaction.startChild({
+      op: "db.query",
+      description: `SQL: ${sqlStatement.substring(0, 80)}...`,
+      tags: {
+        "db.table": table,
+        "db.statement_type": sqlStatement.split(/\s+/)[0].toUpperCase(),
+      },
+    });
+
+    return span;
+  } catch (error) {
+    logger.error("[Sentry] Failed to create DB statement span", error instanceof Error ? error : { error: String(error) });
+    return null;
+  }
+}
+
+/**
+ * OBS-002: Detect and report N+1 query pattern
+ * Logs when multiple similar queries are executed in sequence
+ * @param queryType - Type of query being checked
+ * @param table - Table being queried
+ * @param executionCount - Number of times this query was executed
+ * @param threshold - Threshold to trigger N+1 detection (default: 3)
+ */
+export function detectN1Queries(
+  queryType: string,
+  table: string,
+  executionCount: number,
+  threshold: number = 3
+): void {
+  try {
+    if (executionCount >= threshold) {
+      const message = `N+1 Query Pattern Detected: ${executionCount} executions of ${queryType} on table ${table}`;
+
+      addSentryBreadcrumb(
+        message,
+        {
+          query_type: queryType,
+          table,
+          execution_count: executionCount,
+          threshold,
+        },
+        "performance.n1_query",
+        "warning"
+      );
+
+      captureMessage(message, {
+        level: "warning",
+        tags: {
+          "pattern": "n1_query",
+          "table": table,
+          "query_type": queryType,
+        },
+        extra: {
+          execution_count: executionCount,
+        },
+      });
+    }
+  } catch (error) {
+    logger.error("[Sentry] Failed to detect N+1 queries", error instanceof Error ? error : { error: String(error) });
+  }
+}
+
+/**
+ * OBS-002: Trace Promise.all() parallelization performance
+ * Monitors parallel execution of multiple operations
+ * @param operationName - Name of the parallel operation group
+ * @param promises - Array of promises to track
+ * @returns Promise that tracks all child promises
+ */
+export async function traceParallelOperations<T>(
+  operationName: string,
+  promises: Promise<T>[]
+): Promise<T[]> {
+  const transaction = createSentryTransaction("parallel", operationName);
+
+  try {
+    if (transaction) {
+      const startTime = Date.now();
+
+      // Create child spans for each promise
+      const trackedPromises = promises.map((promise, index) => {
+        const span = transaction.startChild({
+          op: "parallel.operation",
+          description: `${operationName} - Operation ${index + 1}/${promises.length}`,
+        });
+
+        return promise
+          .then((result) => {
+            if (span) {
+              span.finish();
+            }
+            return result;
+          })
+          .catch((error) => {
+            if (span) {
+              span.setStatus("error");
+              span.setData("error", error);
+              span.finish();
+            }
+            throw error;
+          });
+      });
+
+      const results = await Promise.all(trackedPromises);
+
+      const duration = Date.now() - startTime;
+      transaction.setData("duration_ms", duration);
+      transaction.setData("operation_count", promises.length);
+      transaction.finish();
+
+      addSentryBreadcrumb(
+        `Parallel operation completed: ${operationName}`,
+        {
+          operation_count: promises.length,
+          duration_ms: duration,
+          avg_duration_per_op: duration / promises.length,
+        },
+        "performance.parallel",
+        "info"
+      );
+
+      return results;
+    } else {
+      return Promise.all(promises);
+    }
+  } catch (error) {
+    if (transaction) {
+      transaction.setStatus("error");
+      transaction.setData("error", error instanceof Error ? error.message : String(error));
+      transaction.finish();
+    }
+    throw error;
+  }
+}
+
+/**
+ * OBS-002: Track database transaction with detailed span information
+ * Useful for audit trail and complex multi-statement operations
+ * @param transactionName - Name for logging purposes
+ * @param operation - Async operation to track
+ * @returns Result of the operation
+ */
+export async function trackDatabaseTransaction<T>(
+  transactionName: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const transaction = startDbTransaction(transactionName, "transaction");
+  const startTime = Date.now();
+
+  try {
+    addSentryBreadcrumb(
+      `Database transaction started: ${transactionName}`,
+      {},
+      "db.transaction",
+      "debug"
+    );
+
+    const result = await operation();
+
+    const duration = Date.now() - startTime;
+    if (transaction) {
+      transaction.setData("duration_ms", duration);
+      transaction.setStatus("ok");
+      transaction.finish();
+    }
+
+    addSentryBreadcrumb(
+      `Database transaction completed: ${transactionName}`,
+      { duration_ms: duration },
+      "db.transaction",
+      "debug"
+    );
+
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+
+    if (transaction) {
+      transaction.setStatus("error");
+      transaction.setData("error", error instanceof Error ? error.message : String(error));
+      transaction.setData("duration_ms", duration);
+      transaction.finish();
+    }
+
+    addSentryBreadcrumb(
+      `Database transaction failed: ${transactionName}`,
+      {
+        duration_ms: duration,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "db.transaction",
+      "error"
+    );
+
+    throw error;
+  }
+}
+
 export { Sentry, SentryTracing };
