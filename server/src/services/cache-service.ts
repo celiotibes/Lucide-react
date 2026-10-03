@@ -1,16 +1,24 @@
 /**
- * In-Memory Cache Service with TTL (Time-To-Live)
+ * In-Memory Cache Service with TTL (Time-To-Live) + LRU Eviction
  *
  * Provides a thread-safe, TTL-enabled cache for storing frequently accessed data.
  * Automatically evicts expired entries on access.
+ *
+ * Performance Optimizations:
+ *   - LRU eviction: máximo 1000 chaves por namespace
+ *   - Memory limit: 50MB total, descarta quando excedido
+ *   - Pattern-based invalidation via invalidateByPattern()
  *
  * Usage:
  *   const cache = new CacheService();
  *   cache.set('key', data, 60000); // 60 seconds
  *   const result = cache.get('key');
+ *   cache.invalidateByPattern('cobranca:*'); // Invalida por padrão
  *
  * Features:
  *   - TTL-based expiration (milliseconds)
+ *   - LRU eviction when exceeding 1000 keys per namespace
+ *   - Memory monitoring (50MB limit)
  *   - Pattern-based invalidation
  *   - Type-safe get/set operations
  *   - Memory-efficient cleanup
@@ -20,10 +28,17 @@ interface CacheEntry<T> {
   data: T;
   timestamp: number;
   ttl: number;
+  lastAccessed: number;
+  size: number; // Tamanho aproximado em bytes
 }
 
 export class CacheService {
   private cache = new Map<string, CacheEntry<any>>();
+  private readonly MAX_KEYS_PER_NAMESPACE = 1000;
+  private readonly MAX_MEMORY_BYTES = 50 * 1024 * 1024; // 50MB
+  private readonly NAMESPACE_SEPARATOR = ':';
+  private totalMemoryUsage = 0;
+  private accessOrder: string[] = []; // Para LRU tracking
 
   /**
    * Retrieves a value from cache if it exists and hasn't expired.

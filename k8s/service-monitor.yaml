@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lucide-app-monitor
+  namespace: default
+  labels:
+    app: lucide-app
+    release: prometheus
+spec:
+  # Select the service to be monitored
+  selector:
+    matchLabels:
+      app: lucide-app
+
+  # Namespace of the service
+  namespaceSelector:
+    matchNames:
+      - default
+
+  # Endpoints configuration for scraping
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      scheme: http
+      relabelings:
+        # Add pod name as label
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod_name
+        # Add pod namespace as label
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        # Add container name as label
+        - sourceLabels: [__meta_kubernetes_container_name]
+          targetLabel: container
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lucide-app-metrics
+  namespace: default
+  labels:
+    app: lucide-app
+spec:
+  selector:
+    app: lucide-app
+  ports:
+    - name: http
+      port: 8787
+      targetPort: 8787
+      protocol: TCP
+  type: ClusterIP

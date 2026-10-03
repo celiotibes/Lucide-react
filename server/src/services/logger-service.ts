@@ -1,5 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -9,16 +10,35 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * - Structured JSON format
  * - Request ID correlation
  * - Multiple transports (console + file)
- * - Log rotation and levels
+ * - Log rotation (maxsize: 10MB, maxFiles: 10)
+ * - Daily rotation with timestamp
+ * - Archive support
  */
 
 let winstonLogger: any = null;
+
+// Ensure log directories exist
+function ensureLogDirectories() {
+  const logsDir = path.join(__dirname, '../../logs');
+  const archiveDir = path.join(logsDir, 'archive');
+
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+  if (!fs.existsSync(archiveDir)) {
+    fs.mkdirSync(archiveDir, { recursive: true });
+  }
+}
 
 // Initialize Winston logger at module load time
 function initWinston() {
   try {
     // Only initialize Winston in node environments
     const winston = require('winston');
+    const DailyRotateFile = require('winston-daily-rotate-file');
+
+    // Ensure directories exist
+    ensureLogDirectories();
 
     // Custom format to add requestId context
     const customFormat = winston.format.combine(
@@ -49,16 +69,41 @@ function initWinston() {
         new winston.transports.Console({
           format: consoleFormat,
         }),
-        // File transport - All logs
+        // Daily rotating file transport - All logs
+        new DailyRotateFile({
+          filename: path.join(__dirname, '../../logs/app-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          maxSize: '10m', // 10MB
+          maxFiles: 10,
+          auditFile: path.join(__dirname, '../../logs/.audit.json'),
+          format: customFormat,
+          utc: true,
+        }),
+        // File transport with rotation - All logs (for size-based rotation)
         new winston.transports.File({
           filename: path.join(__dirname, '../../logs/app.log'),
           format: customFormat,
+          maxsize: 10485760, // 10MB in bytes
+          maxFiles: 10,
         }),
-        // File transport - Errors only
+        // Daily rotating file transport - Errors only
+        new DailyRotateFile({
+          filename: path.join(__dirname, '../../logs/error-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          level: 'error',
+          maxSize: '10m',
+          maxFiles: 10,
+          auditFile: path.join(__dirname, '../../logs/.audit-errors.json'),
+          format: customFormat,
+          utc: true,
+        }),
+        // File transport with rotation - Errors only
         new winston.transports.File({
           filename: path.join(__dirname, '../../logs/error.log'),
           level: 'error',
           format: customFormat,
+          maxsize: 10485760, // 10MB in bytes
+          maxFiles: 10,
         }),
       ],
     });
