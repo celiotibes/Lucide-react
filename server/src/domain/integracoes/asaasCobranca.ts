@@ -839,7 +839,16 @@ export function atualizarCobrancasVencidas(db: Database.Database): number {
   });
 
   try {
-    return processarLote(cobrancasVencidas);
+    const processados = processarLote(cobrancasVencidas);
+
+    // Cache invalidation: after batch updating expired charges
+    if (processados > 0) {
+      const cache = getCacheService();
+      cache.invalidateByPattern('cobranca:*');
+      cache.invalidateByPattern('cobrancas:list:*');
+    }
+
+    return processados;
   } catch (err) {
     logger.error(
       "Erro ao processar cobrancas vencidas em lote (transaction rolled back)",

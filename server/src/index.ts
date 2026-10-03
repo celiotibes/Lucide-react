@@ -3,6 +3,7 @@ import { z } from "zod";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import compression from "compression";
 import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import { specs } from "./swagger.js";
