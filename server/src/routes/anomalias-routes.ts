@@ -9,6 +9,8 @@
 
 import express from "express";
 import Database from "better-sqlite3";
+import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
+import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import {
   avaliarAnomaliaAgregada,
   registrarAlertaAnomalia,
@@ -20,10 +22,12 @@ import {
 
 export interface AnomalasRoutesDeps {
   db: Database.Database;
+  authService: AuthServiceDB;
 }
 
-export function criarRotasAnomalias({ db }: AnomalasRoutesDeps): express.Router {
+export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): express.Router {
   const router = express.Router();
+  const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
 
   /**
    * POST /api/anomalias/analisar/:transacaoId
@@ -46,7 +50,7 @@ export function criarRotasAnomalias({ db }: AnomalasRoutesDeps): express.Router 
    *   descricao: string
    * }
    */
-  router.post("/analisar/:transacaoId", (req, res) => {
+  router.post("/analisar/:transacaoId", exigirAutenticacao, (req, res) => {
     try {
       const { transacaoId } = req.params;
       const { valor, periodo_dias } = req.query;
@@ -103,7 +107,7 @@ export function criarRotasAnomalias({ db }: AnomalasRoutesDeps): express.Router 
    *   filtros: { severidade?, dias?, revisado?, limite? }
    * }
    */
-  router.get("/alertas", (req, res) => {
+  router.get("/alertas", exigirAutenticacao, (req, res) => {
     try {
       const { severidade, dias, revisado, limite } = req.query;
 
@@ -160,7 +164,7 @@ export function criarRotasAnomalias({ db }: AnomalasRoutesDeps): express.Router 
    *   periodo_dias: number
    * }
    */
-  router.get("/estatisticas", (req, res) => {
+  router.get("/estatisticas", exigirAutenticacao, (req, res) => {
     try {
       const { dias } = req.query;
       const periodo = dias ? Math.max(1, Math.min(365, Number(dias))) : 30;
@@ -196,7 +200,7 @@ export function criarRotasAnomalias({ db }: AnomalasRoutesDeps): express.Router 
    *   motivo: string
    * }
    */
-  router.patch("/alertas/:id/revisar", (req, res) => {
+  router.patch("/alertas/:id/revisar", exigirAutenticacao, (req, res) => {
     try {
       const { id } = req.params;
       const { usuario_id, motivo } = req.body;
