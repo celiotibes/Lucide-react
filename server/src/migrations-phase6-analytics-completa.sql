@@ -17,46 +17,10 @@
 
 -- =====================================================================
 -- Tabela 1: DRE_PERIODOS
--- Histórico de DRE (Demonstração de Resultado) por período (mês/ano)
+-- NOTA: Definição movida para migrations-phase6-relatorios-dre.sql
+-- Ela está em arquivo separado com a estrutura correta (ano, mes)
 -- =====================================================================
-CREATE TABLE IF NOT EXISTS dre_periodos (
-  id                          INTEGER PRIMARY KEY AUTOINCREMENT,
-
-  -- Período de referência
-  ano                         INTEGER NOT NULL,
-  periodo_mes                 DATE NOT NULL,
-
-  -- Receitas (valores em R$)
-  receita_total               REAL NOT NULL DEFAULT 0.0,
-  receita_aluguel             REAL NOT NULL DEFAULT 0.0,
-  receita_honorario           REAL NOT NULL DEFAULT 0.0,
-  receita_extraordinaria      REAL NOT NULL DEFAULT 0.0,
-
-  -- Despesas (valores em R$)
-  despesa_total               REAL NOT NULL DEFAULT 0.0,
-  despesa_folha               REAL NOT NULL DEFAULT 0.0,      -- Salários, encargos
-  despesa_impostos            REAL NOT NULL DEFAULT 0.0,      -- IR, INSS, etc.
-  despesa_condominio          REAL NOT NULL DEFAULT 0.0,
-  despesa_manutencao          REAL NOT NULL DEFAULT 0.0,
-  despesa_juros               REAL NOT NULL DEFAULT 0.0,
-  despesa_outras              REAL NOT NULL DEFAULT 0.0,
-
-  -- Resultado
-  lucro_liquido               REAL NOT NULL DEFAULT 0.0,      -- receita_total - despesa_total
-
-  -- Auditoria
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  -- Unicidade: um registro por período (ano/mês)
-  UNIQUE(ano, periodo_mes)
-);
-
--- Índices para queries frequentes
-CREATE INDEX IF NOT EXISTS idx_dre_periodos_ano_mes
-  ON dre_periodos(ano, periodo_mes);
-CREATE INDEX IF NOT EXISTS idx_dre_periodos_atualizado
-  ON dre_periodos(atualizado_em DESC);
+-- (Tabela criada por migrations-phase6-relatorios-dre.sql)
 
 
 -- =====================================================================
@@ -97,37 +61,10 @@ CREATE INDEX IF NOT EXISTS idx_fluxo_periodos_data_categoria
 
 -- =====================================================================
 -- Tabela 3: MARGENS_PROPRIEDADES_PERIODO
--- Rentabilidade por imóvel e período
+-- NOTA: Definição movida para migrations-phase7-margens-propriedades.sql
+-- Ela está em arquivo separado com a estrutura correta (periodo, ano, mes, imovel_id)
 -- =====================================================================
-CREATE TABLE IF NOT EXISTS margens_propriedades_periodo (
-  id                          INTEGER PRIMARY KEY AUTOINCREMENT,
-
-  -- Referência
-  imovel_id                   INTEGER NOT NULL,                -- FK conceitual (servidor não persiste o imóvel)
-  periodo_mes                 DATE NOT NULL,
-
-  -- Financeiro
-  receita_aluguel             REAL NOT NULL DEFAULT 0.0,
-  despesa_total               REAL NOT NULL DEFAULT 0.0,
-
-  -- KPI
-  margem_percentual           REAL NOT NULL DEFAULT 0.0,      -- (receita_aluguel - despesa_total) / receita_aluguel * 100
-
-  -- Auditoria
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  -- Unicidade: um registro por (imóvel, período)
-  UNIQUE(imovel_id, periodo_mes)
-);
-
--- Índices para queries frequentes
-CREATE INDEX IF NOT EXISTS idx_margens_propriedades_imovel
-  ON margens_propriedades_periodo(imovel_id);
-CREATE INDEX IF NOT EXISTS idx_margens_propriedades_periodo
-  ON margens_propriedades_periodo(periodo_mes);
-CREATE INDEX IF NOT EXISTS idx_margens_propriedades_margem
-  ON margens_propriedades_periodo(margem_percentual);
+-- (Tabela criada por migrations-phase7-margens-propriedades.sql)
 
 
 -- =====================================================================
@@ -167,50 +104,20 @@ CREATE INDEX IF NOT EXISTS idx_categorias_confianca
 
 -- =====================================================================
 -- Tabela 5: ALERTAS_ANOMALIAS_REGISTRADOS
--- Auditoria de alertas de anomalias detectadas
+-- NOTA: Definição já existe em migrations-phase4.1-anomalias.sql
+-- com estrutura diferente (transacao_id, severidade, etc.)
 -- =====================================================================
-CREATE TABLE IF NOT EXISTS alertas_anomalias_registrados (
-  id                          INTEGER PRIMARY KEY AUTOINCREMENT,
-
-  -- Data e categoria
-  data_alerta                 DATE NOT NULL,
-  categoria                   TEXT NOT NULL,                  -- 'receita_aluguel', 'despesa_folha', 'fluxo_caixa', etc.
-
-  -- Valor observado e limites
-  valor                       REAL NOT NULL,
-  limite_inferior             REAL,                           -- Limite inferior do intervalo de confiança
-  limite_superior             REAL,                           -- Limite superior do intervalo de confiança
-
-  -- Método de detecção
-  metodo_deteccao             TEXT NOT NULL,                  -- '2sigma', 'iqr', 'p90', etc.
-  descricao                   TEXT,                           -- Descrição legível para o usuário
-
-  -- Status de resolução
-  resolvido                   INTEGER NOT NULL DEFAULT 0,     -- 0=pendente, 1=resolvido
-  resolvido_em                DATETIME,
-  observacoes_resolucao       TEXT,
-
-  -- Auditoria
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Índices para queries frequentes
-CREATE INDEX IF NOT EXISTS idx_alertas_data
-  ON alertas_anomalias_registrados(data_alerta DESC);
-CREATE INDEX IF NOT EXISTS idx_alertas_categoria
-  ON alertas_anomalias_registrados(categoria);
-CREATE INDEX IF NOT EXISTS idx_alertas_status
-  ON alertas_anomalias_registrados(resolvido);
-CREATE INDEX IF NOT EXISTS idx_alertas_data_categoria
-  ON alertas_anomalias_registrados(data_alerta DESC, categoria);
+-- (Tabela criada por migrations-phase4.1-anomalias.sql)
+-- Removido: conflito de esquema — a versão em phase4.1 é a correta
 
 
 -- =====================================================================
--- Tabela 6: PAGAMENTOS_PIX_SOLICITADOS
--- Fase 2: PIX proativo (solicitar pagamento via QR code)
+-- Tabela 6: PAGAMENTOS_PIX_RECEBIDOS (Incoming PIX)
+-- Fase 6: PIX recebido do cliente (pagamento de contrato)
+-- NOTA: Tabela renomeada de pagamentos_pix_solicitados para evitar conflito
+-- com a tabela de pagamentos ENVIADOS (fase 9: pagamentos_pix_solicitados outgoing)
 -- =====================================================================
-CREATE TABLE IF NOT EXISTS pagamentos_pix_solicitados (
+CREATE TABLE IF NOT EXISTS pagamentos_pix_recebidos (
   id                          TEXT PRIMARY KEY,                -- UUID gerado pelo cliente/servidor
 
   -- Referência
@@ -243,16 +150,16 @@ CREATE TABLE IF NOT EXISTS pagamentos_pix_solicitados (
 );
 
 -- Índices para queries frequentes
-CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_usuario
-  ON pagamentos_pix_solicitados(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_contrato
-  ON pagamentos_pix_solicitados(contrato_id);
-CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_status
-  ON pagamentos_pix_solicitados(status);
-CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_asaas_id
-  ON pagamentos_pix_solicitados(asaas_charge_id);
-CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_criado
-  ON pagamentos_pix_solicitados(criado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_recebidos_usuario
+  ON pagamentos_pix_recebidos(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_recebidos_contrato
+  ON pagamentos_pix_recebidos(contrato_id);
+CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_recebidos_status
+  ON pagamentos_pix_recebidos(status);
+CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_recebidos_asaas_id
+  ON pagamentos_pix_recebidos(asaas_charge_id);
+CREATE INDEX IF NOT EXISTS idx_pagamentos_pix_recebidos_criado
+  ON pagamentos_pix_recebidos(criado_em DESC);
 
 
 -- =====================================================================

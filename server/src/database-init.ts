@@ -82,10 +82,10 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase7-relatorio-executivo.sql",
       "migrations-phase8-asaas-reembolsos.sql",
       "migrations-phase8-reconciliacao-asaas.sql",
+      "migrations-phase8-conciliacao-pix-ofx.sql",
       "migrations-phase9-pagamentos-pix-proativos.sql",
       "migrations-phase10-assinatura-lgpd.sql",
       "migrations-phase11-performance-indexes.sql",
-      "migrations-phase8-conciliacao-pix-ofx.sql",
       "migrations-phase12-asaas-webhook-dedup.sql",
       "migrations-phase12-imutabilidade.sql",
     ]);
