@@ -207,7 +207,14 @@ export class AuditTrailServiceDB {
   }
 
   /**
-   * Obtém todos os registros de auditoria com filtros opcionais
+   * Get all audit records with optional filtering
+   *
+   * @param filtros Optional filter parameters:
+   *   - tipo_acao: Filter by action type
+   *   - resultado: Filter by result/outcome
+   *   - usuario_id: Filter by user who performed the action
+   *
+   * @returns List of audit records, sorted by timestamp (newest first)
    */
   obterTodos(filtros?: {
     tipo_acao?: TipoAcao;
@@ -216,7 +223,8 @@ export class AuditTrailServiceDB {
   }): RegistroAuditoria[] {
     try {
       let query = "SELECT * FROM auditoria WHERE 1=1";
-      const params: any[] = [];
+      // Type-safe parameter array for SQL query
+      const params: string[] = [];
 
       if (filtros?.tipo_acao) {
         query += " AND tipo_acao = ?";
@@ -234,7 +242,7 @@ export class AuditTrailServiceDB {
       query += " ORDER BY timestamp DESC";
 
       const stmt = this.db.prepare(query);
-      const registros = stmt.all(...params) as any[];
+      const registros = stmt.all(...params) as RegistroAuditoria[];
       return this.parseRegistros(registros);
     } catch (erro) {
       console.error("Erro ao obter registros de auditoria:", erro);

@@ -30,8 +30,10 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
 
   /**
    * GET /api/backup/listar
-   * Lista todos os backups disponíveis no Google Drive
-   * Requer autenticação
+   * List all available backups on Google Drive
+   * Requires authentication
+   *
+   * @returns List of backup files with metadata
    */
   router.get("/listar", exigirAutenticacao, async (req: Request, res: Response) => {
     try {
@@ -63,9 +65,15 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
    * Executa um backup imediato (manual) do banco de dados
    * Requer autenticação
    */
+  /**
+   * POST /api/backup/agora
+   * Execute an immediate manual backup of the database
+   * Requires authentication
+   */
   router.post("/agora", exigirAutenticacao, async (req: Request, res: Response) => {
     try {
-      const usuarioId = (req.auth as any)?.usuario?.id;
+      // Type-safe access to authenticated user
+      const usuarioId = req.auth?.usuario?.id;
       console.log("[BackupRoutes] Backup manual solicitado por usuário:", usuarioId);
 
       const resultado = await backupSQLiteToGoogleDrive();
@@ -94,12 +102,15 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
 
   /**
    * POST /api/backup/restaurar/:fileId
-   * Restaura um backup específico
-   * Requer autenticação
+   * Restore a specific backup from Google Drive
+   * Requires authentication (admin verification is recommended)
+   *
+   * @param fileId The Google Drive file ID of the backup to restore
    */
   router.post("/restaurar/:fileId", exigirAutenticacao, async (req: Request, res: Response) => {
     try {
-      const usuarioId = (req.auth as any)?.usuario?.id;
+      // Type-safe access to authenticated user
+      const usuarioId = req.auth?.usuario?.id;
       const { fileId } = req.params;
 
       if (!fileId) {
@@ -134,8 +145,10 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
 
   /**
    * GET /api/backup/status
-   * Verifica o status da configuração de backup
-   * Requer autenticação
+   * Check backup configuration status
+   * Requires authentication
+   *
+   * @returns Configuration status (Google Drive configured, backup schedule, etc.)
    */
   router.get("/status", exigirAutenticacao, (req: Request, res: Response) => {
     try {

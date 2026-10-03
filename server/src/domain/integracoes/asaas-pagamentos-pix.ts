@@ -634,3 +634,74 @@ export function listarPagamentosPix(
     atualizadoEm: r.atualizado_em,
   }));
 }
+
+/**
+ * Atualiza um pagamento PIX (descrição, status)
+ */
+export function atualizarPagamentoPix(
+  db: Database.Database,
+  pagamentoId: string,
+  campos: {
+    descricao?: string;
+    status?: PagamentoPix["status"];
+  },
+): PagamentoPix | null {
+  const pagamento = buscarPagamentoPix(db, pagamentoId);
+  if (!pagamento) return null;
+
+  const statusAnterior = pagamento.status;
+
+  // Monta a query com apenas os campos fornecidos
+  let sql = `UPDATE pagamentos_pix_solicitados SET atualizado_em = CURRENT_TIMESTAMP`;
+  const params: unknown[] = [];
+
+  if (campos.descricao !== undefined) {
+    sql += `, descricao = ?`;
+    params.push(campos.descricao);
+  }
+
+  if (campos.status !== undefined) {
+    sql += `, status = ?`;
+    params.push(campos.status);
+  }
+
+  sql += ` WHERE id = ?`;
+  params.push(pagamentoId);
+
+  db.prepare(sql).run(...params);
+
+  // Se status mudou, registra no histórico
+  if (campos.status !== undefined && campos.status !== statusAnterior) {
+    const histId = randomUUID();
+    db.prepare(
+      `INSERT INTO pagamentos_pix_historico (id, pagamento_id, status_anterior, status_novo, criado_em)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+    ).run(histId, pagamentoId, statusAnterior, campos.status);
+  }
+
+  return buscarPagamentoPix(db, pagamentoId);
+}
+
+/**
+ * Deleta um pagamento PIX (apenas se ainda não foi processado)
+ */
+export function deletarPagamentoPix(db: Database.Database, pagamentoId: string): boolean {
+  const pagamento = buscarPagamentoPix(db, pagamentoId);
+  if (!pagamento) return false;
+
+  // Só permite deletar pagamentos que ainda estão PENDING
+  if (!["PENDING", "FAILED", "CANCELLED"].includes(pagamento.status)) {
+    throw new Error(
+      `Não é possível deletar pagamento com status '${pagamento.status}'. ` +
+        `Apenas pagamentos PENDING, FAILED ou CANCELLED podem ser deletados.`,
+    );
+  }
+
+  // Deleta o histórico primeiro (FK constraint)
+  db.prepare(`DELETE FROM pagamentos_pix_historico WHERE pagamento_id = ?`).run(pagamentoId);
+
+  // Depois deleta o pagamento
+  const result = db.prepare(`DELETE FROM pagamentos_pix_solicitados WHERE id = ?`).run(pagamentoId);
+
+  return (result.changes ?? 0) > 0;
+}

@@ -51,5 +51,27 @@ export function criarRotasEventosExternos({ authService, eventosService }: Event
     res.json({ sucesso: true });
   });
 
+  /**
+   * DELETE /api/eventos-externos/:id
+   * Remove um evento externo do inbox (apenas se pertence ao usuário ou é sem dono).
+   */
+  router.delete("/:id", exigirAutenticacao, (req, res) => {
+    const usuarioId = req.auth!.usuario!.id;
+    const eventId = req.params.id;
+
+    if (!eventId) {
+      res.status(400).json({ erro: "ID do evento é obrigatório" });
+      return;
+    }
+
+    const ok = eventosService.deletarEvento(eventId, usuarioId);
+    if (!ok) {
+      res.status(404).json({ erro: "Evento não encontrado ou pertence a outro usuário" });
+      return;
+    }
+
+    res.json({ sucesso: true });
+  });
+
   return router;
 }

@@ -18,6 +18,7 @@ import {
   obterAlerta,
   obterEstatisticasAnomalias,
   marcarAnomaliaRevisada,
+  atualizarAnomalia,
 } from "../domain/anomalias/detectores-anomalias.js";
 
 export interface AnomalasRoutesDeps {
@@ -235,6 +236,78 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
     } catch (erro) {
       console.error("Erro ao revisar anomalia:", erro instanceof Error ? erro.message : String(erro));
       res.status(500).json({ erro: "Falha ao revisar anomalia" });
+    }
+  });
+
+  /**
+   * PUT /api/anomalias/:id
+   *
+   * Atualiza um alerta de anomalia (severidade e/ou descrição)
+   *
+   * Body:
+   * {
+   *   severidade?: "baixa" | "media" | "critica",
+   *   descricao?: string
+   * }
+   *
+   * Resposta:
+   * {
+   *   id: string,
+   *   severidade: string,
+   *   confianca: number,
+   *   descricao: string,
+   *   criado_em: ISO8601
+   * }
+   */
+  router.put("/:id", exigirAutenticacao, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { severidade, descricao } = req.body ?? {};
+
+      // Validação: pelo menos um campo deve ser fornecido
+      if (severidade === undefined && descricao === undefined) {
+        res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (severidade, descricao)" });
+        return;
+      }
+
+      // Valida severidade se fornecida
+      if (severidade !== undefined && !["baixa", "media", "critica"].includes(severidade)) {
+        res.status(400).json({
+          erro: "severidade inválida — use um de: baixa, media, critica",
+        });
+        return;
+      }
+
+      // Verifica se alerta existe
+      const alertaAntes = obterAlerta(db, id);
+      if (!alertaAntes) {
+        res.status(404).json({ erro: "Alerta não encontrado" });
+        return;
+      }
+
+      // Atualiza
+      const alertaAtualizado = atualizarAnomalia(db, id, {
+        severidade: severidade !== undefined ? severidade : undefined,
+        descricao: descricao !== undefined ? descricao : undefined,
+      });
+
+      if (!alertaAtualizado) {
+        res.status(404).json({ erro: "Alerta não encontrado após atualização" });
+        return;
+      }
+
+      res.json({
+        id: alertaAtualizado.id,
+        transacao_id: alertaAtualizado.transacao_id,
+        severidade: alertaAtualizado.severidade,
+        confianca: alertaAtualizado.confianca,
+        descricao: alertaAtualizado.descricao,
+        revisado: alertaAtualizado.revisado,
+        criado_em: alertaAtualizado.criado_em,
+      });
+    } catch (erro) {
+      console.error("Erro ao atualizar anomalia:", erro instanceof Error ? erro.message : String(erro));
+      res.status(500).json({ erro: "Falha ao atualizar anomalia" });
     }
   });
 

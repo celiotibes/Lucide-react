@@ -164,14 +164,14 @@ app.use("/api/relatorios", criarRotasRelatorioExecutivo({ authService, db }));
 /** Sugestão inteligente de categorias para transações (fase 2.3) — baseada em
  * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria
  * retorna { categoria, confianca (0-100), motivo }. */
-app.use("/api/transacoes", criarRotasTransacoes({ db }));
+app.use("/api/transacoes", criarRotasTransacoes({ db, authService }));
 
 /** Reconciliação automática PIX↔OFX (fase 8) — casa transações Asaas PIX com
  * extratos Pluggy OFX, detecta discrepâncias e gera lançamentos contábeis.
  * POST /api/conciliacao/reconciliar-agora — trigger manual
  * GET /api/conciliacao/status?dias=30 — estatísticas
  * GET /api/conciliacao/discrepancias?limite=50 — lista de discrepâncias */
-app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db }));
+app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db, authService }));
 
 /** Detecção de anomalias em fluxo de caixa (fase 4.1) — identifica transações anormais
  * usando 3 métodos estatísticos (2-Sigma, IQR, Percentile) com votação/consenso.
@@ -179,14 +179,14 @@ app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db }));
  * GET /api/anomalias/alertas — lista alertas com filtros (severidade, dias, etc.)
  * GET /api/anomalias/estatisticas — estatísticas agregadas de anomalias
  * PATCH /api/anomalias/alertas/:id/revisar — marca alerta como revisado (auditoria) */
-app.use("/api/anomalias", criarRotasAnomalias({ db }));
+app.use("/api/anomalias", criarRotasAnomalias({ db, authService }));
 
 /** Backup automático para Google Drive (backup horário)
  * GET /api/backup/listar — lista backups no Google Drive
  * POST /api/backup/agora — executa backup manual imediato
  * POST /api/backup/restaurar/:fileId — restaura um backup específico
  * GET /api/backup/status — verifica status da configuração */
-app.use("/api/backup", criarRotasBackup({ permissoesService }));
+app.use("/api/backup", criarRotasBackup({ authService }));
 
 /** Assinatura Digital + LGPD Compliance (fase 10)
  * POST /api/relatorios/desafio-2fa — envia desafio SMS (Ser Pro ID)

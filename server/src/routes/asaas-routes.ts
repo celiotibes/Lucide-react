@@ -167,6 +167,63 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
   });
 
   /**
+   * PUT /api/asaas/cobrancas/:asaasChargeId
+   * Header: Authorization: Bearer <token>
+   * Body: { description?: string, dueDate?: string (YYYY-MM-DD) }
+   *
+   * Atualiza metadados de uma cobrança (descrição, data de vencimento).
+   * Campos como valor e tipo de cobrança não são atualizáveis via API.
+   */
+  router.put("/cobrancas/:asaasChargeId", exigirAutenticacao, async (req, res) => {
+    const chargeId = req.params.asaasChargeId?.trim();
+    const { description, dueDate } = req.body ?? {};
+
+    if (!chargeId) {
+      res.status(400).json({ erro: "chargeId é obrigatório (via URL)" });
+      return;
+    }
+
+    // Valida que pelo menos um campo foi fornecido
+    if (description === undefined && dueDate === undefined) {
+      res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (description, dueDate)" });
+      return;
+    }
+
+    // Valida dueDate se fornecido
+    if (dueDate !== undefined && (typeof dueDate !== "string" || !dueDate.match(/^\d{4}-\d{2}-\d{2}$/))) {
+      res.status(400).json({ erro: "dueDate deve estar no formato YYYY-MM-DD" });
+      return;
+    }
+
+    try {
+      // Verifica se a cobrança existe
+      await consultarCobranca(chargeId);
+
+      // Monta payload com apenas os campos fornecidos
+      const payload: any = {};
+      if (description !== undefined) payload.description = description;
+      if (dueDate !== undefined) payload.dueDate = dueDate;
+
+      const cobrancaAtualizada = await atualizarCobranca(chargeId, payload);
+
+      res.json({
+        asaasChargeId: cobrancaAtualizada.id,
+        status: cobrancaAtualizada.status,
+        billingType: cobrancaAtualizada.billingType,
+        boletoUrl: cobrancaAtualizada.bankSlipUrl ?? cobrancaAtualizada.invoiceUrl ?? null,
+        linhaDigitavel: cobrancaAtualizada.identificationField ?? null,
+        pixQrCode: cobrancaAtualizada.pixQrCodeId ?? null,
+      });
+    } catch (erro) {
+      if (erro instanceof AsaasApiError && erro.status === 404) {
+        res.status(404).json({ erro: "Cobrança não encontrada" });
+        return;
+      }
+      tratarErroAsaas(erro, res);
+    }
+  });
+
+  /**
    * POST /api/asaas/webhooks/asaas
    * (SEM autenticação de sessão — ver cabeçalho do arquivo)
    *

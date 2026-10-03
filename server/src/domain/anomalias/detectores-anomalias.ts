@@ -539,7 +539,16 @@ function gerarDescricaoAlerta(resultado: ResultadoAnomaliaAgregada, transacao_id
 }
 
 /**
- * Lista alertas com filtros opcionais
+ * List anomaly alerts with optional filtering
+ *
+ * @param db Database instance (Better-SQLite3)
+ * @param opcoes Optional filter parameters:
+ *   - severidade: "info" | "warning" | "critical" severity level
+ *   - dias: Filter for alerts created in the last N days
+ *   - revisado: Filter by review status (true = reviewed, false = unreviewed)
+ *   - limite: Maximum number of results to return
+ *
+ * @returns Array of anomaly alerts matching the filters, sorted by creation date (newest first)
  */
 export function listarAlertas(
   db: Database.Database,
@@ -560,7 +569,8 @@ export function listarAlertas(
     WHERE 1=1
   `;
 
-  const params: any[] = [];
+  // Type-safe parameter array for SQL query
+  const params: (string | number | boolean)[] = [];
 
   if (opcoes.severidade) {
     sql += ` AND severidade = ?`;
@@ -607,6 +617,42 @@ export function marcarAnomaliaRevisada(
   `);
 
   stmt.run(usuario_id, motivo, alerta_id);
+}
+
+/**
+ * Atualiza um alerta de anomalia (severidade e/ou descrição)
+ */
+export function atualizarAnomalia(
+  db: Database.Database,
+  alerta_id: string,
+  campos: {
+    severidade?: "baixa" | "media" | "critica";
+    descricao?: string;
+  },
+): AlertaAnomalia | null {
+  const alerta = obterAlerta(db, alerta_id);
+  if (!alerta) return null;
+
+  // Monta a query com apenas os campos fornecidos
+  let sql = `UPDATE alertas_anomalias_registrados SET atualizado_em = CURRENT_TIMESTAMP`;
+  const params: unknown[] = [];
+
+  if (campos.severidade !== undefined) {
+    sql += `, severidade = ?`;
+    params.push(campos.severidade);
+  }
+
+  if (campos.descricao !== undefined) {
+    sql += `, descricao = ?`;
+    params.push(campos.descricao);
+  }
+
+  sql += ` WHERE id = ?`;
+  params.push(alerta_id);
+
+  db.prepare(sql).run(...params);
+
+  return obterAlerta(db, alerta_id);
 }
 
 /**

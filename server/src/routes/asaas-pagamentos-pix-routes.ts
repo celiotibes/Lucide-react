@@ -22,6 +22,8 @@ import {
   buscarStatusPagamentoPix,
   listarPagamentosPix,
   validarDadosPagamento,
+  atualizarPagamentoPix,
+  deletarPagamentoPix,
   type DadosPagamentoPix,
   type TipoChavePix,
   AsaasApiError,
@@ -250,6 +252,17 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
    *     total: number
    *   }
    */
+  /**
+   * GET /api/asaas/pagamentos-pix
+   *
+   * Lista pagamentos com filtros opcionais.
+   * Não sincroniza com Asaas (mais rápido; use GET /:id para sincronização).
+   *
+   * Query params (todos opcionais):
+   *   - status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED"
+   *   - beneficiarioId: string (filtra por beneficiário específico)
+   *   - diasAtras: number (filtrar últimos N dias; default: sem limite)
+   */
   router.get("/pagamentos-pix", (req, res) => {
     try {
       if (!db) {
@@ -258,7 +271,12 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
 
       const { status, beneficiarioId, diasAtras } = req.query;
 
-      const filtros: any = {};
+      // Type-safe filter object construction
+      const filtros: {
+        status?: string;
+        beneficiarioId?: string;
+        diasAtras?: number;
+      } = {};
 
       if (status) {
         filtros.status = String(status);
@@ -335,6 +353,142 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
       console.error("[AsaasPix] Erro ao sincronizar pagamento:", erro);
       res.status(500).json({
         erro: "Erro ao sincronizar pagamento",
+      });
+    }
+  });
+
+  /**
+   * PUT /api/asaas/pagamentos-pix/:id
+   *
+   * Atualiza um pagamento PIX (descrição e/ou status).
+   * Permite mudanças apenas em pagamentos não processados ainda.
+   *
+   * Request body:
+   *   - descricao?: string (nova descrição)
+   *   - status?: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED"
+   *
+   * Response:
+   *   { id, asaasPaymentId, beneficiarioId, valor, status, ... }
+   *
+   * Erros:
+   *   - 400: validação falhou ou campos inválidos
+   *   - 404: pagamento não encontrado
+   *   - 500: erro ao atualizar
+   */
+  router.put("/pagamentos-pix/:id", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(500).json({ erro: "Database não disponível" });
+      }
+
+      const { id } = req.params;
+      const { descricao, status } = req.body;
+
+      // Validação: pelo menos um campo deve ser fornecido
+      if (descricao === undefined && status === undefined) {
+        return res.status(400).json({
+          erro: "Forneça pelo menos um campo para atualizar (descricao, status)",
+        });
+      }
+
+      // Valida status se fornecido
+      if (status !== undefined) {
+        const statusValidos = ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"];
+        if (!statusValidos.includes(status)) {
+          return res.status(400).json({
+            erro: `Status inválido. Use um de: ${statusValidos.join(", ")}`,
+          });
+        }
+      }
+
+      const pagamentoAntes = buscarPagamentoPix(db, id);
+      if (!pagamentoAntes) {
+        return res.status(404).json({
+          erro: "Pagamento não encontrado",
+        });
+      }
+
+      // Atualiza
+      const pagamentoAtualizado = atualizarPagamentoPix(db, id, {
+        descricao: descricao !== undefined ? descricao : undefined,
+        status: status !== undefined ? status : undefined,
+      });
+
+      res.json({
+        id: pagamentoAtualizado!.id,
+        asaasPaymentId: pagamentoAtualizado!.asaasPaymentId,
+        beneficiarioId: pagamentoAtualizado!.beneficiarioId,
+        beneficiarioNome: pagamentoAtualizado!.beneficiarioNome,
+        beneficiarioCpfCnpj: pagamentoAtualizado!.beneficiarioCpfCnpj,
+        valor: pagamentoAtualizado!.valor,
+        descricao: pagamentoAtualizado!.descricao,
+        status: pagamentoAtualizado!.status,
+        tipoChavePix: pagamentoAtualizado!.tipoChavePix,
+        criadoEm: pagamentoAtualizado!.criadoEm,
+        atualizadoEm: pagamentoAtualizado!.atualizadoEm,
+      });
+    } catch (erro) {
+      console.error("[AsaasPix] Erro ao atualizar pagamento:", erro);
+      res.status(500).json({
+        erro: "Erro ao atualizar pagamento",
+      });
+    }
+  });
+
+  /**
+   * DELETE /api/asaas/pagamentos-pix/:id
+   *
+   * Deleta um pagamento PIX (apenas se ainda não foi processado).
+   * Permite deletar apenas pagamentos com status PENDING, FAILED ou CANCELLED.
+   *
+   * Response:
+   *   { sucesso: true, deletado: true }
+   *
+   * Erros:
+   *   - 400: pagamento em estado que não pode ser deletado
+   *   - 404: pagamento não encontrado
+   *   - 500: erro ao deletar
+   */
+  router.delete("/pagamentos-pix/:id", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(500).json({ erro: "Database não disponível" });
+      }
+
+      const { id } = req.params;
+
+      const pagamento = buscarPagamentoPix(db, id);
+      if (!pagamento) {
+        return res.status(404).json({
+          erro: "Pagamento não encontrado",
+        });
+      }
+
+      // Tenta deletar
+      try {
+        const deletado = deletarPagamentoPix(db, id);
+        if (!deletado) {
+          return res.status(404).json({
+            erro: "Pagamento não encontrado",
+          });
+        }
+
+        res.json({
+          sucesso: true,
+          deletado: true,
+        });
+      } catch (erro) {
+        if (erro instanceof Error && erro.message.includes("Não é possível deletar")) {
+          return res.status(400).json({
+            erro: erro.message,
+          });
+        }
+        throw erro;
+      }
+    } catch (erro) {
+      console.error("[AsaasPix] Erro ao deletar pagamento:", erro);
+      res.status(500).json({
+        erro: "Erro ao deletar pagamento",
       });
     }
   });

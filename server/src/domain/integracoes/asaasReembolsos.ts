@@ -292,17 +292,33 @@ export function criarReembolso(db: Database.Database, dados: DadosNovoReembolso)
 /**
  * Obtém um reembolso pelo ID
  */
+/**
+ * Retrieve a specific refund by ID
+ *
+ * @param db Database instance (Better-SQLite3)
+ * @param id The refund ID to retrieve
+ * @returns The refund object or null if not found
+ */
 export function obterReembolso(db: Database.Database, id: string): Reembolso | null {
   const stmt = db.prepare(`
     SELECT * FROM asaas_reembolsos WHERE id = ?
   `);
 
-  const resultado = stmt.get(id) as any;
+  const resultado = stmt.get(id) as Reembolso | undefined;
   return resultado || null;
 }
 
 /**
- * Lista reembolsos com filtros opcionais
+ * List refunds with optional filters
+ *
+ * @param db Database instance (Better-SQLite3)
+ * @param filtros Optional filter parameters:
+ *   - usuario_id: Filter by specific user
+ *   - status: Filter by refund status (pendente, processando, confirmado, rejeitado, cancelado)
+ *   - data_inicio: Filter for refunds from this date onwards (ISO 8601 format)
+ *   - data_fim: Filter for refunds up to this date (ISO 8601 format)
+ *
+ * @returns Array of refunds matching the filters
  */
 export function listarReembolsos(
   db: Database.Database,
@@ -314,7 +330,8 @@ export function listarReembolsos(
   },
 ): Reembolso[] {
   let sql = "SELECT * FROM asaas_reembolsos WHERE 1=1";
-  const params: any[] = [];
+  // Type-safe parameter array for SQL query
+  const params: string[] = [];
 
   if (filtros?.usuario_id) {
     sql += " AND usuario_id = ?";

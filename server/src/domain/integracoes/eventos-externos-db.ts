@@ -113,4 +113,17 @@ export class EventosExternosServiceDB {
       .run(usuarioId, id);
     return true;
   }
+
+  /** Deleta um evento externo (apenas se pertence ao usuário ou ainda é sem dono).
+   * Retorna true se deletado com sucesso, false se não encontrado ou pertence a outro usuário. */
+  deletarEvento(id: string, usuarioId: string): boolean {
+    const evento = this.buscarPorId(id);
+    if (!evento) return false;
+    if (evento.usuarioId !== null && evento.usuarioId !== usuarioId) return false;
+
+    const result = this.db
+      .prepare(`DELETE FROM eventos_externos_pendentes WHERE id = ?`)
+      .run(id);
+    return (result.changes ?? 0) > 0;
+  }
 }

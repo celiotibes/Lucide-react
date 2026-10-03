@@ -343,17 +343,34 @@ export function emitirCobranca(db: Database.Database, dados: DadosNovaCobranca):
 /**
  * Obtém uma cobrança pelo ID
  */
+/**
+ * Retrieve a specific charge/collection by ID
+ *
+ * @param db Database instance (Better-SQLite3)
+ * @param id The charge ID to retrieve
+ * @returns The charge object or null if not found
+ */
 export function obterCobranca(db: Database.Database, id: string): Cobranca | null {
   const stmt = db.prepare(`
     SELECT * FROM asaas_cobrancas WHERE id = ?
   `);
 
-  const resultado = stmt.get(id) as any;
+  const resultado = stmt.get(id) as Cobranca | undefined;
   return resultado || null;
 }
 
 /**
- * Lista cobrancas de um imóvel
+ * List charges/collections for a property
+ *
+ * @param db Database instance (Better-SQLite3)
+ * @param imovel_id Optional property ID to filter by
+ * @param filtros Optional additional filter parameters:
+ *   - aluguel_id: Filter by specific rental agreement
+ *   - status: Filter by charge status (pendente, processando, aberta, paga, vencida, cancelada)
+ *   - data_inicio: Filter for charges from this date onwards (ISO 8601 format)
+ *   - data_fim: Filter for charges up to this date (ISO 8601 format)
+ *
+ * @returns Array of charges matching the filters
  */
 export function listarCobrancas(
   db: Database.Database,
@@ -366,7 +383,8 @@ export function listarCobrancas(
   },
 ): Cobranca[] {
   let sql = "SELECT * FROM asaas_cobrancas WHERE 1=1";
-  const params: any[] = [];
+  // Type-safe parameter array for SQL query
+  const params: string[] = [];
 
   if (imovel_id) {
     sql += " AND imovel_id = ?";
