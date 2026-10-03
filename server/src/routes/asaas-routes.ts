@@ -23,6 +23,7 @@ import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type { EventosExternosServiceDB } from "../domain/integracoes/eventos-externos-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
+import { criarExigirPosse } from "../middleware/posse-recurso.js";
 import { validateTokenSafely } from "../utils/security-helpers.js";
 import {
   criarClienteAsaas,
@@ -62,6 +63,8 @@ const TIPOS_COBRANCA_VALIDOS: TipoCobrancaAsaas[] = ["BOLETO", "PIX"];
 export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutesDeps): express.Router {
   const router = express.Router();
   const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
+  const exigirAutenticacaoComExternos = criarMiddlewareAutenticacao(authService, { permitirPapeisExternos: true });
+  const exigirPosse = db ? criarExigirPosse(db) : undefined;
 
   /**
    * POST /api/asaas/clientes
@@ -153,22 +156,29 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
    *
    * Consulta pontual — o fluxo normal de atualização de status é o webhook (abaixo), esta
    * rota serve para conferência manual ou para preencher o estado inicial de uma tela.
+   *
+   * Permite usuários externos (inquilino, prestador) desde que tenham acesso via ACL.
    */
-  router.get("/cobrancas/:asaasChargeId", exigirAutenticacao, async (req, res) => {
-    try {
-      const cobranca = await consultarCobranca(req.params.asaasChargeId);
-      res.json({
-        asaasChargeId: cobranca.id,
-        status: cobranca.status,
-        billingType: cobranca.billingType,
-        boletoUrl: cobranca.bankSlipUrl ?? cobranca.invoiceUrl ?? null,
-        linhaDigitavel: cobranca.identificationField ?? null,
-        pixQrCode: cobranca.pixQrCodeId ?? null,
-      });
-    } catch (erro) {
-      tratarErroAsaas(erro, res);
+  router.get(
+    "/cobrancas/:asaasChargeId",
+    exigirAutenticacaoComExternos,
+    exigirPosse ? exigirPosse("cobranca", "asaasChargeId") : (_, res) => res.status(500).json({ erro: "Database unavailable" }),
+    async (req, res) => {
+      try {
+        const cobranca = await consultarCobranca(req.params.asaasChargeId);
+        res.json({
+          asaasChargeId: cobranca.id,
+          status: cobranca.status,
+          billingType: cobranca.billingType,
+          boletoUrl: cobranca.bankSlipUrl ?? cobranca.invoiceUrl ?? null,
+          linhaDigitavel: cobranca.identificationField ?? null,
+          pixQrCode: cobranca.pixQrCodeId ?? null,
+        });
+      } catch (erro) {
+        tratarErroAsaas(erro, res);
+      }
     }
-  });
+  );
 
   /**
    * PUT /api/asaas/cobrancas/:asaasChargeId

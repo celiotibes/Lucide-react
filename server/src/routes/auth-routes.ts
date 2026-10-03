@@ -91,16 +91,24 @@ function lerCookie(cabecalho: string | undefined, nome: string): string | undefi
   return undefined;
 }
 
+interface OpcoesMdAutenticacao {
+  permitirPapeisExternos?: boolean;
+}
+
 /** Middleware que exige sessão válida: cookie `session_token` (httpOnly, definido pelo login —
  * SEC-015) ou, para clientes sem cookies, `Authorization: Bearer <token>`. Anexa o contexto
  * autenticado em `req.auth`. O token NUNCA é devolvido no corpo do login; sem esta leitura do cookie
  * o login gravava a sessão e nenhuma rota autenticada a reconhecia. Requisições que alteram dados
  * continuam protegidas pelo csurf global (index.ts) e pelo SameSite=Strict do cookie.
  *
+ * Por padrão, usuários com papéis externos ('inquilino', 'prestador') recebem 403 em qualquer rota
+ * que use este middleware. Passe `{permitirPapeisExternos:true}` para permitir acesso a usuários
+ * com papéis externos. Papéis desconhecidos são sempre negados.
+ *
  * SEC-011B: Uses timing-safe token validation to prevent timing attacks
  * on token guessing.
  */
-export function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
+export function criarMiddlewareAutenticacao(authService: AuthServiceDB, opcoes?: OpcoesMdAutenticacao) {
   return function exigirAutenticacao(
     req: express.Request,
     res: express.Response,
@@ -123,6 +131,19 @@ export function criarMiddlewareAutenticacao(authService: AuthServiceDB) {
       // SEC-011B: Timing-safe token validation happens in authService.validarToken
       // This response happens regardless to maintain constant time
       res.status(401).json({ erro: "Sessão inválida ou expirada" });
+      return;
+    }
+
+    // Seguro por padrão: nega papéis externos a menos que explicitamente permitidos
+    const papelExterno = contexto.usuario?.role === "inquilino" || contexto.usuario?.role === "prestador";
+    if (papelExterno && !opcoes?.permitirPapeisExternos) {
+      res.status(403).json({ erro: "Acesso não permitido para este perfil" });
+      return;
+    }
+
+    // Papéis desconhecidos também são negados
+    if (contexto.usuario && !PAPEIS_VALIDOS.includes(contexto.usuario.role)) {
+      res.status(403).json({ erro: "Acesso não permitido para este perfil" });
       return;
     }
 
@@ -169,6 +190,7 @@ function usuarioParaResposta(usuario: Usuario | null | undefined): Usuario | nul
 export function criarRotasAuth({ authService, auditService, permissoesService }: AuthRoutesDeps): express.Router {
   const router = express.Router();
   const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
+  const exigirAutenticacaoComExternos = criarMiddlewareAutenticacao(authService, { permitirPapeisExternos: true });
   const requerGestaoSistema = criarMiddlewareRequerPapel(auditService, "titular", "administrador");
   const limitadorLogin = criarLimitadorLogin();
   const limitadorBootstrap = criarLimitadorBootstrap();
@@ -253,8 +275,9 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
   /**
    * GET /api/auth/me
    * Header: Authorization: Bearer <token>
+   * Permite usuários com papéis externos (inquilino, prestador)
    */
-  router.get("/me", exigirAutenticacao, (req, res) => {
+  router.get("/me", exigirAutenticacaoComExternos, (req, res) => {
     res.json({ usuario: usuarioParaResposta(req.auth!.usuario) });
   });
 
@@ -267,9 +290,11 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
    * não é "só o cliente descarta o token". Depois deste chamado, o mesmo
    * token não passa mais em validarToken().
    *
+   * Permite usuários com papéis externos (inquilino, prestador)
+   *
    * SEC-015: Clears httpOnly cookies to prevent reuse
    */
-  router.post("/logout", exigirAutenticacao, (req, res) => {
+  router.post("/logout", exigirAutenticacaoComExternos, (req, res) => {
     const contexto = req.auth!;
     const { enderecoIp, userAgent } = contextoRequisicao(req);
     authService.logout(contexto.token!);
