@@ -376,6 +376,7 @@ export interface MargensPaginadasRanking {
   limit: number;
   offset: number;
   hasMore: boolean;
+  mediaGeral?: number;
 }
 
 /**
@@ -409,18 +410,19 @@ export function obterMargensRankingPaginado(
 
   const periodo = `${ano}-${String(mes).padStart(2, "0")}`;
 
-  // Contar total de margens para o período
-  const totalResult = db
+  // Contar total e calcular média geral de margens para o período
+  const statsResult = db
     .prepare(
       `
-      SELECT COUNT(*) as total
+      SELECT COUNT(*) as total, AVG(m.margem) as mediaGeral
       FROM margens_propriedades_periodo m
       WHERE m.periodo = ?
     `
     )
-    .get(periodo) as { total: number };
+    .get(periodo) as { total: number; mediaGeral: number | null };
 
-  const total = totalResult?.total || 0;
+  const total = statsResult?.total || 0;
+  const mediaGeral = statsResult?.mediaGeral ?? 0;
 
   // Obter items com paginação, ordenado por margem descendente
   const items = db
@@ -449,6 +451,7 @@ export function obterMargensRankingPaginado(
     limit,
     offset,
     hasMore: offset + limit < total,
+    mediaGeral,
   };
 }
 

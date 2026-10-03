@@ -747,9 +747,9 @@ export function atualizarCobrancasVencidas(db: Database.Database): number {
         );
         count++;
       } catch (err) {
-        console.error(
-          `Erro ao marcar cobrança ${cobranca.id} como vencida:`,
-          err instanceof Error ? err.message : err,
+        logger.error(
+          `Erro ao marcar cobrança ${cobranca.id} como vencida`,
+          err instanceof Error ? err : { error: String(err) },
         );
         // Re-throw to rollback entire transaction on error
         throw err;
@@ -762,9 +762,9 @@ export function atualizarCobrancasVencidas(db: Database.Database): number {
   try {
     return processarLote(cobrancasVencidas);
   } catch (err) {
-    console.error(
-      "Erro ao processar cobrancas vencidas em lote (transaction rolled back):",
-      err instanceof Error ? err.message : err,
+    logger.error(
+      "Erro ao processar cobrancas vencidas em lote (transaction rolled back)",
+      err instanceof Error ? err : { error: String(err) },
     );
     return 0;
   }
