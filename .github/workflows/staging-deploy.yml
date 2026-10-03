@@ -30,10 +30,13 @@ jobs:
         run: npm ci
 
       - name: Run linter
-        run: npm run lint 2>&1 || true
+        run: npm run lint
 
       - name: Run tests
-        run: npm test 2>&1 || true
+        run: npm test
+
+      - name: Security audit
+        run: npm audit --audit-level=moderate
 
       - name: Build project
         run: npm run build 2>&1

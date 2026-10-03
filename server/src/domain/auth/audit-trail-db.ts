@@ -6,6 +6,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { randomUUID } from "crypto";
 import type { ContextoAutenticacao } from "./auth-service";
 
 export type TipoAcao =
@@ -83,7 +84,7 @@ export class AuditTrailServiceDB {
     }
   ): RegistroAuditoria {
     const registro: RegistroAuditoria = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      id: `audit_${randomUUID()}`,
       timestamp: new Date().toISOString(),
       // null (não uma string tipo "sistema"): a coluna usuario_id tem
       // FOREIGN KEY para usuarios(id) — uma string inventada que não é PK

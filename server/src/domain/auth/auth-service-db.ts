@@ -7,6 +7,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { randomUUID } from "crypto";
 import {
   ContextoAutenticacao,
   UserRole,
@@ -299,7 +300,7 @@ export class AuthServiceDB {
     }
 
     try {
-      const usuario_id = `user_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const usuario_id = `user_${randomUUID()}`;
       const senha_hash = await gerarHashSenha(novo_usuario.senha);
 
       const stmt = this.db.prepare(
@@ -368,7 +369,7 @@ export class AuthServiceDB {
     // fim (ela prende a conexão inteira enquanto roda) — misturar await lá
     // dentro quebraria essa garantia.
     const senha_hash = await gerarHashSenha(dados.senha);
-    const usuario_id = `user_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const usuario_id = `user_${randomUUID()}`;
 
     try {
       const executar = this.db.transaction(() => {
