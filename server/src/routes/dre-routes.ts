@@ -8,6 +8,7 @@
  */
 
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
@@ -86,7 +87,7 @@ export function criarRotasRelatorios(deps: RelatoriosRoutesDeps): express.Router
 
       res.json(resultado);
     } catch (erro) {
-      console.error("[DRE] Erro ao calcular on-the-fly:", erro);
+      logger.error("[DRE] Erro ao calcular on-the-fly:", erro);
       res.status(500).json({ erro: "Erro ao calcular DRE" });
     }
   });
@@ -149,7 +150,7 @@ export function criarRotasRelatorios(deps: RelatoriosRoutesDeps): express.Router
         mensagem: `DRE ${ano}-${String(mes).padStart(2, "0")} calculado e gravado.`,
       });
     } catch (erro) {
-      console.error("[DRE] Erro ao calcular e gravar:", erro);
+      logger.error("[DRE] Erro ao calcular e gravar:", erro);
       res.status(500).json({ erro: "Erro ao calcular e gravar DRE" });
     }
   });
@@ -187,7 +188,7 @@ export function criarRotasRelatorios(deps: RelatoriosRoutesDeps): express.Router
 
       res.json({ periodos });
     } catch (erro) {
-      console.error("[DRE] Erro ao listar histórico:", erro);
+      logger.error("[DRE] Erro ao listar histórico:", erro);
       res.status(500).json({ erro: "Erro ao listar histórico" });
     }
   });
@@ -229,7 +230,7 @@ export function criarRotasRelatorios(deps: RelatoriosRoutesDeps): express.Router
 
       res.json({ sucesso: true, dre });
     } catch (erro) {
-      console.error("[DRE] Erro ao buscar DRE específico:", erro);
+      logger.error("[DRE] Erro ao buscar DRE específico:", erro);
       res.status(500).json({ erro: "Erro ao buscar DRE" });
     }
   });
@@ -314,7 +315,7 @@ export function criarRotasRelatorios(deps: RelatoriosRoutesDeps): express.Router
         },
       });
     } catch (erro) {
-      console.error("[FluxoCaixa] Erro ao calcular projeção:", erro);
+      logger.error("[FluxoCaixa] Erro ao calcular projeção:", erro);
       res.status(500).json({
         erro: erro instanceof Error ? erro.message : "Erro ao calcular projeção",
       });

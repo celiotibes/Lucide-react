@@ -146,7 +146,7 @@ class CacheMemoria {
    *
    * @example
    * const stats = cache.stats();
-   * console.log(stats); // { total: 3, chaves: ["dre:2026:10", "fluxo:...", "margens:..."] }
+   * logger.info(stats); // { total: 3, chaves: ["dre:2026:10", "fluxo:...", "margens:..."] }
    */
   stats(): { total: number; chaves: string[] } {
     return {

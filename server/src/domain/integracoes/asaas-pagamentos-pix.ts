@@ -24,6 +24,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 
 export type FetchLike = typeof fetch;
@@ -412,14 +413,14 @@ export async function criarPagamentoPix(
       throw new Error("Pagamento não encontrado após criação");
     }
 
-    console.info(`✓ Pagamento PIX criado: ${pagamentoLocal.id} (Asaas: ${respostaAsaas.id})`);
+    logger.info(`✓ Pagamento PIX criado: ${pagamentoLocal.id} (Asaas: ${respostaAsaas.id})`);
     return pagamentoAtualizado;
   } catch (erro) {
     // Se Asaas falhar, marca como FAILED
     const errorMsg = erro instanceof Error ? erro.message : String(erro);
     atualizarStatusPagamento(db, pagamentoLocal.id, "FAILED");
 
-    console.error(`❌ Erro ao criar pagamento PIX: ${errorMsg}`);
+    logger.error(`❌ Erro ao criar pagamento PIX: ${errorMsg}`);
     throw new AsaasApiError(500, { erro: errorMsg }, errorMsg);
   }
 }
@@ -510,7 +511,7 @@ export async function buscarStatusPagamentoPix(
 
     return buscarPagamentoPix(db, pagamentoId);
   } catch (erro) {
-    console.error(
+    logger.error(
       `Erro ao buscar status do pagamento ${pagamentoId}:`,
       erro instanceof Error ? erro.message : erro,
     );
@@ -540,7 +541,7 @@ export async function sincronizarPagamentosPendentes(
   let atualizados = 0;
   let erros = 0;
 
-  console.info(`🔄 Sincronizando ${pagamentos.length} pagamento(s) PIX pendente(s)...`);
+  logger.info(`🔄 Sincronizando ${pagamentos.length} pagamento(s) PIX pendente(s)...`);
 
   for (const { id } of pagamentos) {
     try {
@@ -550,18 +551,18 @@ export async function sincronizarPagamentosPendentes(
 
       if (antes?.status !== depois?.status) {
         atualizados++;
-        console.info(`  ✓ ${id}: ${antes?.status} → ${depois?.status}`);
+        logger.info(`  ✓ ${id}: ${antes?.status} → ${depois?.status}`);
       }
     } catch (erro) {
       erros++;
-      console.error(
+      logger.error(
         `  ❌ ${id}:`,
         erro instanceof Error ? erro.message : erro,
       );
     }
   }
 
-  console.info(`🔄 Sincronização concluída: ${atualizados} atualizados, ${erros} erros`);
+  logger.info(`🔄 Sincronização concluída: ${atualizados} atualizados, ${erros} erros`);
 
   return { atualizados, erros };
 }

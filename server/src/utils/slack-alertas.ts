@@ -124,11 +124,11 @@ export async function enviarAlertaSlack(opcoes: OpcoesEnviarAlertaSlack): Promis
       throw new Error(`Slack webhook erro (${resposta.status}): ${erro}`);
     }
 
-    console.log(`[SLACK] Alerta enviado (${severidade}): ${mensagem}`);
+    logger.info(`[SLACK] Alerta enviado (${severidade}): ${mensagem}`);
   } catch (erro) {
     // Falha silenciosa (não quer travar job por Slack)
     const mensagemErro = erro instanceof Error ? erro.message : String(erro);
-    console.error(`[SLACK] Falha ao enviar alerta: ${mensagemErro}`);
+    logger.error(`[SLACK] Falha ao enviar alerta: ${mensagemErro}`);
   }
 }
 
@@ -185,7 +185,7 @@ export async function enviarNotificacaoSlack(
     }
   } catch (erro) {
     const mensagem = erro instanceof Error ? erro.message : String(erro);
-    console.error(`[SLACK] Falha ao enviar notificação: ${mensagem}`);
+    logger.error(`[SLACK] Falha ao enviar notificação: ${mensagem}`);
   }
 }
 
@@ -244,9 +244,9 @@ export async function enviarResumoSlack(
       throw new Error(`Slack webhook erro (${resposta.status})`);
     }
 
-    console.log(`[SLACK] Resumo enviado: ${titulo}`);
+    logger.info(`[SLACK] Resumo enviado: ${titulo}`);
   } catch (erro) {
     const mensagem = erro instanceof Error ? erro.message : String(erro);
-    console.error(`[SLACK] Falha ao enviar resumo: ${mensagem}`);
+    logger.error(`[SLACK] Falha ao enviar resumo: ${mensagem}`);
   }
 }

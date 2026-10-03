@@ -369,6 +369,89 @@ export function obterMargensRanking(
   return { top5, bottom5 };
 }
 
+/** Interface para resposta paginada de ranking de margens */
+export interface MargensPaginadasRanking {
+  items: MargemRankingItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+/**
+ * Obtém ranking de margens com paginação
+ * @param db Database
+ * @param ano Ano (ex: 2026)
+ * @param mes Mês (1-12)
+ * @param limit Número máximo de itens (padrão: 50)
+ * @param offset Número de itens a pular (padrão: 0)
+ * @returns Dados paginados com total de registros
+ */
+export function obterMargensRankingPaginado(
+  db: Database,
+  ano: number,
+  mes: number,
+  limit: number = 50,
+  offset: number = 0,
+): MargensPaginadasRanking {
+  if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) {
+    throw new Error(`ano inválido: ${ano}`);
+  }
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) {
+    throw new Error(`mes inválido: ${mes}`);
+  }
+  if (limit < 1 || limit > 500) {
+    throw new Error(`limit deve estar entre 1 e 500: ${limit}`);
+  }
+  if (offset < 0) {
+    throw new Error(`offset não pode ser negativo: ${offset}`);
+  }
+
+  const periodo = `${ano}-${String(mes).padStart(2, "0")}`;
+
+  // Contar total de margens para o período
+  const totalResult = db
+    .prepare(
+      `
+      SELECT COUNT(*) as total
+      FROM margens_propriedades_periodo m
+      WHERE m.periodo = ?
+    `
+    )
+    .get(periodo) as { total: number };
+
+  const total = totalResult?.total || 0;
+
+  // Obter items com paginação, ordenado por margem descendente
+  const items = db
+    .prepare(
+      `
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY m.margem DESC) as rank,
+        i.id as imovelId,
+        i.nome as nomePropriedade,
+        m.receita,
+        m.despesa,
+        m.margem,
+        m.status
+      FROM margens_propriedades_periodo m
+      JOIN imoveis i ON i.id = m.imovel_id
+      WHERE m.periodo = ?
+      ORDER BY m.margem DESC
+      LIMIT ? OFFSET ?
+    `
+    )
+    .all(periodo, limit, offset) as MargemRankingItem[];
+
+  return {
+    items,
+    total,
+    limit,
+    offset,
+    hasMore: offset + limit < total,
+  };
+}
+
 /**
  * Calcula e persiste margens para TODOS os imóveis em um período
  * Útil para execução diária (23:55)

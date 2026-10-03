@@ -24,6 +24,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 
 export type FetchLike = typeof fetch;
@@ -283,7 +284,7 @@ export function criarReembolso(db: Database.Database, dados: DadosNovoReembolso)
       `Reembolso criado para transação ${dados.numero_transacao_original}`,
     );
   } catch (err) {
-    console.error("Erro ao registrar auditoria de reembolso:", err);
+    logger.error("Erro ao registrar auditoria de reembolso:", err);
   }
 
   return obterReembolso(db, id) as Reembolso;
@@ -419,7 +420,7 @@ export function atualizarStatusReembolso(
       descricao_erro || `Status atualizado de ${reembolso.status} para ${novo_status}`,
     );
   } catch (err) {
-    console.error("Erro ao registrar auditoria de atualização de status:", err);
+    logger.error("Erro ao registrar auditoria de atualização de status:", err);
   }
 
   return obterReembolso(db, id) as Reembolso;
@@ -436,7 +437,7 @@ export function processarWebhookReembolso(
   const { type, data } = webhook;
 
   if (type !== "TRANSFER_RECEIVED" && type !== "REFUND_PROCESSED") {
-    console.warn(`Tipo de webhook não suportado: ${type}`);
+    logger.warn(`Tipo de webhook não suportado: ${type}`);
     return;
   }
 
@@ -447,7 +448,7 @@ export function processarWebhookReembolso(
   const reembolso = stmt.get(data.id) as any;
 
   if (!reembolso) {
-    console.warn(`Reembolso com asaas_id ${data.id} não encontrado no banco`);
+    logger.warn(`Reembolso com asaas_id ${data.id} não encontrado no banco`);
     return;
   }
 
@@ -546,7 +547,7 @@ export async function sincronizarReembolsosPendentes(
       await enviarReembolsoParaAsaas(db, fetchImpl, reembolso.id);
       sucesso++;
     } catch (err) {
-      console.error(
+      logger.error(
         `Erro ao sincronizar reembolso ${reembolso.id}:`,
         err instanceof Error ? err.message : err,
       );
@@ -617,7 +618,7 @@ function consultarSeguro(db: Database.Database, sql: string, param: string): any
       }
       return null;
     } catch (err) {
-      console.error("Erro ao consultar com sql.js:", err);
+      logger.error("Erro ao consultar com sql.js:", err);
       return null;
     }
   } else {
@@ -657,7 +658,7 @@ function executarSeguro(db: Database.Database, sql: string, params: any[]): void
     try {
       (db as any).run(sqlSeguro);
     } catch (err) {
-      console.error("Erro ao executar com sql.js:", err);
+      logger.error("Erro ao executar com sql.js:", err);
       throw err;
     }
   } else {

@@ -24,6 +24,7 @@
  * Formato do token: "<aleatorioHex>.<assinaturaHex>".
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { logger } from "../../services/logger-service.js";
 
 function resolverSegredo(): { segredo: string; geradoEmMemoria: boolean } {
   const doAmbiente = process.env.SESSION_SECRET || process.env.JWT_SECRET;
@@ -37,7 +38,7 @@ const { segredo: SEGREDO_SESSAO, geradoEmMemoria: SEGREDO_GERADO_EM_MEMORIA } = 
 
 /** Deve ser chamado uma vez, na subida do servidor, fora de testes — emite o
  * aviso alto e explícito exigido quando não há SESSION_SECRET configurado. */
-export function avisarSeSegredoForTemporario(log: (msg: string) => void = console.warn): void {
+export function avisarSeSegredoForTemporario(log: (msg: string) => void = (msg) => logger.warn(msg)): void {
   if (!SEGREDO_GERADO_EM_MEMORIA) {
     return;
   }

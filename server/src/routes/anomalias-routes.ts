@@ -8,6 +8,7 @@
  */
 
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
@@ -85,7 +86,7 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         descricao: gerarDescricaoResposta(resultado),
       });
     } catch (erro) {
-      console.error("Erro ao analisar anomalia:", erro instanceof Error ? erro.message : String(erro));
+      logger.error("Erro ao analisar anomalia:", erro instanceof Error ? erro.message : String(erro));
       res.status(500).json({ erro: "Falha ao analisar anomalia" });
     }
   });
@@ -141,7 +142,7 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         },
       });
     } catch (erro) {
-      console.error("Erro ao listar alertas:", erro instanceof Error ? erro.message : String(erro));
+      logger.error("Erro ao listar alertas:", erro instanceof Error ? erro.message : String(erro));
       res.status(500).json({ erro: "Falha ao listar alertas" });
     }
   });
@@ -177,7 +178,7 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         periodo_dias: periodo,
       });
     } catch (erro) {
-      console.error("Erro ao obter estatísticas:", erro instanceof Error ? erro.message : String(erro));
+      logger.error("Erro ao obter estatísticas:", erro instanceof Error ? erro.message : String(erro));
       res.status(500).json({ erro: "Falha ao obter estatísticas" });
     }
   });
@@ -234,7 +235,7 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         motivo,
       });
     } catch (erro) {
-      console.error("Erro ao revisar anomalia:", erro instanceof Error ? erro.message : String(erro));
+      logger.error("Erro ao revisar anomalia:", erro instanceof Error ? erro.message : String(erro));
       res.status(500).json({ erro: "Falha ao revisar anomalia" });
     }
   });
@@ -306,7 +307,7 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         criado_em: alertaAtualizado.criado_em,
       });
     } catch (erro) {
-      console.error("Erro ao atualizar anomalia:", erro instanceof Error ? erro.message : String(erro));
+      logger.error("Erro ao atualizar anomalia:", erro instanceof Error ? erro.message : String(erro));
       res.status(500).json({ erro: "Falha ao atualizar anomalia" });
     }
   });

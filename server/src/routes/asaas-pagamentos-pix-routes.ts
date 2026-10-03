@@ -13,6 +13,7 @@
  */
 
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
@@ -143,7 +144,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
         qrCode: pagamento.qrCode || undefined,
       });
     } catch (erro) {
-      console.error("[AsaasPix] Erro ao criar pagamento:", erro);
+      logger.error("[AsaasPix] Erro ao criar pagamento:", erro);
 
       if (erro instanceof AsaasApiError) {
         return res.status(erro.status).json({
@@ -198,7 +199,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
       try {
         await buscarStatusPagamentoPix(db, id);
       } catch (e) {
-        console.warn(`[AsaasPix] Erro ao sincronizar pagamento ${id}:`, e instanceof Error ? e.message : e);
+        logger.warn(`[AsaasPix] Erro ao sincronizar pagamento ${id}:`, e instanceof Error ? e.message : e);
         // Continua mesmo com erro (retorna o que temos localmente)
       }
 
@@ -228,7 +229,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
         })),
       });
     } catch (erro) {
-      console.error("[AsaasPix] Erro ao buscar pagamento:", erro);
+      logger.error("[AsaasPix] Erro ao buscar pagamento:", erro);
       res.status(500).json({
         erro: "Erro ao buscar pagamento",
       });
@@ -297,7 +298,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
         total: pagamentos.length,
       });
     } catch (erro) {
-      console.error("[AsaasPix] Erro ao listar pagamentos:", erro);
+      logger.error("[AsaasPix] Erro ao listar pagamentos:", erro);
       res.status(500).json({
         erro: "Erro ao listar pagamentos",
       });
@@ -350,7 +351,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
         atualizou: statusAnterior !== statusNovo,
       });
     } catch (erro) {
-      console.error("[AsaasPix] Erro ao sincronizar pagamento:", erro);
+      logger.error("[AsaasPix] Erro ao sincronizar pagamento:", erro);
       res.status(500).json({
         erro: "Erro ao sincronizar pagamento",
       });
@@ -428,7 +429,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
         atualizadoEm: pagamentoAtualizado!.atualizadoEm,
       });
     } catch (erro) {
-      console.error("[AsaasPix] Erro ao atualizar pagamento:", erro);
+      logger.error("[AsaasPix] Erro ao atualizar pagamento:", erro);
       res.status(500).json({
         erro: "Erro ao atualizar pagamento",
       });
@@ -486,7 +487,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
         throw erro;
       }
     } catch (erro) {
-      console.error("[AsaasPix] Erro ao deletar pagamento:", erro);
+      logger.error("[AsaasPix] Erro ao deletar pagamento:", erro);
       res.status(500).json({
         erro: "Erro ao deletar pagamento",
       });

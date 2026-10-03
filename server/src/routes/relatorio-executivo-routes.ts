@@ -8,10 +8,12 @@
  */
 
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
-import { gerarRelatorioExecutivo, gerarPDFRelatorioExecutivo, enviarRelatorioEmailMensal } from "../domain/relatorios/relatorio-executivo.js";
+import { gerarRelatorioExecutivo, gerarPDFRelatorioExecutivo, enviarRelatorioEmailMensal, gerarMargensResumodaPaginado } from "../domain/relatorios/relatorio-executivo.js";
+import { parsePaginationParams } from "../domain/pagination/pagination.js";
 
 export interface RelatorioExecutivoRoutesDeps {
   authService: AuthServiceDB;
@@ -62,9 +64,58 @@ export function criarRotasRelatorioExecutivo(deps: RelatorioExecutivoRoutesDeps)
       const relatorio = gerarRelatorioExecutivo(db, mesNum, anoNum);
       return res.json(relatorio);
     } catch (erro) {
-      console.error("[RelatorioExecutivoRoutes] Erro ao gerar dashboard:", erro);
+      logger.error("[RelatorioExecutivoRoutes] Erro ao gerar dashboard:", erro);
       return res.status(500).json({
         erro: "Erro ao gerar relatório",
+        detalhes: erro instanceof Error ? erro.message : String(erro),
+      });
+    }
+  });
+
+  /**
+   * GET /api/relatorios/executivo/margens?mes=10&ano=2026&limit=50&offset=0
+   *
+   * Retorna margens por propriedade com paginação
+   *
+   * Query params:
+   *   - mes: número 1-12 (obrigatório)
+   *   - ano: número (obrigatório)
+   *   - limit: número (opcional, padrão: 50, máximo: 500)
+   *   - offset: número (opcional, padrão: 0)
+   */
+  router.get("/margens", (req, res) => {
+    try {
+      if (!db) {
+        return res.status(500).json({ erro: "Database não disponível" });
+      }
+
+      const { mes, ano, limit, offset } = req.query;
+
+      if (!mes || !ano) {
+        return res.status(400).json({
+          erro: "mes e ano são obrigatórios",
+        });
+      }
+
+      const mesNum = Number(mes);
+      const anoNum = Number(ano);
+
+      if (!Number.isInteger(mesNum) || mesNum < 1 || mesNum > 12) {
+        return res.status(400).json({ erro: "mes deve ser número entre 1 e 12" });
+      }
+
+      if (!Number.isInteger(anoNum) || anoNum < 2000 || anoNum > 2100) {
+        return res.status(400).json({ erro: "ano deve ser número entre 2000 e 2100" });
+      }
+
+      const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(limit, offset);
+
+      const margens = gerarMargensResumodaPaginado(db, mesNum, anoNum, parsedLimit, parsedOffset);
+      return res.json(margens);
+    } catch (erro) {
+      logger.error("[RelatorioExecutivoRoutes] Erro ao obter margens paginadas:", erro);
+      return res.status(500).json({
+        erro: "Erro ao obter margens",
         detalhes: erro instanceof Error ? erro.message : String(erro),
       });
     }
@@ -104,7 +155,7 @@ export function criarRotasRelatorioExecutivo(deps: RelatorioExecutivoRoutesDeps)
       res.setHeader("Content-Disposition", `attachment; filename="relatorio-executivo-${anoNum}-${String(mesNum).padStart(2, "0")}.html"`);
       return res.send(html);
     } catch (erro) {
-      console.error("[RelatorioExecutivoRoutes] Erro ao fazer download:", erro);
+      logger.error("[RelatorioExecutivoRoutes] Erro ao fazer download:", erro);
       return res.status(500).json({
         erro: "Erro ao gerar PDF",
         detalhes: erro instanceof Error ? erro.message : String(erro),
@@ -154,7 +205,7 @@ export function criarRotasRelatorioExecutivo(deps: RelatorioExecutivoRoutesDeps)
         relatorio,
       });
     } catch (erro) {
-      console.error("[RelatorioExecutivoRoutes] Erro ao gerar relatório:", erro);
+      logger.error("[RelatorioExecutivoRoutes] Erro ao gerar relatório:", erro);
       return res.status(500).json({
         sucesso: false,
         erro: "Erro ao gerar relatório",
@@ -220,7 +271,7 @@ export function criarRotasRelatorioExecutivo(deps: RelatorioExecutivoRoutesDeps)
         });
       }
     } catch (erro) {
-      console.error("[RelatorioExecutivoRoutes] Erro ao enviar email:", erro);
+      logger.error("[RelatorioExecutivoRoutes] Erro ao enviar email:", erro);
       return res.status(500).json({
         sucesso: false,
         erro: "Erro ao enviar email",

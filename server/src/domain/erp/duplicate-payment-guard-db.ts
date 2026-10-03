@@ -7,6 +7,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { ContextoAutenticacao, podeAcessarPrestador } from "../auth/auth-service";
 
 export interface PagamentoSubmetido {
@@ -119,7 +120,7 @@ export class DuplicatePaymentGuardDB {
 
       return { duplicado: false };
     } catch (erro) {
-      console.error("[DuplicatePaymentGuardDB] Erro ao verificar duplicação:", erro);
+      logger.error("[DuplicatePaymentGuardDB] Erro ao verificar duplicação:", erro);
       throw erro;
     }
   }
@@ -191,7 +192,7 @@ export class DuplicatePaymentGuardDB {
           "Já existe um pagamento pendente/aprovado para este período"
         );
       }
-      console.error("[DuplicatePaymentGuardDB] Erro ao registrar pagamento:", erro);
+      logger.error("[DuplicatePaymentGuardDB] Erro ao registrar pagamento:", erro);
       throw erro;
     }
   }
@@ -230,7 +231,7 @@ export class DuplicatePaymentGuardDB {
 
       return (result.changes || 0) > 0;
     } catch (erro) {
-      console.error("[DuplicatePaymentGuardDB] Erro ao atualizar status:", erro);
+      logger.error("[DuplicatePaymentGuardDB] Erro ao atualizar status:", erro);
       throw erro;
     }
   }
@@ -254,7 +255,7 @@ export class DuplicatePaymentGuardDB {
 
       return stmt.all(prestador_id, limite) as PagamentoSubmetido[];
     } catch (erro) {
-      console.error(
+      logger.error(
         "[DuplicatePaymentGuardDB] Erro ao obter histórico:",
         erro
       );
@@ -277,7 +278,7 @@ export class DuplicatePaymentGuardDB {
 
       return stmt.all() as PagamentoSubmetido[];
     } catch (erro) {
-      console.error("[DuplicatePaymentGuardDB] Erro ao obter pendentes:", erro);
+      logger.error("[DuplicatePaymentGuardDB] Erro ao obter pendentes:", erro);
       return [];
     }
   }
@@ -303,7 +304,7 @@ export class DuplicatePaymentGuardDB {
 
       return stmt.all(inicio, fim) as PagamentoSubmetido[];
     } catch (erro) {
-      console.error("[DuplicatePaymentGuardDB] Erro ao obter por período:", erro);
+      logger.error("[DuplicatePaymentGuardDB] Erro ao obter por período:", erro);
       return [];
     }
   }
@@ -323,7 +324,7 @@ export class DuplicatePaymentGuardDB {
 
       return stmt.all() as PagamentoSubmetido[];
     } catch (erro) {
-      console.error("[DuplicatePaymentGuardDB] Erro ao obter todos:", erro);
+      logger.error("[DuplicatePaymentGuardDB] Erro ao obter todos:", erro);
       return [];
     }
   }
@@ -342,7 +343,7 @@ export class DuplicatePaymentGuardDB {
 
       return (stmt.get(pagamento_id) as PagamentoSubmetido) || null;
     } catch (erro) {
-      console.error("[DuplicatePaymentGuardDB] Erro ao obter por ID:", erro);
+      logger.error("[DuplicatePaymentGuardDB] Erro ao obter por ID:", erro);
       return null;
     }
   }

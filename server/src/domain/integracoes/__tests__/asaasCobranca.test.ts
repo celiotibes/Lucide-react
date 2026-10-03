@@ -521,5 +521,61 @@ describe("asaasCobranca", () => {
       const cobrancaAtualizada = obterCobranca(db, "cobranca-vencida-1");
       expect(cobrancaAtualizada?.status).toBe("vencida");
     });
+
+    it("deve processar múltiplas cobrancas vencidas em uma única transação (PERF-002)", () => {
+      // PERF-002: Batch transaction optimization test
+      // Inserir múltiplas cobrancas com data no passado
+      const stmt = db.prepare(`
+        INSERT INTO asaas_cobrancas (
+          id, aluguel_id, imovel_id, valor, data_vencimento, status,
+          data_criacao
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const numCobrancas = 50;
+      for (let i = 1; i <= numCobrancas; i++) {
+        stmt.run(
+          `cobranca-vencida-${i}`,
+          `aluguel-${i}`,
+          `imovel-${Math.floor(i / 10)}`,
+          1500.0 + i * 100,
+          "2020-01-01",
+          "aberta",
+          new Date().toISOString(),
+        );
+      }
+
+      // Executar batch update com transaction
+      const startTime = Date.now();
+      const count = atualizarCobrancasVencidas(db);
+      const duration = Date.now() - startTime;
+
+      // Verificar que todas foram atualizadas
+      expect(count).toBe(numCobrancas);
+
+      // Verificar que todas têm status 'vencida'
+      for (let i = 1; i <= numCobrancas; i++) {
+        const cobranca = obterCobranca(db, `cobranca-vencida-${i}`);
+        expect(cobranca?.status).toBe("vencida");
+      }
+
+      // Verificar que registros de auditoria foram criados
+      const auditStmt = db.prepare(`
+        SELECT COUNT(*) as count FROM asaas_cobrancas_historico
+        WHERE acao = 'ATUALIZACAO_STATUS' AND status_novo = 'vencida'
+      `);
+      const auditResult = auditStmt.get() as any;
+      expect(auditResult.count).toBe(numCobrancas);
+
+      // Log performance info (transaction should be fast)
+      console.log(
+        `PERF-002: Batch updated ${numCobrancas} overdue charges in ${duration}ms (transaction-based)`,
+      );
+    });
+
+    it("deve retornar 0 se não houver cobrancas vencidas", () => {
+      const count = atualizarCobrancasVencidas(db);
+      expect(count).toBe(0);
+    });
   });
 });

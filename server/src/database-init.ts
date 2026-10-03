@@ -4,6 +4,7 @@
  */
 
 import Database from "better-sqlite3";
+import { logger } from './services/logger-service.js';
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -50,7 +51,7 @@ export function initializeDatabase(): Database.Database {
     // Set timeout for lock contention
     db.pragma("busy_timeout = 5000");
 
-    console.log(`[Database] Connected to ${DB_PATH}`);
+    logger.info(`[Database] Connected to ${DB_PATH}`);
 
     // Check if migrations have been run
     const migrationRunStmt = db.prepare(
@@ -59,12 +60,12 @@ export function initializeDatabase(): Database.Database {
     const usersTableExists = migrationRunStmt.get();
 
     if (!usersTableExists) {
-      console.log("[Database] Running Phase 2 migrations...");
+      logger.info("[Database] Running Phase 2 migrations...");
       runMigrations(db);
       seedInitialData(db);
-      console.log("[Database] Migrations and seed data completed");
+      logger.info("[Database] Migrations and seed data completed");
     } else {
-      console.log("[Database] Schema already initialized");
+      logger.info("[Database] Schema already initialized");
     }
 
     // Fases 3+ (integrações Asaas/MeuPluggy/bot Telegram, vínculos externos de Telegram, e
@@ -92,7 +93,7 @@ export function initializeDatabase(): Database.Database {
     dbInstance = db;
     return db;
   } catch (erro) {
-    console.error("[Database] Initialization failed:", erro);
+    logger.error("[Database] Initialization failed:", erro);
     throw new Error(
       `Failed to initialize database: ${erro instanceof Error ? erro.message : String(erro)}`
     );
@@ -108,7 +109,7 @@ function runMigracoesIdempotentes(db: Database.Database, arquivos: string[]): vo
   for (const nomeArquivo of arquivos) {
     const migrationPath = path.join(__dirname, nomeArquivo);
     if (!fs.existsSync(migrationPath)) {
-      console.warn(`[Database] Migração não encontrada em ${migrationPath}, pulando`);
+      logger.warn(`[Database] Migração não encontrada em ${migrationPath}, pulando`);
       continue;
     }
     db.exec(fs.readFileSync(migrationPath, "utf-8"));
@@ -137,7 +138,7 @@ function runMigrations(db: Database.Database): void {
     // Try executing the full migration script first
     try {
       db.exec(migrationSQL);
-      console.log("[Database] Migration script executed successfully");
+      logger.info("[Database] Migration script executed successfully");
     } catch (error) {
       // If that fails, try splitting and executing one by one
       // This helps identify and skip problematic statements
@@ -156,13 +157,13 @@ function runMigrations(db: Database.Database): void {
           if (stmtError instanceof Error && stmtError.message.includes("already exists")) {
             executedCount++;
           } else {
-            console.error("[Database] Failed to execute:", statement.substring(0, 80));
+            logger.error("[Database] Failed to execute:", statement.substring(0, 80));
             throw stmtError;
           }
         }
       }
 
-      console.log("[Database] Executed", executedCount, "migration statements");
+      logger.info("[Database] Executed", executedCount, "migration statements");
     }
   } catch (erro) {
     throw new Error(
@@ -207,7 +208,7 @@ function seedInitialData(db: Database.Database): void {
       now.toISOString().split("T")[0]
     );
 
-    console.log("[Database] Seeded default contract parameters");
+    logger.info("[Database] Seeded default contract parameters");
 
     seedMatrizPermissoesPadrao(db);
   } catch (erro) {
@@ -239,7 +240,7 @@ function seedMatrizPermissoesPadrao(db: Database.Database): void {
     }
   });
   executarLote(matrizPadrao());
-  console.log("[Database] Seeded default permission matrix (papel × função)");
+  logger.info("[Database] Seeded default permission matrix (papel × função)");
 }
 
 /**
@@ -256,19 +257,19 @@ function setupSessionCleanup(db: Database.Database): void {
       try {
         const deleted = cleanupExpiredSessions(db);
         if (deleted > 0) {
-          console.log(`[Database] Cleaned ${deleted} expired sessions`);
+          logger.info(`[Database] Cleaned ${deleted} expired sessions`);
         }
       } catch (erro) {
-        console.error("[Database] Session cleanup error:", erro);
+        logger.error("[Database] Session cleanup error:", erro);
       }
     }, 60 * 60 * 1000); // Every hour
 
     // Don't keep this interval alive on process exit
     cleanupInterval.unref();
 
-    console.log("[Database] Session cleanup scheduled");
+    logger.info("[Database] Session cleanup scheduled");
   } catch (erro) {
-    console.error("[Database] Failed to setup session cleanup:", erro);
+    logger.error("[Database] Failed to setup session cleanup:", erro);
     // Don't fail the whole app, just warn
   }
 }
@@ -284,7 +285,7 @@ export function cleanupExpiredSessions(db: Database.Database): number {
     const result = stmt.run();
     return result.changes || 0;
   } catch (erro) {
-    console.error("[Database] Error cleaning expired sessions:", erro);
+    logger.error("[Database] Error cleaning expired sessions:", erro);
     return 0;
   }
 }
@@ -310,9 +311,9 @@ export function closeDatabase(): void {
     try {
       dbInstance.close();
       dbInstance = null;
-      console.log("[Database] Connection closed");
+      logger.info("[Database] Connection closed");
     } catch (erro) {
-      console.error("[Database] Error closing connection:", erro);
+      logger.error("[Database] Error closing connection:", erro);
     }
   }
 }

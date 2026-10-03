@@ -114,7 +114,7 @@ class ProvedorSendGrid implements ProvedorAlertasEmail {
 class ProvedorMock implements ProvedorAlertasEmail {
   async enviar(opcoes: OpcoesEnviarAlerta): Promise<void> {
     const { assunto, destinatario, severidade = "warning" } = opcoes;
-    console.log(`[ALERTA-${severidade.toUpperCase()}] ${assunto} → ${destinatario}`);
+    logger.info(`[ALERTA-${severidade.toUpperCase()}] ${assunto} → ${destinatario}`);
   }
 }
 
@@ -169,11 +169,11 @@ export async function enviarAlertaEmail(opcoes: OpcoesEnviarAlerta): Promise<voi
   try {
     const p = obterProvedor();
     await p.enviar(opcoes);
-    console.log(`[EMAIL] Alerta enviado com sucesso: ${assunto}`);
+    logger.info(`[EMAIL] Alerta enviado com sucesso: ${assunto}`);
   } catch (erro) {
     // Falha silenciosa (não quer travar job por email)
     const mensagem = erro instanceof Error ? erro.message : String(erro);
-    console.error(`[EMAIL] Falha ao enviar alerta (${severidade}): ${mensagem}`);
+    logger.error(`[EMAIL] Falha ao enviar alerta (${severidade}): ${mensagem}`);
     // Aqui poderia logar no Sentry ou incrementar métrica de falha
   }
 }

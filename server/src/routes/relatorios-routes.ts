@@ -12,6 +12,7 @@
  */
 
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
@@ -20,8 +21,10 @@ import {
   gravarMargensImovel,
   obterMargensHistorico,
   obterMargensRanking,
+  obterMargensRankingPaginado,
   calcularEGravarMargensDoMes,
 } from "../domain/relatorios/margensPorPropriedade.js";
+import { parsePaginationParams } from "../domain/pagination/pagination.js";
 
 export interface RelatoriosRoutesDeps {
   authService: AuthServiceDB;
@@ -144,9 +147,73 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
         })),
       });
     } catch (erro) {
-      console.error("[RelatoriosRoutes] Erro ao obter ranking de margens:", erro);
+      logger.error("[RelatoriosRoutes] Erro ao obter ranking de margens:", erro);
       res.status(500).json({
         erro: "Erro ao obter ranking de margens",
+        detalhes: erro instanceof Error ? erro.message : String(erro),
+      });
+    }
+  });
+
+  /**
+   * GET /api/relatorios/margens/ranking/paginado
+   * Query params:
+   *   - periodoMes (obrigatório): YYYY-MM (ex: 2026-10)
+   *   - limit (opcional): Número máximo de itens (padrão: 50, máximo: 500)
+   *   - offset (opcional): Número de itens a pular (padrão: 0)
+   *
+   * Retorna ranking paginado de margens por propriedade
+   * Exemplo: /api/relatorios/margens/ranking/paginado?periodoMes=2026-10&limit=50&offset=0
+   */
+  router.get("/margens/ranking/paginado", exigirAutenticacao, async (req, res) => {
+    try {
+      const { periodoMes, limit, offset } = req.query;
+
+      if (!periodoMes) {
+        res.status(400).json({ erro: "periodoMes é obrigatório (formato: YYYY-MM)" });
+        return;
+      }
+
+      const periodo = String(periodoMes);
+      const match = periodo.match(/^(\d{4})-(\d{2})$/);
+      if (!match) {
+        res.status(400).json({ erro: "periodoMes deve estar no formato YYYY-MM" });
+        return;
+      }
+
+      const [, anoStr, mesStr] = match;
+      const ano = parseInt(anoStr, 10);
+      const mes = parseInt(mesStr, 10);
+
+      if (mes < 1 || mes > 12) {
+        res.status(400).json({ erro: `mes deve estar entre 1 e 12: ${mes}` });
+        return;
+      }
+
+      const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(limit, offset);
+
+      const resultado = obterMargensRankingPaginado(db, ano, mes, parsedLimit, parsedOffset);
+
+      res.status(200).json({
+        periodo,
+        dados: resultado.items.map((item) => ({
+          rank: item.rank,
+          imovelId: item.imovelId,
+          nomePropriedade: item.nomePropriedade,
+          receita: item.receita,
+          despesa: item.despesa,
+          margem: item.margem,
+          status: item.status,
+        })),
+        total: resultado.total,
+        limit: resultado.limit,
+        offset: resultado.offset,
+        hasMore: resultado.hasMore,
+      });
+    } catch (erro) {
+      logger.error("[RelatoriosRoutes] Erro ao obter ranking paginado de margens:", erro);
+      res.status(500).json({
+        erro: "Erro ao obter ranking paginado de margens",
         detalhes: erro instanceof Error ? erro.message : String(erro),
       });
     }
@@ -188,7 +255,7 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
         })),
       });
     } catch (erro) {
-      console.error("[RelatoriosRoutes] Erro ao calcular margens:", erro);
+      logger.error("[RelatoriosRoutes] Erro ao calcular margens:", erro);
       res.status(500).json({
         erro: "Erro ao calcular margens",
         detalhes: erro instanceof Error ? erro.message : String(erro),

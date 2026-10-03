@@ -22,6 +22,7 @@
  * as env vars de produção (SMTP_, WHATSAPP_, TELEGRAM_BOT_TOKEN) configuradas.
  */
 import type Database from "better-sqlite3";
+import { logger } from './services/logger-service.js';
 import { LembretesAgendadosServiceDB, type LembreteAgendado } from "./domain/notificacoes/lembretes-agendados-db.js";
 import { enviarEmail } from "./notificacoes/email.js";
 import { enviarWhatsapp } from "./notificacoes/whatsapp.js";
@@ -110,11 +111,11 @@ export function sincronizarDREDiario(db: Database.Database): void {
     const dre = calcularDREPeriodo(db, dataInicio, dataFim);
     gravarDREPeriodo(db, anoAnterior, mesAnteriorNum, dre);
 
-    console.log(
+    logger.info(
       `[DRE] Sincronização diária: DRE ${anoAnterior}-${String(mesAnteriorNum).padStart(2, "0")} calculado e gravado (Opção B).`
     );
   } catch (erro) {
-    console.error(
+    logger.error(
       "[DRE] Erro ao sincronizar DRE diário:",
       erro instanceof Error ? erro.message : erro
     );
@@ -134,18 +135,18 @@ export async function sincronizarCobrancasAsaas(db: Database.Database): Promise<
     const resultado = await sincronizarStatusTaxaAsaas(db);
 
     if (resultado.atualizadas > 0 || resultado.discrepancias > 0 || resultado.erros > 0) {
-      console.info(
+      logger.info(
         `[Asaas] Reconciliação: ${resultado.atualizadas} atualizadas, ${resultado.discrepancias} discrepâncias, ${resultado.erros} erro(s)`
       );
     }
 
     if (resultado.discrepancias > 0) {
-      console.warn(
+      logger.warn(
         `[Asaas] ${resultado.discrepancias} discrepância(s) detectada(s) — verificar audit_reconciliacao_asaas`
       );
     }
   } catch (erro) {
-    console.error(
+    logger.error(
       "[Asaas] Erro ao sincronizar cobranças:",
       erro instanceof Error ? erro.message : erro
     );
@@ -164,18 +165,18 @@ export function sincronizarConciliacaoPixOFX(db: Database.Database): void {
     const resultado = conciliarPixOFX(db);
 
     if (resultado.conciliadas > 0 || resultado.discrepancias > 0 || resultado.pendentes > 0 || resultado.expiradas > 0) {
-      console.info(
+      logger.info(
         `[PIX↔OFX] Reconciliação: ${resultado.conciliadas} reconciliadas, ${resultado.discrepancias} discrepâncias, ${resultado.pendentes} pendentes, ${resultado.expiradas} expiradas`
       );
     }
 
     if (resultado.discrepancias > 0) {
-      console.warn(
+      logger.warn(
         `[PIX↔OFX] ${resultado.discrepancias} discrepância(s) detectada(s) — verificar audit_conciliacao_discrepancias`
       );
     }
   } catch (erro) {
-    console.error(
+    logger.error(
       "[PIX↔OFX] Erro ao reconciliar:",
       erro instanceof Error ? erro.message : erro
     );
@@ -195,18 +196,18 @@ export async function sincronizarPagamentosPixProativos(db: Database.Database): 
     const resultado = await sincronizarPagamentosPendentes(db);
 
     if (resultado.atualizados > 0 || resultado.erros > 0) {
-      console.info(
+      logger.info(
         `[PIX Proativo] Sincronização: ${resultado.atualizados} atualizados, ${resultado.erros} erro(s)`
       );
     }
 
     if (resultado.erros > 0) {
-      console.warn(
+      logger.warn(
         `[PIX Proativo] ${resultado.erros} erro(s) durante sincronização — verificar histórico`
       );
     }
   } catch (erro) {
-    console.error(
+    logger.error(
       "[PIX Proativo] Erro ao sincronizar pagamentos:",
       erro instanceof Error ? erro.message : erro
     );
@@ -226,7 +227,7 @@ export async function enviarRelatorioExecutivoMensal(
     const emailDestino = email || process.env.RELATORIO_EXECUTIVO_EMAIL;
 
     if (!emailDestino) {
-      console.warn(
+      logger.warn(
         "[RelatorioExecutivo] RELATORIO_EXECUTIVO_EMAIL não configurada — pulando envio mensal",
       );
       return;
@@ -243,16 +244,16 @@ export async function enviarRelatorioExecutivoMensal(
     const resultado = await enviarRelatorioEmailMensal(db, emailDestino, mesPrecedente, anoPrecedente);
 
     if (resultado.sucesso) {
-      console.info(
+      logger.info(
         `[RelatorioExecutivo] Relatório mensal ${anoPrecedente}-${String(mesPrecedente).padStart(2, "0")} enviado para ${emailDestino}`,
       );
     } else {
-      console.error(
+      logger.error(
         `[RelatorioExecutivo] Erro ao enviar relatório mensal: ${resultado.erro}`,
       );
     }
   } catch (erro) {
-    console.error(
+    logger.error(
       "[RelatorioExecutivo] Erro inesperado ao enviar relatório executivo:",
       erro instanceof Error ? erro.message : erro,
     );
@@ -300,7 +301,7 @@ export function varrerAnomaliastransacoes(db: Database.Database): void {
       .get();
 
     if (!tableExists) {
-      console.info("[Anomalias] Tabelas ainda não existem (será criada na migração Phase 4.1)");
+      logger.info("[Anomalias] Tabelas ainda não existem (será criada na migração Phase 4.1)");
       return;
     }
 
@@ -320,7 +321,7 @@ export function varrerAnomaliastransacoes(db: Database.Database): void {
     const transacoes = stmt.all() as Array<{ id: string; valor: number; data: string; criado_em: string }>;
 
     if (transacoes.length === 0) {
-      console.info("[Anomalias] Nenhuma transação nova para análise");
+      logger.info("[Anomalias] Nenhuma transação nova para análise");
       return;
     }
 
@@ -338,13 +339,13 @@ export function varrerAnomaliastransacoes(db: Database.Database): void {
       }
     }
 
-    console.info(`[Anomalias] Scanner diário concluído: ${transacoes.length} analisadas, ${criticas} críticas`);
+    logger.info(`[Anomalias] Scanner diário concluído: ${transacoes.length} analisadas, ${criticas} críticas`);
 
     if (criticas > 0) {
-      console.warn(`[Anomalias] ${criticas} alerta(s) crítico(s) gerado(s) — verificar alertas_anomalias_registrados`);
+      logger.warn(`[Anomalias] ${criticas} alerta(s) crítico(s) gerado(s) — verificar alertas_anomalias_registrados`);
     }
   } catch (erro) {
-    console.error(
+    logger.error(
       "[Anomalias] Erro ao verificar anomalias:",
       erro instanceof Error ? erro.message : erro
     );
@@ -364,7 +365,7 @@ export function iniciarScannerAnomaliasDiario(db: Database.Database): void {
   const interval = setInterval(() => varrerAnomaliastransacoes(db), INTERVALO_ANOMALIAS_MS);
   interval.unref(); // não impede o processo de terminar
 
-  console.log("[Anomalias] Scanner diário de anomalias agendado (a cada 24h)");
+  logger.info("[Anomalias] Scanner diário de anomalias agendado (a cada 24h)");
 }
 
 /**
@@ -373,18 +374,18 @@ export function iniciarScannerAnomaliasDiario(db: Database.Database): void {
  */
 export async function executarBackupHorario(): Promise<void> {
   try {
-    console.log("[GoogleDriveBackup] Iniciando backup automático...");
+    logger.info("[GoogleDriveBackup] Iniciando backup automático...");
     const resultado = await backupSQLiteToGoogleDrive();
 
     if (resultado.sucesso) {
-      console.log(`[GoogleDriveBackup] Backup concluído: ${resultado.arquivoZip}`);
+      logger.info(`[GoogleDriveBackup] Backup concluído: ${resultado.arquivoZip}`);
     } else {
-      console.error(
+      logger.error(
         `[GoogleDriveBackup] Backup falhou: ${resultado.erros.join(", ")}`
       );
     }
   } catch (erro) {
-    console.error(
+    logger.error(
       "[GoogleDriveBackup] Erro inesperado ao fazer backup:",
       erro instanceof Error ? erro.message : erro
     );
@@ -403,11 +404,11 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
     executarRodadaDisparo(service, senders)
       .then((total) => {
         if (total > 0) {
-          console.log(`[LembretesAgendados] ${total} lembrete(s) processado(s) nesta rodada`);
+          logger.info(`[LembretesAgendados] ${total} lembrete(s) processado(s) nesta rodada`);
         }
       })
       .catch((erro) => {
-        console.error("[LembretesAgendados] Erro ao processar rodada de disparo:", erro instanceof Error ? erro.message : erro);
+        logger.error("[LembretesAgendados] Erro ao processar rodada de disparo:", erro instanceof Error ? erro.message : erro);
       });
   }
 
@@ -416,19 +417,19 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   const interval = setInterval(rodar, INTERVALO_MS);
   interval.unref(); // não impede o processo de terminar (mesmo padrão de setupSessionCleanup).
 
-  console.log("[LembretesAgendados] Loop de disparo agendado (a cada 1h)");
+  logger.info("[LembretesAgendados] Loop de disparo agendado (a cada 1h)");
 
   // Sincronização horária de cobranças Asaas
   function rodarAsaas(): void {
     sincronizarCobrancasAsaas(db).catch((erro) => {
-      console.error("[Asaas] Erro inesperado ao sincronizar cobranças:", erro instanceof Error ? erro.message : erro);
+      logger.error("[Asaas] Erro inesperado ao sincronizar cobranças:", erro instanceof Error ? erro.message : erro);
     });
   }
 
   rodarAsaas(); // rodada imediata no boot
   const intervalAsaas = setInterval(rodarAsaas, INTERVALO_MS);
   intervalAsaas.unref(); // não impede o processo de terminar
-  console.log("[Asaas] Loop de reconciliação agendado (a cada 1h)");
+  logger.info("[Asaas] Loop de reconciliação agendado (a cada 1h)");
 
   // Sincronização diária de DRE (Opção B): chamada imediatamente, depois uma vez por dia às 23:55
   sincronizarDREDiario(db);
@@ -445,7 +446,7 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   }, tempoAteSincDRE);
 
   timerDREinicial.unref();
-  console.log(
+  logger.info(
     `[DRE] Sincronização diária agendada para ${proximaSincDRE.toLocaleString()}, depois daily às 23:55`
   );
 
@@ -457,12 +458,12 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   rodarPixOFX(); // rodada imediata no boot
   const intervalPixOFX = setInterval(rodarPixOFX, INTERVALO_PIX_OFX_MS);
   intervalPixOFX.unref(); // não impede o processo de terminar
-  console.log("[PIX↔OFX] Loop de reconciliação agendado (a cada 3h)");
+  logger.info("[PIX↔OFX] Loop de reconciliação agendado (a cada 3h)");
 
   // Sincronização de pagamentos PIX PROATIVOS (outgoing) a cada 2 horas
   function rodarPixProativo(): void {
     sincronizarPagamentosPixProativos(db).catch((erro) => {
-      console.error(
+      logger.error(
         "[PIX Proativo] Erro inesperado ao sincronizar pagamentos:",
         erro instanceof Error ? erro.message : erro,
       );
@@ -472,12 +473,12 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   rodarPixProativo(); // rodada imediata no boot
   const intervalPixProativo = setInterval(rodarPixProativo, INTERVALO_PIX_PROATIVO_MS);
   intervalPixProativo.unref(); // não impede o processo de terminar
-  console.log("[PIX Proativo] Loop de sincronização agendado (a cada 2h)");
+  logger.info("[PIX Proativo] Loop de sincronização agendado (a cada 2h)");
 
   // Envio de Relatório Executivo Mensal (1º dia útil de cada mês, 8:00 AM)
   function rodarRelatorioExecutivo(): void {
     enviarRelatorioExecutivoMensal(db).catch((erro) => {
-      console.error(
+      logger.error(
         "[RelatorioExecutivo] Erro inesperado ao enviar relatório:",
         erro instanceof Error ? erro.message : erro,
       );
@@ -494,14 +495,14 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   }, tempoAteDisparo);
 
   timerRelatorioInicial.unref();
-  console.log(
+  logger.info(
     `[RelatorioExecutivo] Envio mensal agendado para ${proximoDisparo.toLocaleString()}, depois 1º dia útil de cada mês às 8:00 AM`,
   );
 
   // Backup automático do banco SQLite para Google Drive (a cada 1 hora)
   function rodarBackupGoogleDrive(): void {
     executarBackupHorario().catch((erro) => {
-      console.error(
+      logger.error(
         "[GoogleDriveBackup] Erro inesperado ao fazer backup:",
         erro instanceof Error ? erro.message : erro,
       );
@@ -511,5 +512,5 @@ export function iniciarDisparoLembretesAgendados(db: Database.Database, senders:
   rodarBackupGoogleDrive(); // rodada imediata no boot
   const intervalBackup = setInterval(rodarBackupGoogleDrive, INTERVALO_BACKUP_MS);
   intervalBackup.unref(); // não impede o processo de terminar
-  console.log("[GoogleDriveBackup] Loop de backup automático agendado (a cada 1h)");
+  logger.info("[GoogleDriveBackup] Loop de backup automático agendado (a cada 1h)");
 }

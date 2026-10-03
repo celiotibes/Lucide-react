@@ -6,6 +6,7 @@
  */
 
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import type { Database } from "sql.js";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
@@ -52,7 +53,7 @@ export function criarRotasTransacoes({ db, authService }: TransacoesRoutesDeps):
 
       res.json(sugestao);
     } catch (erro) {
-      console.error("Erro ao sugerir categoria:", erro instanceof Error ? erro.message : String(erro));
+      logger.error("Erro ao sugerir categoria:", erro instanceof Error ? erro.message : String(erro));
       res.status(500).json({ erro: "Falha ao sugerir categoria" });
     }
   });

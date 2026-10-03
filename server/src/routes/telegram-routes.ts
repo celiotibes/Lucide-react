@@ -42,6 +42,7 @@
  * código com a própria tabela e confirma a mensagem final ao contato.
  */
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import { randomUUID, randomInt } from "crypto";
 import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
@@ -239,14 +240,14 @@ export function criarRotasTelegram({ authService, eventosService, db }: Telegram
   // sem TELEGRAM_BOT_TOKEN o bot não consegue mandar/baixar nada da API do Telegram; sem
   // TELEGRAM_WEBHOOK_SECRET o webhook recusa toda chamada (ver abaixo) até ser configurado.
   if (!process.env.TELEGRAM_BOT_TOKEN) {
-    console.warn(
+    logger.warn(
       "[telegram-routes] TELEGRAM_BOT_TOKEN não definido — o bot de captura rápida do Telegram está desativado. " +
         "POST /gerar-codigo-vinculo responderá 503 e POST /webhook não enviará respostas ao usuário até a " +
         "variável ser configurada (ver .env.example). O resto do servidor continua funcionando normalmente.",
     );
   }
   if (!process.env.TELEGRAM_WEBHOOK_SECRET) {
-    console.warn(
+    logger.warn(
       "[telegram-routes] TELEGRAM_WEBHOOK_SECRET não definido — POST /webhook vai recusar TODA chamada (401) até " +
         "a variável ser configurada e o mesmo valor definido como secret_token na chamada setWebhook do Telegram.",
     );
@@ -314,7 +315,7 @@ export function criarRotasTelegram({ authService, eventosService, db }: Telegram
       // Nunca deixa uma falha (ex: download da foto, API do Telegram fora do ar) propagar
       // como 500 pro Telegram ficar reenviando o mesmo Update indefinidamente — loga e
       // responde 200 de qualquer forma; quem perde a captura pode reenviar a mensagem.
-      console.error(
+      logger.error(
         "[telegram-routes] erro ao processar atualização do webhook:",
         erro instanceof TelegramConfiguracaoAusenteError ? erro.message : erro,
       );

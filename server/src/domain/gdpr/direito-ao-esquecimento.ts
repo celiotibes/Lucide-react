@@ -10,6 +10,7 @@
  */
 
 import Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { v4 as uuid } from "uuid";
 
 export interface ConfiguracaoDireitoEsquecimento {
@@ -228,7 +229,7 @@ export class DireitoAoEsquecimento {
 
       return dados;
     } catch (erro) {
-      console.error("Error exporting person data:", erro);
+      logger.error("Error exporting person data:", erro);
       return null;
     }
   }
@@ -346,7 +347,7 @@ export class DireitoAoEsquecimento {
 
       return campos_anonimizados;
     } catch (erro) {
-      console.error(`Error anonymizing in ${tabela}:`, erro);
+      logger.error(`Error anonymizing in ${tabela}:`, erro);
       return campos_anonimizados;
     }
   }
@@ -403,7 +404,7 @@ export class DireitoAoEsquecimento {
         ? (stmt.all(pessoa_tipo, limite) as Array<Record<string, unknown>>)
         : (stmt.all(limite) as Array<Record<string, unknown>>);
     } catch (erro) {
-      console.error("Error fetching anonymization history:", erro);
+      logger.error("Error fetching anonymization history:", erro);
       return [];
     }
   }

@@ -14,6 +14,7 @@
  */
 
 import { Router, Request, Response } from "express";
+import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { backupSQLiteToGoogleDrive, listarBackupsNoGoogleDrive, restaurarBackupDoGoogleDrive } from "../utils/googleDriveBackup.js";
@@ -52,7 +53,7 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
         backups,
       });
     } catch (erro) {
-      console.error("[BackupRoutes] Erro ao listar backups:", erro);
+      logger.error("[BackupRoutes] Erro ao listar backups:", erro);
       res.status(500).json({
         erro: "Erro ao listar backups",
         detalhes: erro instanceof Error ? erro.message : String(erro),
@@ -74,7 +75,7 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
     try {
       // Type-safe access to authenticated user
       const usuarioId = req.auth?.usuario?.id;
-      console.log("[BackupRoutes] Backup manual solicitado por usuário:", usuarioId);
+      logger.info("[BackupRoutes] Backup manual solicitado por usuário:", usuarioId);
 
       const resultado = await backupSQLiteToGoogleDrive();
 
@@ -92,7 +93,7 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
         });
       }
     } catch (erro) {
-      console.error("[BackupRoutes] Erro ao criar backup:", erro);
+      logger.error("[BackupRoutes] Erro ao criar backup:", erro);
       res.status(500).json({
         erro: "Erro ao criar backup",
         detalhes: erro instanceof Error ? erro.message : String(erro),
@@ -117,7 +118,7 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
         return res.status(400).json({ erro: "fileId é obrigatório" });
       }
 
-      console.log("[BackupRoutes] Restauração de backup solicitada por usuário:", usuarioId, "arquivo:", fileId);
+      logger.info("[BackupRoutes] Restauração de backup solicitada por usuário:", usuarioId, "arquivo:", fileId);
 
       const resultado = await restaurarBackupDoGoogleDrive(fileId);
 
@@ -135,7 +136,7 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
         });
       }
     } catch (erro) {
-      console.error("[BackupRoutes] Erro ao restaurar backup:", erro);
+      logger.error("[BackupRoutes] Erro ao restaurar backup:", erro);
       res.status(500).json({
         erro: "Erro ao restaurar backup",
         detalhes: erro instanceof Error ? erro.message : String(erro),
@@ -163,7 +164,7 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
         },
       });
     } catch (erro) {
-      console.error("[BackupRoutes] Erro ao verificar status:", erro);
+      logger.error("[BackupRoutes] Erro ao verificar status:", erro);
       res.status(500).json({
         erro: "Erro ao verificar status de backup",
       });

@@ -7,6 +7,16 @@ import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import { specs } from "./swagger.js";
 import { pluggy, normalizarTransacao } from "./pluggy.js";
+// SEC-011: Structured Logging
+import { logger } from "./services/logger-service.js";
+import { requestIdMiddleware } from "./middleware/request-id-middleware.js";
+// SEC-013: CSRF Protection
+import {
+  criarMiddlewareSession,
+  criarMiddlewareCSRF,
+  adicionarTokenCSRFAoResponse,
+  erroCSRF,
+} from "./middleware/csrf-middleware.js";
 import { initializeDatabase, getDatabase, closeDatabase } from "./database-init.js";
 import { AuthServiceDB } from "../src/domain/auth/auth-service-db.js";
 import { AuditTrailServiceDB } from "../src/domain/auth/audit-trail-db.js";
@@ -70,10 +80,9 @@ try {
   envVars = envSchema.parse(process.env);
 } catch (error) {
   if (error instanceof z.ZodError) {
-    console.error(
-      "[Server] Erro na validação das variáveis de ambiente:\n" +
-        error.errors.map((e) => `  - ${e.path.join(".")}: ${e.message}`).join("\n"),
-    );
+    logger.error("[Server] Erro na validação das variáveis de ambiente", {
+      errors: error.errors.map((e) => `  - ${e.path.join(".")}: ${e.message}`).join("\n"),
+    });
   }
   throw new Error(
     "Falha ao validar variáveis de ambiente no boot. Verifique .env — consulte .env.example.",
@@ -86,12 +95,10 @@ const ALLOWED_ORIGIN = envVars.ALLOWED_ORIGIN;
 const DATABASE_URL = envVars.DATABASE_URL;
 const NODE_ENV = envVars.NODE_ENV;
 
-console.log(`[Server] Environment: ${NODE_ENV}`);
-console.log(`[Server] Port: ${PORT}`);
-console.log(`[Server] Allowed Origin: ${ALLOWED_ORIGIN}`);
+logger.info("[Server] Environment", { environment: NODE_ENV, port: PORT, allowedOrigin: ALLOWED_ORIGIN });
 
 // Phase 2: Initialize database and services on startup
-console.log("[Server] Initializing database...");
+logger.info("[Server] Initializing database...");
 const db = initializeDatabase();
 
 // Create singleton service instances
@@ -102,7 +109,7 @@ const paymentGuard = new DuplicatePaymentGuardDB(db);
 const eventosExternosService = new EventosExternosServiceDB(db);
 const lembretesAgendadosService = new LembretesAgendadosServiceDB(db);
 
-console.log("[Server] Database and services initialized");
+logger.info("[Server] Database and services initialized");
 
 /** Loop de disparo dos lembretes agendados (fase 5 — ver lembretes-dispatcher.ts e
  * migrations-phase5-lembretes-agendados.sql): roda uma vez agora e depois a cada 1h,
@@ -158,6 +165,22 @@ app.use(
 
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());
+
+// SEC-013: Session management BEFORE CSRF middleware (required for session-based tokens)
+const sessionSecret = envVars.SESSION_SECRET || `default-secret-${process.env.NODE_ENV === "production" ? "CHANGE-ME" : "dev"}`;
+if (sessionSecret.includes("CHANGE-ME")) {
+  logger.warn("[CSRF] SESSION_SECRET não configurada em produção — CSRF não estará protegido adequadamente");
+}
+app.use(criarMiddlewareSession(sessionSecret));
+
+// SEC-013: CSRF protection middleware
+app.use(criarMiddlewareCSRF());
+
+// SEC-013: Middleware para adicionar token CSRF em responses
+app.use(adicionarTokenCSRFAoResponse);
+
+// SEC-011: Request ID and structured logging middleware
+app.use(requestIdMiddleware);
 
 // Attach services to app context for use in routes
 app.locals.authService = authService;
@@ -311,9 +334,10 @@ app.post("/api/connect-token", exigirChaveApi, async (req, res) => {
   try {
     const { clientUserId } = req.body ?? {};
     const connectToken = await pluggy.createConnectToken(undefined, clientUserId ? { clientUserId } : undefined);
+    req.logger.info("Connect token created", { clientUserId });
     res.json({ accessToken: connectToken.accessToken });
   } catch (erro) {
-    console.error("Erro ao criar connect token:", mensagemErro(erro));
+    req.logger.error("Erro ao criar connect token", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao criar connect token" });
   }
 });
@@ -322,11 +346,13 @@ app.post("/api/connect-token", exigirChaveApi, async (req, res) => {
 app.get("/api/accounts", exigirChaveApi, async (req, res) => {
   const itemId = req.query.itemId;
   if (typeof itemId !== "string") {
+    req.logger.warn("itemId not provided");
     res.status(400).json({ erro: "itemId é obrigatório" });
     return;
   }
   try {
     const { results } = await pluggy.fetchAccounts(itemId);
+    req.logger.info("Accounts fetched", { itemId, count: results.length });
     res.json(
       results.map((conta) => ({
         id: conta.id,
@@ -338,7 +364,7 @@ app.get("/api/accounts", exigirChaveApi, async (req, res) => {
       })),
     );
   } catch (erro) {
-    console.error("Erro ao buscar contas:", mensagemErro(erro));
+    req.logger.error("Erro ao buscar contas", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao buscar contas" });
   }
 });
@@ -348,6 +374,7 @@ app.get("/api/accounts", exigirChaveApi, async (req, res) => {
 app.get("/api/transactions", exigirChaveApi, async (req, res) => {
   const { accountId, from, to } = req.query;
   if (typeof accountId !== "string") {
+    req.logger.warn("accountId not provided");
     res.status(400).json({ erro: "accountId é obrigatório" });
     return;
   }
@@ -356,9 +383,10 @@ app.get("/api/transactions", exigirChaveApi, async (req, res) => {
       dateFrom: typeof from === "string" ? from : undefined,
       dateTo: typeof to === "string" ? to : undefined,
     });
+    req.logger.info("Transactions fetched", { accountId, count: transacoes.length, from, to });
     res.json(transacoes.map(normalizarTransacao));
   } catch (erro) {
-    console.error("Erro ao buscar transações:", mensagemErro(erro));
+    req.logger.error("Erro ao buscar transações", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao buscar transações" });
   }
 });
@@ -378,11 +406,12 @@ app.get("/api/transactions", exigirChaveApi, async (req, res) => {
  * enviar eventos forjados. */
 app.post("/api/webhooks/pluggy", (req, res) => {
   if (req.query.key !== API_KEY) {
+    req.logger.warn("Pluggy webhook unauthorized");
     res.status(401).json({ erro: "Chave de API ausente ou inválida" });
     return;
   }
   const evento = req.body;
-  console.log("Webhook Pluggy recebido:", evento?.event, evento?.itemId ?? evento?.eventId);
+  req.logger.info("Webhook Pluggy received", { event: evento?.event, itemId: evento?.itemId ?? evento?.eventId });
   res.status(200).json({ recebido: true });
 });
 
@@ -398,9 +427,10 @@ app.get("/api/health", async (_req, res) => {
     const usarLeve = _req.query.leve === "true";
     const saudeCompleta = usarLeve ? await executarHealthCheckLeve(db) : await executarHealthCheck(db);
     const statusHttp = saudeCompleta.status === "error" ? 503 : 200;
+    _req.logger.info("[Health] Check executed", { leve: usarLeve, status: saudeCompleta.status });
     res.status(statusHttp).json(saudeCompleta);
   } catch (erro) {
-    console.error("[Health] Erro ao executar health check:", erro instanceof Error ? erro.message : String(erro));
+    _req.logger.error("[Health] Erro ao executar health check", erro instanceof Error ? erro : { error: String(erro) });
     res.status(503).json({
       status: "error",
       timestamp: new Date().toISOString(),
@@ -429,6 +459,9 @@ app.get("/api-docs.json", (_req, res) => {
   res.send(specs);
 });
 
+// SEC-013: CSRF error handler (must be before generic error handler)
+app.use(erroCSRF);
+
 /** Middleware de erro — precisa ser o ÚLTIMO app.use() (Express identifica middleware de erro
  * pela assinatura de 4 parâmetros). Sem isso, um erro não tratado (ex: JSON malformado
  * chegando em express.json(), que roda ANTES de exigirChaveApi em toda rota — alcançável sem
@@ -440,36 +473,39 @@ app.get("/api-docs.json", (_req, res) => {
  * hospedado: sempre responde genérico, não importa o ambiente. */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 4º parâmetro obrigatório: é só pela aridade que o Express reconhece isto como middleware de erro
 app.use((erro: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("Erro não tratado:", mensagemErro(erro));
+  logger.error("Erro não tratado", erro instanceof Error ? erro : { error: String(erro) });
   const status = (erro as { status?: number; statusCode?: number })?.status ?? (erro as { statusCode?: number })?.statusCode ?? 500;
   res.status(status).json({ erro: "Requisição inválida ou falha interna." });
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`Servidor de integração Pluggy rodando em http://localhost:${PORT}`);
+  logger.info("Servidor de integração Pluggy iniciado", { port: PORT, url: `http://localhost:${PORT}` });
   // Phase 9: Log dos serviços inicializados
   const cacheStats = cache.stats();
-  console.log(`[Cache] Inicializado com ${cacheStats.total} entradas`);
-  console.log(
-    `[Alertas] Email (${envVars.ALERTS_EMAIL_PROVIDER || "none"}), Slack (${envVars.SLACK_WEBHOOK_URL ? "configurado" : "desabilitado"})`,
-  );
+  logger.info("[Cache] Inicializado", { entradas: cacheStats.total });
+  logger.info("[Alertas] Configuração", {
+    email: envVars.ALERTS_EMAIL_PROVIDER || "none",
+    slack: envVars.SLACK_WEBHOOK_URL ? "configurado" : "desabilitado",
+  });
 });
 
 // Graceful shutdown - close database connection
 process.on("SIGTERM", () => {
-  console.log("[Server] SIGTERM received, closing server...");
+  logger.warn("[Server] SIGTERM received, closing server...");
   cache.limpar(); // Limpa cache em memória
   server.close(() => {
     closeDatabase();
+    logger.info("[Server] Server closed gracefully");
     process.exit(0);
   });
 });
 
 process.on("SIGINT", () => {
-  console.log("[Server] SIGINT received, closing server...");
+  logger.warn("[Server] SIGINT received, closing server...");
   cache.limpar(); // Limpa cache em memória
   server.close(() => {
     closeDatabase();
+    logger.info("[Server] Server closed gracefully");
     process.exit(0);
   });
 });

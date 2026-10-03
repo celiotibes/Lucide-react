@@ -11,6 +11,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { calcularDREPeriodo } from "./dre.js";
 import { forecastMediaMovel } from "./fluxoCaixaForecast.js";
 import { calcularMargensImovel } from "./margensPorPropriedade.js";
@@ -67,21 +68,27 @@ export interface FluxoResumo {
   }>;
 }
 
+export interface MargemPropriedade {
+  imovelId: number;
+  nomePropriedade: string;
+  margem: number;
+  status: "OK" | "ATENÇÃO" | "CRÍTICO";
+}
+
 export interface MargensPorPropriedadeResumo {
   total: number;
   mediaGeral: number;
-  top5: Array<{
-    imovelId: number;
-    nomePropriedade: string;
-    margem: number;
-    status: "OK" | "ATENÇÃO" | "CRÍTICO";
-  }>;
-  bottom5: Array<{
-    imovelId: number;
-    nomePropriedade: string;
-    margem: number;
-    status: "OK" | "ATENÇÃO" | "CRÍTICO";
-  }>;
+  top5: Array<MargemPropriedade>;
+  bottom5: Array<MargemPropriedade>;
+}
+
+export interface MargensPaginadas {
+  items: Array<MargemPropriedade>;
+  total: number;
+  mediaGeral: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 export interface AlertaExecutivo {
@@ -202,7 +209,7 @@ function calcularVariacaoDRE(db: Database.Database, mes: number, ano: number): {
 
     return { mesAnterior: variacao, ytd: ytdVariacao };
   } catch (erro) {
-    console.error("[RelatorioExecutivo] Erro ao calcular variação:", erro);
+    logger.error("[RelatorioExecutivo] Erro ao calcular variação:", erro);
     return { mesAnterior: 0, ytd: 0 };
   }
 }
@@ -233,7 +240,7 @@ function buscarHistoricoDREUltimos6Meses(
 
     return historico;
   } catch (erro) {
-    console.error("[RelatorioExecutivo] Erro ao buscar histórico DRE:", erro);
+    logger.error("[RelatorioExecutivo] Erro ao buscar histórico DRE:", erro);
     return [];
   }
 }
@@ -286,7 +293,7 @@ function gerarFluxoResumo(db: Database.Database, mes: number, ano: number): Flux
       historico12meses: historico12,
     };
   } catch (erro) {
-    console.error("[RelatorioExecutivo] Erro ao gerar fluxo resumo:", erro);
+    logger.error("[RelatorioExecutivo] Erro ao gerar fluxo resumo:", erro);
     return {
       saldoAtual: 0,
       projecao30dias: 0,
@@ -321,7 +328,7 @@ function buscarHistoricoFluxo12Meses(
 
     return historico;
   } catch (erro) {
-    console.error("[RelatorioExecutivo] Erro ao buscar histórico fluxo:", erro);
+    logger.error("[RelatorioExecutivo] Erro ao buscar histórico fluxo:", erro);
     return [];
   }
 }
@@ -346,12 +353,7 @@ function gerarMargensResumo(db: Database.Database, mes: number, ano: number): Ma
           return null;
         }
       })
-      .filter((m) => m !== null) as Array<{
-      imovelId: number;
-      nomePropriedade: string;
-      margem: number;
-      status: "OK" | "ATENÇÃO" | "CRÍTICO";
-    }>;
+      .filter((m) => m !== null) as Array<MargemPropriedade>;
 
     const total = margens.length;
     const mediaGeral = total > 0 ? margens.reduce((sum, m) => sum + m.margem, 0) / total : 0;
@@ -367,8 +369,67 @@ function gerarMargensResumo(db: Database.Database, mes: number, ano: number): Ma
       bottom5,
     };
   } catch (erro) {
-    console.error("[RelatorioExecutivo] Erro ao gerar margens resumo:", erro);
+    logger.error("[RelatorioExecutivo] Erro ao gerar margens resumo:", erro);
     return { total: 0, mediaGeral: 0, top5: [], bottom5: [] };
+  }
+}
+
+/** Gera margens por propriedade com paginação */
+export function gerarMargensResumodaPaginado(
+  db: Database.Database,
+  mes: number,
+  ano: number,
+  limit: number = 50,
+  offset: number = 0,
+): MargensPaginadas {
+  try {
+    // Busca todas as propriedades
+    const propriedades = db.prepare("SELECT id, nome FROM imoveis ORDER BY nome").all() as Array<{ id: number; nome: string }>;
+
+    const margens = propriedades
+      .map((prop) => {
+        try {
+          const margem = calcularMargensImovel(db, prop.id, ano, mes);
+          return {
+            imovelId: margem.imovelId,
+            nomePropriedade: margem.nomeProriedade,
+            margem: margem.margem,
+            status: margem.status,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((m) => m !== null) as Array<MargemPropriedade>;
+
+    const total = margens.length;
+    const mediaGeral = total > 0 ? margens.reduce((sum, m) => sum + m.margem, 0) / total : 0;
+
+    // Ordena por margem descendente
+    const ordenadas = [...margens].sort((a, b) => b.margem - a.margem);
+
+    // Aplica paginação
+    const items = ordenadas.slice(offset, offset + limit);
+    const hasMore = offset + limit < total;
+
+    return {
+      items,
+      total,
+      mediaGeral,
+      limit,
+      offset,
+      hasMore,
+    };
+  } catch (erro) {
+    logger.error("[RelatorioExecutivo] Erro ao gerar margens paginadas:", erro);
+    return {
+      items: [],
+      total: 0,
+      mediaGeral: 0,
+      limit,
+      offset,
+      hasMore: false,
+    };
   }
 }
 
@@ -472,7 +533,7 @@ function gerarContasResumo(db: Database.Database): ContasResumo {
       },
     };
   } catch (erro) {
-    console.error("[RelatorioExecutivo] Erro ao gerar contas resumo:", erro);
+    logger.error("[RelatorioExecutivo] Erro ao gerar contas resumo:", erro);
     return {
       aReceber: { total: 0, vencido: 0, proximo30dias: 0, percentualVencido: 0, topDevedores: [] },
       aPagar: { total: 0, vencido: 0, proximo30dias: 0, percentualVencido: 0 },
@@ -1081,7 +1142,7 @@ export async function enviarRelatorioEmailMensal(
     return { sucesso: true, idEmail: `email_rel_${mes}_${ano}_${Date.now()}` };
   } catch (erro) {
     const mensagem = erro instanceof Error ? erro.message : String(erro);
-    console.error("[RelatorioExecutivo] Erro ao enviar email:", mensagem);
+    logger.error("[RelatorioExecutivo] Erro ao enviar email:", mensagem);
     return { sucesso: false, erro: mensagem };
   }
 }
@@ -1095,6 +1156,6 @@ function gravarRelatorioGerado(db: Database.Database, mes: number, ano: number, 
     `).run(mes, ano, new Date().toISOString(), conteudoHTML.substring(0, 5000), 1, email, new Date().toISOString());
   } catch (erro) {
     // Tabela pode não existir, ignora
-    console.warn("[RelatorioExecutivo] Não foi possível gravar relatório no banco:", erro);
+    logger.warn("[RelatorioExecutivo] Não foi possível gravar relatório no banco:", erro);
   }
 }

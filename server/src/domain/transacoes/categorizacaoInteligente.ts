@@ -8,6 +8,7 @@
  */
 
 import type { Database } from "sql.js";
+import { logger } from '../../services/logger-service.js';
 
 export interface SugestaoCategoria {
   categoria: string;
@@ -112,7 +113,7 @@ export function sugerirCategoria(db: Database, transacaoId: number): SugestaoCat
       motivo: "Nenhum padrão detectado; sugira categoria manualmente",
     };
   } catch (erro) {
-    console.error("Erro ao sugerir categoria:", erro);
+    logger.error("Erro ao sugerir categoria:", erro);
     return {
       categoria: "1.0.00.00",
       confianca: 0,
@@ -164,7 +165,7 @@ export function registrarSugestaoCategoria(
     db.run(insertSQL, [transacaoId, categoria, confianca, motivo, timestamp]);
   } catch (erro) {
     // Silent fail - auditoria não deve quebrar o fluxo principal
-    console.warn("Aviso ao registrar sugestão:", erro instanceof Error ? erro.message : String(erro));
+    logger.warn("Aviso ao registrar sugestão:", erro instanceof Error ? erro.message : String(erro));
   }
 }
 
@@ -195,7 +196,7 @@ function buscarTransacao(
     stmt.free();
     return null;
   } catch (erro) {
-    console.warn("Erro ao buscar transação:", erro);
+    logger.warn("Erro ao buscar transação:", erro);
     return null;
   }
 }
@@ -234,7 +235,7 @@ function buscarCategoriaHistorico(
     stmt.free();
     return null;
   } catch (erro) {
-    console.warn("Erro ao buscar histórico:", erro);
+    logger.warn("Erro ao buscar histórico:", erro);
     return null;
   }
 }

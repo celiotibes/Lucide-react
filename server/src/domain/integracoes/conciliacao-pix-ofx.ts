@@ -16,6 +16,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 
 export interface ConciliacaoPix {
@@ -282,7 +283,7 @@ export function conciliarPixOFX(db: Database.Database): ResultadoConciliacao {
     return resultado;
   }
 
-  console.info(`📋 Conciliação PIX↔OFX iniciada... (${charges.length} charge(s) ativa(s))`);
+  logger.info(`📋 Conciliação PIX↔OFX iniciada... (${charges.length} charge(s) ativa(s))`);
 
   for (const charge of charges) {
     try {
@@ -417,7 +418,7 @@ export function conciliarPixOFX(db: Database.Database): ResultadoConciliacao {
     // Tabela pode não existir
   }
 
-  console.info(
+  logger.info(
     `📋 Conciliação PIX↔OFX concluída: ${resultado.conciliadas} reconciliadas, ${resultado.discrepancias} discrepâncias, ${resultado.pendentes} pendentes, ${resultado.expiradas} expiradas`,
   );
 
@@ -446,7 +447,7 @@ export async function conciliarPixOFXComRetry(
 
     if (tentativa < tentativas) {
       const delayMs = Math.pow(2, tentativa - 1) * 1000; // 1s, 2s, 4s
-      console.warn(`⏳ Retry ${tentativa}/${tentativas} em ${delayMs}ms...`);
+      logger.warn(`⏳ Retry ${tentativa}/${tentativas} em ${delayMs}ms...`);
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }

@@ -9,6 +9,7 @@
  */
 
 import fs from "fs";
+import { logger } from '../services/logger-service.js';
 import path from "path";
 import archiver from "archiver";
 import { google, drive_v3 } from "googleapis";
@@ -37,7 +38,7 @@ function inicializarDriveClient(): drive_v3.Drive | null {
   try {
     const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
     if (!credentialsJson) {
-      console.warn("[GoogleDriveBackup] GOOGLE_CREDENTIALS_JSON não configurada — backup desabilitado");
+      logger.warn("[GoogleDriveBackup] GOOGLE_CREDENTIALS_JSON não configurada — backup desabilitado");
       return null;
     }
 
@@ -49,7 +50,7 @@ function inicializarDriveClient(): drive_v3.Drive | null {
 
     return google.drive({ version: "v3", auth });
   } catch (erro) {
-    console.error(
+    logger.error(
       "[GoogleDriveBackup] Erro ao inicializar cliente Drive:",
       erro instanceof Error ? erro.message : erro
     );
@@ -71,12 +72,12 @@ async function encontrarOuCriarPastaBackup(drive: drive_v3.Drive): Promise<strin
     });
 
     if (res.data.files && res.data.files.length > 0) {
-      console.log(`[GoogleDriveBackup] Pasta '${BACKUP_FOLDER_NAME}' encontrada: ${res.data.files[0].id}`);
+      logger.info(`[GoogleDriveBackup] Pasta '${BACKUP_FOLDER_NAME}' encontrada: ${res.data.files[0].id}`);
       return res.data.files[0].id || null;
     }
 
     // Cria pasta nova
-    console.log(`[GoogleDriveBackup] Criando pasta '${BACKUP_FOLDER_NAME}'...`);
+    logger.info(`[GoogleDriveBackup] Criando pasta '${BACKUP_FOLDER_NAME}'...`);
     const fileMetadata = {
       name: BACKUP_FOLDER_NAME,
       mimeType: "application/vnd.google-apps.folder",
@@ -87,10 +88,10 @@ async function encontrarOuCriarPastaBackup(drive: drive_v3.Drive): Promise<strin
       fields: "id",
     });
 
-    console.log(`[GoogleDriveBackup] Pasta criada: ${createRes.data.id}`);
+    logger.info(`[GoogleDriveBackup] Pasta criada: ${createRes.data.id}`);
     return createRes.data.id || null;
   } catch (erro) {
-    console.error(
+    logger.error(
       "[GoogleDriveBackup] Erro ao buscar/criar pasta:",
       erro instanceof Error ? erro.message : erro
     );
@@ -105,7 +106,7 @@ async function comprimirBanco(zipPath: string): Promise<boolean> {
   return new Promise((resolve) => {
     try {
       if (!fs.existsSync(DB_PATH)) {
-        console.error(`[GoogleDriveBackup] Arquivo do banco não encontrado: ${DB_PATH}`);
+        logger.error(`[GoogleDriveBackup] Arquivo do banco não encontrado: ${DB_PATH}`);
         resolve(false);
         return;
       }
@@ -114,12 +115,12 @@ async function comprimirBanco(zipPath: string): Promise<boolean> {
       const archive = archiver("zip", { zlib: { level: 9 } });
 
       output.on("close", () => {
-        console.log(`[GoogleDriveBackup] Arquivo ZIP criado: ${zipPath} (${archive.pointer()} bytes)`);
+        logger.info(`[GoogleDriveBackup] Arquivo ZIP criado: ${zipPath} (${archive.pointer()} bytes)`);
         resolve(true);
       });
 
       archive.on("error", (err) => {
-        console.error("[GoogleDriveBackup] Erro ao compactar:", err.message);
+        logger.error("[GoogleDriveBackup] Erro ao compactar:", err.message);
         resolve(false);
       });
 
@@ -127,7 +128,7 @@ async function comprimirBanco(zipPath: string): Promise<boolean> {
       archive.file(DB_PATH, { name: "app.db" });
       archive.finalize();
     } catch (erro) {
-      console.error(
+      logger.error(
         "[GoogleDriveBackup] Erro ao compactar banco:",
         erro instanceof Error ? erro.message : erro
       );
@@ -147,7 +148,7 @@ async function fazerUploadParaDrive(
 ): Promise<boolean> {
   try {
     if (!fs.existsSync(zipPath)) {
-      console.error(`[GoogleDriveBackup] Arquivo ZIP não encontrado: ${zipPath}`);
+      logger.error(`[GoogleDriveBackup] Arquivo ZIP não encontrado: ${zipPath}`);
       return false;
     }
 
@@ -167,16 +168,16 @@ async function fazerUploadParaDrive(
       fields: "id, webViewLink",
     });
 
-    console.log(
+    logger.info(
       `[GoogleDriveBackup] Upload concluído: ${nomeArquivo} (ID: ${response.data.id})`
     );
     if (response.data.webViewLink) {
-      console.log(`[GoogleDriveBackup] Link: ${response.data.webViewLink}`);
+      logger.info(`[GoogleDriveBackup] Link: ${response.data.webViewLink}`);
     }
 
     return true;
   } catch (erro) {
-    console.error(
+    logger.error(
       "[GoogleDriveBackup] Erro ao fazer upload:",
       erro instanceof Error ? erro.message : erro
     );
@@ -192,20 +193,20 @@ function validarIntegridadeZip(zipPath: string): boolean {
     // Para uma validação simples, verificamos se o arquivo ZIP foi criado com sucesso
     // Uma validação mais completa envolveria descompactar e verificar o banco
     if (!fs.existsSync(zipPath)) {
-      console.error(`[GoogleDriveBackup] Arquivo ZIP não existe: ${zipPath}`);
+      logger.error(`[GoogleDriveBackup] Arquivo ZIP não existe: ${zipPath}`);
       return false;
     }
 
     const stats = fs.statSync(zipPath);
     if (stats.size === 0) {
-      console.error(`[GoogleDriveBackup] Arquivo ZIP está vazio: ${zipPath}`);
+      logger.error(`[GoogleDriveBackup] Arquivo ZIP está vazio: ${zipPath}`);
       return false;
     }
 
-    console.log(`[GoogleDriveBackup] Validação: ZIP contém ${stats.size} bytes`);
+    logger.info(`[GoogleDriveBackup] Validação: ZIP contém ${stats.size} bytes`);
     return true;
   } catch (erro) {
-    console.error(
+    logger.error(
       "[GoogleDriveBackup] Erro ao validar ZIP:",
       erro instanceof Error ? erro.message : erro
     );
@@ -230,14 +231,14 @@ export async function backupSQLiteToGoogleDrive(): Promise<{
     const drive = inicializarDriveClient();
     if (!drive) {
       erros.push("Google Drive não configurado — defina GOOGLE_CREDENTIALS_JSON no .env");
-      console.warn("[GoogleDriveBackup] " + erros[0]);
+      logger.warn("[GoogleDriveBackup] " + erros[0]);
       return { sucesso: false, erros };
     }
 
     // Verifica se o banco de dados existe
     if (!fs.existsSync(DB_PATH)) {
       erros.push(`Banco de dados não encontrado: ${DB_PATH}`);
-      console.error("[GoogleDriveBackup] " + erros[0]);
+      logger.error("[GoogleDriveBackup] " + erros[0]);
       return { sucesso: false, erros };
     }
 
@@ -249,7 +250,7 @@ export async function backupSQLiteToGoogleDrive(): Promise<{
     const nomeArquivo = `backup-${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}-${String(agora.getHours()).padStart(2, "0")}-${String(agora.getMinutes()).padStart(2, "0")}-${String(agora.getSeconds()).padStart(2, "0")}.zip`;
     const zipPath = path.join(BACKUP_DIR, nomeArquivo);
 
-    console.log(`[GoogleDriveBackup] Iniciando backup: ${nomeArquivo}`);
+    logger.info(`[GoogleDriveBackup] Iniciando backup: ${nomeArquivo}`);
 
     // Comprime o banco de dados
     const zipCriado = await comprimirBanco(zipPath);
@@ -281,12 +282,12 @@ export async function backupSQLiteToGoogleDrive(): Promise<{
     // Limpa arquivo local temporário após sucesso (opcional — pode manter para recuperação local)
     // fs.unlinkSync(zipPath);
 
-    console.log(`[GoogleDriveBackup] Backup concluído com sucesso: ${nomeArquivo}`);
+    logger.info(`[GoogleDriveBackup] Backup concluído com sucesso: ${nomeArquivo}`);
     return { sucesso: true, arquivoZip: nomeArquivo, erros };
   } catch (erro) {
     const mensagemErro = erro instanceof Error ? erro.message : String(erro);
     erros.push(mensagemErro);
-    console.error("[GoogleDriveBackup] Erro ao fazer backup:", mensagemErro);
+    logger.error("[GoogleDriveBackup] Erro ao fazer backup:", mensagemErro);
     return { sucesso: false, erros };
   }
 }
@@ -300,13 +301,13 @@ export async function listarBackupsNoGoogleDrive(): Promise<
   try {
     const drive = inicializarDriveClient();
     if (!drive) {
-      console.warn("[GoogleDriveBackup] Google Drive não configurado");
+      logger.warn("[GoogleDriveBackup] Google Drive não configurado");
       return null;
     }
 
     const folderId = await encontrarOuCriarPastaBackup(drive);
     if (!folderId) {
-      console.error("[GoogleDriveBackup] Pasta de backup não encontrada");
+      logger.error("[GoogleDriveBackup] Pasta de backup não encontrada");
       return null;
     }
 
@@ -328,7 +329,7 @@ export async function listarBackupsNoGoogleDrive(): Promise<
       criadoEm: file.createdTime || "",
     }));
   } catch (erro) {
-    console.error(
+    logger.error(
       "[GoogleDriveBackup] Erro ao listar backups:",
       erro instanceof Error ? erro.message : erro
     );
@@ -353,7 +354,7 @@ export async function restaurarBackupDoGoogleDrive(fileId: string): Promise<{
       return { sucesso: false, erros };
     }
 
-    console.log(`[GoogleDriveBackup] Iniciando restauração do backup: ${fileId}`);
+    logger.info(`[GoogleDriveBackup] Iniciando restauração do backup: ${fileId}`);
 
     // Baixa arquivo do Drive
     const zipPathTemp = path.join(BACKUP_DIR, `restore-${Date.now()}.zip`);
@@ -384,8 +385,8 @@ export async function restaurarBackupDoGoogleDrive(fileId: string): Promise<{
 
           // Aqui você implementaria a descompactação e restauração do banco
           // Por enquanto, apenas confirmamos que o arquivo foi baixado
-          console.log(`[GoogleDriveBackup] Arquivo restaurado: ${zipPathTemp}`);
-          console.log(`[GoogleDriveBackup] Para restaurar completamente, descompacte o arquivo e substitua ${DB_PATH}`);
+          logger.info(`[GoogleDriveBackup] Arquivo restaurado: ${zipPathTemp}`);
+          logger.info(`[GoogleDriveBackup] Para restaurar completamente, descompacte o arquivo e substitua ${DB_PATH}`);
 
           resolve({ sucesso: true, erros });
         } catch (erro) {
@@ -402,7 +403,7 @@ export async function restaurarBackupDoGoogleDrive(fileId: string): Promise<{
   } catch (erro) {
     const mensagemErro = erro instanceof Error ? erro.message : String(erro);
     erros.push(mensagemErro);
-    console.error("[GoogleDriveBackup] Erro ao restaurar backup:", mensagemErro);
+    logger.error("[GoogleDriveBackup] Erro ao restaurar backup:", mensagemErro);
     return { sucesso: false, erros };
   }
 }

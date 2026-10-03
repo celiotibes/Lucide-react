@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 
 export interface ProjecaoFluxo {
   data: string;
@@ -115,7 +116,7 @@ function buscarHistoricoUltimos90Dias(db: Database.Database): TransacaoDiaria[] 
 
     return resultado_final;
   } catch (erro) {
-    console.error("Erro ao buscar histórico de 90 dias:", erro);
+    logger.error("Erro ao buscar histórico de 90 dias:", erro);
     return [];
   }
 }
@@ -135,7 +136,7 @@ function buscarSaldoAtual(db: Database.Database): number {
 
     return resultado?.saldo_total ?? 0;
   } catch (erro) {
-    console.error("Erro ao buscar saldo atual:", erro);
+    logger.error("Erro ao buscar saldo atual:", erro);
     return 0;
   }
 }

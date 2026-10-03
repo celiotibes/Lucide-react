@@ -8,6 +8,7 @@
  * comerciais.
  */
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { listarContasPluggy, buscarTransacoesPluggy } from "../pluggy-meu.js";
@@ -35,7 +36,7 @@ export function criarRotasPluggyMeu({ authService }: PluggyMeuRoutesDeps): expre
       const contas = await listarContasPluggy();
       res.json({ contas });
     } catch (erro) {
-      console.error("Erro ao listar contas do MeuPluggy:", mensagemErro(erro));
+      logger.error("Erro ao listar contas do MeuPluggy:", mensagemErro(erro));
       res.status(500).json({ erro: mensagemErro(erro) });
     }
   });
@@ -62,7 +63,7 @@ export function criarRotasPluggyMeu({ authService }: PluggyMeuRoutesDeps): expre
       const transacoes = await buscarTransacoesPluggy(accountId, { dataInicio, dataFim });
       res.json({ transacoes });
     } catch (erro) {
-      console.error("Erro ao buscar transações do MeuPluggy:", mensagemErro(erro));
+      logger.error("Erro ao buscar transações do MeuPluggy:", mensagemErro(erro));
       res.status(500).json({ erro: mensagemErro(erro) });
     }
   });

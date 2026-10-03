@@ -6,6 +6,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 import type { ContextoAutenticacao } from "./auth-service";
 
@@ -141,14 +142,14 @@ export class AuditTrailServiceDB {
 
       // Log para console em desenvolvimento
       if (process.env.NODE_ENV !== "production") {
-        console.log(
+        logger.info(
           `[AUDITORIA] ${registro.usuario_nome} (${registro.usuario_role}): ${tipo_acao} em ${recurso_id}`
         );
       }
 
       return registro;
     } catch (erro) {
-      console.error("Erro ao registrar auditoria:", erro);
+      logger.error("Erro ao registrar auditoria:", erro);
       throw erro;
     }
   }
@@ -183,7 +184,7 @@ export class AuditTrailServiceDB {
       const registros = stmt.all(usuario_id, limite) as any[];
       return this.parseRegistros(registros);
     } catch (erro) {
-      console.error("Erro ao obter histórico de usuário:", erro);
+      logger.error("Erro ao obter histórico de usuário:", erro);
       return [];
     }
   }
@@ -202,7 +203,7 @@ export class AuditTrailServiceDB {
       const registros = stmt.all(recurso, limite) as any[];
       return this.parseRegistros(registros);
     } catch (erro) {
-      console.error("Erro ao obter histórico de recurso:", erro);
+      logger.error("Erro ao obter histórico de recurso:", erro);
       return [];
     }
   }
@@ -246,7 +247,7 @@ export class AuditTrailServiceDB {
       const registros = stmt.all(...params) as RegistroAuditoria[];
       return this.parseRegistros(registros);
     } catch (erro) {
-      console.error("Erro ao obter registros de auditoria:", erro);
+      logger.error("Erro ao obter registros de auditoria:", erro);
       return [];
     }
   }
@@ -298,7 +299,7 @@ export class AuditTrailServiceDB {
         periodo: `${periodo_horas}h`,
       };
     } catch (erro) {
-      console.error("Erro ao obter estatísticas:", erro);
+      logger.error("Erro ao obter estatísticas:", erro);
       return {
         total_registros: 0,
         total_acessos_negados: 0,
@@ -347,7 +348,7 @@ export class AuditTrailServiceDB {
         })),
       };
     } catch (erro) {
-      console.error("Erro ao gerar relatório:", erro);
+      logger.error("Erro ao gerar relatório:", erro);
       return {
         periodo: "",
         total_eventos: 0,

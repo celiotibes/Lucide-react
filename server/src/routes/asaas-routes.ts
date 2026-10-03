@@ -16,6 +16,7 @@
  * (ASAAS_WEBHOOK_TOKEN) no header `asaas-access-token`, não por Bearer token.
  */
 import express from "express";
+import { logger } from '../services/logger-service.js';
 import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type { EventosExternosServiceDB } from "../domain/integracoes/eventos-externos-db.js";
@@ -250,7 +251,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         return;
       }
     } else {
-      console.warn(
+      logger.warn(
         "[asaas-routes] ASAAS_WEBHOOK_TOKEN não configurado — aceitando webhook da Asaas sem validação de " +
           "header (esperado em sandbox/desenvolvimento antes do webhook estar configurado; configure a env " +
           "var antes de expor esta rota em produção).",
@@ -378,7 +379,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         detalhes: resultado.detalhes,
       });
     } catch (erro) {
-      console.error("[asaas-routes] Erro ao reconciliar manualmente:", erro instanceof Error ? erro.message : erro);
+      logger.error("[asaas-routes] Erro ao reconciliar manualmente:", erro instanceof Error ? erro.message : erro);
       res.status(500).json({
         erro: "Erro ao reconciliar cobranças Asaas",
         detalhes: erro instanceof Error ? erro.message : String(erro),

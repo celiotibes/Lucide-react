@@ -11,6 +11,7 @@
  */
 
 import express, { type Request, type Response } from "express";
+import { logger } from '../services/logger-service.js';
 import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
@@ -52,7 +53,7 @@ export function criarRotasConciliacaoPixOFX({ db, authService }: ConciliacaoPixO
         resultado,
       });
     } catch (erro) {
-      console.error("[ConciliacaoPixOFX] Erro ao reconciliar:", erro);
+      logger.error("[ConciliacaoPixOFX] Erro ao reconciliar:", erro);
       res.status(500).json({
         sucesso: false,
         erro: erro instanceof Error ? erro.message : "Erro desconhecido",
@@ -107,7 +108,7 @@ export function criarRotasConciliacaoPixOFX({ db, authService }: ConciliacaoPixO
         },
       });
     } catch (erro) {
-      console.error("[ConciliacaoPixOFX] Erro ao buscar status:", erro);
+      logger.error("[ConciliacaoPixOFX] Erro ao buscar status:", erro);
       res.status(500).json({
         sucesso: false,
         erro: erro instanceof Error ? erro.message : "Erro desconhecido",
@@ -173,7 +174,7 @@ export function criarRotasConciliacaoPixOFX({ db, authService }: ConciliacaoPixO
         },
       });
     } catch (erro) {
-      console.error("[ConciliacaoPixOFX] Erro ao buscar discrepâncias:", erro);
+      logger.error("[ConciliacaoPixOFX] Erro ao buscar discrepâncias:", erro);
       res.status(500).json({
         sucesso: false,
         erro: erro instanceof Error ? erro.message : "Erro desconhecido",

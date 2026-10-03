@@ -16,6 +16,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 import { consultarCobranca, type CobrancaAsaas, AsaasApiError } from "../../asaas.js";
 
@@ -258,7 +259,7 @@ export async function sincronizarStatusTaxaAsaas(
     return resultado;
   }
 
-  console.info(`🔄 Reconciliação Asaas iniciada... (${cobrancas.length} cobrança(s) ativa(s))`);
+  logger.info(`🔄 Reconciliação Asaas iniciada... (${cobrancas.length} cobrança(s) ativa(s))`);
 
   // Divide em chunks de 5 para limitar paralelismo
   const chunks = criarChunks(cobrancas, 5);
@@ -294,7 +295,7 @@ export async function sincronizarStatusTaxaAsaas(
     }
   }
 
-  console.info(
+  logger.info(
     `🔄 Reconciliação Asaas concluída: ${resultado.atualizadas} atualizadas, ${resultado.discrepancias} discrepâncias, ${resultado.erros} erros`,
   );
 
@@ -331,7 +332,7 @@ export async function sincronizarStatusTaxaAsaasComFiltro(
     return resultado;
   }
 
-  console.info(`🔄 Reconciliação Asaas iniciada (com filtro ${statusFiltro ?? "nenhum"})...`);
+  logger.info(`🔄 Reconciliação Asaas iniciada (com filtro ${statusFiltro ?? "nenhum"})...`);
 
   // Divide em chunks de 5 para limitar paralelismo
   const chunks = criarChunks(cobrancas, 5);
@@ -386,7 +387,7 @@ export async function sincronizarStatusTaxaAsaasComRetry(
 
     if (tentativa < tentativas) {
       const delayMs = Math.pow(2, tentativa - 1) * 1000; // 1s, 2s, 4s
-      console.warn(`⏳ Retry ${tentativa}/${tentativas} em ${delayMs}ms...`);
+      logger.warn(`⏳ Retry ${tentativa}/${tentativas} em ${delayMs}ms...`);
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }

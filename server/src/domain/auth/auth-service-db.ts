@@ -7,6 +7,7 @@
  */
 
 import type Database from "better-sqlite3";
+import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
 import {
   ContextoAutenticacao,
@@ -272,7 +273,7 @@ export class AuthServiceDB {
       const stmt = this.db.prepare("UPDATE sessoes SET ativo = false WHERE token = ?");
       stmt.run(token);
     } catch (erro) {
-      console.error("Erro ao fazer logout:", erro);
+      logger.error("Erro ao fazer logout:", erro);
     }
   }
 
@@ -451,7 +452,7 @@ export class AuthServiceDB {
       const usuarios = stmt.all() as Usuario[];
       return usuarios;
     } catch (erro) {
-      console.error("Erro ao obter usuários:", erro);
+      logger.error("Erro ao obter usuários:", erro);
       return [];
     }
   }
@@ -467,7 +468,7 @@ export class AuthServiceDB {
       const result = stmt.run();
       return result.changes;
     } catch (erro) {
-      console.error("Erro ao limpar sessões:", erro);
+      logger.error("Erro ao limpar sessões:", erro);
       return 0;
     }
   }
