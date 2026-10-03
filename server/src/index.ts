@@ -30,6 +30,7 @@ import { criarRotasAuth } from "../src/routes/auth-routes.js";
 import { EventosExternosServiceDB } from "../src/domain/integracoes/eventos-externos-db.js";
 import { criarRotasEventosExternos } from "../src/routes/eventos-externos-routes.js";
 import { criarRotasAsaas } from "../src/routes/asaas-routes.js";
+import { criarRotasAcl } from "../src/routes/acl-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
 import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
@@ -234,10 +235,15 @@ app.use(
   criarRotasEventosExternos({ authService, eventosService: eventosExternosService }),
 );
 
+/** Controle de acesso por recurso (ACL) — fase 13. Permite que titulares/administradores
+ * concedam acesso a recursos específicos para usuários externos (inquilino, prestador).
+ * Seguro por padrão: sem ACL, sem acesso (404). */
+app.use("/api/acl", criarRotasAcl({ authService, auditService, db }));
+
 /** Emissão de boleto/PIX via Asaas (aluguel e honorários advocatícios) — inclui o
  * webhook de confirmação de pagamento em /api/asaas/webhooks/asaas (sem
  * autenticação Bearer, validado por header próprio — ver asaas-routes.ts). */
-app.use("/api/asaas", criarRotasAsaas({ authService, eventosService: eventosExternosService }));
+app.use("/api/asaas", criarRotasAsaas({ authService, eventosService: eventosExternosService, db }));
 
 /** Pagamentos PIX Proativos via Asaas Payments (fase 5) — permite iniciar pagamentos
  * PIX a fornecedores/prestadores com rastreamento e conciliação automática.
