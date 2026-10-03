@@ -50,6 +50,8 @@ import { cache } from "../src/utils/cache-memoria.js";
 import { enviarAlertaEmail } from "../src/utils/email-alertas.js";
 import { enviarAlertaSlack } from "../src/utils/slack-alertas.js";
 import { executarHealthCheck, executarHealthCheckLeve } from "../src/utils/health-check.js";
+// OBS-001: Prometheus Metrics
+import { getMetricsRegistry } from "./services/metrics-service.js";
 
 /**
  * SEC-010: Environment Variables Schema - Validação no boot do servidor
@@ -467,6 +469,29 @@ app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(specs, {
 app.get("/api-docs.json", (_req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.send(specs);
+});
+
+/**
+ * OBS-001: Prometheus Metrics Endpoint
+ * GET /metrics — exposes Prometheus metrics in text format
+ * Used by: Prometheus scraper, monitoring dashboards, alerting
+ * Includes:
+ * - DB query latency histograms
+ * - HTTP request latency and counts by route/method
+ * - Error counts by type and severity
+ * - Cache hit/miss ratios
+ * - Active connections and queue sizes
+ * - Transaction processing metrics
+ */
+app.get("/metrics", async (_req, res) => {
+  try {
+    const registry = getMetricsRegistry();
+    res.set("Content-Type", registry.contentType);
+    res.end(await registry.metrics());
+  } catch (error) {
+    logger.error("[Metrics] Failed to expose metrics endpoint", error instanceof Error ? error : { error: String(error) });
+    res.status(500).json({ erro: "Failed to generate metrics" });
+  }
 });
 
 // SEC-013: CSRF error handler (must be before generic error handler)
