@@ -179,6 +179,12 @@ attachSentryHandlers(app);
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());
 
+// PERF-001: HTTP Response Compression
+// Compresses responses larger than 1KB (typical threshold)
+// Reduces ~500KB reports to ~50KB (90% reduction)
+// Automatically handles gzip/deflate/brotli based on Accept-Encoding header
+app.use(compression({ threshold: 1024 }));
+
 // SEC-013: Session management BEFORE CSRF middleware (required for session-based tokens)
 const sessionSecret = envVars.SESSION_SECRET || `default-secret-${process.env.NODE_ENV === "production" ? "CHANGE-ME" : "dev"}`;
 if (sessionSecret.includes("CHANGE-ME")) {
