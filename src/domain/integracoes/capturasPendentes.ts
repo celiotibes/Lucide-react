@@ -31,7 +31,7 @@
 
 import type { Database } from "sql.js";
 import { extrairTextoDocumento, extrairCamposDeTexto } from "../documentos/extrairCampos";
-import { inserirDocumento, type NovoDocumento } from "../documentos/documentos";
+import { inserirDocumento, sha256Hex, DocumentoDuplicadoError, type NovoDocumento } from "../documentos/documentos";
 
 /** Mesmo shape que `server/src/routes/telegram-routes.ts` grava em
  * `eventos_externos_pendentes.payload_json` para `tipo = 'captura_telegram'`. `foto`, quando
@@ -98,6 +98,9 @@ export interface ResultadoImportacaoCaptura {
   documentoId: number;
   usouOCR: boolean;
   usouIA: boolean;
+  /** true = a mesma foto/NF-e já tinha sido importada; `documentoId` aponta o documento existente
+   * e nenhum documento novo foi criado. */
+  duplicado?: boolean;
 }
 
 /**
@@ -129,11 +132,13 @@ export async function importarCapturaParaTriagem(
   const { payload } = captura;
   let textoExtraido = payload.texto ?? payload.legenda ?? "";
   let usouOCR = false;
+  let arquivoHash: string | undefined;
 
   if (payload.foto) {
     try {
       const nomeArquivo = `telegram-${captura.id}.${extensaoPorMime(payload.foto.mimeType)}`;
       const arquivo = base64ParaArquivo(payload.foto.base64, payload.foto.mimeType, nomeArquivo);
+      arquivoHash = await sha256Hex(new Uint8Array(await arquivo.arrayBuffer()));
       const textoOcr = await extrairTextoDocumento(arquivo);
       textoExtraido = [textoExtraido, textoOcr].filter((t) => t.trim().length > 0).join("\n");
       usouOCR = true;
@@ -156,12 +161,25 @@ export async function importarCapturaParaTriagem(
     cnpj_cpf_contraparte: campos.cnpjCpf,
     nome_contraparte: campos.nomeContraparte,
     texto_extraido: textoExtraido.trim().length > 0 ? textoExtraido : undefined,
+    arquivo_hash_sha256: arquivoHash,
+    chave_nfe: campos.chaveNFe,
     observacoes:
       `Capturado via bot do Telegram em ${payload.dataMensagem} (chat ${payload.chatId}). ` +
       "Nenhum campo foi confirmado — revise e complete antes de vincular a uma transação.",
   };
 
-  const documentoId = inserirDocumento(db, novoDocumento, []);
+  let documentoId: number;
+  try {
+    documentoId = inserirDocumento(db, novoDocumento, []);
+  } catch (erro) {
+    if (erro instanceof DocumentoDuplicadoError) {
+      // A mesma foto/nota já foi importada: consome o evento (senão volta a cada sincronização) e
+      // aponta o documento existente, sem criar outro.
+      await apiClient.marcarConsumido(captura.id);
+      return { documentoId: erro.documentoExistenteId, usouOCR, usouIA: !!campos.usouIA, duplicado: true };
+    }
+    throw erro;
+  }
 
   await apiClient.marcarConsumido(captura.id);
 

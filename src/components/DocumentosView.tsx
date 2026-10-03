@@ -12,6 +12,9 @@ import {
   listarTransacoesVinculadas,
   atualizarDocumento,
   excluirDocumento,
+  sha256Hex,
+  buscarDocumentoDuplicado,
+  DocumentoDuplicadoError,
 } from "../domain/documentos/documentos";
 import { sugerirTransacoesParaDocumento, vincularDocumento, rejeitarSugestao, type SugestaoTransacao } from "../domain/documentos/matching";
 import type { Documento, Imovel, PlanoConta, TipoDocumento } from "../domain/types";
@@ -46,6 +49,9 @@ interface RascunhoDocumento {
   // Requer revisão explícita do usuário antes de salvar (badge "extraído com IA — confirme")
   usouIA?: boolean;
   confiancaIA?: "alta" | "media" | "baixa";
+  // Deduplicação: hash do arquivo e chave de acesso da NF-e (quando houver), gravados ao salvar.
+  arquivoHash?: string;
+  chaveNfe?: string;
 }
 
 export function DocumentosView() {
@@ -64,8 +70,16 @@ export function DocumentosView() {
     const novos: RascunhoDocumento[] = [];
     for (const arquivo of arquivos) {
       try {
+        const arquivoHash = await sha256Hex(new Uint8Array(await arquivo.arrayBuffer()));
         const texto = await extrairTextoDocumento(arquivo);
         const campos = await extrairCamposDeTexto(texto);
+
+        // Avisa já na entrada, antes de o usuário gastar tempo revisando um documento repetido.
+        const repetido = db ? buscarDocumentoDuplicado(db, { arquivo_hash_sha256: arquivoHash, chave_nfe: campos.chaveNFe }) : null;
+        if (repetido) {
+          setMensagem(`"${arquivo.name}" já está cadastrado (documento #${repetido.id}) — não foi importado de novo.`);
+          continue;
+        }
         const veioDeXmlNota = arquivo.name.toLowerCase().endsWith(".xml") && (campos.nomeContraparte || campos.descricaoProdutoServico);
         const descricao = [campos.numeroDocumento ? `NF nº ${campos.numeroDocumento}` : null, campos.descricaoProdutoServico]
           .filter(Boolean)
@@ -91,6 +105,8 @@ export function DocumentosView() {
           sugeridoPorRegra: regra !== null,
           usouIA: campos.usouIA,
           confiancaIA: campos.confiancaIA,
+          arquivoHash,
+          chaveNfe: campos.chaveNFe,
         });
       } catch (erro) {
         setMensagem(`Falha ao extrair "${arquivo.name}": ${erro instanceof Error ? erro.message : String(erro)}`);
@@ -125,21 +141,32 @@ export function DocumentosView() {
       .filter((ip) => ip.percentual.trim() !== "")
       .map((ip) => ({ imovelId: ip.imovelId, percentual: Number.parseFloat(ip.percentual.replace(",", ".")) }));
 
-    const id = inserirDocumento(
-      db,
-      {
-        tipo: r.tipo,
-        arquivo_nome: r.arquivoNome,
-        valor,
-        data_documento: r.data.trim() || undefined,
-        cnpj_cpf_contraparte: r.cnpjCpf.trim() || undefined,
-        nome_contraparte: r.nomeContraparte.trim() || undefined,
-        descricao_produto_servico: r.descricaoProdutoServico.trim() || undefined,
-        plano_conta_codigo: r.planoContaCodigo || undefined,
-        texto_extraido: r.textoExtraido,
-      },
-      imoveisPct,
-    );
+    let id: number;
+    try {
+      id = inserirDocumento(
+        db,
+        {
+          tipo: r.tipo,
+          arquivo_nome: r.arquivoNome,
+          valor,
+          data_documento: r.data.trim() || undefined,
+          cnpj_cpf_contraparte: r.cnpjCpf.trim() || undefined,
+          nome_contraparte: r.nomeContraparte.trim() || undefined,
+          descricao_produto_servico: r.descricaoProdutoServico.trim() || undefined,
+          plano_conta_codigo: r.planoContaCodigo || undefined,
+          texto_extraido: r.textoExtraido,
+          arquivo_hash_sha256: r.arquivoHash,
+          chave_nfe: r.chaveNfe,
+        },
+        imoveisPct,
+      );
+    } catch (erro) {
+      if (erro instanceof DocumentoDuplicadoError) {
+        setMensagem(erro.message);
+        return;
+      }
+      throw erro;
+    }
 
     // Grava/atualiza a regra por CNPJ/CPF a partir da classificação que você acabou de
     // confirmar — o próximo documento do mesmo fornecedor já chega pré-preenchido. Só quando

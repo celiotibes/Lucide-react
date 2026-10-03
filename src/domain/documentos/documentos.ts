@@ -19,37 +19,38 @@ export interface NovoDocumento {
 
 /** Calcula SHA-256 de um arquivo (Uint8Array). Retorna string hexadecimal. */
 export async function sha256Hex(dados: Uint8Array): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest("SHA-256", dados);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", dados as BufferSource);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Verifica duplicidade de documento por hash SHA-256 ou chave NF-e.
- * Retorna o ID do documento existente, ou null se não há duplicata. */
-function verificarDuplicidadeDocumento(
+export class DocumentoDuplicadoError extends Error {
+  constructor(
+    public readonly documentoExistenteId: number,
+    public readonly motivo: "hash_arquivo" | "chave_nfe",
+  ) {
+    super(
+      `Documento duplicado: já existe o documento #${documentoExistenteId} com o mesmo ${
+        motivo === "hash_arquivo" ? "arquivo (hash SHA-256)" : "chave de acesso da NF-e"
+      }.`,
+    );
+    this.name = "DocumentoDuplicadoError";
+  }
+}
+
+/** Procura documento já cadastrado com o mesmo hash de arquivo ou a mesma chave de NF-e. */
+export function buscarDocumentoDuplicado(
   db: Database,
-  doc: NovoDocumento,
-): number | null {
-  // Verifica por hash do arquivo
-  if (doc.arquivo_hash_sha256) {
-    const [existente] = consultar<{ id: number }>(
-      db,
-      "SELECT id FROM documentos WHERE arquivo_hash_sha256 = ?",
-      [doc.arquivo_hash_sha256],
-    );
-    if (existente) return existente.id;
+  chaves: { arquivo_hash_sha256?: string; chave_nfe?: string },
+): { id: number; motivo: "hash_arquivo" | "chave_nfe" } | null {
+  if (chaves.arquivo_hash_sha256) {
+    const [existente] = consultar<{ id: number }>(db, "SELECT id FROM documentos WHERE arquivo_hash_sha256 = ?", [chaves.arquivo_hash_sha256]);
+    if (existente) return { id: existente.id, motivo: "hash_arquivo" };
   }
-
-  // Verifica por chave NF-e
-  if (doc.chave_nfe) {
-    const [existente] = consultar<{ id: number }>(
-      db,
-      "SELECT id FROM documentos WHERE chave_nfe = ?",
-      [doc.chave_nfe],
-    );
-    if (existente) return existente.id;
+  if (chaves.chave_nfe) {
+    const [existente] = consultar<{ id: number }>(db, "SELECT id FROM documentos WHERE chave_nfe = ?", [chaves.chave_nfe]);
+    if (existente) return { id: existente.id, motivo: "chave_nfe" };
   }
-
   return null;
 }
 
@@ -57,14 +58,8 @@ function verificarDuplicidadeDocumento(
  * (0-100 cada) — pode ficar vazia e ser preenchida depois, antes de vincular a uma transação.
  * Lança erro se documento for duplicado (mesmo hash ou chave NF-e). */
 export function inserirDocumento(db: Database, doc: NovoDocumento, imoveis: { imovelId: number; percentual: number }[] = []): number {
-  const idDuplicado = verificarDuplicidadeDocumento(db, doc);
-  if (idDuplicado) {
-    throw new Error(
-      `Documento duplicado: já existe documento com id ${idDuplicado} ${
-        doc.arquivo_hash_sha256 ? "(hash do arquivo)" : "(chave NF-e)"
-      }`,
-    );
-  }
+  const duplicado = buscarDocumentoDuplicado(db, doc);
+  if (duplicado) throw new DocumentoDuplicadoError(duplicado.id, duplicado.motivo);
 
   executar(
     db,

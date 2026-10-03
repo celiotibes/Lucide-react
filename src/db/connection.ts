@@ -32,7 +32,11 @@ async function criarBancoVazio(): Promise<Database> {
  * SQLite exige reconstruir a tabela. Daí reconstruirLedgerEntries(), que roda depois das
  * colunas estarem todas presentes (para a cópia não perder dado) e antes de um segundo
  * db.run(schemaSql), que recria os índices que caíram junto com a tabela antiga. */
-function migrarBancoExistente(db: Database): void {
+export function migrarBancoExistente(db: Database): void {
+  // Passada ANTES do schema: o schema cria índices (inclusive únicos) sobre colunas novas, e em
+  // banco antigo essas colunas ainda não existem — sem isto o db.run abortaria com "no such column"
+  // e o banco salvo do usuário não abriria.
+  garantirColunasAtualizadas(db, schemaSql);
   db.run(schemaSql);
   garantirColunasAtualizadas(db, schemaSql);
   reconstruirLedgerEntries(db, schemaSql);

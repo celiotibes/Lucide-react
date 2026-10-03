@@ -195,7 +195,7 @@ export function acuraciaIA(
   }));
 
   // Total
-  const [totalRow] = consultar<{
+  const totalRow = consultar<{
     total_revisado: number;
     aceitas: number;
     corrigidas: number;
@@ -204,13 +204,13 @@ export function acuraciaIA(
     db,
     `SELECT
       COUNT(*) as total_revisado,
-      SUM(CASE WHEN status = 'aceita' THEN 1 ELSE 0 END) as aceitas,
-      SUM(CASE WHEN status = 'corrigida' THEN 1 ELSE 0 END) as corrigidas,
-      SUM(CASE WHEN status = 'rejeitada' THEN 1 ELSE 0 END) as rejeitadas
+      COALESCE(SUM(CASE WHEN status = 'aceita' THEN 1 ELSE 0 END), 0) as aceitas,
+      COALESCE(SUM(CASE WHEN status = 'corrigida' THEN 1 ELSE 0 END), 0) as corrigidas,
+      COALESCE(SUM(CASE WHEN status = 'rejeitada' THEN 1 ELSE 0 END), 0) as rejeitadas
     FROM sugestoes_ia_documentos
     ${whereSql}`,
     params,
-  ) || { total_revisado: 0, aceitas: 0, corrigidas: 0, rejeitadas: 0 };
+  )[0] ?? { total_revisado: 0, aceitas: 0, corrigidas: 0, rejeitadas: 0 };
 
   const totalRevisado = totalRow.total_revisado;
   const totalAceitas = totalRow.aceitas;

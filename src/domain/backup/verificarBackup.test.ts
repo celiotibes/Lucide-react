@@ -5,6 +5,13 @@ import { executar } from "../../db/connection";
 import { criarEntidadeLegal, sincronizarRazao } from "../erp/entidadeLegal";
 import { compararComAnterior, verificarBackup, type RelatorioVerificacao } from "./verificarBackup";
 
+/** Simula corrupção de ARQUIVO (disco/atacante): remove os triggers de imutabilidade do razão,
+ * que bloqueiam alteração pela aplicação, para poder estragar os dados como o teste precisa. */
+function simularCorrupcaoDoRazao(db: { run: (sql: string) => void }) {
+  db.run("DROP TRIGGER IF EXISTS tg_ledger_entries_no_delete");
+  db.run("DROP TRIGGER IF EXISTS tg_ledger_entries_no_update_dados");
+}
+
 /** O WASM do sql.js vem de node_modules no Node e de `/sql-wasm.wasm` no navegador —
  * mesmo motivo pelo qual fixtureDb.ts precisa do próprio resolvedor. */
 const WASM_NODE = (arquivo: string) => `node_modules/sql.js/dist/${arquivo}`;
@@ -97,6 +104,7 @@ describe("verificação de backup — o que ela precisa pegar", () => {
 
   it("razão desbalanceado — perna órfã de gravação interrompida", async () => {
     // Apaga UMA perna: é o que um backup tirado no meio de uma escrita produziria.
+    simularCorrupcaoDoRazao(db);
     executar(db, "DELETE FROM ledger_entries WHERE id = (SELECT MIN(id) FROM ledger_entries)");
 
     const r = await verificarBackup(db.export(), WASM_NODE);
@@ -116,6 +124,7 @@ describe("verificação de backup — o que ela precisa pegar", () => {
     // que chega já danificado: truncado no meio da cópia, escrito por versão antiga do
     // schema, ou editado fora do app. Backup não vem com garantia de proveniência.
     db.run("PRAGMA foreign_keys = OFF");
+    simularCorrupcaoDoRazao(db);
     executar(db, "UPDATE ledger_entries SET conta_id = 999999 WHERE id = (SELECT MIN(id) FROM ledger_entries)");
 
     const r = await verificarBackup(db.export(), WASM_NODE);

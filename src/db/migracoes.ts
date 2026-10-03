@@ -200,6 +200,7 @@ export function garantirColunasAtualizadas(db: Database, schemaSql: string): voi
     } catch {
       continue; // tabela deveria existir (schema.sql já rodou antes) — se não existe, não há como migrar colunas
     }
+    if (colunasExistentes.size === 0) continue; // tabela inexistente: o CREATE TABLE do schema a cria inteira
     for (const coluna of colunasEsperadas) {
       if (!colunasExistentes.has(coluna.nome)) {
         try {

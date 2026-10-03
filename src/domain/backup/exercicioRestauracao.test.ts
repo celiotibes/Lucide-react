@@ -14,6 +14,13 @@ import {
   revisarExercicio,
 } from "./exercicioRestauracao";
 
+/** Simula corrupção de ARQUIVO (disco/atacante): remove os triggers de imutabilidade do razão,
+ * que bloqueiam alteração pela aplicação, para poder estragar os dados como o teste precisa. */
+function simularCorrupcaoDoRazao(db: { run: (sql: string) => void }) {
+  db.run("DROP TRIGGER IF EXISTS tg_ledger_entries_no_delete");
+  db.run("DROP TRIGGER IF EXISTS tg_ledger_entries_no_update_dados");
+}
+
 /** O WASM do sql.js vem de node_modules no Node e de `/sql-wasm.wasm` no navegador — mesmo
  * resolvedor que `verificarBackup.test.ts` usa, repassado através de `exercicioRestauracao`
  * até `verificarBackup`. */
@@ -121,6 +128,7 @@ describe("execução com falha", () => {
   it("verificação que encontra falha não marca sucesso nem calcula RPO/RTO como válidos", async () => {
     // Mesma técnica de dano usada em verificarBackup.test.ts: apaga UMA perna do razão —
     // o período deixa de fechar (débito != crédito).
+    simularCorrupcaoDoRazao(db);
     executar(db, "DELETE FROM ledger_entries WHERE id = (SELECT MIN(id) FROM ledger_entries)");
 
     const exercicio = planejarExercicio(db, {

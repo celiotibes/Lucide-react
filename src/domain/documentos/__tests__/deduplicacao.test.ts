@@ -13,7 +13,7 @@ import {
   documentoPodeSerLancado,
   acuraciaIA,
 } from "../revisaoIA";
-import { executarMigracoesDDocumentos } from "../../../db/migracoes-documentos";
+import { migrarBancoExistente } from "../../../db/connection";
 import type { Database } from "sql.js";
 
 describe("Deduplicação e revisão de documentos", () => {
@@ -21,7 +21,6 @@ describe("Deduplicação e revisão de documentos", () => {
 
   beforeEach(async () => {
     db = await criarBancoDeTeste();
-    executarMigracoesDDocumentos(db);
   });
 
   describe("Deduplicação por hash SHA-256", () => {
@@ -38,7 +37,7 @@ describe("Deduplicação e revisão de documentos", () => {
       expect(id1).toBeGreaterThan(0);
 
       expect(() => inserirDocumento(db, doc)).toThrow(
-        /documento duplicado.*id 1.*hash/i,
+        /documento duplicado.*#1.*hash/i,
       );
     });
 
@@ -76,7 +75,7 @@ describe("Deduplicação e revisão de documentos", () => {
       expect(id1).toBeGreaterThan(0);
 
       expect(() => inserirDocumento(db, doc)).toThrow(
-        /documento duplicado.*id 1.*chave/i,
+        /documento duplicado.*#1.*chave/i,
       );
     });
 
@@ -290,19 +289,47 @@ describe("Deduplicação e revisão de documentos", () => {
   });
 
   describe("Migrações em banco antigo", () => {
-    it("deve adicionar colunas de deduplicação em banco existente", async () => {
-      // Cria um novo banco (já tem as colunas do schema atual)
-      // A migração é idempotente e não falha se tudo já existe
-      executarMigracoesDDocumentos(db);
+    it("um banco SEM as colunas/índices de deduplicação abre pelo caminho de migração e passa a deduplicar", async () => {
+      // Banco criado por versão anterior do schema: sem as colunas nem os índices únicos.
+      db.run("DROP INDEX IF EXISTS idx_documentos_arquivo_hash_unique");
+      db.run("DROP INDEX IF EXISTS idx_documentos_chave_nfe_unique");
+      db.run("ALTER TABLE documentos DROP COLUMN arquivo_hash_sha256");
+      db.run("ALTER TABLE documentos DROP COLUMN chave_nfe");
+      db.run("INSERT INTO documentos (tipo, arquivo_nome, criado_em) VALUES ('fatura', 'antigo.pdf', '2025-01-01')");
 
-      // Verifica que o documento pode ser inserido com as novas colunas
-      const doc: NovoDocumento = {
-        tipo: "fatura",
-        arquivo_nome: "teste.pdf",
-        arquivo_hash_sha256: "abc123def456abc123def456abc123def456abc1",
-      };
-      const id = inserirDocumento(db, doc);
-      expect(id).toBeGreaterThan(0);
+      migrarBancoExistente(db); // o mesmo caminho que abre um banco salvo no navegador
+
+      const colunas = (db.exec("PRAGMA table_info(documentos)")[0].values).map((l) => String(l[1]));
+      expect(colunas).toEqual(expect.arrayContaining(["arquivo_hash_sha256", "chave_nfe"]));
+      expect(db.exec("SELECT COUNT(*) FROM documentos")[0].values[0][0]).toBe(1); // dado antigo preservado
+
+      const doc: NovoDocumento = { tipo: "fatura", arquivo_nome: "novo.pdf", arquivo_hash_sha256: "f".repeat(64) };
+      inserirDocumento(db, doc);
+      expect(() => inserirDocumento(db, doc)).toThrow(/duplicado/i);
     });
+  });
+});
+
+describe("DocumentoDuplicadoError e imutabilidade da revisão", () => {
+  it("o erro traz o id existente e o motivo correto (hash x chave NF-e)", async () => {
+    const db = await criarBancoDeTeste();
+    const chave = "1".repeat(44);
+    const id = inserirDocumento(db, { tipo: "nota_fiscal", arquivo_nome: "a.xml", chave_nfe: chave });
+    try {
+      inserirDocumento(db, { tipo: "nota_fiscal", arquivo_nome: "b.xml", arquivo_hash_sha256: "e".repeat(64), chave_nfe: chave });
+      throw new Error("deveria ter lançado");
+    } catch (erro: any) {
+      expect(erro.name).toBe("DocumentoDuplicadoError");
+      expect(erro.documentoExistenteId).toBe(id);
+      expect(erro.motivo).toBe("chave_nfe"); // o hash era novo: a causa é a chave, não o hash
+    }
+  });
+
+  it("sugestão revisada é imutável no banco (não só por convenção do código)", async () => {
+    const db = await criarBancoDeTeste();
+    const sid = registrarSugestao(db, { campo: "tipo", valor_sugerido: "fatura", confianca: 0.9 } as any);
+    revisarSugestao(db, sid, { status: "aceita", revisado_por: "celio" } as any);
+    expect(() => db.run("UPDATE sugestoes_ia_documentos SET status = 'rejeitada' WHERE id = ?", [sid])).toThrow(/já revisada/);
+    expect(() => db.run("DELETE FROM sugestoes_ia_documentos WHERE id = ?", [sid])).toThrow(/já revisada/);
   });
 });

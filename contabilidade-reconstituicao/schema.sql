@@ -2190,9 +2190,23 @@ CREATE TABLE IF NOT EXISTS sugestoes_ia_documentos (
     valor_final             TEXT,                              -- preenchido quando status = 'corrigida' (valor humano após revisão)
     revisado_por            TEXT,                              -- email/identificador de quem revisou
     revisado_em             DATETIME,                          -- timestamp da revisão
-    criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_revisao UNIQUE (id, status)  -- força que cada sugestão mude de status uma única vez
+    criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Uma sugestão só sai de 'pendente' uma vez: depois de revisada é imutável (trilha de quem revisou).
+CREATE TRIGGER IF NOT EXISTS tg_sugestoes_ia_revisada_imutavel
+BEFORE UPDATE ON sugestoes_ia_documentos
+WHEN OLD.status != 'pendente'
+BEGIN
+    SELECT RAISE(ABORT, 'Sugestão de IA já revisada: não pode ser alterada.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_sugestoes_ia_revisada_no_delete
+BEFORE DELETE ON sugestoes_ia_documentos
+WHEN OLD.status != 'pendente'
+BEGIN
+    SELECT RAISE(ABORT, 'Sugestão de IA já revisada: não pode ser excluída.');
+END;
 
 CREATE INDEX IF NOT EXISTS idx_sugestoes_ia_documento ON sugestoes_ia_documentos(documento_id);
 CREATE INDEX IF NOT EXISTS idx_sugestoes_ia_status ON sugestoes_ia_documentos(status);
