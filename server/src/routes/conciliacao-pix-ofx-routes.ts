@@ -12,14 +12,18 @@
 
 import express, { type Request, type Response } from "express";
 import type Database from "better-sqlite3";
+import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
+import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { conciliarPixOFX, buscarStatusConciliacao } from "../domain/integracoes/conciliacao-pix-ofx.js";
 
 export interface ConciliacaoPixOFXRoutesDeps {
   db: Database.Database;
+  authService: AuthServiceDB;
 }
 
-export function criarRotasConciliacaoPixOFX({ db }: ConciliacaoPixOFXRoutesDeps): express.Router {
+export function criarRotasConciliacaoPixOFX({ db, authService }: ConciliacaoPixOFXRoutesDeps): express.Router {
   const router = express.Router();
+  const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
 
   /**
    * POST /reconciliar-agora
@@ -39,7 +43,7 @@ export function criarRotasConciliacaoPixOFX({ db }: ConciliacaoPixOFXRoutesDeps)
    *   }
    * }
    */
-  router.post("/reconciliar-agora", (req: Request, res: Response) => {
+  router.post("/reconciliar-agora", exigirAutenticacao, (req: Request, res: Response) => {
     try {
       const resultado = conciliarPixOFX(db);
 
@@ -80,7 +84,7 @@ export function criarRotasConciliacaoPixOFX({ db }: ConciliacaoPixOFXRoutesDeps)
    *   }
    * }
    */
-  router.get("/status", (req: Request, res: Response) => {
+  router.get("/status", exigirAutenticacao, (req: Request, res: Response) => {
     try {
       const diasParam = req.query.dias ? parseInt(String(req.query.dias), 10) : 30;
       const dias = isNaN(diasParam) || diasParam < 1 ? 30 : diasParam;
@@ -137,7 +141,7 @@ export function criarRotasConciliacaoPixOFX({ db }: ConciliacaoPixOFXRoutesDeps)
    *   total: number
    * }
    */
-  router.get("/discrepancias", (req: Request, res: Response) => {
+  router.get("/discrepancias", exigirAutenticacao, (req: Request, res: Response) => {
     try {
       const limite = req.query.limite ? parseInt(String(req.query.limite), 10) : 50;
       const offset = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
@@ -176,7 +180,6 @@ export function criarRotasConciliacaoPixOFX({ db }: ConciliacaoPixOFXRoutesDeps)
       });
     }
   });
-}
 
   return router;
 }

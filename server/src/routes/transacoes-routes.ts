@@ -7,10 +7,13 @@
 
 import express from "express";
 import type { Database } from "sql.js";
+import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
+import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { sugerirCategoria, registrarSugestaoCategoria } from "../domain/transacoes/categorizacaoInteligente";
 
 export interface TransacoesRoutesDeps {
   db: Database;
+  authService: AuthServiceDB;
 }
 
 export function criarRotasTransacoes({ db }: TransacoesRoutesDeps): express.Router {
