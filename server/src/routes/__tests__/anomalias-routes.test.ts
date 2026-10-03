@@ -18,29 +18,92 @@ describe("Rotas HTTP de Anomalias", () => {
     // Cria banco de dados em memória
     db = new Database(":memory:");
 
-    // Setup schema
+    // Setup schema baseado nas migrações reais
     db.exec(`
-      CREATE TABLE transacoes (
-        id INTEGER PRIMARY KEY,
-        descricao TEXT,
-        valor REAL,
-        data TEXT
+      -- Tabela de usuários (necessária para foreign keys)
+      CREATE TABLE usuarios (
+        id TEXT PRIMARY KEY,
+        nome TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        senha_hash TEXT NOT NULL,
+        role TEXT DEFAULT 'usuario',
+        ativo INTEGER DEFAULT 1,
+        data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
-      CREATE TABLE alertas_anomalias (
+      -- Transações para análise (source de dados para os detectores)
+      CREATE TABLE conciliacao_ofx_cache (
         id TEXT PRIMARY KEY,
-        transacao_id INTEGER,
-        severidade TEXT,
-        confianca INTEGER,
-        metodos_dispararam TEXT,
-        scores_individuais TEXT,
-        revisado INTEGER DEFAULT 0,
-        revisado_em TEXT,
+        valor REAL NOT NULL,
+        descricao TEXT,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Alertas de anomalia (histórico)
+      CREATE TABLE alertas_anomalias_registrados (
+        id TEXT PRIMARY KEY,
+        transacao_id TEXT NOT NULL,
+        usuario_id TEXT,
+        severidade TEXT NOT NULL DEFAULT 'media' CHECK(severidade IN ('baixa', 'media', 'critica')),
+        confianca INTEGER NOT NULL CHECK(confianca >= 0 AND confianca <= 100),
+        metodos_dispararam TEXT NOT NULL,
+        z_score REAL,
+        z_score_limite REAL,
+        iqr_valor REAL,
+        iqr_limite REAL,
+        percentil_valor REAL,
+        percentil_95 REAL,
+        descricao TEXT,
+        revisado INTEGER NOT NULL DEFAULT 0 CHECK(revisado IN (0, 1)),
+        revisado_por TEXT,
+        revisado_em DATETIME,
         motivo_revisao TEXT,
-        usuario_revisou TEXT,
-        criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em DATETIME,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+        FOREIGN KEY(revisado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+      );
+
+      -- Cache de métricas (para reaproveitamento)
+      CREATE TABLE cache_metricas_anomalias (
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT,
+        tipo_metrica TEXT NOT NULL CHECK(tipo_metrica IN ('desvio_padrao', 'iqr', 'percentil')),
+        periodo_dias INTEGER NOT NULL DEFAULT 90,
+        media REAL,
+        desvio_padrao REAL,
+        q1 REAL,
+        q2 REAL,
+        q3 REAL,
+        iqr_valor REAL,
+        p5 REAL,
+        p90 REAL,
+        p95 REAL,
+        total_transacoes INTEGER,
+        atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       );
     `);
+
+    // Insere dados de teste: usuário de teste
+    db.prepare(`
+      INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo)
+      VALUES ('user1', 'User Test', 'test@example.com', 'hash', 'admin', 1)
+    `).run();
+
+    // Insere algumas transações de teste para análise
+    const transacoes = [
+      100, 150, 120, 140, 130, 110, 125, 135, 145, 150,
+      155, 160, 165, 170, 175, 180, 185, 190, 195, 200,
+    ];
+    const agora = new Date();
+    for (let i = 0; i < transacoes.length; i++) {
+      const data = new Date(agora.getTime() - (i * 24 * 60 * 60 * 1000));
+      db.prepare(`
+        INSERT INTO conciliacao_ofx_cache (id, valor, descricao, criado_em)
+        VALUES (?, ?, ?, ?)
+      `).run(`tx-${i}`, transacoes[i], `Transação teste ${i}`, data.toISOString());
+    }
 
     // Mock authService
     mockAuthService = {
@@ -131,11 +194,11 @@ describe("Rotas HTTP de Anomalias", () => {
     beforeEach(() => {
       // Insere um alerta de teste
       db.prepare(`
-        INSERT INTO alertas_anomalias (
+        INSERT INTO alertas_anomalias_registrados (
           id, transacao_id, severidade, confianca, metodos_dispararam,
-          scores_individuais, criado_em
+          descricao, criado_em
         ) VALUES (
-          'alerta_1', 1, 'media', 75, '["sigma_2"]', '{}', datetime('now')
+          'alerta_1', '1', 'media', 75, 'sigma_2', 'Teste', datetime('now')
         )
       `).run();
     });
@@ -200,11 +263,11 @@ describe("Rotas HTTP de Anomalias", () => {
   describe("PATCH /api/anomalias/alertas/:id/revisar", () => {
     beforeEach(() => {
       db.prepare(`
-        INSERT INTO alertas_anomalias (
+        INSERT INTO alertas_anomalias_registrados (
           id, transacao_id, severidade, confianca, metodos_dispararam,
-          scores_individuais, revisado, criado_em
+          descricao, revisado, criado_em
         ) VALUES (
-          'alerta_1', 1, 'media', 75, '["sigma_2"]', '{}', 0, datetime('now')
+          'alerta_1', '1', 'media', 75, 'sigma_2', 'Teste', 0, datetime('now')
         )
       `).run();
     });
@@ -214,7 +277,7 @@ describe("Rotas HTTP de Anomalias", () => {
         .patch("/api/anomalias/alertas/alerta_1/revisar")
         .set("Authorization", "Bearer test-token")
         .send({
-          usuario_id: "user123",
+          usuario_id: "user1",
           motivo: "falso positivo",
         });
 

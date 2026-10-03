@@ -36,14 +36,19 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
       );
 
-      CREATE TABLE audit_lgpd_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+      CREATE TABLE audit_log_lgpd (
+        id TEXT PRIMARY KEY,
         usuario_id TEXT,
         acao TEXT,
         tabela TEXT,
+        registro_id TEXT,
+        dados_antigos TEXT,
+        dados_novos TEXT,
         ip_address TEXT,
         user_agent TEXT,
         endpoint TEXT,
+        contem_dados_sensveis INTEGER DEFAULT 0,
+        tipo_dado_sensvel TEXT,
         criado_em TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);

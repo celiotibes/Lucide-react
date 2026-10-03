@@ -3,7 +3,7 @@
  * Total: 5 testes cobrindo POST /criar, GET /:id, GET /, POST /:id/sincronizar
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import Database from "better-sqlite3";
@@ -13,37 +13,65 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
   let app: express.Application;
   let db: Database.Database;
   let mockAuthService: any;
+  let mockFetch: any;
 
   beforeEach(() => {
+    // Define variáveis de ambiente necessárias
+    process.env.ASAAS_API_KEY = "test_api_key_12345";
+    process.env.ASAAS_SANDBOX = "true";
+
+    // Mock fetch para evitar chamadas reais à API Asaas
+    mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        id: "asaas_mock_123",
+        status: "PENDING",
+        value: 500.0,
+        pixQrCode: "mock_qr_code",
+      }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
     // Cria banco de dados em memória
     db = new Database(":memory:");
 
-    // Setup schema
+    // Setup schema baseado na migração phase9
     db.exec(`
-      CREATE TABLE pagamentos_pix (
+      CREATE TABLE pagamentos_pix_solicitados (
         id TEXT PRIMARY KEY,
-        asaas_payment_id TEXT UNIQUE,
-        beneficiario_id TEXT,
-        beneficiario_nome TEXT,
-        beneficiario_cpf_cnpj TEXT,
-        valor REAL,
+        beneficiario_id TEXT NOT NULL,
+        beneficiario_nome TEXT NOT NULL,
+        beneficiario_cpf_cnpj TEXT NOT NULL,
+        valor REAL NOT NULL,
         descricao TEXT,
-        status TEXT DEFAULT 'PENDING',
-        tipo_chave_pix TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        asaas_payment_id TEXT,
+        tipo_chave_pix TEXT NOT NULL,
         chave_pix_value TEXT,
         qr_code TEXT,
-        criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
-        atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(beneficiario_id, valor, criado_em)
       );
 
+      CREATE INDEX idx_pagamentos_pix_status ON pagamentos_pix_solicitados(status);
+      CREATE INDEX idx_pagamentos_pix_beneficiario ON pagamentos_pix_solicitados(beneficiario_id);
+      CREATE INDEX idx_pagamentos_pix_asaas_id ON pagamentos_pix_solicitados(asaas_payment_id);
+      CREATE INDEX idx_pagamentos_pix_criado ON pagamentos_pix_solicitados(criado_em DESC);
+
       CREATE TABLE pagamentos_pix_historico (
-        id INTEGER PRIMARY KEY,
-        pagamento_id TEXT,
+        id TEXT PRIMARY KEY,
+        pagamento_id TEXT NOT NULL,
         status_anterior TEXT,
-        status_novo TEXT,
-        criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (pagamento_id) REFERENCES pagamentos_pix(id)
+        status_novo TEXT NOT NULL,
+        webhook_timestamp DATETIME,
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pagamento_id) REFERENCES pagamentos_pix_solicitados(id)
       );
+
+      CREATE INDEX idx_pagamentos_pix_hist_pagamento ON pagamentos_pix_historico(pagamento_id);
+      CREATE INDEX idx_pagamentos_pix_hist_criado ON pagamentos_pix_historico(criado_em DESC);
     `);
 
     // Mock authService
@@ -79,6 +107,14 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
 
     // Monta as rotas
     app.use("/api/asaas", criarRotasAsaasPixProativo({ authService: mockAuthService, db }));
+  });
+
+  afterEach(() => {
+    // Limpa variáveis de ambiente
+    delete process.env.ASAAS_API_KEY;
+    delete process.env.ASAAS_SANDBOX;
+    vi.unstubAllGlobals();
+    if (db) db.close();
   });
 
   describe("POST /api/asaas/pagamentos-pix/criar", () => {
@@ -154,7 +190,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
     beforeEach(() => {
       // Insere um pagamento de teste
       db.prepare(`
-        INSERT INTO pagamentos_pix (
+        INSERT INTO pagamentos_pix_solicitados (
           id, asaas_payment_id, beneficiario_id, beneficiario_nome,
           beneficiario_cpf_cnpj, valor, descricao, status, tipo_chave_pix
         ) VALUES (
@@ -190,7 +226,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
   describe("GET /api/asaas/pagamentos-pix", () => {
     beforeEach(() => {
       db.prepare(`
-        INSERT INTO pagamentos_pix (
+        INSERT INTO pagamentos_pix_solicitados (
           id, asaas_payment_id, beneficiario_id, beneficiario_nome,
           beneficiario_cpf_cnpj, valor, descricao, status, tipo_chave_pix
         ) VALUES
@@ -237,7 +273,7 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
   describe("POST /api/asaas/pagamentos-pix/:id/sincronizar", () => {
     beforeEach(() => {
       db.prepare(`
-        INSERT INTO pagamentos_pix (
+        INSERT INTO pagamentos_pix_solicitados (
           id, asaas_payment_id, beneficiario_id, beneficiario_nome,
           beneficiario_cpf_cnpj, valor, descricao, status, tipo_chave_pix
         ) VALUES (
