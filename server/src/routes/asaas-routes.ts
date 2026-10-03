@@ -232,12 +232,10 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
    * (SEM autenticação de sessão — ver cabeçalho do arquivo)
    *
    * A Asaas assina/identifica a chamada pelo header `asaas-access-token`, configurado no
-   * dashboard da Asaas ao cadastrar a URL do webhook. Quando `ASAAS_WEBHOOK_TOKEN` não
-   * está definido no servidor, a chamada é ACEITA mesmo assim (apenas logando um aviso) —
-   * de propósito: em sandbox/desenvolvimento é comum ainda não ter configurado um webhook
-   * na Asaas (nem token nenhum), e recusar aqui travaria qualquer teste manual do fluxo
-   * antes desse passo existir. Assim que `ASAAS_WEBHOOK_TOKEN` for definido, a validação
-   * passa a ser estrita (header ausente ou errado = 401).
+   * dashboard da Asaas ao cadastrar a URL do webhook. FALHA FECHADO: sem
+   * `ASAAS_WEBHOOK_TOKEN` configurado o endpoint responde 503 e não aceita eventos (antes aceitava
+   * qualquer chamada, o que deixava a rota aberta a eventos forjados). Com o token definido, header
+   * ausente ou errado = 401.
    *
    * SEC-011B: Usa validateTokenSafely para comparação timing-safe do token.
    *
@@ -251,18 +249,17 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     const tokenEsperado = process.env.ASAAS_WEBHOOK_TOKEN;
     const tokenRecebido = req.header("asaas-access-token") ?? "";
 
-    // SEC-011B: Timing-safe token validation
-    if (tokenEsperado) {
-      if (!validateTokenSafely(tokenRecebido, tokenEsperado)) {
-        res.status(401).json({ erro: "Token de webhook ausente ou inválido" });
-        return;
-      }
-    } else {
-      logger.warn(
-        "[asaas-routes] ASAAS_WEBHOOK_TOKEN não configurado — aceitando webhook da Asaas sem validação de " +
-          "header (esperado em sandbox/desenvolvimento antes do webhook estar configurado; configure a env " +
-          "var antes de expor esta rota em produção).",
-      );
+    // Falha fechado: sem segredo configurado não há como autenticar o chamador.
+    if (!tokenEsperado) {
+      logger.error("[asaas-routes] ASAAS_WEBHOOK_TOKEN não configurado — webhook recusado (503).");
+      res.status(503).json({ erro: "Webhook indisponível: token de webhook não configurado no servidor" });
+      return;
+    }
+
+    // SEC-011B: comparação timing-safe do token
+    if (!validateTokenSafely(tokenRecebido, tokenEsperado)) {
+      res.status(401).json({ erro: "Token de webhook ausente ou inválido" });
+      return;
     }
 
     // Valida formato mínimo do payload: campos obrigatórios event e payment.id

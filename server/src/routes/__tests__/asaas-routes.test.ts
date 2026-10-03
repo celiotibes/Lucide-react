@@ -253,21 +253,28 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
   });
 
   describe("POST /api/asaas/webhooks/asaas", () => {
+    const TOKEN_WEBHOOK = "segredo-teste";
+    beforeEach(() => {
+      process.env.ASAAS_WEBHOOK_TOKEN = TOKEN_WEBHOOK;
+    });
+
     it("accepts without a session token (not an authenticated route)", async () => {
       const resp = await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ event: "PAYMENT_RECEIVED", payment: { id: "pay_1" } });
       expect(resp.status).toBe(200);
       expect(resp.body.recebido).toBe(true);
     });
 
-    it("accepts without ASAAS_WEBHOOK_TOKEN configured (sandbox/dev default) and logs a warning", async () => {
-      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    it("fails closed (503) and enqueues nothing when ASAAS_WEBHOOK_TOKEN is not configured", async () => {
+      delete process.env.ASAAS_WEBHOOK_TOKEN;
       const resp = await request(app)
         .post("/api/asaas/webhooks/asaas")
-        .send({ event: "PAYMENT_CONFIRMED", payment: { id: "pay_2" } });
-      expect(resp.status).toBe(200);
-      expect(warnSpy).toHaveBeenCalled();
+        .send({ event: "PAYMENT_CONFIRMED", payment: { id: "pay_sem_token" } });
+      expect(resp.status).toBe(503);
+      const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
+      expect(pendentes.filter((e) => (e.payload as any)?.payment?.id === "pay_sem_token")).toHaveLength(0);
     });
 
     it("rejects a wrong token when ASAAS_WEBHOOK_TOKEN is configured", async () => {
@@ -283,6 +290,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
       process.env.ASAAS_WEBHOOK_TOKEN = "segredo-correto";
       const resp = await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ event: "PAYMENT_RECEIVED", payment: { id: "pay_3" } });
       expect(resp.status).toBe(401);
     });
@@ -299,6 +307,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
     it("enqueues the webhook body as a webhook_asaas event, recoverable via EventosExternosServiceDB", async () => {
       await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ event: "PAYMENT_RECEIVED", payment: { id: "pay_fila_1", value: 1500 } });
 
       const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
@@ -311,6 +320,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
     it("rejects payload without 'event' field (400 Bad Request)", async () => {
       const resp = await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ payment: { id: "pay_invalid_1" } });
       expect(resp.status).toBe(400);
       expect(resp.body.erro).toContain("event");
@@ -319,6 +329,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
     it("rejects payload without 'payment.id' field (400 Bad Request)", async () => {
       const resp = await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ event: "PAYMENT_RECEIVED", payment: {} });
       expect(resp.status).toBe(400);
       expect(resp.body.erro).toContain("payment.id");
@@ -327,6 +338,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
     it("rejects empty event string", async () => {
       const resp = await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ event: "", payment: { id: "pay_5" } });
       expect(resp.status).toBe(400);
     });
@@ -335,6 +347,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
       // Primeiro envio
       const resp1 = await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ event: "PAYMENT_RECEIVED", payment: { id: "pay_dedup_1", value: 500 } });
       expect(resp1.status).toBe(200);
       expect(resp1.body.recebido).toBe(true);
@@ -342,6 +355,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
       // Segundo envio do mesmo evento (mesmo payment.id)
       const resp2 = await request(app)
         .post("/api/asaas/webhooks/asaas")
+        .set("asaas-access-token", TOKEN_WEBHOOK)
         .send({ event: "PAYMENT_RECEIVED", payment: { id: "pay_dedup_1", value: 500 } });
       expect(resp2.status).toBe(200);
       expect(resp2.body.duplicado).toBe(true);
@@ -358,6 +372,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
       for (const event of ["PAYMENT_CREATED", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]) {
         const r = await request(app)
           .post("/api/asaas/webhooks/asaas")
+          .set("asaas-access-token", TOKEN_WEBHOOK)
           .send({ event, payment: { id: "pay_multi_1", status: event } });
         expect(r.status).toBe(200);
         expect(r.body.duplicado).toBeUndefined();
@@ -369,8 +384,8 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
 
     it("uses the Asaas event id (body.id) as dedup key when present", async () => {
       const corpo = { id: "evt_abc123", event: "PAYMENT_RECEIVED", payment: { id: "pay_evt_1" } };
-      const r1 = await request(app).post("/api/asaas/webhooks/asaas").send(corpo);
-      const r2 = await request(app).post("/api/asaas/webhooks/asaas").send(corpo);
+      const r1 = await request(app).post("/api/asaas/webhooks/asaas").set("asaas-access-token", TOKEN_WEBHOOK).send(corpo);
+      const r2 = await request(app).post("/api/asaas/webhooks/asaas").set("asaas-access-token", TOKEN_WEBHOOK).send(corpo);
       expect(r1.body.duplicado).toBeUndefined();
       expect(r2.body.duplicado).toBe(true);
     });
