@@ -117,6 +117,9 @@ export async function prepararBancoTeste() {
       hash_snapshot TEXT,
       observacoes TEXT,
       data_encerramento TEXT,
+      hash_lancamentos TEXT,
+      hash_anterior TEXT,
+      hash_selo TEXT,
       FOREIGN KEY (periodo_id) REFERENCES periodos_contabeis(id)
     );
 

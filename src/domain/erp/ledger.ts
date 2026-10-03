@@ -248,6 +248,69 @@ export function validarBalanceamento(
   };
 }
 
+/** Serialização canônica dos lançamentos de um período para o selo: ordem por id, campos fixos.
+ * Não inclui estornado_por_id/auditada/centro_custo_id (campos legitimamente atualizáveis depois). */
+function serializarLancamentosDoPeriodo(db: Database, periodo_id: number): string {
+  const linhas = consultar<Record<string, unknown>>(
+    db,
+    `SELECT id, entidade_id, conta_id, data_lancamento, valor_debito, valor_credito,
+            origem_modulo, origem_id, referencia_documento, estorno_de_id
+     FROM ledger_entries WHERE periodo_id = ? ORDER BY id`,
+    [periodo_id],
+  );
+  return linhas
+    .map((l) =>
+      [l.id, l.entidade_id, l.conta_id, l.data_lancamento, l.valor_debito ?? 0, l.valor_credito ?? 0,
+       l.origem_modulo, l.origem_id ?? "", l.referencia_documento ?? "", l.estorno_de_id ?? ""].join("|"),
+    )
+    .join("\n");
+}
+
+function calcularSelo(hash_anterior: string, periodo_id: number, hash_lancamentos: string, hash_snapshot: string): Promise<string> {
+  return sha256Hex(`${hash_anterior}|${periodo_id}|${hash_lancamentos}|${hash_snapshot}`);
+}
+
+export interface ResultadoVerificacaoSelos {
+  integro: boolean;
+  periodos: { periodo_id: number; ok: boolean; motivo?: string }[];
+}
+
+/** Recalcula o hash dos lançamentos e a cadeia de selos de todos os períodos encerrados da
+ * entidade e aponta onde ela quebrou. Encerramentos anteriores a esta função (sem hash_selo) são
+ * reportados como legado e não invalidam a cadeia. */
+export async function verificarSelosLedger(db: Database, entidade_id: number): Promise<ResultadoVerificacaoSelos> {
+  const encerramentos = consultar<{
+    periodo_id: number; hash_snapshot: string | null; hash_lancamentos: string | null;
+    hash_anterior: string | null; hash_selo: string | null;
+  }>(
+    db,
+    `SELECT e.periodo_id, e.hash_snapshot, e.hash_lancamentos, e.hash_anterior, e.hash_selo
+     FROM ledger_encerramentos e JOIN periodos_contabeis p ON p.id = e.periodo_id
+     WHERE p.entidade_id = ? ORDER BY e.id`,
+    [entidade_id],
+  );
+  const periodos: ResultadoVerificacaoSelos["periodos"] = [];
+  let seloAnterior = "GENESIS";
+  let integro = true;
+  for (const e of encerramentos) {
+    if (!e.hash_selo) {
+      periodos.push({ periodo_id: e.periodo_id, ok: true, motivo: "legado: encerrado antes do selo encadeado" });
+      continue;
+    }
+    let motivo: string | undefined;
+    const recalculado = await sha256Hex(serializarLancamentosDoPeriodo(db, e.periodo_id));
+    if (recalculado !== e.hash_lancamentos) motivo = "lançamentos do período diferem do hash gravado no encerramento";
+    else if (e.hash_anterior !== seloAnterior) motivo = "encadeamento quebrado: hash_anterior não é o selo do encerramento anterior";
+    else if ((await calcularSelo(e.hash_anterior, e.periodo_id, e.hash_lancamentos!, e.hash_snapshot ?? "")) !== e.hash_selo) {
+      motivo = "selo não confere com seus componentes";
+    }
+    if (motivo) integro = false;
+    periodos.push({ periodo_id: e.periodo_id, ok: !motivo, motivo });
+    seloAnterior = e.hash_selo;
+  }
+  return { integro, periodos };
+}
+
 /** Encerrar um período contábil (período fechado, não pode ser alterado).
  *
  * Lança `Error` em vez de retornar `{ sucesso, mensagem }` — mesma convenção de
@@ -301,14 +364,26 @@ export async function encerrarPeriodo(
   const snapshot = JSON.stringify(balancete_completo.saldos);
   const hash_snapshot = await sha256Hex(snapshot);
 
+  // 4.5. Selo encadeado: hash dos lançamentos do período + selo do encerramento anterior da entidade
+  const hash_lancamentos = await sha256Hex(serializarLancamentosDoPeriodo(db, periodo_id));
+  const [anterior] = consultar<{ hash_selo: string }>(
+    db,
+    `SELECT e.hash_selo FROM ledger_encerramentos e JOIN periodos_contabeis p ON p.id = e.periodo_id
+     WHERE p.entidade_id = ? AND e.hash_selo IS NOT NULL ORDER BY e.id DESC LIMIT 1`,
+    [periodo.entidade_id],
+  );
+  const hash_anterior = anterior?.hash_selo ?? "GENESIS";
+  const hash_selo = await calcularSelo(hash_anterior, periodo_id, hash_lancamentos, hash_snapshot);
+
   // 5. Registrar no histórico de encerramentos
   executar(
     db,
     `INSERT INTO ledger_encerramentos (
       periodo_id, encerrado_por, balancete_OK,
       total_debito, total_credito, hash_snapshot, observacoes,
+      hash_lancamentos, hash_anterior, hash_selo,
       data_encerramento
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
       periodo_id,
       encerrado_por,
@@ -317,6 +392,9 @@ export async function encerrarPeriodo(
       balancete_completo.total_credito_periodo,
       hash_snapshot,
       motivo,
+      hash_lancamentos,
+      hash_anterior,
+      hash_selo,
     ],
   );
 

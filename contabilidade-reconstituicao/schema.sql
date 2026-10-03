@@ -752,7 +752,14 @@ CREATE TABLE IF NOT EXISTS ledger_encerramentos (
     total_credito   REAL DEFAULT 0,
     balancete_OK    INTEGER NOT NULL DEFAULT 0 CHECK (balancete_OK IN (0, 1)),  -- débitos = créditos?
     hash_snapshot   TEXT,  -- SHA256 dos saldos finais (para detectar manipulação)
-    observacoes     TEXT
+    observacoes     TEXT,
+    -- Selo encadeado: hash_lancamentos cobre os LANÇAMENTOS do período (não só os saldos);
+    -- hash_selo = SHA256(hash_anterior|periodo_id|hash_lancamentos|hash_snapshot) e hash_anterior é o
+    -- selo do encerramento anterior da mesma entidade ('GENESIS' no primeiro). Alterar qualquer
+    -- período passado quebra a cadeia dali para a frente (ver verificarSelosLedger em ledger.ts).
+    hash_lancamentos TEXT,
+    hash_anterior    TEXT,
+    hash_selo        TEXT
 );
 
 -- REMOVIDA: `regras_contabilizacao` (mapeamento módulo/operação → conta débito/crédito).
@@ -2233,3 +2240,41 @@ BEGIN
     VALUES (OLD.id, OLD.centro_custo_id, NEW.centro_custo_id);
 END;
 -- END IMUTABILIDADE LEDGER
+
+-- BEGIN IMUTABILIDADE PERIODOS
+-- Período fechado não reabre nem some (a UI de fechamento já promete "irreversível"), e o registro
+-- de encerramento (com o selo) é append-only. Sem isso, reabrir o período desligaria o trigger de
+-- "INSERT em período fechado" e o selo poderia ser reescrito.
+CREATE TRIGGER IF NOT EXISTS tg_periodos_fechado_imutavel
+BEFORE UPDATE ON periodos_contabeis
+FOR EACH ROW
+WHEN OLD.status = 'fechado' AND (
+    NEW.status IS NOT OLD.status
+    OR NEW.ano IS NOT OLD.ano
+    OR NEW.mes IS NOT OLD.mes
+    OR NEW.entidade_id IS NOT OLD.entidade_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Período contábil fechado é irreversível: não pode ser reaberto nem alterado.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_periodos_fechado_no_delete
+BEFORE DELETE ON periodos_contabeis
+FOR EACH ROW
+WHEN OLD.status = 'fechado'
+BEGIN
+    SELECT RAISE(ABORT, 'Período contábil fechado não pode ser excluído.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_encerramentos_no_update
+BEFORE UPDATE ON ledger_encerramentos
+BEGIN
+    SELECT RAISE(ABORT, 'Encerramento contábil é append-only: não pode ser alterado.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_ledger_encerramentos_no_delete
+BEFORE DELETE ON ledger_encerramentos
+BEGIN
+    SELECT RAISE(ABORT, 'Encerramento contábil é append-only: não pode ser excluído.');
+END;
+-- END IMUTABILIDADE PERIODOS
