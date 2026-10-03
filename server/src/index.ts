@@ -278,8 +278,8 @@ app.use("/api/backup", criarRotasBackup({ authService }));
 app.use("/api", criarRotasAssinaturasLGPD({
   authService,
   db,
-  certisignApiKey: process.env.CERTISIGN_API_KEY || "test-key",
-  serProIdApiKey: process.env.SERPROID_API_KEY || "test-key",
+  certisignApiKey: envVars.CERTISIGN_API_KEY || "test-key",
+  serProIdApiKey: envVars.SERPROID_API_KEY || "test-key",
 }));
 
 /** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
