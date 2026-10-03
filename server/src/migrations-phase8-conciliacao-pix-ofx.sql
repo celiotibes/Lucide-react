@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS conciliacao_ofx_cache (
   descricao TEXT NOT NULL,
   conta_origem TEXT,                     -- ID da conta no Pluggy
   processado INTEGER NOT NULL DEFAULT 0, -- 0 = pendente, 1 = processado
-  criado_em TEXT NOT NULL DEFAULT datetime('now'),
+  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
   atualizado_em TEXT
 );
 
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS conciliacoes_pix_ofx (
     CHECK(status IN ('reconciliado', 'pendente', 'discrepancia', 'expirado')),
   discrepancia_flag INTEGER NOT NULL DEFAULT 0,
   lancamento_razao_id TEXT,              -- FK para razao.id (NULL até criar lançamento)
-  criado_em TEXT NOT NULL DEFAULT datetime('now'),
+  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
   atualizado_em TEXT,
 
   -- Uma charge só aparece uma vez (UX: impedir re-processamento)
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS audit_conciliacao_discrepancias (
       'outro'
     )),
   descricao TEXT,
-  criado_em TEXT NOT NULL DEFAULT datetime('now'),
+  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (conciliacao_id) REFERENCES conciliacoes_pix_ofx(id) ON DELETE CASCADE
 );
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS razao (
   status TEXT DEFAULT 'rascunho',
   referencia_id TEXT,                    -- Pode apontar para diversos tipos de doc
   conciliacao_pix_ofx_id TEXT,           -- FK para conciliacoes_pix_ofx.id
-  criado_em TEXT NOT NULL DEFAULT datetime('now'),
+  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
   atualizado_em TEXT,
 
   FOREIGN KEY (conciliacao_pix_ofx_id) REFERENCES conciliacoes_pix_ofx(id) ON DELETE SET NULL
