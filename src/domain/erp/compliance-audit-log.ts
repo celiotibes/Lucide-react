@@ -206,16 +206,17 @@ export async function verificarIntegridade(
   try {
     let query = `SELECT id, timestamp, modulo_chamador, tipo_operacao, entidade_afetada, id_entidade, descricao_alteracao, hash_sha256, hash_anterior, assinatura_digital
                  FROM auditoria_log`;
-    const params: any[] = [];
 
     if (dataInicio && dataFim) {
-      query += ` WHERE timestamp BETWEEN ? AND ?`;
-      params.push(dataInicio, dataFim);
+      // SEC-003: Use safe escaping for sql.js compatibility (timestamps are string literals)
+      const escapedInicio = `'${String(dataInicio).replace(/'/g, "''")}'`;
+      const escapedFim = `'${String(dataFim).replace(/'/g, "''")}'`;
+      query += ` WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`;
     }
 
     query += ` ORDER BY id ASC`;
 
-    const result = db.exec(query, params);
+    const result = db.exec(query);
 
     if (!result[0]?.values) {
       return {
@@ -293,18 +294,20 @@ export function gerarRelatorioAuditoria(
   periodo_fim: string
 ): RelatorioAuditoria {
   try {
+    // Escape timestamps for SQL (sql.js compatibility)
+    const escapedInicio = `'${String(periodo_inicio).replace(/'/g, "''")}'`;
+    const escapedFim = `'${String(periodo_fim).replace(/'/g, "''")}'`;
+
     // Total de registros
     const resultTotal = db.exec(
-      `SELECT COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ? AND ?`,
-      [periodo_inicio, periodo_fim]
+      `SELECT COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
     const total_registros = resultTotal[0]?.values[0]?.[0] || 0;
 
     // Por tipo de operação
     const resultPorTipo = db.exec(
-      `SELECT tipo_operacao, COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ? AND ? GROUP BY tipo_operacao`,
-      [periodo_inicio, periodo_fim]
+      `SELECT tipo_operacao, COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim} GROUP BY tipo_operacao`
     );
 
     const operacoes_por_tipo: Record<string, number> = {};
@@ -316,8 +319,7 @@ export function gerarRelatorioAuditoria(
 
     // Por módulo
     const resultPorModulo = db.exec(
-      `SELECT modulo_chamador, COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ? AND ? GROUP BY modulo_chamador`,
-      [periodo_inicio, periodo_fim]
+      `SELECT modulo_chamador, COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim} GROUP BY modulo_chamador`
     );
 
     const operacoes_por_modulo: Record<string, number> = {};
@@ -329,32 +331,28 @@ export function gerarRelatorioAuditoria(
 
     // Usuários ativos
     const resultUsuarios = db.exec(
-      `SELECT COUNT(DISTINCT usuario_id) FROM auditoria_log WHERE timestamp BETWEEN ? AND ? AND usuario_id IS NOT NULL`,
-      [periodo_inicio, periodo_fim]
+      `SELECT COUNT(DISTINCT usuario_id) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim} AND usuario_id IS NOT NULL`
     );
 
     const usuarios_ativos = resultUsuarios[0]?.values[0]?.[0] || 0;
 
     // IPs diferentes
     const resultIPs = db.exec(
-      `SELECT COUNT(DISTINCT ip_origem) FROM auditoria_log WHERE timestamp BETWEEN ? AND ?`,
-      [periodo_inicio, periodo_fim]
+      `SELECT COUNT(DISTINCT ip_origem) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
     const ips_diferentes = resultIPs[0]?.values[0]?.[0] || 0;
 
     // Erros
     const resultErros = db.exec(
-      `SELECT COUNT(*) FROM auditoria_log WHERE status = 'erro' AND timestamp BETWEEN ? AND ?`,
-      [periodo_inicio, periodo_fim]
+      `SELECT COUNT(*) FROM auditoria_log WHERE status = 'erro' AND timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
     const erros_registrados = resultErros[0]?.values[0]?.[0] || 0;
 
     // Últimas alterações
     const resultUltimas = db.exec(
-      `SELECT * FROM auditoria_log WHERE timestamp BETWEEN ? AND ? ORDER BY id DESC LIMIT 10`,
-      [periodo_inicio, periodo_fim]
+      `SELECT * FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim} ORDER BY id DESC LIMIT 10`
     );
 
     const ultimas_alteracoes: RegistroAuditoria[] = [];
@@ -515,14 +513,13 @@ export function listarAcessosUsuario(
     // auditoria_log não é contrato nenhum, e inserir uma coluna no meio da tabela
     // deslocaria TODOS os índices de uma vez, trocando status por mensagem de erro e
     // afins — em silêncio, sem o compilador nem os testes acusarem.
-    const result = db.exec(
-      `SELECT id, timestamp, usuario_id, usuario_nome, ip_origem, modulo_chamador,
+    // SEC-003: Use safe parameter escaping for sql.js compatibility
+    const sql = `SELECT id, timestamp, usuario_id, usuario_nome, ip_origem, modulo_chamador,
               tipo_operacao, entidade_afetada, id_entidade, descricao_alteracao,
               hash_sha256, hash_anterior, status, mensagem_erro,
               tempo_processamento_ms, retencao_ate, assinado, assinatura_digital, criado_em
-       FROM auditoria_log WHERE usuario_id = ? ORDER BY id DESC LIMIT ?`,
-      [usuario_id, limite]
-    );
+       FROM auditoria_log WHERE usuario_id = ${Number(usuario_id)} ORDER BY id DESC LIMIT ${Number(limite)}`;
+    const result = db.exec(sql);
 
     const registros: RegistroAuditoria[] = [];
     if (result[0]?.values) {
