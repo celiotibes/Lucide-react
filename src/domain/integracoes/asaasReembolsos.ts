@@ -11,6 +11,7 @@
 
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
+import { estornoBaixaCompetencia } from "../erp/aluguel-competencias";
 
 export type StatusReembolso = "processando" | "sucesso" | "erro";
 export type TipoReembolso = "reversao" | "devolucao";
@@ -159,6 +160,27 @@ export async function processarReembolsoAsaas(
   );
 
   const [{ id }] = consultar<{ id: number }>(db, "SELECT last_insert_rowid() AS id");
+
+  // PARTE A: 5.5. Se a origem é competência/honorário e tem ledger_entry_id_baixa,
+  // estorna a baixa (reverte lançamentos no razão e volta ao estado "pendente")
+  if (cobranca.origem_tipo === "aluguel_competencia") {
+    const [origem] = consultar<{ ledger_entry_id_baixa: number | null }>(
+      db,
+      "SELECT ledger_entry_id_baixa FROM aluguel_competencias WHERE id = ?",
+      [cobranca.origem_id],
+    );
+    if (origem && origem.ledger_entry_id_baixa) {
+      const resultadoEstorno = estornoBaixaCompetencia(db, cobranca.origem_id, input.motivo, undefined);
+      if (!resultadoEstorno.sucesso) {
+        // Nunca engolir: reembolso registrado sem estorno deixaria a receita no razão.
+        const msg = `Estorno contábil não realizado: ${resultadoEstorno.mensagem}`;
+        executar(db, "UPDATE reembolsos_asaas SET status = 'erro', mensagem_erro = ? WHERE id = ?", [msg, id]);
+        throw new Error(msg);
+      }
+    }
+  }
+  // NOTA: honorários ainda não têm modelo equivalente de baixa/estorno — deixar para
+  // migração futura quando houver estorno_baixa_honorario() similar.
 
   // 6. Atualiza status da cobrança
   executar(db, "UPDATE cobrancas_asaas SET status = 'reembolsado' WHERE asaas_charge_id = ?", [input.chargeId]);

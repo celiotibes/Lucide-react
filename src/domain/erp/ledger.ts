@@ -550,6 +550,13 @@ function criarSaldosProximoPeriodo(
 
 /** Registrar estorno de lançamento (lançamento reverso com trilha de auditoria).
  *
+ * PARTE B (Endurecimento):
+ * 1. Rejeita estorno duplo: se lançamento já foi estornado (estornado_por_id NOT NULL),
+ *    lança erro em vez de criar duplicata.
+ * 2. Lança em período aberto: se período original está fechado, lança no período aberto
+ *    que contém a data atual. NÃO cria período: se não houver nenhum aberto, lança erro
+ *    explicando (abrir período é decisão contábil explícita).
+ *
  * Lança `Error` em vez de devolver `boolean` puro — o `boolean` antigo nem sequer dizia
  * por que a operação falhou, o pior caso das três convenções que este arquivo misturava.
  * Retorna o id do lançamento reverso (em vez de `void`): é o mesmo dado que a função já
@@ -567,9 +574,12 @@ export function estornarLancamento(
   const [original] = consultar<{
     valor_debito: number;
     valor_credito: number;
+    periodo_id: number;
+    entidade_id: number;
+    estornado_por_id: number | null;
   }>(
     db,
-    "SELECT valor_debito, valor_credito FROM ledger_entries WHERE id = ?",
+    "SELECT valor_debito, valor_credito, periodo_id, entidade_id, estornado_por_id FROM ledger_entries WHERE id = ?",
     [lancamento_id],
   );
 
@@ -577,8 +587,45 @@ export function estornarLancamento(
     throw new Error(`Lançamento ${lancamento_id} não encontrado — nada para estornar`);
   }
 
-  // Criar lançamento reverso primeiro (débito ↔ crédito invertido): o id dele é o que
-  // o original precisa guardar para a trilha de auditoria ligar um ao outro.
+  // PARTE B (1): Rejeitar estorno duplo
+  if (original.estornado_por_id !== null) {
+    throw new Error(
+      `Lançamento ${lancamento_id} já foi estornado (por #${original.estornado_por_id}) — estorno duplo recusado.`,
+    );
+  }
+
+  // PARTE B (2): Determinar período de lançamento do estorno
+  // Se período original está fechado, lançar em período aberto de hoje
+  const [periodoOriginal] = consultar<{ status: string }>(
+    db,
+    "SELECT status FROM periodos_contabeis WHERE id = ?",
+    [original.periodo_id],
+  );
+
+  let periodo_id_estorno = original.periodo_id;
+
+  if (periodoOriginal?.status === "fechado") {
+    // Período original está fechado — procurar período aberto para hoje
+    const hoje = new Date();
+    const anoHoje = hoje.getFullYear();
+    const mesHoje = hoje.getMonth() + 1;
+
+    const [periodoHoje] = consultar<{ id: number }>(
+      db,
+      "SELECT id FROM periodos_contabeis WHERE entidade_id = ? AND ano = ? AND mes = ? AND status = 'aberto'",
+      [original.entidade_id, anoHoje, mesHoje],
+    );
+
+    if (!periodoHoje) {
+      throw new Error(
+        `Lançamento #${lancamento_id} está em período fechado (${obterDescricaoPeriodo(db, original.periodo_id)}) e não há nenhum período aberto para hoje (${mesHoje}/${anoHoje}) — impossível criar estorno.`,
+      );
+    }
+
+    periodo_id_estorno = periodoHoje.id;
+  }
+
+  // Criar lançamento reverso (débito ↔ crédito invertido)
   executar(
     db,
     `INSERT INTO ledger_entries (
@@ -586,7 +633,7 @@ export function estornarLancamento(
       valor_debito, valor_credito, descricao, origem_modulo,
       origem_id, referencia_documento, criado_por, criado_em, estorno_de_id
     ) SELECT
-      entidade_id, periodo_id, conta_id, datetime('now'),
+      entidade_id, ?, conta_id, datetime('now'),
       valor_credito, valor_debito,
       'ESTORNO: ' || descricao,
       origem_modulo,
@@ -595,7 +642,7 @@ export function estornarLancamento(
       ?, datetime('now'),
       id
      FROM ledger_entries WHERE id = ?`,
-    [estornado_por, lancamento_id],
+    [periodo_id_estorno, estornado_por, lancamento_id],
   );
 
   const [reverso] = consultar<{ id: number }>(
@@ -603,9 +650,7 @@ export function estornarLancamento(
     "SELECT last_insert_rowid() as id",
   );
 
-  // Marcar original como estornado, apontando para o lançamento que o estornou.
-  // Antes gravava estornado_por_id = lancamento_id na própria linha do original: o
-  // lançamento apontava para si mesmo, e a trilha nunca chegava ao estorno.
+  // Marcar original como estornado
   executar(
     db,
     `UPDATE ledger_entries

@@ -189,10 +189,13 @@ export function buscarMatchPixOfx(
 
 /**
  * Gera um lançamento contábil no razão para a reconciliação PIX↔OFX.
- * Conta entrada: conta bancária PIX (configurável)
- * Conta saída: categoria do lançamento original
- * Tipo: 'entrada_pix'
- * Status: 'reconciliado'
+ *
+ * PARTE C (Correções):
+ * 1. Débito na conta bancária PIX (1120) e crédito na receita (4110) — era invertido.
+ * 2. Status 'proposta' em vez de 'reconciliado' — razao é FILA DE PROPOSTAS, lançamento
+ *    oficial é feito no cliente pela baixa em ledger_entries.
+ * 3. Sem catch falso — erro real em "no such table" agora propaga (tabela criada pela
+ *    migração phase8).
  */
 export function gerarLancamentoContabil(
   db: Database.Database,
@@ -208,38 +211,31 @@ export function gerarLancamentoContabil(
     throw new Error(`Charge não encontrada: ${conciliacao.asaas_charge_id}`);
   }
 
-  // Cria entrada em razao (tabela que pode não existir ainda)
-  // Estrutura esperada: id, conta_credito, conta_debito, valor, tipo, status, referencia_id, criado_em
-  try {
-    const lancamentoId = randomUUID();
-    const stmtInsert = db.prepare(`
-      INSERT INTO razao
-        (id, conta_credito, conta_debito, valor, tipo, status, conciliacao_pix_ofx_id, criado_em)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `);
+  // Cria entrada em razao — tabela criada pela migração phase8, não pode faltar
+  const lancamentoId = randomUUID();
+  const stmtInsert = db.prepare(`
+    INSERT INTO razao
+      (id, conta_debito, conta_credito, valor, tipo, status, conciliacao_pix_ofx_id, criado_em)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
 
-    // Conta padrão: 1120 (Caixa PIX) — em produção, viria de config_contas_bancarias
-    const contaCreditoPix = "1120";
-    const contaDébito = "4110"; // Receita (será preenchida pela categoria real)
+  // PARTE C (1): Direção corrigida — recebimento PIX:
+  // DÉBITA Caixa PIX (1120) e CREDITA Receita (4110)
+  const contaDebitoPix = "1120";      // Caixa PIX
+  const contaCreditoReceita = "4110"; // Receita
 
-    stmtInsert.run(
-      lancamentoId,
-      contaCreditoPix,
-      contaDébito,
-      conciliacao.valor_asaas,
-      "entrada_pix",
-      "reconciliado",
-      conciliacao.id,
-    );
+  // PARTE C (3): Erro real propaga; sem catch falso
+  stmtInsert.run(
+    lancamentoId,
+    contaDebitoPix,
+    contaCreditoReceita,
+    conciliacao.valor_asaas,
+    "entrada_pix",
+    "proposta", // PARTE C (2): 'proposta', não 'reconciliado'
+    conciliacao.id,
+  );
 
-    return lancamentoId;
-  } catch (erro) {
-    // Tabela razao pode não existir — retorna ID fake para testes
-    if (erro instanceof Error && erro.message.includes("no such table")) {
-      return randomUUID(); // ID fake para compatibilidade com testes
-    }
-    throw erro;
-  }
+  return lancamentoId;
 }
 
 /**

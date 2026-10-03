@@ -34,7 +34,7 @@
 
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
-import { registrarLancamentoContabil } from "./ledger";
+import { registrarLancamentoContabil, estornarLancamento } from "./ledger";
 import { CONTA_CAIXA_ERP, contaContrapartida } from "./mapeamentoPlanoApp";
 
 /** Código do plano do app para receita de aluguel — ver PLANO_DE_CONTAS
@@ -75,6 +75,12 @@ export interface ResultadoBaixaCompetencia {
   mensagem: string;
   transacao_id?: number;
   ledger_entry_id_baixa?: number;
+}
+
+export interface ResultadoEstornoBaixaCompetencia {
+  sucesso: boolean;
+  mensagem: string;
+  estorno_id?: number;
 }
 
 function hoje(): string {
@@ -342,6 +348,104 @@ export function baixarCompetencia(
     return {
       sucesso: false,
       mensagem: `Não foi possível baixar a competência: ${erro instanceof Error ? erro.message : String(erro)}`,
+    };
+  }
+}
+
+/** Estorna a baixa contábil de uma competência: reverte os lançamentos no razão e volta o
+ * status da competência para 'pendente'. Complemento de baixarCompetencia() — usado por
+ * estorno de reembolso (asaasReembolsos.ts, PARTE A).
+ *
+ * Se a competência não tem ledger_entry_id_baixa (nunca foi baixada), retorna sucesso com
+ * mensagem indicando que não havia o que estornar (não é erro).
+ *
+ * Idempotência: se chamado duas vezes para a mesma competência, a segunda chamada detecta
+ * que status já é 'pendente' e retorna erro, impedindo estorno duplo.
+ */
+export function estornoBaixaCompetencia(
+  db: Database,
+  competencia_id: number,
+  motivo_estorno: string,
+  usuario_id?: number,
+): ResultadoEstornoBaixaCompetencia {
+  const competencia = obterCompetenciaBruta(db, competencia_id);
+  if (!competencia) {
+    return { sucesso: false, mensagem: `Competência ${competencia_id} não encontrada.` };
+  }
+
+  // Se não há ledger_entry_id_baixa, não há o que estornar (não é erro)
+  if (!competencia.ledger_entry_id_baixa) {
+    return {
+      sucesso: true,
+      mensagem: `Competência ${competencia_id} nunca foi baixada — nada a estornar.`,
+    };
+  }
+
+  // Se já está em estado não-recebido, estorno já foi feito (idempotência)
+  if (competencia.status !== "recebido") {
+    return {
+      sucesso: false,
+      mensagem: `Competência ${competencia_id} não está em status 'recebido' — estorno duplo recusado.`,
+    };
+  }
+
+  db.run("BEGIN");
+  try {
+    // 1. Estorna TODAS as pernas da baixa. baixarCompetencia grava duas (débito Caixa e crédito
+    //    Receita) com o mesmo documento-fonte, mas guarda em ledger_entry_id_baixa só a de crédito:
+    //    estornar apenas essa deixaria o Caixa debitado e o razão desbalanceado.
+    const [ref] = consultar<{ origem_modulo: string; origem_id: number | null; referencia_documento: string | null }>(
+      db,
+      "SELECT origem_modulo, origem_id, referencia_documento FROM ledger_entries WHERE id = ?",
+      [competencia.ledger_entry_id_baixa],
+    );
+    if (!ref || !ref.referencia_documento) {
+      throw new Error(`Lançamento de baixa #${competencia.ledger_entry_id_baixa} sem documento-fonte — não dá para localizar todas as pernas.`);
+    }
+    const pernas = consultar<{ id: number }>(
+      db,
+      `SELECT id FROM ledger_entries
+       WHERE origem_modulo = ? AND origem_id IS ? AND referencia_documento = ?
+         AND estorno_de_id IS NULL AND estornado_por_id IS NULL
+       ORDER BY id`,
+      [ref.origem_modulo, ref.origem_id, ref.referencia_documento],
+    );
+    if (pernas.length === 0) {
+      throw new Error(`Nenhuma perna ativa encontrada para a baixa #${competencia.ledger_entry_id_baixa}.`);
+    }
+    let estorno_id = 0;
+    for (const perna of pernas) {
+      const id = estornarLancamento(
+        db,
+        perna.id,
+        `Estorno de reembolso: ${motivo_estorno}`,
+        usuario_id || 0,
+      );
+      if (perna.id === competencia.ledger_entry_id_baixa) estorno_id = id;
+    }
+
+    // 2. Volta competência a estado pendente (desfaz o que baixarCompetencia() fez)
+    executar(
+      db,
+      "UPDATE aluguel_competencias SET status = 'pendente', data_recebimento = NULL, ledger_entry_id_baixa = NULL WHERE id = ?",
+      [competencia_id],
+    );
+
+    db.run("COMMIT");
+    return {
+      sucesso: true,
+      mensagem: `Baixa da competência ${competencia_id} estornada — lançamento #${estorno_id}.`,
+      estorno_id,
+    };
+  } catch (erro) {
+    try {
+      db.run("ROLLBACK");
+    } catch {
+      /* já fora de transação */
+    }
+    return {
+      sucesso: false,
+      mensagem: `Não foi possível estornar a baixa: ${erro instanceof Error ? erro.message : String(erro)}`,
     };
   }
 }
