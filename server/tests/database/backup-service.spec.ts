@@ -62,7 +62,7 @@ function cleanupDatabase(dbPath: string) {
     const shmPath = `${dbPath}-shm`;
     if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
     if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
-  } catch (e) {
+  } catch {
     // ignorar
   }
 }

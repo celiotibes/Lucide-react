@@ -15,8 +15,7 @@ import path from 'path';
 import fs from 'fs';
 import { RetentionPolicyExecutor } from '../../services/retention-policy-executor';
 import {
-  migracaoRetencao,
-  inserirPoliticasRetencaoPadrao } from '../../migrations/criar-politica-retencao';
+  migracaoRetencao } from '../../migrations/criar-politica-retencao';
 
 describe('RetentionPolicyExecutor', () => {
   let db: Database.Database;

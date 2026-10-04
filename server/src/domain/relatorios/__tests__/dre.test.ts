@@ -38,7 +38,7 @@ function criarTestDatabase(): Database.Database {
   // Também carrega schema asaas_cobrancas para testes com receitas
   try {
     db.exec(resolverSchema("domain/integracoes/schema-asaas.sql"));
-  } catch (e) {
+  } catch {
     // Schema asaas pode não estar disponível em todos os contextos de teste
     console.debug("Schema asaas não carregado no teste");
   }

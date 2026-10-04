@@ -5,8 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   calcularDataLimite,
-  comprimirLogsAuditoria,
-  executarLimpezaMensal,
   POLITICAS_RETENCAO_PADRAO,
 } from '../data-retention-policy';
 

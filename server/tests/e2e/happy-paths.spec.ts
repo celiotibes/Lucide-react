@@ -177,7 +177,7 @@ test.describe('Happy Path Tests', () => {
             expect(fileName.endsWith('.pdf')).toBeTruthy();
             expect(download.fail()).toBeNull();
           }
-        } catch (e) {
+        } catch {
           // If no download event, check for success message or PDF viewer
           const successMsg = page.locator('text=/sucesso|success|gerado|generated/i').first();
           expect(successMsg.isVisible() || page.url().includes('pdf')).toBeTruthy();
