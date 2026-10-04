@@ -171,7 +171,6 @@ function obterCacheMetricas(
   periodo_dias: number,
 ): MetricasCache | null {
   const agora = new Date();
-  const agoraISO = agora.toISOString();
   const limiteRecomputa = new Date(agora.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
   const stmt = db.prepare(`

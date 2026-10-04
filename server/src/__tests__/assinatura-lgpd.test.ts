@@ -539,7 +539,7 @@ describe("Assinatura Digital + LGPD", () => {
       );
 
       expect(historico.length).toBeGreaterThan(0);
-      expect(historico.every((r: any) => r.pessoa_tipo === "INQUILINO")).toBe(true);
+      expect(historico.every((r: Record<string, unknown>) => r.pessoa_tipo === "INQUILINO")).toBe(true);
     });
 
     it("should return error if person not found", async () => {

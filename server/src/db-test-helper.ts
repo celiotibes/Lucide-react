@@ -18,8 +18,8 @@ const SCHEMA_PATHS = [
 const SCHEMA = SCHEMA_PATHS.map((schemaPath) => {
   try {
     return fs.readFileSync(schemaPath, "utf-8");
-  } catch (e) {
-    throw new Error(`Cannot read schema file from ${schemaPath}: ${e}`);
+  } catch (err) {
+    throw new Error(`Cannot read schema file from ${schemaPath}: ${err}`);
   }
 }).join("\n");
 
@@ -121,7 +121,7 @@ export function cleanupTestDatabase(dbPath: string): void {
     if (fs.existsSync(dbPath)) {
       fs.unlinkSync(dbPath);
     }
-  } catch (e) {
+  } catch {
     // Ignore cleanup errors
   }
 }

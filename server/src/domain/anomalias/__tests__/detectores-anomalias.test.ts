@@ -475,7 +475,6 @@ describe("Sistema de Detecção de Anomalias", () => {
 
       // Chamada 1: 2-Sigma (cache miss)
       detectarAnomalia2Sigma(db, valor, periodo);
-      const tamanhoApos1 = cache.size();
 
       // Chamada 2: IQR (cache hit para transações)
       detectarAnomaliaIQR(db, valor, periodo);
