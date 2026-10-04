@@ -13,7 +13,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { backupSQLiteToGoogleDrive, listarBackupsNoGoogleDrive } from "../utils/googleDriveBackup.js";
 
-const __filename = fileURLToPath(import.meta.url);
 
 describe("Google Drive Backup", () => {
   const BACKUP_DIR = path.join(process.cwd(), "data", "backups");

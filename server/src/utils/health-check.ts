@@ -167,8 +167,6 @@ export async function verificarSaudePluggy(): Promise<CheckResultado> {
  */
 export function verificarSaudeMemoria(): CheckResultado {
   const info = process.memoryUsage();
-  const totalMemoriaDisponivelMB = os.totalmem() / 1024 / 1024;
-  const memoriaUsadaMB = info.heapUsed / 1024 / 1024;
   const percentualUsado = (info.heapUsed / info.heapTotal) * 100;
 
   if (percentualUsado > 95) {

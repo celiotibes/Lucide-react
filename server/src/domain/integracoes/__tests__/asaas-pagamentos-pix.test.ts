@@ -12,11 +12,9 @@ import {
   buscarPagamentoPix,
   listarPagamentosPix,
   type DadosPagamentoPix,
-  type AsaasConfiguracaoAusenteError,
 } from "../asaas-pagamentos-pix.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEST_DB_PATH = path.join(__dirname, `test-asaas-pix-${process.pid}-${Date.now()}.db`);
 
@@ -47,7 +45,7 @@ function createTestDatabase(): Database.Database {
   // Rodar migrations
   try {
     db.exec(resolverSchema("migrations-phase9-pagamentos-pix-proativos.sql"));
-  } catch (e) {
+  } catch {
     console.warn("Phase 9 migration não encontrada, criando schema manualmente...");
     // Cria manualmente se não encontrar
     db.exec(`

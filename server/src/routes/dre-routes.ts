@@ -13,7 +13,7 @@ import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { calcularDREPeriodo, gravarDREPeriodo, buscarDREPeriodo, listarDREPeriodos } from "../domain/relatorios/dre.js";
-import { forecastMediaMovel, forecastRegressao, type ProjecaoFluxo } from "../domain/relatorios/fluxoCaixaForecast.js";
+import { forecastMediaMovel, forecastRegressao, type } from "../domain/relatorios/fluxoCaixaForecast.js";
 import type { ResultadoDRE } from "../domain/relatorios/dre.js";
 
 export interface RelatoriosRoutesDeps {

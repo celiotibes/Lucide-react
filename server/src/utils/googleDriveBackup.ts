@@ -14,11 +14,10 @@ import path from "path";
 import * as archiverModule from "archiver";
 import { google, drive_v3 } from "googleapis";
 import { createReadStream, createWriteStream } from "fs";
-import Database from "better-sqlite3";
+import from "better-sqlite3";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Caminho do banco de dados
 const DB_PATH = path.join(process.cwd(), "data", "app.db");

@@ -12,7 +12,6 @@ import path from "path";
 import Database from "better-sqlite3";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
 
 describe("Google Drive Backup - Integração", () => {
   const BACKUP_DIR = path.join(process.cwd(), "data", "backups");

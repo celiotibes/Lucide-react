@@ -17,8 +17,6 @@ import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import {
-  calcularMargensImovel,
-  gravarMargensImovel,
   obterMargensHistorico,
   obterMargensRanking,
   obterMargensRankingPaginado,

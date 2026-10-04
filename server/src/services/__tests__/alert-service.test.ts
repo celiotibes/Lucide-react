@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AlertService } from '../alert-service.js';
-import nodemailer from 'nodemailer';
+import from 'nodemailer';
 
 // Mock Nodemailer
 vi.mock('nodemailer', () => ({
@@ -74,7 +74,6 @@ describe('AlertService', () => {
     });
 
     it('deve bloquear alertas duplicados dentro do período de cooldown', async () => {
-      const payload = {
         backupName: 'backup-001',
         errorMessage: 'Erro de teste',
         timestamp: new Date(),
@@ -93,7 +92,6 @@ describe('AlertService', () => {
     });
 
     it('deve permitir alertas após período de cooldown', async () => {
-      const payload = {
         backupName: 'backup-002',
         errorMessage: 'Erro de teste',
         timestamp: new Date(),
@@ -121,7 +119,6 @@ describe('AlertService', () => {
 
   describe('Estado de Alertas', () => {
     it('deve rastrear estado de alertas', async () => {
-      const payload = {
         backupName: 'backup-003',
         errorMessage: 'Erro de teste',
         timestamp: new Date(),
@@ -142,7 +139,6 @@ describe('AlertService', () => {
 
       vi.spyOn(Date, 'now').mockImplementation(() => currentTime);
 
-      const payload = {
         backupName: 'backup-old',
         errorMessage: 'Erro antigo',
         timestamp: new Date(),
@@ -201,7 +197,6 @@ describe('AlertService', () => {
     });
 
     it('deve escapar caracteres HTML perigosos na mensagem de erro', async () => {
-      const payload = {
         backupName: 'backup-xss',
         errorMessage: '<script>alert("XSS")</script>',
         timestamp: new Date(),
@@ -213,7 +208,6 @@ describe('AlertService', () => {
     });
 
     it('deve escapar caracteres HTML nos detalhes', async () => {
-      const payload = {
         backupName: 'backup-details',
         errorMessage: 'Erro com detalhes',
         timestamp: new Date(),
@@ -234,7 +228,6 @@ describe('AlertService', () => {
     });
 
     it('deve aceitar severidade crítica', async () => {
-      const payload = {
         backupName: 'backup-critical',
         errorMessage: 'Falha crítica',
         timestamp: new Date(),
@@ -245,7 +238,6 @@ describe('AlertService', () => {
     });
 
     it('deve aceitar severidade warning', async () => {
-      const payload = {
         backupName: 'backup-warning',
         errorMessage: 'Aviso',
         timestamp: new Date(),
@@ -262,7 +254,6 @@ describe('AlertService', () => {
     });
 
     it('deve incluir passos de recuperação quando fornecidos', async () => {
-      const payload = {
         backupName: 'backup-recovery',
         errorMessage: 'Erro com instruções',
         timestamp: new Date(),
@@ -311,7 +302,6 @@ describe('AlertService', () => {
       // Não configurar emails
       delete process.env.BACKUP_ALERT_EMAILS;
 
-      const payload = {
         backupName: 'backup-no-email',
         errorMessage: 'Erro teste',
         timestamp: new Date(),
@@ -328,7 +318,6 @@ describe('AlertService', () => {
       // Não configurar Slack
       delete process.env.SLACK_WEBHOOK_URL;
 
-      const payload = {
         backupName: 'backup-no-slack',
         errorMessage: 'Erro teste',
         timestamp: new Date(),

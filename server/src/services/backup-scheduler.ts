@@ -24,8 +24,6 @@ import BackupService, { BackupManifest } from './backup-service.js';
 import { getAlertService } from './alert-service.js';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
-import Database from 'better-sqlite3';
 
 interface ScheduleConfig {
   backupSchedule: string;        // "0 2 * * *" ou "1440" (minutos)

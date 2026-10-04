@@ -10,8 +10,6 @@
  */
 
 import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
 
 export interface MigracaoRetencao {
   criar: (db: Database.Database) => void;
