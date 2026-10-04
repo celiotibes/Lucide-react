@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { consultarSessao, entrar, sair, type DepsSessao } from "./sessao";
 
-function deps(resposta: () => Response | Promise<Response>): DepsSessao & { chamadas: [string, any][] } {
-  const chamadas: [string, any][] = [];
+function deps(resposta: () => Response | Promise<Response>): DepsSessao & { chamadas: [string, RequestInit | undefined][] } {
+  const chamadas: [string, RequestInit | undefined][] = [];
   return {
     chamadas,
-    apiFetch: vi.fn(async (caminho: string, init?: any) => {
+    apiFetch: vi.fn(async (caminho: string, init?: RequestInit) => {
       chamadas.push([caminho, init]);
       return resposta();
     }) as unknown as DepsSessao["apiFetch"],

@@ -72,7 +72,6 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
   useEffect(() => {
     if (!db) return;
     let cancelado = false;
-    setVerificandoIntegridade(true);
     verificarIntegridade(db, dataInicio36m, hoje)
       .then((resultado) => {
         if (!cancelado) setIntegridade(resultado);

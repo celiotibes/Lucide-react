@@ -39,7 +39,7 @@ export interface DepsSessao {
 
 const DEPS_PADRAO: DepsSessao = { apiFetch: apiFetchPadrao, esquecerTokenCsrf: esquecerPadrao };
 
-async function lerJson(resposta: Response): Promise<any | null> {
+async function lerJson(resposta: Response): Promise<unknown> {
   try {
     return await resposta.json();
   } catch {
