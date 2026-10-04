@@ -143,9 +143,8 @@ function initializeMetrics() {
       registers: [register],
       labelNames: ['event_type', 'level'],
     });
-  } catch (error) {
+  } catch {
     // Silent failure - metrics initialization errors should not crash the app
-    throw error;
   }
 }
 
@@ -163,7 +162,7 @@ export function getMetric(name: string): promClient.Metric | undefined {
         }
       }
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metric retrieval errors should not crash the app
   }
   return undefined;
@@ -180,7 +179,7 @@ export function recordDbQueryLatency(
     if (metric) {
       metric.labels(queryType, table).observe(durationMs);
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -202,7 +201,7 @@ export function recordHttpRequestLatency(
     if (counter) {
       counter.labels(method, route, String(status)).inc();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -218,7 +217,7 @@ export function recordError(
     if (counter) {
       counter.labels(errorType, operation, severity).inc();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -230,7 +229,7 @@ export function recordDbError(queryType: string, errorCode: string) {
     if (counter) {
       counter.labels(queryType, errorCode).inc();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -242,7 +241,7 @@ export function recordCacheHit(cacheType: string, keyPattern: string = 'all') {
     if (counter) {
       counter.labels(cacheType, keyPattern).inc();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -254,7 +253,7 @@ export function recordCacheMiss(cacheType: string, keyPattern: string = 'all') {
     if (counter) {
       counter.labels(cacheType, keyPattern).inc();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -270,7 +269,7 @@ export function recordCacheOperationLatency(
     if (histogram) {
       histogram.labels(operation, cacheType).observe(durationMs);
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -282,7 +281,7 @@ export function setActiveConnections(count: number) {
     if (gauge) {
       gauge.set(count);
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -294,7 +293,7 @@ export function setCacheSize(sizeBytes: number, cacheType: string = 'memory') {
     if (gauge) {
       gauge.labels(cacheType).set(sizeBytes);
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -306,7 +305,7 @@ export function setCacheEntriesCount(count: number, cacheType: string = 'memory'
     if (gauge) {
       gauge.labels(cacheType).set(count);
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -318,7 +317,7 @@ export function incrementActiveRequests(method: string, route: string) {
     if (gauge) {
       gauge.labels(method, route).inc();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -330,7 +329,7 @@ export function decrementActiveRequests(method: string, route: string) {
     if (gauge) {
       gauge.labels(method, route).dec();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
@@ -342,7 +341,7 @@ export function recordTransactionProcessed(transactionType: string, status: stri
     if (counter) {
       counter.labels(transactionType, status).inc();
     }
-  } catch (error) {
+  } catch {
     // Silent failure - metrics recording errors should not crash the app
   }
 }
