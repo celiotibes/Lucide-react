@@ -25,6 +25,11 @@ export interface DadosCriptografados {
   conteudo: string; // Conteúdo criptografado em hex
   tag: string; // Tag de autenticação (16 bytes) em hex
   versao: number; // Versão do esquema de criptografia
+  /**
+   * Identificador da chave (kid). Ausente em dados legados, anteriores à rotação:
+   * esses são tratados como cifrados com a chave legada (kid "1"). Ver chaveiro.ts.
+   */
+  kid?: string;
 }
 
 /**
