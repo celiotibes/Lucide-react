@@ -23,12 +23,12 @@ describe("sanitizarTextoPdf", () => {
     expect(sanitizarTextoPdf("10–20")).toBe("10–20");
   });
 
-  // eslint-disable-next-line no-irregular-whitespace
+   
   it("normaliza NBSP (U+00A0) para espaço ASCII comum (bug real: a regex antiga não fazia nada)", () => {
     // eslint-disable-next-line no-irregular-whitespace
     const entrada = `Pagamento PIX recebido`;
     const saida = sanitizarTextoPdf(entrada);
-    // eslint-disable-next-line no-irregular-whitespace
+     
     expect(saida).toBe("Pagamento PIX recebido");
     // confere que o resultado usa de fato o espaço ASCII comum (0x20), não NBSP (0xA0)
     expect(saida.includes(" ")).toBe(false);

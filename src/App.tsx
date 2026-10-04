@@ -216,18 +216,33 @@ function Conteudo() {
 
   // Recalculado a cada persistência real (versao muda) e a cada backup exportado
   // (backupTick muda) — os dois únicos eventos que afetam o status.
-  const statusBackup = useMemo(() => calcularStatusBackup(), [versao, backupTick]);
+  const statusBackup = useMemo(() => {
+    // These values are used as triggers for recalculation
+    void versao;
+    void backupTick;
+    return calcularStatusBackup();
+  }, [versao, backupTick]);
 
   // Titular da contabilidade. Enquanto não existir, o razão não tem onde pendurar nada
   // (entidade_id NOT NULL em periodos_contabeis, contas_plano_contas e ledger_entries) e
   // o app mostra o onboarding no lugar da aplicação. `versao` muda a cada persistência,
   // o que inclui a criação da própria entidade — daí ser dependência.
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao, onboardingTick]);
+  const entidade = useMemo(() => {
+    // These values trigger recalculation when the entity data changes
+    void versao;
+    void onboardingTick;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao, onboardingTick]);
 
   const hoje = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const pendenciasCriticas = useMemo(
-    () => (db ? gerarPainelPendencias(db, hoje).filter((p) => p.severidade === "critica").length : 0),
-    [db, versao, hoje, backupTick],
+    () => {
+      // These values trigger recalculation when data changes
+      void versao;
+      void backupTick;
+      return db ? gerarPainelPendencias(db, hoje).filter((p) => p.severidade === "critica").length : 0;
+    },
+    [db, hoje, versao, backupTick],
   );
 
   const carregarDemonstracao = useCallback(async () => {
