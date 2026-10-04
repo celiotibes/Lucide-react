@@ -9,7 +9,7 @@ import { AuthServiceDB } from "../../domain/auth/auth-service-db";
 import { gerarHashSenha } from "../../domain/auth/password";
 import { criarRotasAuth } from "../auth-routes";
 import { criarRotasRelatorios } from "../dre-routes";
-import { gravarDREPeriodo, calcularDREPeriodo } from "../../domain/relatorios/dre";
+import { calcularDREPeriodo } from "../../domain/relatorios/dre";
 import { tokenDoCookie } from "./token-cookie.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,7 +39,6 @@ function createTestDatabase(): Database.Database {
 }
 
 async function criarAppDeTeste(db: Database.Database) {
-  const authService = new AuthServiceDB(db);
   const app = express();
   app.use(express.json());
   app.use(

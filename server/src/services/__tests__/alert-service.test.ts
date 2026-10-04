@@ -5,7 +5,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AlertService } from '../alert-service.js';
-import from 'nodemailer';
 
 // Mock Nodemailer
 vi.mock('nodemailer', () => ({

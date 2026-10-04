@@ -49,8 +49,6 @@ function createTestDatabase(): Database.Database {
 }
 
 async function criarAppDeTeste(db: Database.Database) {
-  const authService = new AuthServiceDB(db);
-  const auditService = new AuditTrailServiceDB(db);
   const app = express();
   app.use(express.json());
   app.use(
