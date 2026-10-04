@@ -75,7 +75,7 @@ export function adicionarTokenCSRFAoResponse(
 ) {
   // res.locals.csrfToken é acessível em templates EJS/Pug
   // Para APIs REST, retornamos no header (cliente lê com response.headers.get("XSRF-TOKEN"))
-  const token = (req as any).csrfToken?.() || "";
+  const token = req.csrfToken?.() || "";
 
   // Adiciona header XSRF-TOKEN para que o cliente possa ler
   res.setHeader("XSRF-TOKEN", token);
@@ -103,7 +103,7 @@ export function comTokenCSRF(
   res: express.Response,
   next: express.NextFunction,
 ) {
-  const token = (req as any).csrfToken?.() || "";
+  const token = req.csrfToken?.() || "";
   res.locals.csrfToken = token;
   res.setHeader("XSRF-TOKEN", token);
   next();
@@ -121,7 +121,7 @@ export function retornarComToken(
   handler: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<void> | void,
 ) {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const token = (req as any).csrfToken?.() || "";
+    const token = req.csrfToken?.() || "";
     res.locals.csrfToken = token;
     res.setHeader("XSRF-TOKEN", token);
     return handler(req, res, next);
@@ -162,7 +162,7 @@ export function validarCSRFToken(
     "";
 
   // Get expected token from session
-  const tokenExpected = (req as any).csrfToken?.() || "";
+  const tokenExpected = req.csrfToken?.() || "";
 
   if (!tokenFromRequest || !tokenExpected) {
     logger.warn("[CSRF] Missing CSRF token", {

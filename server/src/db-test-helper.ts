@@ -9,10 +9,31 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load only essential migrations for testing to avoid SQL parsing issues with complex triggers
-// Phase 2 contains the usuarios table which is needed for backup/restore tests
+// Load all migrations (Phase 2-16) for comprehensive schema testing
+// These are all idempotent and use CREATE TABLE/INDEX IF NOT EXISTS
 const SCHEMA_PATHS = [
   path.join(__dirname, "migrations-phase2-auth.sql"),
+  path.join(__dirname, "migrations-phase3-integracoes.sql"),
+  path.join(__dirname, "migrations-phase4-vinculos-externos.sql"),
+  path.join(__dirname, "migrations-phase4.1-anomalias.sql"),
+  path.join(__dirname, "migrations-phase5-lembretes-agendados.sql"),
+  path.join(__dirname, "migrations-phase6-analytics-completa.sql"),
+  path.join(__dirname, "migrations-phase6-relatorios-dre.sql"),
+  path.join(__dirname, "migrations-phase7-margens-propriedades.sql"),
+  path.join(__dirname, "migrations-phase7-relatorio-executivo.sql"),
+  path.join(__dirname, "migrations-phase8-asaas-reembolsos.sql"),
+  path.join(__dirname, "migrations-phase8-reconciliacao-asaas.sql"),
+  path.join(__dirname, "migrations-phase8-conciliacao-pix-ofx.sql"),
+  path.join(__dirname, "migrations-phase9-pagamentos-pix-proativos.sql"),
+  path.join(__dirname, "migrations-phase10-assinatura-lgpd.sql"),
+  path.join(__dirname, "migrations-phase11-performance-indexes.sql"),
+  path.join(__dirname, "migrations-phase12-asaas-webhook-dedup.sql"),
+  path.join(__dirname, "migrations-phase12-imutabilidade.sql"),
+  path.join(__dirname, "migrations-phase13-acl-recursos.sql"),
+  path.join(__dirname, "migrations-phase14-portal-inquilino.sql"),
+  path.join(__dirname, "migrations-phase15-prestador-apontamentos.sql"),
+  path.join(__dirname, "migrations-phase16-ledger-entries.sql"),
+  path.join(__dirname, "migrations-phase16-revisao-ia.sql"),
 ];
 const SCHEMA = SCHEMA_PATHS.map((schemaPath) => {
   try {

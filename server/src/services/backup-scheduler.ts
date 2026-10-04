@@ -358,7 +358,7 @@ export class BackupScheduler {
         // Agendar retry imediato após delay
         setTimeout(() => this.executarBackup(), delayMs);
       } else {
-        logger.critical('[BackupScheduler] ⚠️  CRÍTICO: Máximo de tentativas atingido. Backup não será tentado até próximo intervalo agendado.');
+        logger.error('[BackupScheduler] ⚠️  CRÍTICO: Máximo de tentativas atingido. Backup não será tentado até próximo intervalo agendado.');
       }
     }
   }
@@ -500,7 +500,7 @@ export class BackupScheduler {
       }
     }
 
-    logger.critical('[BackupScheduler] 🚨 CRÍTICO: Verificação de backup falhou', {
+    logger.error('[BackupScheduler] 🚨 CRÍTICO: Verificação de backup falhou', {
       backupId,
       erros,
       integridade,

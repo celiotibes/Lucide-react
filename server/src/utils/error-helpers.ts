@@ -145,13 +145,14 @@ export function transformarErroEmResposta(
   // Identifica o tipo de erro
   if (erro instanceof Error && "status" in erro) {
     // Erro com status HTTP
-    const status = (erro as any).status || 500;
+    const errorObj = erro as Record<string, unknown>;
+    const status = (typeof errorObj.status === "number" ? errorObj.status : 500) || 500;
     const categoria = identficarCategoriaErro(status);
 
     return criarRespostaErro(
       categoria,
       extrairMensagemErro(erro),
-      exposaoProdutos ? (erro as any).detalhes : undefined,
+      exposaoProdutos ? errorObj.detalhes : undefined,
     );
   }
 
