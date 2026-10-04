@@ -69,7 +69,7 @@ function listarChargesPagas(db: Database.Database): ChargeAsaas[] {
         AND deletado = 0
       ORDER BY criado_em DESC
     `);
-    return (stmt.all() as any[]) ?? [];
+    return (stmt.all() as unknown[]) ?? [];
   } catch (erro) {
     // Tabela pode não existir — retorna vazio
     return [];
@@ -88,7 +88,7 @@ function listarTransacoesOFX(db: Database.Database): TransacaoOFX[] {
       FROM conciliacao_ofx_cache
       ORDER BY data DESC
     `);
-    return (stmt.all() as any[]) ?? [];
+    return (stmt.all() as unknown[]) ?? [];
   } catch {
     // Tabela não existe ainda — retorna vazio
     return [];
@@ -115,7 +115,7 @@ export function buscarMatchPixOfx(
     FROM cobrancas_asaas
     WHERE id = ?
   `);
-  const charge = (stmt.get(chargeId) as any);
+  const charge = (stmt.get(chargeId) as unknown as Record<string, unknown> | undefined);
 
   if (!charge) {
     return { match: false, transacao: null, confianca: 0, multiplos: false };
@@ -205,7 +205,7 @@ export function gerarLancamentoContabil(
   const stmtCharge = db.prepare(`
     SELECT origem_tipo, valor FROM cobrancas_asaas WHERE id = ?
   `);
-  const charge = (stmtCharge.get(conciliacao.asaas_charge_id) as any);
+  const charge = (stmtCharge.get(conciliacao.asaas_charge_id) as unknown as Record<string, unknown> | undefined);
 
   if (!charge) {
     throw new Error(`Charge não encontrada: ${conciliacao.asaas_charge_id}`);
@@ -406,8 +406,8 @@ export function conciliarPixOFX(db: Database.Database): ResultadoConciliacao {
     `);
     const changes = stmtExpire.run();
 
-    if ((changes as any).changes > 0) {
-      resultado.expiradas = (changes as any).changes;
+    if ((changes as unknown as { changes: number }).changes > 0) {
+      resultado.expiradas = (changes as unknown as { changes: number }).changes;
       resultado.detalhes.push(`⏱️ ${resultado.expiradas} pendência(s) expirada(s) (>7 dias)`);
     }
   } catch {
@@ -482,7 +482,7 @@ export function buscarStatusConciliacao(
       WHERE datetime(criado_em) >= datetime('now', ? || ' days')
     `);
 
-    const resultado = stmt.get(-diasRetroativos) as any;
+    const resultado = stmt.get(-diasRetroativos) as unknown as { conciliadas?: number; discrepancias?: number; pendentes?: number; expiradas?: number } | undefined;
     return {
       conciliadas: resultado?.conciliadas ?? 0,
       discrepancias: resultado?.discrepancias ?? 0,
