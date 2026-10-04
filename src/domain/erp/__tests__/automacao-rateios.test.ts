@@ -87,7 +87,7 @@ function criarDocumento(
     // teste "documento sem valor (NULL)" precisa simular) é engolido pelo `??`, que trata
     // null igual a "não informado" e cairia no default 1000 mesmo quando o chamador
     // pediu null de propósito.
-    [opcoes.tipo ?? "fatura", "valor" in opcoes ? opcoes.valor : 1000, opcoes.cnpj ?? "11.111.111/0001-11"],
+    [opcoes.tipo ?? "fatura", "valor" in opcoes ? (opcoes.valor ?? null) : 1000, opcoes.cnpj ?? "11.111.111/0001-11"],
   );
   return consultar<{ id: number }>(db, "SELECT last_insert_rowid() as id")[0].id;
 }

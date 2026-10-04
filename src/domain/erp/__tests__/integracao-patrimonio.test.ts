@@ -25,7 +25,7 @@ async function montarBase() {
   const db: Database = await criarBancoDeTeste();
   const { entidade_id } = criarEntidadeLegal(db, { nome: "Titular Teste", cpf_cnpj: "52998224725" });
   executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 1, 'aberto')", [
-    entidade_id,
+    entidade_id!,
   ]);
   const periodo_id = consultar<{ id: number }>(db, "SELECT id FROM periodos_contabeis WHERE ano=2025 AND mes=1")[0].id;
   return { db, entidade_id: entidade_id!, periodo_id };

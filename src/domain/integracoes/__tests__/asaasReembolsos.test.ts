@@ -176,7 +176,7 @@ describe("asaasReembolsos", () => {
 
       // Processa reembolso
       const reembolso = await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Cliente desistiu do contrato",
       });
 
@@ -184,7 +184,7 @@ describe("asaasReembolsos", () => {
       expect(reembolso.status).toBe("sucesso");
       expect(reembolso.motivo).toBe("Cliente desistiu do contrato");
       expect(reembolso.tipo).toMatch(/^(reversao|devolucao)$/);
-      expect(reembolso.asaasChargeId).toBe(cobranca.asaasChargeId);
+      expect(reembolso.asaasChargeId).toBe(cobranca.asaasChargeId!);
     });
 
     it("deve rejeitar reembolso de cobrança não paga", async () => {
@@ -194,7 +194,7 @@ describe("asaasReembolsos", () => {
 
       await expect(
         processarReembolsoAsaas(db, {
-          chargeId: cobranca.asaasChargeId,
+          chargeId: cobranca.asaasChargeId!,
           motivo: "Cliente desistiu",
         }),
       ).rejects.toThrow("'pendente'");
@@ -216,12 +216,12 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       const reembolso1 = await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Cliente desistiu",
       });
 
       const reembolso2 = await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Motivo diferente (não importa para idempotência)",
       });
 
@@ -236,12 +236,12 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Erro na cobrança",
       });
 
       const stmt = db.prepare("SELECT status FROM cobrancas_asaas WHERE asaas_charge_id = ?");
-      stmt.bind([cobranca.asaasChargeId]);
+      stmt.bind([cobranca.asaasChargeId!]);
       let status: string | undefined;
       if (stmt.step()) {
         const row = stmt.getAsObject() as { status: string };
@@ -258,7 +258,7 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       const reembolso = await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Erro manual",
         tipoForce: "reversao",
       });
@@ -273,7 +273,7 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       const reembolso = await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Erro na emissão",
       });
 
@@ -288,7 +288,7 @@ describe("asaasReembolsos", () => {
         tipoCobranca: "boleto",
       });
 
-      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId);
+      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId!);
       expect(tipo).toBe("reversao");
     });
 
@@ -299,9 +299,9 @@ describe("asaasReembolsos", () => {
 
       // Simula cobrança criada há 25 horas
       const dataAnterior = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
-      db.run("UPDATE cobrancas_asaas SET criado_em = ? WHERE asaas_charge_id = ?", [dataAnterior, cobranca.asaasChargeId]);
+      db.run("UPDATE cobrancas_asaas SET criado_em = ? WHERE asaas_charge_id = ?", [dataAnterior, cobranca.asaasChargeId!]);
 
-      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId);
+      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId!);
       expect(tipo).toBe("devolucao");
     });
 
@@ -310,7 +310,7 @@ describe("asaasReembolsos", () => {
         tipoCobranca: "boleto",
       });
 
-      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId, "devolucao");
+      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId!, "devolucao");
       expect(tipo).toBe("devolucao");
     });
 
@@ -325,9 +325,9 @@ describe("asaasReembolsos", () => {
 
       // Exatamente 24 horas atrás (deve ser 'devolucao')
       const data24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      db.run("UPDATE cobrancas_asaas SET criado_em = ? WHERE asaas_charge_id = ?", [data24h, cobranca.asaasChargeId]);
+      db.run("UPDATE cobrancas_asaas SET criado_em = ? WHERE asaas_charge_id = ?", [data24h, cobranca.asaasChargeId!]);
 
-      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId);
+      const tipo = detectarTipoReembolso(db, cobranca.asaasChargeId!);
       expect(tipo).toBe("devolucao");
     });
   });
@@ -340,7 +340,7 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       const reembolso = await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Teste",
       });
 
@@ -360,11 +360,11 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Motivo 1",
       });
 
-      const reembolsos = obterReembolsosPorChargeId(db, cobranca.asaasChargeId);
+      const reembolsos = obterReembolsosPorChargeId(db, cobranca.asaasChargeId!);
       expect(reembolsos).toHaveLength(1);
       expect(reembolsos[0].motivo).toBe("Motivo 1");
     });
@@ -374,7 +374,7 @@ describe("asaasReembolsos", () => {
         tipoCobranca: "boleto",
       });
 
-      const reembolsos = obterReembolsosPorChargeId(db, cobranca.asaasChargeId);
+      const reembolsos = obterReembolsosPorChargeId(db, cobranca.asaasChargeId!);
       expect(reembolsos).toHaveLength(0);
     });
   });
@@ -387,7 +387,7 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca1.id]);
 
       await processarReembolsoAsaas(db, {
-        chargeId: cobranca1.asaasChargeId,
+        chargeId: cobranca1.asaasChargeId!,
         motivo: "Reembolso 1",
         tipoForce: "reversao",
       });
@@ -404,7 +404,7 @@ describe("asaasReembolsos", () => {
 
       // Simula < 24h para garantir tipo 'reversao'
       await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Teste",
         tipoForce: "reversao",
       });
@@ -421,7 +421,7 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Teste",
       });
 
@@ -439,7 +439,7 @@ describe("asaasReembolsos", () => {
       db.run("UPDATE cobrancas_asaas SET status = 'pago' WHERE id = ?", [cobranca.id]);
 
       const reembolso = await processarReembolsoAsaas(db, {
-        chargeId: cobranca.asaasChargeId,
+        chargeId: cobranca.asaasChargeId!,
         motivo: "Teste",
       });
 
@@ -478,7 +478,7 @@ describe("asaasReembolsos", () => {
       const resultado = aplicarEventoReembolsoWebhook(db, {
         event: "PAYMENT_REFUNDED",
         payment: {
-          id: cobranca.asaasChargeId,
+          id: cobranca.asaasChargeId!,
           refundedAmount: 1500,
           refundDate: "2025-01-15",
         },
@@ -488,7 +488,7 @@ describe("asaasReembolsos", () => {
 
       // Verifica se cobrança foi marcada como reembolsada
       const stmt = db.prepare("SELECT status FROM cobrancas_asaas WHERE asaas_charge_id = ?");
-      stmt.bind([cobranca.asaasChargeId]);
+      stmt.bind([cobranca.asaasChargeId!]);
       let status: string | undefined;
       if (stmt.step()) {
         const row = stmt.getAsObject() as { status: string };
@@ -529,7 +529,7 @@ describe("asaasReembolsos", () => {
       const evento = {
         event: "PAYMENT_REFUNDED" as const,
         payment: {
-          id: cobranca.asaasChargeId,
+          id: cobranca.asaasChargeId!,
           refundedAmount: 1500,
           refundDate: "2025-01-15",
         },
@@ -552,13 +552,13 @@ describe("asaasReembolsos", () => {
       aplicarEventoReembolsoWebhook(db, {
         event: "PAYMENT_REFUNDED",
         payment: {
-          id: cobranca.asaasChargeId,
+          id: cobranca.asaasChargeId!,
           refundDate: "2025-12-25",
         },
       });
 
       const stmt = db.prepare("SELECT data_processamento FROM reembolsos_asaas WHERE asaas_charge_id = ?");
-      stmt.bind([cobranca.asaasChargeId]);
+      stmt.bind([cobranca.asaasChargeId!]);
       let dataProcessamento: string | undefined;
       if (stmt.step()) {
         const row = stmt.getAsObject() as { data_processamento: string };

@@ -218,12 +218,12 @@ describe("reclassificarTransacao — reproduz e corrige o defeito 1", () => {
     const linhaFechada = consultar<{ status: string }>(
       db,
       "SELECT status FROM periodos_contabeis WHERE id = ?",
-      [r.periodo_original_id],
+      [r.periodo_original_id!],
     )[0];
     expect(linhaFechada.status).toBe("fechado");
 
     // O lançamento de estorno e o novo caíram no período de correção, que está aberto.
-    const [periodoCorrecao] = consultar<{ status: string }>(db, "SELECT status FROM periodos_contabeis WHERE id = ?", [r.periodo_correcao_id]);
+    const [periodoCorrecao] = consultar<{ status: string }>(db, "SELECT status FROM periodos_contabeis WHERE id = ?", [r.periodo_correcao_id!]);
     expect(periodoCorrecao.status).toBe("aberto");
 
     // Balanceamento preservado nos dois períodos.

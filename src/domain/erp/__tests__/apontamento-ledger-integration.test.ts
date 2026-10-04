@@ -200,7 +200,7 @@ describe("Urgência → Ledger Integration", () => {
     }>(
       db,
       `SELECT conta_id, valor_debito, valor_credito FROM ledger_entries WHERE id IN (?, ?)`,
-      [ledger_entry.ledger_entry_id, ledger_entry.ledger_entry_id_contrapartida]
+      [ledger_entry.ledger_entry_id!, ledger_entry.ledger_entry_id_contrapartida!]
     );
 
     expect(lançamentos).toHaveLength(2);
