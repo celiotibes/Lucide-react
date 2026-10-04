@@ -10,7 +10,7 @@ test.describe('Happy Path Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Track console errors
-    let consoleErrors: string[] = [];
+    const consoleErrors: string[] = [];
     page.on('console', msg => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
@@ -18,7 +18,7 @@ test.describe('Happy Path Tests', () => {
     });
 
     // Track response errors (500, 403, etc)
-    let responseErrors: number[] = [];
+    const responseErrors: number[] = [];
     page.on('response', response => {
       if (response.status() >= 400) {
         responseErrors.push(response.status());
@@ -44,7 +44,7 @@ test.describe('Happy Path Tests', () => {
 
         // Check for successful login (presence of dashboard element)
         const dashboard = page.locator('[data-testid="dashboard"]');
-        const isLoggedIn = await dashboard.isVisible().catch(() => false);
+        _const _isLoggedIn = await dashboard.isVisible().catch(() => false);
 
         // Either dashboard loaded or still on some page (no errors)
         expect(consoleErrors.length).toBe(0);
@@ -177,7 +177,7 @@ test.describe('Happy Path Tests', () => {
             expect(fileName.endsWith('.pdf')).toBeTruthy();
             expect(download.fail()).toBeNull();
           }
-        } catch (e) {
+        } catch (_e) {
           // If no download event, check for success message or PDF viewer
           const successMsg = page.locator('text=/sucesso|success|gerado|generated/i').first();
           expect(successMsg.isVisible() || page.url().includes('pdf')).toBeTruthy();

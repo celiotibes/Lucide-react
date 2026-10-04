@@ -9,9 +9,7 @@ import { TabPreviaSemanal } from "./TabPreviaSemanal";
 
 type Tab = "agenda" | "apontamentos" | "previa";
 
-interface Props {}
-
-export function PortalPrestador(_props: Props) {
+export function PortalPrestador() {
   const { db, persistir } = useDb();
   const [abaAtiva, setAbaAtiva] = useState<Tab>("agenda");
   const [prestadorSelecionado, setPrestadorSelecionado] = useState<number | null>(null);
@@ -224,7 +222,6 @@ export function PortalPrestador(_props: Props) {
       {/* Conteúdo das abas */}
       {abaAtiva === "agenda" && (
         <TabAgenda
-          prestadorId={prestadorSelecionado}
           dataSelecionada={dataSelecionada}
           apontamentoHoje={apontamentoHoje}
           onSelecionarApontamento={(apt) => {
@@ -237,12 +234,10 @@ export function PortalPrestador(_props: Props) {
       {abaAtiva === "apontamentos" && (
         <TabApontamentos
           db={db}
-          prestadorId={prestadorSelecionado}
           dataSelecionada={dataSelecionada}
           apontamentoAtual={apontamentoHoje}
           onSalvar={criarOuAtualizarApontamento}
           onPersistir={persistir}
-          versao={versao}
         />
       )}
 
@@ -251,7 +246,6 @@ export function PortalPrestador(_props: Props) {
           db={db}
           prestadorId={prestadorSelecionado}
           dataSelecionada={dataSelecionada}
-          versao={versao}
         />
       )}
     </div>

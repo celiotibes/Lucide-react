@@ -8,24 +8,20 @@ import { MemoriaCalculo } from "./MemoriaCalculo";
 
 interface Props {
   db: Database | null;
-  prestadorId: number;
   dataSelecionada: string;
   apontamentoAtual: ApontamentoDiario | null;
   onSalvar: (dados: Partial<ApontamentoDiario>) => Promise<void>;
   onPersistir: () => Promise<void>;
-  versao: number;
 }
 
 type SecaoAtiva = "entrada" | "intervalo" | "atividades" | "saida" | "envio";
 
 export function TabApontamentos({
   db,
-  prestadorId: _prestadorId,
   dataSelecionada,
   apontamentoAtual,
   onSalvar,
   onPersistir,
-  _versao: versao,
 }: Props) {
   const [_secaoAtiva, setSecaoAtiva] = useState<SecaoAtiva>("entrada");
   const [horarioCapturado, setHorarioCapturado] = useState<{ tipo: string; horario: string } | null>(null);

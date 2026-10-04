@@ -12,13 +12,12 @@ interface OS {
 }
 
 interface Props {
-  prestadorId: number;
   dataSelecionada: string;
   apontamentoHoje: ApontamentoDiario | null;
   onSelecionarApontamento: (apontamento: ApontamentoDiario) => void;
 }
 
-export function TabAgenda({ prestadorId: _prestadorId, dataSelecionada, apontamentoHoje, onSelecionarApontamento }: Props) {
+export function TabAgenda({ dataSelecionada, apontamentoHoje, onSelecionarApontamento }: Props) {
   // Mock de dados de agenda (em produção, viriam do banco)
   const osDodia: OS[] = [
     {

@@ -32,7 +32,7 @@ function calculateTableChecksum(
     const rows = db.prepare(`SELECT * FROM ${tableName} ORDER BY rowid`).all();
     const jsonStr = JSON.stringify(rows);
     return crypto.createHash("sha256").update(jsonStr).digest("hex");
-  } catch (_e) {
+  } catch {
     // Tabela pode não existir
     return "";
   }
@@ -113,7 +113,7 @@ function getTableRowCounts(db: Database.Database): Record<string, number> {
         count: number;
       };
       counts[table] = result.count;
-    } catch (_e) {
+    } catch {
       counts[table] = 0;
     }
   }

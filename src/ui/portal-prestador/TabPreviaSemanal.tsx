@@ -8,10 +8,9 @@ interface Props {
   db: Database | null;
   prestadorId: number;
   dataSelecionada: string;
-  versao: number;
 }
 
-export function TabPreviaSemanal({ db, prestadorId, dataSelecionada, versao }: Props) {
+export function TabPreviaSemanal({ db, prestadorId, dataSelecionada }: Props) {
   const [mostrarmemoria, setMostraMemoria] = useState(false);
 
   const [inicioSemana, fimSemana] = useMemo(() => {
