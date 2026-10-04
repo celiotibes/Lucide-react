@@ -12,6 +12,11 @@ import { criarRotasAuth } from "../auth-routes";
 import { criarRotasAcl } from "../acl-routes";
 import { tokenDoCookie } from "./token-cookie.js";
 
+// Mock types for auth route dependencies
+interface MockPermissoesService {
+  listarMatriz: () => unknown[];
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -48,7 +53,7 @@ async function criarAppDeTeste(db: Database.Database) {
     criarRotasAuth({
       authService,
       auditService,
-      permissoesService: { listarMatriz: () => [] } as any,
+      permissoesService: { listarMatriz: () => [] } as MockPermissoesService,
     }),
   );
   app.use("/api/acl", criarRotasAcl({ authService, auditService, db }));
@@ -222,7 +227,7 @@ describe("Rotas de ACL (/api/acl)", () => {
       expect(resp.body.mensagem).toContain("reativado");
 
       // Verificar que revogado_em foi limpo
-      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE usuario_id = ? AND recurso_id = ?").get("user_inquilino_1", "cob_123") as any;
+      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE usuario_id = ? AND recurso_id = ?").get("user_inquilino_1", "cob_123") as unknown as { revogado_em: string | null };
       expect(acl.revogado_em).toBeNull();
     });
 
@@ -311,7 +316,7 @@ describe("Rotas de ACL (/api/acl)", () => {
       expect(resp.body.ok).toBe(true);
 
       // Verificar que foi revogada
-      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE id = ?").get(aclId) as any;
+      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE id = ?").get(aclId) as unknown as { revogado_em: string | null };
       expect(acl.revogado_em).not.toBeNull();
     });
 
