@@ -72,6 +72,13 @@ export class QueryValidator {
       const explainQuery = `EXPLAIN QUERY PLAN ${query}`;
       const stmt = this.db.prepare(explainQuery);
       const plans = stmt.all() as QueryPlan[];
+
+      // Debug logging
+      if (process.env.NODE_ENV === 'test') {
+        console.log(`[DEBUG] Query: ${query}`);
+        console.log(`[DEBUG] Query Plan:`, JSON.stringify(plans, null, 2));
+      }
+
       return plans;
     } catch (error) {
       logger.warn(`Failed to get query plan: ${error instanceof Error ? error.message : String(error)}`);
@@ -100,15 +107,15 @@ export class QueryValidator {
         details.push(`Uses index: ${step.name || "unnamed"}`);
       }
 
-      // Detectar full table scan
-      if (detail.includes("SCAN TABLE") && !detail.includes("USING INDEX")) {
+      // Detectar full table scan (SQLite returns "SCAN tablename" not "SCAN TABLE")
+      if (detail.match(/^SCAN\s+\w+/) && !detail.includes("USING INDEX")) {
         fullScan = true;
         details.push(`Full table scan: ${step.name || "unknown"}`);
       }
 
-      // Detecctar search
-      if (detail.includes("SEARCH TABLE")) {
-        details.push(`Search table: ${step.name}`);
+      // Detectar search com índice
+      if (detail.includes("SEARCH")) {
+        details.push(`Search: ${detail}`);
       }
     }
 
