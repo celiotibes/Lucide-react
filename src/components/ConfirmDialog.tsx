@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 
 export interface ConfirmDialogProps {
@@ -23,6 +23,7 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogId = `confirm-dialog-${useId().replace(/:/g, "")}`;
 
   // Focus cancel button when dialog opens
   useEffect(() => {
@@ -51,7 +52,6 @@ export function ConfirmDialog({
     return null;
   }
 
-  const dialogId = `confirm-dialog-${Math.random().toString(36).slice(2, 9)}`;
   const titleId = `${dialogId}-title`;
   const descId = `${dialogId}-desc`;
 
@@ -59,6 +59,7 @@ export function ConfirmDialog({
     <div
       id={dialogId}
       role="alertdialog"
+      aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={descId}
       onKeyDown={handleKeyDown}

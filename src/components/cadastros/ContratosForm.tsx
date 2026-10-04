@@ -79,6 +79,7 @@ export function ContratosForm() {
   async function salvar() {
     if (!db || !form || form.imovel_id === null || form.locatario.trim() === "" || form.valor_referencia.trim() === "" || form.data_inicio === "") return;
     if (form.data_fim !== "" && form.data_fim < form.data_inicio) {
+      setTabAtiva("imovel");
       alert("A data de fim não pode ser anterior à data de início — corrija antes de salvar.");
       return;
     }
@@ -131,6 +132,7 @@ export function ContratosForm() {
       const indiceAtual = tabs.indexOf(tabAtiva);
       const novoIndice = e.key === "ArrowRight" ? (indiceAtual + 1) % tabs.length : (indiceAtual - 1 + tabs.length) % tabs.length;
       setTabAtiva(tabs[novoIndice]);
+      document.getElementById(`tabbtn-${tabs[novoIndice]}`)?.focus();
     }
   };
 
@@ -153,6 +155,8 @@ export function ContratosForm() {
               <button
                 key={tab}
                 role="tab"
+                id={`tabbtn-${tab}`}
+                tabIndex={tabAtiva === tab ? 0 : -1}
                 aria-selected={tabAtiva === tab}
                 aria-controls={`tab-${tab}`}
                 onClick={() => setTabAtiva(tab)}
@@ -176,7 +180,7 @@ export function ContratosForm() {
           </div>
 
           {tabAtiva === "imovel" && (
-            <div role="tabpanel" id="tab-imovel" style={{ marginBottom: 14 }}>
+            <div role="tabpanel" id="tab-imovel" aria-labelledby="tabbtn-imovel" style={{ marginBottom: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
                 <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
                   Imóvel
@@ -220,7 +224,7 @@ export function ContratosForm() {
           )}
 
           {tabAtiva === "valores" && (
-            <div role="tabpanel" id="tab-valores" style={{ marginBottom: 14 }}>
+            <div role="tabpanel" id="tab-valores" aria-labelledby="tabbtn-valores" style={{ marginBottom: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
                 <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
                   Índice de reajuste
@@ -247,7 +251,7 @@ export function ContratosForm() {
           )}
 
           {tabAtiva === "garantias" && (
-            <div role="tabpanel" id="tab-garantias" style={{ marginBottom: 14 }}>
+            <div role="tabpanel" id="tab-garantias" aria-labelledby="tabbtn-garantias" style={{ marginBottom: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
                 <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
                   Multa inicial (%)
