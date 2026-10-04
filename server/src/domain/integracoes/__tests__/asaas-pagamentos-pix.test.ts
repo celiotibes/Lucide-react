@@ -658,7 +658,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: `asaas-${randomUUID().slice(0, 8)}`, status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const pag = await criarPagamentoPix(db, {
         beneficiarioId: "fornec-recente",
@@ -684,7 +684,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-webhook-001", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const pag = await criarPagamentoPix(db, {
         beneficiarioId: "fornec-webhook",
@@ -707,7 +707,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
       const hist = db.prepare(`
         SELECT COUNT(*) as cnt FROM pagamentos_pix_historico
         WHERE pagamento_id = ? AND status_novo = 'COMPLETED'
-      `).get(pag.id) as any;
+      `).get(pag.id) as unknown as { cnt: number };
 
       // O histórico deveria ter sido criado pela função de atualização
       // Mas neste teste manual, apenas verificamos que a atualização funcionou
@@ -722,7 +722,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-e2e-001", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       // 1. Criar
       const pag = await criarPagamentoPix(db, {
@@ -742,7 +742,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-e2e-001", status: "PAID" }),
-      })) as any;
+      })) as MockFetch;
 
       await sincronizarPagamentosPendentes(db, mockFetchSync);
 
@@ -754,7 +754,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
       const hist = db.prepare(`
         SELECT COUNT(*) as cnt FROM pagamentos_pix_historico
         WHERE pagamento_id = ?
-      `).get(pag.id) as any;
+      `).get(pag.id) as unknown as { cnt: number };
       expect(hist.cnt).toBeGreaterThan(0);
     });
   });
