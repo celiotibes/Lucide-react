@@ -392,3 +392,32 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
     });
   });
 });
+
+describe("webhook Asaas: registro atômico (marca de visto + evento pendente)", () => {
+  it("se o enfileiramento falha, a marca de deduplicação é desfeita e a reentrega é aceita (nada se perde)", async () => {
+    process.env.ASAAS_WEBHOOK_TOKEN = "segredo-teste";
+    const db = createTestDatabase();
+    const { app, eventosService } = await criarAppDeTeste(db);
+    const corpo = { id: "evt_atomico_1", event: "PAYMENT_RECEIVED", payment: { id: "pay_atomico_1" } };
+
+    const original = eventosService.registrarEvento.bind(eventosService);
+    let falhar = true;
+    (eventosService as any).registrarEvento = (...args: any[]) => {
+      if (falhar) throw new Error("disco cheio");
+      return (original as any)(...args);
+    };
+
+    const r1 = await request(app).post("/api/asaas/webhooks/asaas").set("asaas-access-token", "segredo-teste").send(corpo);
+    expect(r1.status).toBe(500); // o Asaas vai reenviar
+    expect((db.prepare("SELECT COUNT(*) AS n FROM asaas_webhook_eventos").get() as { n: number }).n).toBe(0);
+
+    falhar = false;
+    const r2 = await request(app).post("/api/asaas/webhooks/asaas").set("asaas-access-token", "segredo-teste").send(corpo);
+    expect(r2.status).toBe(200);
+    expect(r2.body.duplicado).toBeUndefined();
+    const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
+    expect(pendentes.filter((e) => (e.payload as any)?.payment?.id === "pay_atomico_1")).toHaveLength(1);
+    delete process.env.ASAAS_WEBHOOK_TOKEN;
+    db.close();
+  });
+});

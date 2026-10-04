@@ -285,36 +285,42 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
       return;
     }
 
-    // Idempotência: a chave é o id do evento (body.id) ou, na falta dele, o hash do corpo.
-    // NUNCA payment.id: uma mesma cobrança gera vários eventos distintos (criada, confirmada,
-    // recebida, estornada) e todos descartados após o primeiro perderiam o pagamento.
-    if (db) {
-      try {
-        const payloadHash = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+    // Idempotência + enfileiramento em UMA transação (padrão outbox): a marca de "já visto" e o evento
+    // pendente nascem juntos ou nenhum dos dois. Em duas operações soltas, uma queda entre elas deixaria
+    // o evento marcado como visto e nunca enfileirado — e a reentrega do Asaas seria descartada como
+    // duplicata, perdendo o pagamento. Qualquer falha desfaz tudo e responde 500 (o Asaas reenvia).
+    //
+    // A chave é o id do evento (body.id) ou, na falta dele, o hash do corpo. NUNCA payment.id: uma mesma
+    // cobrança gera vários eventos distintos (criada, confirmada, recebida, estornada).
+    try {
+      if (db) {
+        const payloadHash = crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
         const chaveEvento = typeof body.id === "string" && body.id.trim() ? body.id : payloadHash;
-
-        const inserido = db
-          .prepare(
-            `INSERT OR IGNORE INTO asaas_webhook_eventos (id, id_evento_asaas, tipo, payment_id, payload_hash)
-             VALUES (?, ?, ?, ?, ?)`,
-          )
-          .run(randomUUID(), chaveEvento, body.event, payment.id, payloadHash);
-
-        if (inserido.changes === 0) {
+        const registrarAtomicamente = db.transaction(() => {
+          const inserido = db
+            .prepare(
+              `INSERT OR IGNORE INTO asaas_webhook_eventos (id, id_evento_asaas, tipo, payment_id, payload_hash)
+               VALUES (?, ?, ?, ?, ?)`,
+            )
+            .run(randomUUID(), chaveEvento, body.event, payment.id, payloadHash);
+          if (inserido.changes === 0) return false;
+          eventosService.registrarEvento("webhook_asaas", body);
+          return true;
+        });
+        if (!registrarAtomicamente()) {
           logger.info(`[asaas-routes] Webhook duplicado (chave ${chaveEvento.slice(0, 12)}…) — 200 sem reprocessar`);
           res.json({ recebido: true, duplicado: true });
           return;
         }
-      } catch (erro) {
-        logger.error(
-          "[asaas-routes] Erro ao registrar evento em asaas_webhook_eventos:",
-          erro instanceof Error ? erro.message : erro,
-        );
-        // Continua mesmo com erro na deduplicação — preferível enfileirar duplicado a perder evento
+      } else {
+        eventosService.registrarEvento("webhook_asaas", body);
       }
+    } catch (erro) {
+      logger.error("[asaas-routes] Falha ao registrar o evento do webhook:", erro instanceof Error ? erro.message : erro);
+      res.status(500).json({ erro: "Falha ao registrar o evento; tente novamente" });
+      return;
     }
 
-    eventosService.registrarEvento("webhook_asaas", body);
     res.json({ recebido: true });
   });
 
