@@ -255,7 +255,7 @@ export function recordCacheMiss(cacheType: string, keyPattern: string = 'all') {
       counter.labels(cacheType, keyPattern).inc();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record cache miss:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -271,7 +271,7 @@ export function recordCacheOperationLatency(
       histogram.labels(operation, cacheType).observe(durationMs);
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record cache operation latency:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -283,7 +283,7 @@ export function setActiveConnections(count: number) {
       gauge.set(count);
     }
   } catch (error) {
-    console.error('[Metrics] Failed to set active connections:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -295,7 +295,7 @@ export function setCacheSize(sizeBytes: number, cacheType: string = 'memory') {
       gauge.labels(cacheType).set(sizeBytes);
     }
   } catch (error) {
-    console.error('[Metrics] Failed to set cache size:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -307,7 +307,7 @@ export function setCacheEntriesCount(count: number, cacheType: string = 'memory'
       gauge.labels(cacheType).set(count);
     }
   } catch (error) {
-    console.error('[Metrics] Failed to set cache entries count:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -319,7 +319,7 @@ export function incrementActiveRequests(method: string, route: string) {
       gauge.labels(method, route).inc();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to increment active requests:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -331,7 +331,7 @@ export function decrementActiveRequests(method: string, route: string) {
       gauge.labels(method, route).dec();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to decrement active requests:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -343,7 +343,7 @@ export function recordTransactionProcessed(transactionType: string, status: stri
       counter.labels(transactionType, status).inc();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record transaction:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 

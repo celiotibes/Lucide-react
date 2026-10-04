@@ -14,8 +14,8 @@ type Factory<T> = () => T;
 type ServiceDefinition<T> = T | Factory<T>;
 
 export class Container {
-  private services = new Map<string, any>();
-  private factories = new Map<string, Factory<any>>();
+  private services = new Map<string, unknown>();
+  private factories = new Map<string, Factory<unknown>>();
 
   /**
    * Registra um serviço ou factory
@@ -92,7 +92,7 @@ export class Container {
   /**
    * Helper para detectar se é classe
    */
-  private isClass(func: any): boolean {
+  private isClass(func: unknown): boolean {
     const isClass =
       typeof func === 'function' &&
       func.prototype &&
