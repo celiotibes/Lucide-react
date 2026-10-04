@@ -3,7 +3,7 @@
  * Validar que DI funciona, repositories são mockáveis
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { Container, getContainer, resetContainer, createContainer } from '../infrastructure/container.js';
 
 describe('Dependency Injection Container', () => {
@@ -138,11 +138,11 @@ describe('Dependency Injection Container', () => {
 
       // Mock repository
       const mockRepository = {
-        findById: async (id: number) => ({ id, name: 'Mocked' }),
+        findById: async () => ({ id: 1, name: 'Mocked' }),
         findAll: async () => [{ id: 1, name: 'Item 1' }],
-        save: async (entity: any) => entity,
-        delete: async (id: number) => true,
-        exists: async (id: number) => true,
+        save: async (entity: Record<string, unknown>) => entity,
+        delete: async () => true,
+        exists: async () => true,
         count: async () => 1,
       };
 
@@ -166,7 +166,7 @@ describe('Dependency Injection Container', () => {
 
       // Mock repository that depends on db
       const mockRepo = {
-        findById: async (id: number) => null,
+        findById: async () => null,
         count: async () => 0,
       };
 
@@ -210,8 +210,8 @@ describe('Dependency Injection Container', () => {
       }));
 
       container.registerSingleton('cache', () => ({
-        get: (key: string) => null,
-        set: (key: string, value: any) => {},
+        get: () => null,
+        set: () => {},
       }));
 
       container.registerSingleton('db', () => ({
@@ -220,7 +220,6 @@ describe('Dependency Injection Container', () => {
 
       container.registerSingleton('userRepository', () => {
         const logger = container.resolve('logger') as { log: (msg: string) => void };
-        const cache = container.resolve('cache') as { get: (key: string) => unknown; set: (key: string, value: unknown) => void };
         const db = container.resolve('db') as { query: () => unknown[] };
 
         return {
