@@ -387,8 +387,8 @@ export function conciliarPixOFX(db: Database.Database): ResultadoConciliacao {
         `);
         stmtUpdate.run(lancamentoId, conciliacaoId);
 
-        // TODO: ledger.registrarLancamento
         // Registra no ledger (double-entry bookkeeping)
+        // Integração contábil automática para conciliação PIX↔OFX
         // Débito: Caixa PIX (1120) | Crédito: Receita (4110)
         const resultadoLedger = registrarDoubleEntry(db, {
           id: randomUUID(),

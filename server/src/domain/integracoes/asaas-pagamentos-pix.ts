@@ -509,8 +509,8 @@ export async function buscarStatusPagamentoPix(
     if (statusNovo !== pagamento.status) {
       atualizarStatusPagamento(db, pagamentoId, statusNovo);
 
-      // TODO: ledger.registrarLancamento
-      // Se o pagamento foi completado, registra no ledger
+      // Registra no ledger quando pagamento é completado
+      // Integração com contabilidade: débito em despesa, crédito em banco
       if (statusNovo === "COMPLETED") {
         const resultadoLedger = registrarLancamento(db, {
           id: randomUUID(),
@@ -524,7 +524,10 @@ export async function buscarStatusPagamentoPix(
         });
 
         if (!resultadoLedger.sucesso) {
-          logger.warn(`[AsaasPagamentosPix] Falha ao registrar no ledger: ${resultadoLedger.erro}`);
+          logger.error(`[AsaasPagamentosPix] Falha crítica ao registrar no ledger: ${resultadoLedger.erro}`, {
+            pagamentoId,
+            asaasPaymentId: pagamento.asaasPaymentId,
+          });
         }
       }
     }
