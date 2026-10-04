@@ -151,33 +151,50 @@ export function AdvocaciaView() {
   const [mostrarFormDespesa, setMostrarFormDespesa] = useState(false);
   const [rascunhoDespesa, setRascunhoDespesa] = useState<RascunhoDespesa>(RASCUNHO_DESPESA_VAZIO);
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
 
   const planoContas = useMemo<PlanoConta[]>(
-    () => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []),
+    () => {
+      void versao;
+      return db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : [];
+    },
     [db, versao],
   );
 
   const processos = useMemo(
-    () =>
-      db && entidade
+    () => {
+      void versao;
+      return db && entidade
         ? listarProcessos(db, entidade.id, filtroStatus === "todos" ? {} : { status: filtroStatus })
-        : [],
+        : [];
+    },
     [db, versao, entidade, filtroStatus],
   );
 
   const relatorioGeral = useMemo(
-    () => (db && entidade ? gerarRelatorioAdvocacia(db, entidade.id, hoje) : null),
+    () => {
+      void versao;
+      return db && entidade ? gerarRelatorioAdvocacia(db, entidade.id, hoje) : null;
+    },
     [db, versao, entidade, hoje],
   );
 
   const processoSelecionado = useMemo(
-    () => (db && processoSelecionadoId !== null ? obterProcesso(db, processoSelecionadoId) : null),
+    () => {
+      void versao;
+      return db && processoSelecionadoId !== null ? obterProcesso(db, processoSelecionadoId) : null;
+    },
     [db, versao, processoSelecionadoId],
   );
 
   const relatorioProcesso = useMemo(
-    () => (db && processoSelecionadoId !== null ? gerarRelatorioProcesso(db, processoSelecionadoId, hoje) : null),
+    () => {
+      void versao;
+      return db && processoSelecionadoId !== null ? gerarRelatorioProcesso(db, processoSelecionadoId, hoje) : null;
+    },
     [db, versao, processoSelecionadoId, hoje],
   );
 
