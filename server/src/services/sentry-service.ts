@@ -17,7 +17,7 @@
  */
 
 import * as Sentry from "@sentry/node";
-import * as SentryTracing from "@sentry/tracing";
+import { Http } from "@sentry/node";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { logger } from "./logger-service.js";
@@ -145,18 +145,20 @@ export function initializeSentry(): void {
       profilesSampleRate: environment === "production" ? 0.1 : 1.0,
       // Integrations
       integrations: [
-        new SentryTracing.Http({
-          tracingOrigins: ["localhost", /^\//],
+        new Http({
+          tracing: {
+            tracePropagationTargets: ["localhost", /^\//],
+          },
         }),
       ],
       // before_send hook for filtering sensitive data
-      beforeSend(event, hint) {
+      beforeSend(event) {
         // Filter sensitive data from event
         if (event.request) {
-          event.request = filterSensitiveData(event.request) as Sentry.Request;
+          event.request = filterSensitiveData(event.request) as any;
         }
         if (event.contexts) {
-          event.contexts = filterSensitiveData(event.contexts) as Record<string, unknown>;
+          event.contexts = filterSensitiveData(event.contexts) as Record<string, any>;
         }
         if (event.extra) {
           event.extra = filterSensitiveData(event.extra) as Record<string, unknown>;
@@ -784,4 +786,15 @@ export async function trackDatabaseTransaction<T>(
   }
 }
 
-export { Sentry, SentryTracing };
+export { Sentry };
+
+/**
+ * SentryService class for dependency injection
+ */
+export class SentryService {
+  constructor(options?: { dsn?: string }) {
+    if (options?.dsn) {
+      process.env.SENTRY_DSN = options.dsn;
+    }
+  }
+}
