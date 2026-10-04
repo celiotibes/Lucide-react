@@ -610,7 +610,7 @@ function consultarSeguro(db: Database.Database, sql: string, param: string): any
         if (values && values.length > 0) {
           const row = values[0];
           const obj: any = {};
-          columns.forEach((col, idx) => {
+          columns.forEach((col: string, idx: number) => {
             obj[col] = row[idx];
           });
           return obj;
@@ -891,7 +891,7 @@ export function obterReembolsosPorChargeId(db: Database.Database, chargeId: stri
 
     return values.map((row: any[]) => {
       const obj: any = {};
-      columns.forEach((col, idx) => {
+      columns.forEach((col: string, idx: number) => {
         obj[col] = row[idx];
       });
       return mapeiaReembolsoCobranca(obj);

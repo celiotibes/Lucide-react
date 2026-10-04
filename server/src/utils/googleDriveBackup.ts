@@ -119,7 +119,7 @@ async function comprimirBanco(zipPath: string): Promise<boolean> {
         resolve(true);
       });
 
-      archive.on("error", (err) => {
+      archive.on("error", (err: any) => {
         logger.error("[GoogleDriveBackup] Erro ao compactar:", err.message);
         resolve(false);
       });
