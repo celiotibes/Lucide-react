@@ -35,7 +35,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
       validarToken: vi.fn().mockReturnValue({
         usuarioId: "user1",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
       }),
     };
 
@@ -48,7 +48,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
-        usuario: { id: "user1", email: "test@example.com", role: "admin" },
+        usuario: { id: "user1", email: "test@example.com", role: "administrador" },
       };
       (req as any).usuarioId = "user1";
       (req as any).usuarioRole = "admin";
