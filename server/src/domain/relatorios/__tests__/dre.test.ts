@@ -33,6 +33,16 @@ function criarTestDatabase(): Database.Database {
   const db = new Database(TEST_DB_PATH);
   db.pragma("foreign_keys = ON");
   db.exec(resolverSchema("migrations-phase6-relatorios-dre.sql"));
+  db.exec(resolverSchema("migrations-phase16-ledger-entries.sql"));
+
+  // Também carrega schema asaas_cobrancas para testes com receitas
+  try {
+    db.exec(resolverSchema("domain/integracoes/schema-asaas.sql"));
+  } catch (e) {
+    // Schema asaas pode não estar disponível em todos os contextos de teste
+    console.debug("Schema asaas não carregado no teste");
+  }
+
   return db;
 }
 
@@ -229,6 +239,49 @@ describe("Domain: DRE (Demonstração de Resultado do Exercício)", () => {
       expect(buscado?.receitaExtraordinaria).toBe(100);
     });
 
+    it("T5b: Calcula DRE com dados reais de asaas_cobrancas", () => {
+      // Insere cobranças pagas
+      const insertCobranca = db.prepare(`
+        INSERT INTO asaas_cobrancas (
+          id, aluguel_id, imovel_id, valor, data_vencimento, status,
+          data_criacao, data_pagamento, valor_pago, tipo_pagamento
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      insertCobranca.run(
+        "cob-1",
+        "alg-1",
+        "imov-1",
+        1000.00,
+        "2026-10-15",
+        "paga",
+        "2026-10-01T10:00:00Z",
+        "2026-10-10",
+        1000.00,
+        "pix"
+      );
+
+      insertCobranca.run(
+        "cob-2",
+        "alg-2",
+        "imov-2",
+        500.00,
+        "2026-10-20",
+        "paga",
+        "2026-10-01T10:00:00Z",
+        "2026-10-18",
+        500.00,
+        "boleto"
+      );
+
+      const resultado = calcularDREPeriodo(db, "2026-10-01", "2026-10-31");
+
+      // Receitas em centavos: 1000.00 + 500.00 = 150000 centavos
+      expect(resultado.receitaAluguel).toBe(150000);
+      expect(resultado.receitaTotal).toBe(150000);
+      expect(resultado.lucroBruto).toBe(150000); // Sem despesas
+    });
+
     it("T6: Grava todos os campos de despesa corretamente", () => {
       const dre: ResultadoDRE = {
         ano: 2026,
@@ -296,6 +349,107 @@ describe("Domain: DRE (Demonstração de Resultado do Exercício)", () => {
 
       const buscado = buscarDREPeriodo(db, 2026, 4);
       expect(buscado?.calculadoEm).toBeTruthy();
+    });
+  });
+
+  describe("Cálculo com dados reais: asaas_cobrancas + ledger_entries — 3 testes", () => {
+    it("T1: Calcula DRE com receitas e despesas reais", () => {
+      // Insere cobranças pagas (receitas)
+      const insertCobranca = db.prepare(`
+        INSERT INTO asaas_cobrancas (
+          id, aluguel_id, imovel_id, valor, data_vencimento, status,
+          data_criacao, data_pagamento, valor_pago, tipo_pagamento
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      insertCobranca.run(
+        "cob-real-1",
+        "alg-1",
+        "imov-1",
+        5000.00,
+        "2026-10-15",
+        "paga",
+        "2026-10-01T10:00:00Z",
+        "2026-10-10",
+        5000.00,
+        "pix"
+      );
+
+      // Insere despesas
+      const insertLedger = db.prepare(`
+        INSERT INTO ledger_entries (
+          id, data, tipo, categoria, valor, descricao, usuario_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      insertLedger.run("led-1", "2026-10-05", "despesa", "comissao", 100.00, "Comissão Asaas", "user-1");
+      insertLedger.run("led-2", "2026-10-10", "despesa", "folha_pagamento", 2000.00, "Folha outubro", "user-1");
+      insertLedger.run("led-3", "2026-10-12", "despesa", "condominio", 500.00, "Condomínio", "user-1");
+      insertLedger.run("led-4", "2026-10-15", "despesa", "manutencao", 300.00, "Manutenção", "user-1");
+      insertLedger.run("led-5", "2026-10-20", "despesa", "juros", 150.00, "Juros bancários", "user-1");
+
+      const resultado = calcularDREPeriodo(db, "2026-10-01", "2026-10-31");
+
+      // Receitas: 5000.00 = 500000 centavos
+      expect(resultado.receitaAluguel).toBe(500000);
+      expect(resultado.receitaTotal).toBe(500000);
+
+      // Despesas variáveis: comissão 100.00 = 10000 centavos
+      expect(resultado.despesaComissoes).toBe(10000);
+      expect(resultado.despesaVariavelTotal).toBe(10000);
+
+      // Lucro bruto = 500000 - 10000 = 490000
+      expect(resultado.lucroBruto).toBe(490000);
+
+      // Despesas fixas: folha 2000 + condominio 500 + manutencao 300 + juros 150
+      // = 2950.00 = 295000 centavos
+      expect(resultado.despesaFolhaPagamento).toBe(200000);
+      expect(resultado.despesaCondominio).toBe(50000);
+      expect(resultado.despesaManutencao).toBe(30000);
+      expect(resultado.despesaJuros).toBe(15000);
+      expect(resultado.despesaFixaTotal).toBe(295000);
+
+      // Lucro líquido = lucro bruto - despesas fixas
+      // = 490000 - 295000 = 195000
+      expect(resultado.lucroLiquido).toBe(195000);
+    });
+
+    it("T2: DRE sem receitas (período sem cobranças)", () => {
+      const resultado = calcularDREPeriodo(db, "2026-09-01", "2026-09-30");
+
+      expect(resultado.receitaAluguel).toBe(0);
+      expect(resultado.receitaTotal).toBe(0);
+      expect(resultado.lucroBruto).toBe(0);
+      expect(resultado.despesaFixaTotal).toBe(0);
+      expect(resultado.lucroLiquido).toBe(0);
+    });
+
+    it("T3: DRE ignora cobranças não pagas", () => {
+      const insertCobranca = db.prepare(`
+        INSERT INTO asaas_cobrancas (
+          id, aluguel_id, imovel_id, valor, data_vencimento, status,
+          data_criacao, valor_pago, tipo_pagamento
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      // Insere cobranças pendentes (não pagas)
+      insertCobranca.run(
+        "cob-pend-1",
+        "alg-1",
+        "imov-1",
+        1000.00,
+        "2026-11-15",
+        "pendente",
+        "2026-11-01T10:00:00Z",
+        null,
+        null
+      );
+
+      const resultado = calcularDREPeriodo(db, "2026-11-01", "2026-11-30");
+
+      // Não deve contar cobranças não pagas
+      expect(resultado.receitaAluguel).toBe(0);
+      expect(resultado.receitaTotal).toBe(0);
     });
   });
 

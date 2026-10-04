@@ -25,7 +25,7 @@ import type Database from "better-sqlite3";
 import { logger } from './services/logger-service.js';
 import { LembretesAgendadosServiceDB, type LembreteAgendado } from "./domain/notificacoes/lembretes-agendados-db.js";
 import { enviarEmail } from "./notificacoes/email.js";
-import { enviarWhatsapp } from "./notificacoes/whatsapp.js";
+import { enviarWhatsapp, type OpcoesEnviarWhatsapp } from "./notificacoes/whatsapp.js";
 import { enviarTelegram } from "./notificacoes/telegram-sender.js";
 import { calcularDREPeriodo, gravarDREPeriodo } from "./domain/relatorios/dre.js";
 import { sincronizarStatusTaxaAsaas } from "./domain/integracoes/pagamentos-reconciliador.js";
@@ -36,7 +36,7 @@ import { backupSQLiteToGoogleDrive } from "./utils/googleDriveBackup.js";
 
 export interface SendersLembretesAgendados {
   enviarEmail: (opcoes: { destinatario: string; assunto: string; corpo: string }) => Promise<void>;
-  enviarWhatsapp: (opcoes: { destinatarioE164: string; mensagem: string }) => Promise<void>;
+  enviarWhatsapp: (opcoes: OpcoesEnviarWhatsapp) => Promise<void>;
   enviarTelegram: (opcoes: { chatId: string; mensagem: string }) => Promise<void>;
 }
 

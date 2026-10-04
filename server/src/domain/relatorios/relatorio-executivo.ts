@@ -17,6 +17,8 @@
 import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { calcularMargensImovel } from "./margensPorPropriedade.js";
+import { calcularDREPeriodo, type ResultadoDRE } from "./dre.js";
+import { obterPeriodoMes } from "./report-helpers.js";
 
 /** Seção que o servidor não consegue calcular com os dados que possui. */
 export interface SecaoIndisponivel {
@@ -169,6 +171,73 @@ export function tabelaExiste(db: Database.Database, nome: string): boolean {
   return linha !== undefined;
 }
 
+/**
+ * Converte ResultadoDRE (valores em centavos) para DREResumo (valores em reais).
+ * Divide todos os valores por 100 e calcula variações e histórico.
+ */
+function converterDREParaResumo(db: Database.Database, dre: ResultadoDRE): DREResumo {
+  // Converte centavos para reais (÷100)
+  return {
+    receitaTotal: dre.receitaTotal / 100,
+    receitaAluguel: dre.receitaAluguel / 100,
+    receitaHonorario: dre.receitaHonorario / 100,
+    receitaExtraordinaria: dre.receitaExtraordinaria / 100,
+    despesaTotal: (dre.despesaFixaTotal + dre.despesaVariavelTotal) / 100,
+    despesaFolhaPagamento: dre.despesaFolhaPagamento / 100,
+    despesaCondominio: dre.despesaCondominio / 100,
+    despesaManutencao: dre.despesaManutencao / 100,
+    despesaImpostos: dre.despesaImpostosReceita / 100,
+    despesaJuros: dre.despesaJuros / 100,
+    lucroLiquido: dre.lucroLiquido / 100,
+    lucroBruto: dre.lucroBruto / 100,
+    variacao: {
+      mesAnterior: 0, // TODO: implementar cálculo de variação
+      ytd: 0, // TODO: implementar cálculo YTD
+    },
+    historico: [], // TODO: implementar histórico
+  };
+}
+
+/**
+ * Tenta calcular DRE a partir de asaas_cobrancas + ledger_entries.
+ * Retorna SecaoIndisponivel se tabelas necessárias não existem.
+ */
+function calcularDREOuIndisponivel(
+  db: Database.Database,
+  mes: number,
+  ano: number,
+): Secao<DREResumo> {
+  try {
+    // Verifica se pelo menos uma das tabelas de origem existe
+    const temAsaas = tabelaExiste(db, "asaas_cobrancas");
+    const temLedger = tabelaExiste(db, "ledger_entries");
+
+    if (!temAsaas && !temLedger) {
+      return {
+        indisponivel: true,
+        motivo:
+          "O servidor não possui tabelas de receitas ou despesas (asaas_cobrancas e ledger_entries ausentes).",
+        fonteEsperada:
+          "asaas_cobrancas (cobranças pagas) e/ou ledger_entries (despesas categorizadas)",
+        tabelasAusentes: ["asaas_cobrancas", "ledger_entries"],
+      };
+    }
+
+    // Calcula DRE para o período
+    const periodo = obterPeriodoMes(mes, ano);
+    const resultado = calcularDREPeriodo(db, periodo.inicio, periodo.fim);
+
+    return converterDREParaResumo(db, resultado);
+  } catch (erro) {
+    logger.warn("[RelatorioExecutivo] Erro ao calcular DRE:", erro);
+    return {
+      indisponivel: true,
+      motivo: "Erro ao calcular DRE: " + (erro instanceof Error ? erro.message : String(erro)),
+      fonteEsperada: "asaas_cobrancas + ledger_entries",
+    };
+  }
+}
+
 function tabelasAusentes(db: Database.Database, nomes: string[]): string[] {
   return nomes.filter((n) => !tabelaExiste(db, n));
 }
@@ -197,12 +266,7 @@ export function gerarRelatorioExecutivo(
   mes: number,
   ano: number,
 ): RelatorioExecutivo {
-  const dre: SecaoIndisponivel = {
-    indisponivel: true,
-    motivo:
-      "O servidor não calcula DRE: o cálculo de receitas/despesas depende do razão canônico, que não existe no banco do servidor (dre_periodos só guarda snapshots de um cálculo ainda não implementado, portanto não são usados).",
-    fonteEsperada: FONTE_RAZAO_CANONICO,
-  };
+  const dre = calcularDREOuIndisponivel(db, mes, ano);
 
   const fluxo: SecaoIndisponivel = {
     indisponivel: true,

@@ -1,3 +1,5 @@
+import type { OpcoesEnviarWhatsapp } from "../../notificacoes/whatsapp.js";
+
 /**
  * Orquestração do disparo de notificação pelos 3 canais (e-mail, WhatsApp, Telegram).
  *
@@ -49,7 +51,7 @@ export interface DestinatariosNotificacao {
  * `server/src/notificacoes/`), não atrás de uma chamada HTTP adicional. */
 export interface SendersNotificacao {
   enviarEmail: (opcoes: { destinatario: string; assunto: string; corpo: string }) => Promise<void>;
-  enviarWhatsapp: (opcoes: { destinatarioE164: string; mensagem: string }) => Promise<void>;
+  enviarWhatsapp: (opcoes: OpcoesEnviarWhatsapp) => Promise<void>;
   enviarTelegram: (opcoes: { chatId: string; mensagem: string }) => Promise<void>;
 }
 

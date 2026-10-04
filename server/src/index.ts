@@ -49,6 +49,9 @@ import { criarRotasAnomalias } from "../src/routes/anomalias-routes.js";
 import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 import { criarRotasBackup } from "../src/routes/backup-routes.js";
+// Phase 13: Backup Scheduler — agendamento periódico de backups
+import BackupService from "../src/services/backup-service.js";
+import BackupScheduler from "../src/services/backup-scheduler.js";
 // Phase 10: Assinatura Digital + LGPD
 import { criarRotasAssinaturasLGPD } from "../src/routes/assinatura-lgpd-routes.js";
 // Phase 9: Cache, Alertas, Health Check
@@ -91,6 +94,15 @@ const envSchema = z.object({
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   // SEC-012: Sentry Error Tracking
   SENTRY_DSN: z.string().optional(),
+  // Fase 13: Backup Scheduler — variáveis opcionais (backup automático)
+  BACKUP_LOCAL_DIR: z.string().optional(),
+  BACKUP_ENCRYPTION_KEY: z.string().optional(),
+  BACKUP_SCHEDULE: z.string().optional(),
+  BACKUP_VERIFY_SCHEDULE: z.string().optional(),
+  BACKUP_RETENTION_DAYS: z.string().optional(),
+  BACKUP_FISCAL_RETENTION_DAYS: z.string().optional(),
+  NAS_PATH: z.string().optional(),
+  NAS_COPY_ENABLED: z.string().optional(),
 });
 
 // Parse e validação de variáveis de ambiente no boot
@@ -158,6 +170,23 @@ iniciarDisparoLembretesAgendados(db);
  * migrations-phase4.1-anomalias.sql): analisa transações do último dia e registra alertas
  * críticos. Roda uma vez ao boot e depois a cada 24 horas, independente de requisições HTTP. */
 iniciarScannerAnomaliasDiario(db);
+
+/** Fase 13: Backup Scheduler — agendamento periódico de backups com verificação de restauração
+ * (ver backup-scheduler.ts). Inicializa o backup automático se BACKUP_LOCAL_DIR e
+ * BACKUP_ENCRYPTION_KEY estiverem configuradas. Roda em background com setInterval.unref()
+ * para não bloquear saída do processo. */
+let backupScheduler: BackupScheduler | null = null;
+if (process.env.BACKUP_LOCAL_DIR && process.env.BACKUP_ENCRYPTION_KEY) {
+  try {
+    const backupService = new BackupService();
+    backupScheduler = new BackupScheduler(backupService);
+    backupScheduler.start();
+    logger.info("[Server] Backup scheduler iniciado com sucesso");
+  } catch (error) {
+    logger.error("[Server] Erro ao inicializar backup scheduler:", error instanceof Error ? error.message : error);
+    // Falha aberta: backup automático desabilitado, mas sistema continua funcionando
+  }
+}
 
 // Fase 1 (auth real): avisa alto no boot se o segredo de assinatura de
 // sessão foi gerado só para este processo (SESSION_SECRET/JWT_SECRET
@@ -250,6 +279,8 @@ app.locals.db = db;
 app.locals.cache = cache;
 app.locals.enviarAlertaEmail = enviarAlertaEmail;
 app.locals.enviarAlertaSlack = enviarAlertaSlack;
+// Phase 13: Backup Scheduler
+app.locals.backupScheduler = backupScheduler;
 
 // Limite de requisições por IP — protege contra força bruta de itemId/accountId (agravaria o
 // achado abaixo se não houvesse chave) e contra estourar a cota paga da API da Pluggy.

@@ -1,7 +1,10 @@
 /**
  * Cálculo e persistência de DRE (Demonstração de Resultado do Exercício).
  *
- * Opção A: On-The-Fly (real-time) — calcula somando transações Pluggy + lançamentos contábeis
+ * Opção A: On-The-Fly (real-time) — calcula somando:
+ *   - Receitas: asaas_cobrancas (paid invoices)
+ *   - Despesas: ledger_entries (categorized expenses) quando disponível
+ *
  * Opção B: Histórico (gravado 1x/dia) — armazena em `dre_periodos` e permite histórico
  *
  * Estrutura DRE:
@@ -11,10 +14,14 @@
  * - Despesa Fixa: folha de pagamento, condomínio, manutenção, juros (independentes)
  * - Lucro Bruto = Receita Operacional - Despesa Variável
  * - Lucro Líquido = Lucro Bruto - Despesa Fixa + Receita Extraordinária
+ *
+ * Nota sobre centavos: todos os valores no banco são em centavos (DECIMAL com 2 casas decimais).
+ * As operações internas usam inteiros (centavos) — conversão para reais (÷100) é feita apenas na exibição.
  */
 
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
+import { logger } from "../../services/logger-service.js";
 
 export interface ResultadoDRE {
   ano: number;
@@ -22,28 +29,28 @@ export interface ResultadoDRE {
   dataInicio: string; // YYYY-MM-DD
   dataFim: string;   // YYYY-MM-DD
 
-  // Receitas
+  // Receitas (em centavos)
   receitaAluguel: number;
   receitaHonorario: number;
   receitaExtraordinaria: number;
   receitaTotal: number;
 
-  // Despesas Variáveis
+  // Despesas Variáveis (em centavos)
   despesaComissoes: number;
   despesaImpostosReceita: number;
   despesaVariavelTotal: number;
 
-  // Lucro Bruto
+  // Lucro Bruto (em centavos)
   lucroBruto: number;
 
-  // Despesas Fixas
+  // Despesas Fixas (em centavos)
   despesaFolhaPagamento: number;
   despesaCondominio: number;
   despesaManutencao: number;
   despesaJuros: number;
   despesaFixaTotal: number;
 
-  // Resultado Final
+  // Resultado Final (em centavos)
   lucroLiquido: number;
 
   // Metadata
@@ -51,10 +58,124 @@ export interface ResultadoDRE {
 }
 
 /**
+ * Busca receitas de cobranças pagas (asaas_cobrancas) para um período.
+ * Retorna o valor total de cobranças com status 'paga' entre dataInicio e dataFim.
+ * Valores em centavos.
+ */
+function buscarReceitasAsaas(
+  db: Database.Database,
+  dataInicio: string,
+  dataFim: string,
+): { aluguel: number; honorario: number; extraordinaria: number } {
+  try {
+    // Tenta buscar cobranças pagas no período
+    // Nota: o schema asaas_cobrancas não tem categoria, então por enquanto
+    // todas as cobranças vão para 'aluguel'. Uma versão futura pode ter
+    // um campo 'categoria' ou 'tipo' para diferençar aluguel/honorário.
+    const stmt = db.prepare(`
+      SELECT
+        COALESCE(SUM(CAST(valor_pago * 100 AS INTEGER)), 0) as total
+      FROM asaas_cobrancas
+      WHERE status = 'paga'
+        AND data_pagamento IS NOT NULL
+        AND data_pagamento >= ?
+        AND data_pagamento <= ?
+    `);
+
+    const resultado = stmt.get(dataInicio, dataFim) as { total: number } | undefined;
+    const total = resultado?.total ?? 0;
+
+    return {
+      aluguel: total, // Por enquanto, todas as cobranças são aluguel
+      honorario: 0,
+      extraordinaria: 0,
+    };
+  } catch (erro) {
+    if (erro instanceof Error && erro.message.includes("no such table")) {
+      logger.warn("[DRE] Tabela asaas_cobrancas não existe ainda");
+    } else {
+      logger.error("[DRE] Erro ao buscar receitas asaas:", erro);
+    }
+    return { aluguel: 0, honorario: 0, extraordinaria: 0 };
+  }
+}
+
+/**
+ * Busca despesas categorizadas de ledger_entries (quando disponível).
+ * Retorna despesas por categoria: comissões, impostos, folha, condomínio, manutenção, juros.
+ * Valores em centavos.
+ */
+function buscarDespesasLedger(
+  db: Database.Database,
+  dataInicio: string,
+  dataFim: string,
+): {
+  comissoes: number;
+  impostos: number;
+  folha: number;
+  condominio: number;
+  manutencao: number;
+  juros: number;
+} {
+  try {
+    // Tenta buscar despesas categorizadas se tabela existe
+    // Estrutura esperada: ledger_entries com campos (data, categoria, valor, ...)
+    // Categorias: 'comissao', 'imposto', 'folha_pagamento', 'condominio', 'manutencao', 'juros'
+    const stmt = db.prepare(`
+      SELECT
+        SUM(CASE WHEN categoria = 'comissao' THEN CAST(valor * 100 AS INTEGER) ELSE 0 END) as comissoes,
+        SUM(CASE WHEN categoria = 'imposto' THEN CAST(valor * 100 AS INTEGER) ELSE 0 END) as impostos,
+        SUM(CASE WHEN categoria = 'folha_pagamento' THEN CAST(valor * 100 AS INTEGER) ELSE 0 END) as folha,
+        SUM(CASE WHEN categoria = 'condominio' THEN CAST(valor * 100 AS INTEGER) ELSE 0 END) as condominio,
+        SUM(CASE WHEN categoria = 'manutencao' THEN CAST(valor * 100 AS INTEGER) ELSE 0 END) as manutencao,
+        SUM(CASE WHEN categoria = 'juros' THEN CAST(valor * 100 AS INTEGER) ELSE 0 END) as juros
+      FROM ledger_entries
+      WHERE data >= ?
+        AND data <= ?
+        AND tipo = 'despesa'
+    `);
+
+    const resultado = stmt.get(dataInicio, dataFim) as {
+      comissoes: number;
+      impostos: number;
+      folha: number;
+      condominio: number;
+      manutencao: number;
+      juros: number;
+    } | undefined;
+
+    return {
+      comissoes: resultado?.comissoes ?? 0,
+      impostos: resultado?.impostos ?? 0,
+      folha: resultado?.folha ?? 0,
+      condominio: resultado?.condominio ?? 0,
+      manutencao: resultado?.manutencao ?? 0,
+      juros: resultado?.juros ?? 0,
+    };
+  } catch (erro) {
+    if (erro instanceof Error && erro.message.includes("no such table")) {
+      logger.debug("[DRE] Tabela ledger_entries não existe ainda");
+    } else {
+      logger.debug("[DRE] Erro ao buscar despesas ledger (ignorado):", erro);
+    }
+    return {
+      comissoes: 0,
+      impostos: 0,
+      folha: 0,
+      condominio: 0,
+      manutencao: 0,
+      juros: 0,
+    };
+  }
+}
+
+/**
  * Calcula DRE on-the-fly para um período (data início/fim).
  *
- * Opção A: Real-time, soma transações Pluggy + lançamentos contábeis sem gravar.
+ * Opção A: Real-time, soma receitas de asaas_cobrancas + despesas de ledger_entries.
  * Cache sugerido: 1h (já que pode envolver múltiplas consultas ao DB).
+ *
+ * Todos os valores retornados estão em centavos (DECIMAL * 100 para inteiros).
  */
 export function calcularDREPeriodo(
   db: Database.Database,
@@ -69,9 +190,9 @@ export function calcularDREPeriodo(
     throw new Error("dataInicio deve ser anterior ou igual a dataFim");
   }
 
-  // TODO: Implementar queries reais que consultam Pluggy + lançamentos contábeis
-  // Por agora, retorna estrutura vazia (0) — a integração com Pluggy/lançamentos
-  // ficará para a próxima iteração
+  // Busca dados reais
+  const receitas = buscarReceitasAsaas(db, dataInicio, dataFim);
+  const despesas = buscarDespesasLedger(db, dataInicio, dataFim);
 
   const ano = anoFim;
   const mes = mesFim;
@@ -82,41 +203,44 @@ export function calcularDREPeriodo(
     dataInicio,
     dataFim,
 
-    // Receitas (somadas de Pluggy + lançamentos contábeis)
-    receitaAluguel: 0,
-    receitaHonorario: 0,
-    receitaExtraordinaria: 0,
-    receitaTotal: 0,
+    // Receitas (em centavos)
+    receitaAluguel: receitas.aluguel,
+    receitaHonorario: receitas.honorario,
+    receitaExtraordinaria: receitas.extraordinaria,
+    receitaTotal: 0, // Será calculado abaixo
 
-    // Despesas Variáveis
-    despesaComissoes: 0,
-    despesaImpostosReceita: 0,
-    despesaVariavelTotal: 0,
+    // Despesas Variáveis (em centavos)
+    despesaComissoes: despesas.comissoes,
+    despesaImpostosReceita: despesas.impostos,
+    despesaVariavelTotal: 0, // Será calculado abaixo
 
     // Lucro Bruto
-    lucroBruto: 0,
+    lucroBruto: 0, // Será calculado abaixo
 
-    // Despesas Fixas
-    despesaFolhaPagamento: 0,
-    despesaCondominio: 0,
-    despesaManutencao: 0,
-    despesaJuros: 0,
-    despesaFixaTotal: 0,
+    // Despesas Fixas (em centavos)
+    despesaFolhaPagamento: despesas.folha,
+    despesaCondominio: despesas.condominio,
+    despesaManutencao: despesas.manutencao,
+    despesaJuros: despesas.juros,
+    despesaFixaTotal: 0, // Será calculado abaixo
 
     // Resultado Final
-    lucroLiquido: 0,
+    lucroLiquido: 0, // Será calculado abaixo
   };
 
-  // Calcula totalizações e resultado final
-  resultado.receitaTotal = resultado.receitaAluguel + resultado.receitaHonorario + resultado.receitaExtraordinaria;
+  // Calcula totalizações (em centavos)
+  resultado.receitaTotal =
+    resultado.receitaAluguel + resultado.receitaHonorario + resultado.receitaExtraordinaria;
   resultado.despesaVariavelTotal = resultado.despesaComissoes + resultado.despesaImpostosReceita;
-  resultado.lucroBruto = resultado.receitaAluguel + resultado.receitaHonorario - resultado.despesaVariavelTotal;
+  resultado.lucroBruto =
+    resultado.receitaAluguel + resultado.receitaHonorario - resultado.despesaVariavelTotal;
   resultado.despesaFixaTotal =
     resultado.despesaFolhaPagamento +
     resultado.despesaCondominio +
     resultado.despesaManutencao +
     resultado.despesaJuros;
-  resultado.lucroLiquido = resultado.lucroBruto - resultado.despesaFixaTotal + resultado.receitaExtraordinaria;
+  resultado.lucroLiquido =
+    resultado.lucroBruto - resultado.despesaFixaTotal + resultado.receitaExtraordinaria;
 
   return resultado;
 }

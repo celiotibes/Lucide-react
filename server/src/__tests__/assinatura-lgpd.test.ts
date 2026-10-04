@@ -465,21 +465,16 @@ describe("Assinatura Digital + LGPD", () => {
       expect(esquecimento).toBeInstanceOf(DireitoAoEsquecimento);
     });
 
-    it.skip("should anonymize a person", async () => {
-      // TODO: Fix transaction/foreign key issue
+    it("should anonymize a person", async () => {
       const esquecimento = criarDireitoAoEsquecimento(db);
 
-      // Create usuario for foreign key
-      try {
-        db.prepare("INSERT INTO usuarios VALUES (?, ?, ?, ?)").run(
-          "user123",
-          "Teste User",
-          "teste@example.com",
-          "contador"
-        );
-      } catch {
-        // User might already exist
-      }
+      // Create usuario for foreign key BEFORE starting transaction
+      db.prepare("INSERT INTO usuarios VALUES (?, ?, ?, ?)").run(
+        "user123",
+        "Teste User",
+        "teste@example.com",
+        "contador"
+      );
 
       const resultado = await esquecimento.anonimizarPessoa(
         "INQUILINO",
@@ -492,9 +487,16 @@ describe("Assinatura Digital + LGPD", () => {
       expect(resultado.campos_anonimizados.length).toBeGreaterThan(0);
     });
 
-    it.skip("should check if person was anonymized", async () => {
-      // TODO: Fix transaction/foreign key issue
+    it("should check if person was anonymized", async () => {
       const esquecimento = criarDireitoAoEsquecimento(db);
+
+      // Create usuario for foreign key BEFORE starting transaction
+      db.prepare("INSERT INTO usuarios VALUES (?, ?, ?, ?)").run(
+        "user123",
+        "Teste User",
+        "teste@example.com",
+        "contador"
+      );
 
       await esquecimento.anonimizarPessoa("INQUILINO", "inq1", "user123");
 

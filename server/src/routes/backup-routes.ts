@@ -146,21 +146,26 @@ export function criarRotasBackup(options: BackupRoutesOptions): Router {
 
   /**
    * GET /api/backup/status
-   * Check backup configuration status
+   * Check backup configuration status (Google Drive, scheduler, etc.)
    * Requires authentication
    *
-   * @returns Configuration status (Google Drive configured, backup schedule, etc.)
+   * @returns Configuration status including scheduler info
    */
   router.get("/status", exigirAutenticacao, (req: Request, res: Response) => {
     try {
       const googleDriveConfigured = !!process.env.GOOGLE_CREDENTIALS_JSON;
+      const localBackupConfigured = !!process.env.BACKUP_LOCAL_DIR && !!process.env.BACKUP_ENCRYPTION_KEY;
+      const backupScheduler = req.app?.locals?.backupScheduler;
+      const schedulerStatus = backupScheduler?.getStatus();
 
       res.json({
         sucesso: true,
         backup: {
           googleDriveConfigured,
+          localBackupConfigured,
           ultimoBackupAgendado: "a cada 1 hora automaticamente",
           backupManualDisponivel: googleDriveConfigured,
+          scheduler: schedulerStatus || null,
         },
       });
     } catch (erro) {
