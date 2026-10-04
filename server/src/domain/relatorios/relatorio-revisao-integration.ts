@@ -40,8 +40,8 @@ export interface VerificadorRevisaoData {
 export interface DadosParaVerificar {
   documentoId: string;
   tipoRelatorio: string;
-  dadosAntigos?: Record<string, any>;
-  dadosNovos: Record<string, any>;
+  dadosAntigos?: Record<string, unknown>;
+  dadosNovos: Record<string, unknown>;
   usuarioId: string;
   descricao?: string;
 }
@@ -193,8 +193,8 @@ export class VerificadorRevisaoIA {
    * Encontra campos que foram alterados entre duas versões
    */
   private encontrarCamposAlterados(
-    dadosAntigos: Record<string, any>,
-    dadosNovos: Record<string, any>
+    dadosAntigos: Record<string, unknown>,
+    dadosNovos: Record<string, unknown>
   ): string[] {
     const campos = new Set<string>();
 

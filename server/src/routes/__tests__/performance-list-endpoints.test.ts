@@ -12,7 +12,7 @@ import { criarRotasRelatorioExecutivo } from "../relatorio-executivo-routes";
 describe("Performance Tests - List Endpoints", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     db = new Database(":memory:");

@@ -41,7 +41,7 @@ export function extrairNomeTabelaSelect(query: string): string | null {
  */
 export class AuditoriaQuerySelectMiddleware {
   private config: ConfigAuditMiddleware;
-  private db: any;
+  private db: unknown;
 
   constructor(db: unknown, config: Partial<ConfigAuditMiddleware> = {}) {
     this.db = db;
@@ -55,7 +55,7 @@ export class AuditoriaQuerySelectMiddleware {
     query: string,
     contexto: ContextoRequisicao,
     executor: (q: string) => any
-  ): Promise<any> {
+  ): Promise<unknown> {
     const inicio = Date.now();
 
     // Executar query

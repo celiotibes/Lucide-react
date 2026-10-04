@@ -71,7 +71,7 @@ export async function waitForElement(
 export async function mockApiResponse(
   page: Page,
   urlPattern: string,
-  responseData: Record<string, any>,
+  responseData: Record<string, unknown>,
   statusCode = 200
 ) {
   await page.route(urlPattern, (route) => {

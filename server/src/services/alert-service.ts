@@ -38,7 +38,7 @@ interface AlertPayload {
   backupName: string;
   errorMessage: string;
   timestamp: Date;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   severity: 'critical' | 'warning';
   recoverySteps?: string[];
 }
@@ -187,7 +187,7 @@ export class AlertService {
   async enviarAlertaVerificacaoFalhou(
     backupId: string,
     erro: string,
-    detalhes?: Record<string, any>
+    detalhes?: Record<string, unknown>
   ): Promise<void> {
     const payload: AlertPayload = {
       backupName: backupId,

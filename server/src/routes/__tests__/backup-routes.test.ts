@@ -10,7 +10,7 @@ import { criarRotasBackup } from "../backup-routes";
 
 describe("Rotas HTTP de Backup", () => {
   let app: express.Application;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     // Mock authService

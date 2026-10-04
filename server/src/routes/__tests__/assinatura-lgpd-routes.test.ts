@@ -12,7 +12,7 @@ import { criarRotasAssinaturasLGPD } from "../assinatura-lgpd-routes";
 describe("Rotas HTTP de Assinatura LGPD", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     // Cria banco de dados em memória

@@ -495,7 +495,7 @@ export class BackupScheduler {
   private async enviarAlertaVerificacaoFalhou(
     backupId: string,
     erroMessage: string,
-    detalhes?: Record<string, any>
+    detalhes?: Record<string, unknown>
   ): Promise<void> {
     try {
       const alertService = getAlertService();

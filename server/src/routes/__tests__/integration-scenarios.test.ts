@@ -13,7 +13,7 @@ import { criarRotasAnomalias } from "../anomalias-routes";
 describe("Integration Scenarios", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     db = new Database(":memory:");

@@ -12,7 +12,7 @@ import { criarRotasConciliacaoPixOFX } from "../conciliacao-pix-ofx-routes";
 describe("Rotas HTTP de Conciliação PIX↔OFX", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     // Cria banco de dados em memória

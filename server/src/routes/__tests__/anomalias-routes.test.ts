@@ -12,7 +12,7 @@ import { criarRotasAnomalias } from "../anomalias-routes";
 describe("Rotas HTTP de Anomalias", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     // Cria banco de dados em memória

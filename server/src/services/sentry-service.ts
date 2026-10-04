@@ -158,7 +158,7 @@ export function initializeSentry(): void {
           event.request = filterSensitiveData(event.request) as unknown;
         }
         if (event.contexts) {
-          event.contexts = filterSensitiveData(event.contexts) as Record<string, any>;
+          event.contexts = filterSensitiveData(event.contexts) as Record<string, unknown>;
         }
         if (event.extra) {
           event.extra = filterSensitiveData(event.extra) as Record<string, unknown>;
