@@ -349,7 +349,7 @@ export function buscarDREPeriodo(
     LIMIT 1
   `);
 
-  const row = stmt.get(ano, mes) as any;
+  const row = stmt.get(ano, mes) as unknown;
   if (!row) return null;
 
   // Reconstrói datas baseado em ano/mes

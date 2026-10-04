@@ -202,7 +202,7 @@ export class AuthServiceDB {
          JOIN usuarios u ON s.usuario_id = u.id
          WHERE s.token = ? AND s.ativo = true`
       );
-      const sessao = stmt.get(token) as any;
+      const sessao = stmt.get(token) as unknown;
 
       if (!sessao || !sessao.valida) {
         return null;

@@ -155,7 +155,7 @@ export function initializeSentry(): void {
       beforeSend(event) {
         // Filter sensitive data from event
         if (event.request) {
-          event.request = filterSensitiveData(event.request) as any;
+          event.request = filterSensitiveData(event.request) as unknown;
         }
         if (event.contexts) {
           event.contexts = filterSensitiveData(event.contexts) as Record<string, any>;

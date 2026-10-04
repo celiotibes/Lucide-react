@@ -715,7 +715,7 @@ export function obterEstatisticasAnomalias(
     WHERE datetime(criado_em) >= datetime('now', ?)
   `);
 
-  const result = stmt.get(`-${periodo_dias} days`) as any;
+  const result = stmt.get(`-${periodo_dias} days`) as unknown;
 
   const total = result.total || 0;
   const revisadas = result.revisadas || 0;

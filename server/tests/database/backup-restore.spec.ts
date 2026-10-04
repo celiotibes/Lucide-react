@@ -283,7 +283,7 @@ describe("Database Backup/Restore", () => {
         "user-0",
         "user-500",
         "user-999",
-      ) as any[];
+      ) as unknown[];
       expect(spotCheck).toHaveLength(3);
       expect(spotCheck[0].email).toBe("user0@example.com");
       expect(spotCheck[1].email).toBe("user500@example.com");
@@ -319,7 +319,7 @@ describe("Database Backup/Restore", () => {
 
     try {
       // Verificar que foreign keys estão habilitadas
-      const fkEnabled = restoredDb.pragma("foreign_keys") as any[];
+      const fkEnabled = restoredDb.pragma("foreign_keys") as unknown[];
       expect(fkEnabled[0].foreign_keys).toBe(1);
 
       // Verificar dados

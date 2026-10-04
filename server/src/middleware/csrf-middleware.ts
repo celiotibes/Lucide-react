@@ -211,7 +211,7 @@ export function validarCSRFToken(
  * SEC-011B: Uses timing-safe token validation
  */
 export function erroCSRF(
-  erro: any,
+  erro: unknown,
   req: express.Request,
   res: express.Response,
   next: express.NextFunction,

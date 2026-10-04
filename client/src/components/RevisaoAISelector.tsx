@@ -39,7 +39,7 @@ export interface PoliticaRevisao {
   relatoriosSensveis: string[];
   papeisSemRevisao: string[];
   papaisComRevisao: string[];
-  thresholds: any[];
+  thresholds: unknown[];
   descricao: string;
   ultimaAtualizacao: string;
 }

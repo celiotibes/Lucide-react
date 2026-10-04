@@ -473,7 +473,7 @@ export class RetentionPolicyExecutor {
       FROM litigio_bloqueio
       WHERE ativo = 1
     `;
-    const params: any[] = [];
+    const params: unknown[] = [];
 
     if (tabelaNome) {
       query += ' AND tabela_nome = ?';

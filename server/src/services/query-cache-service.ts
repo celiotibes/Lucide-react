@@ -74,7 +74,7 @@ export class QueryCacheService {
   /**
    * Cache all chart of accounts (plano de contas)
    */
-  async cacheChartOfAccounts(): Promise<any[]> {
+  async cacheChartOfAccounts(): Promise<unknown[]> {
     return this.get(
       "chart_of_accounts",
       () => {
@@ -104,7 +104,7 @@ export class QueryCacheService {
   /**
    * Cache role/permission mappings
    */
-  async cacheRolePermissions(): Promise<any[]> {
+  async cacheRolePermissions(): Promise<unknown[]> {
     return this.get(
       "role_permissions",
       () => {

@@ -246,7 +246,7 @@ describe("Performance Tests - List Endpoints", () => {
     });
 
     it("deve permitir iteracao atraves de todos os registros", async () => {
-      const allRecords: any[] = [];
+      const allRecords: unknown[] = [];
       let offset = 0;
       const limit = 100;
       const maxIterations = 100; // Prevenir loop infinito

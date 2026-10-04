@@ -109,7 +109,7 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
     expect(r.status).toBe(201);
     expect(r.body).toMatchObject({ ok: true, idempotente: false, status: "recebido", anexos: 1 });
 
-    const linha = db.prepare("SELECT * FROM prestador_apontamentos_recebidos WHERE id = ?").get(r.body.id) as any;
+    const linha = db.prepare("SELECT * FROM prestador_apontamentos_recebidos WHERE id = ?").get(r.body.id) as unknown;
     expect(linha).toMatchObject({ usuario_id: "u_prest1", valor_centavos: 15050, horas_minutos: 90, status: "recebido" });
     const anexo = db.prepare("SELECT nome, tamanho, sha256 FROM prestador_apontamento_anexos").get() as Record<string, unknown>;
     expect(anexo).toEqual({ nome: "__.._etc_foto.jpg", tamanho: conteudo.length, sha256: sha });
@@ -228,7 +228,7 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
       const r = await request(app).post(`${URL_BASE}/${id}/conferir`).set(auth(ti)).send({ status: "conferido" });
       expect(r.status).toBe(200);
       expect(r.body).toMatchObject({ ok: true, idempotente: false, status: "conferido" });
-      const linha = db.prepare("SELECT status, conferido_por, conferido_em, valor_centavos FROM prestador_apontamentos_recebidos WHERE id=?").get(id) as any;
+      const linha = db.prepare("SELECT status, conferido_por, conferido_em, valor_centavos FROM prestador_apontamentos_recebidos WHERE id=?").get(id) as unknown;
       expect(linha).toMatchObject({ status: "conferido", conferido_por: "u_titular", valor_centavos: 15050 });
       expect(linha.conferido_em).toBeTruthy();
       expect(db.prepare(`SELECT COUNT(*) n FROM auditoria WHERE tipo_acao='prestador_apontamento_conferencia' AND resultado='sucesso'`).get()).toEqual({ n: 1 });

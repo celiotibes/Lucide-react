@@ -289,7 +289,7 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
         LIMIT 1
       `
         )
-        .get(id) as any;
+        .get(id) as unknown;
 
       if (!resultado) {
         res.status(404).json({ erro: "Nenhuma margem calculada para este imóvel" });

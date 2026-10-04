@@ -8,7 +8,7 @@
  * - 10000 updates sem timeout
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import path from "path";
 import { createTestDatabase, cleanupTestDatabase } from "../../src/db-test-helper";
@@ -201,7 +201,7 @@ describe("Batch Transaction Manager", () => {
     expect(result.errors).toHaveLength(0);
 
     // Verificar que updates foram aplicados
-    const updatedUser = db.prepare("SELECT * FROM usuarios WHERE id = ?").get("user-50") as any;
+    const updatedUser = db.prepare("SELECT * FROM usuarios WHERE id = ?").get("user-50") as unknown;
     expect(updatedUser.nome).toBe("Updated User 50");
   });
 

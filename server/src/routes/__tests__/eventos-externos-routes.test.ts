@@ -50,8 +50,8 @@ async function criarAppDeTeste(db: Database.Database) {
     "/api/auth",
     criarRotasAuth({
       authService,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
+      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as unknown,
+      permissoesService: { listarMatriz: () => [] } as unknown,
     }),
   );
   app.use("/api/eventos-externos", criarRotasEventosExternos({ authService, eventosService }));

@@ -262,7 +262,7 @@ describe("Relatório Executivo - Testes", () => {
       // Assert
       const registro = db
         .prepare("SELECT * FROM relatorios_executivos_gerados WHERE mes = ? AND ano = ?")
-        .get(mes, ano) as any;
+        .get(mes, ano) as unknown;
 
       expect(registro).toBeDefined();
       expect(registro.mes).toBe(mes);

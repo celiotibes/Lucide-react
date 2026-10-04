@@ -310,7 +310,7 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
   it("rotas internas: sem token => 401", async () => {
     for (const k of internas()) {
       const [metodo, caminho] = k.split(" ");
-      const res = await (request(app) as any)[metodo.toLowerCase()](comParametrosPreenchidos(caminho)).send({});
+      const res = await (request(app) as unknown)[metodo.toLowerCase()](comParametrosPreenchidos(caminho)).send({});
       expect(res.status, `${k} sem token`).toBe(401);
     }
   });
@@ -319,7 +319,7 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
     it(`rotas internas: ${token} recebe 401/403/404 (nunca 2xx/5xx)`, async () => {
       for (const k of internas()) {
         const [metodo, caminho] = k.split(" ");
-        const res = await (request(app) as any)
+        const res = await (request(app) as unknown)
           [metodo.toLowerCase()](comParametrosPreenchidos(caminho))
           .set("Authorization", `Bearer ${token}`)
           .send({});
@@ -334,7 +334,7 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
     for (const token of ["tok-inquilino", "tok-prestador"]) {
       for (const k of posse) {
         const [metodo, caminho] = k.split(" ");
-        const res = await (request(app) as any)
+        const res = await (request(app) as unknown)
           [metodo.toLowerCase()](comParametrosPreenchidos(caminho))
           .set("Authorization", `Bearer ${token}`);
         expect(res.status, `${k} com ${token}`).toBe(404);

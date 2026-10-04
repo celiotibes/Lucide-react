@@ -449,7 +449,7 @@ export function buscarPagamentoPix(db: Database.Database, pagamentoId: string): 
     WHERE id = ?
   `);
 
-  const registro = stmt.get(pagamentoId) as any;
+  const registro = stmt.get(pagamentoId) as unknown;
   if (!registro) return null;
 
   return {

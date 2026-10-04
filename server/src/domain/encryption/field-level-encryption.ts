@@ -55,7 +55,7 @@ export const CAMPOS_ENCRYPTA_OBRIGATORIO = [
  * Decorator TypeScript para marcar propriedades que devem ser encriptadas
  * Uso: @Encrypted class Cliente { @Encrypted cpf: string }
  */
-export function Encrypted(target: any, propertyKey: string) {
+export function Encrypted(target: unknown, propertyKey: string) {
   // Metadata para framework detectar campos encriptados
   if (!target.constructor._encryptedFields) {
     target.constructor._encryptedFields = [];

@@ -282,7 +282,7 @@ export class GerenciadorAuditLoggingImutavel {
     try {
       // consultar() devolve as linhas como objetos nomeados pelas colunas do SELECT — ao
       // contrário de db.exec(), que devolvia [{columns, values}] com cada linha um array
-      // POSICIONAL (daí o `as any[]` e o destructuring por ordem que havia aqui). A troca
+      // POSICIONAL (daí o `as unknown[]` e o destructuring por ordem que havia aqui). A troca
       // para destructuring por NOME elimina a dependência da ordem exata das colunas no
       // SELECT: uma reordenação futura da lista de colunas não desalinha mais os campos
       // silenciosamente.

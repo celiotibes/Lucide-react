@@ -60,8 +60,8 @@ async function criarAppDeTeste(db: Database.Database, senders: SendersNotificaca
     "/api/auth",
     criarRotasAuth({
       authService,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
+      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as unknown,
+      permissoesService: { listarMatriz: () => [] } as unknown,
     }),
   );
   app.use("/api/notificacoes", criarRotasNotificacoes({ authService, senders }));

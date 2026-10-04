@@ -11,7 +11,7 @@
  * - Row counts conferem
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import BackupService, { BackupManifest } from "../../src/services/backup-service.js";
 import Database from "better-sqlite3";
 import fs from "fs";

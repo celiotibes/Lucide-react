@@ -435,7 +435,7 @@ describe("Sistema de Detecção de Anomalias", () => {
       // Recupera diretamente via SQL para verificar UPDATE funcionou
       const revisadoRow = db.prepare(`
         SELECT revisado, motivo_revisao FROM alertas_anomalias_registrados WHERE id = ?
-      `).get(alerta.id) as any;
+      `).get(alerta.id) as unknown;
 
       expect(revisadoRow?.revisado).toBe(1);
       expect(revisadoRow?.motivo_revisao).toBe("falso positivo");

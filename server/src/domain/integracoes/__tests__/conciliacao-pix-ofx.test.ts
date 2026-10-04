@@ -604,7 +604,7 @@ describe("Reconciliação PIX↔OFX", () => {
 
     // Inserir e validar tolerancia
     inserirConciliacao(db, conciliacao1);
-    const registroTol = db.prepare("SELECT * FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao1.id) as any;
+    const registroTol = db.prepare("SELECT * FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao1.id) as unknown;
 
     expect(registroTol).toBeDefined();
     expect(registroTol.status).toBe("pendente");
@@ -634,7 +634,7 @@ describe("Reconciliação PIX↔OFX", () => {
     db.prepare("UPDATE conciliacoes_pix_ofx SET status = ? WHERE id = ?").run("reconciliado", conciliacao.id);
 
     // Validar transicao
-    const registro = db.prepare("SELECT status FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao.id) as any;
+    const registro = db.prepare("SELECT status FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao.id) as unknown;
     expect(registro.status).toBe("reconciliado");
   });
 
@@ -657,7 +657,7 @@ describe("Reconciliação PIX↔OFX", () => {
 
     inserirConciliacao(db, conciliacao);
 
-    const registro = db.prepare("SELECT discrepancia_flag FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao.id) as any;
+    const registro = db.prepare("SELECT discrepancia_flag FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao.id) as unknown;
     expect(!!registro.discrepancia_flag).toBe(true);
   });
 });

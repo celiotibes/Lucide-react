@@ -105,8 +105,8 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       });
     } catch (erro) {
       logger.error("Erro ao analisar anomalia:", {
-        requestId: (req as any).id || "unknown",
-        userId: (req.auth as any)?.usuario?.id,
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
+        userId: ((req.auth as unknown) as Record<string, unknown>)?.usuario?.id,
         endpoint: req.path,
         transacaoId,
         error: erro instanceof Error ? erro.message : String(erro),
@@ -149,23 +149,14 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
 
       const { severidade, dias, revisado, limite } = parseResult.data;
 
-      const opcoes: any = {
+      const opcoes = {
         limite,
+        ...(severidade && { severidade }),
+        ...(dias && { dias }),
+        ...(revisado !== undefined && { revisado: String(revisado) === "true" }),
       };
 
-      if (severidade) {
-        opcoes.severidade = severidade;
-      }
-
-      if (dias) {
-        opcoes.dias = dias;
-      }
-
-      if (revisado !== undefined) {
-        opcoes.revisado = String(revisado) === "true";
-      }
-
-      const alertas = listarAlertas(db, opcoes);
+      const alertas = listarAlertas(db, opcoes as unknown as Record<string, unknown>);
 
       res.json({
         alertas,
@@ -179,8 +170,8 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       });
     } catch (erro) {
       logger.error("Erro ao listar alertas:", {
-        requestId: (req as any).id || "unknown",
-        userId: (req.auth as any)?.usuario?.id,
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
+        userId: ((req.auth as unknown) as Record<string, unknown>)?.usuario?.id,
         endpoint: req.path,
         error: erro instanceof Error ? erro.message : String(erro),
       });
@@ -220,8 +211,8 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       });
     } catch (erro) {
       logger.error("Erro ao obter estatísticas:", {
-        requestId: (req as any).id || "unknown",
-        userId: (req.auth as any)?.usuario?.id,
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
+        userId: ((req.auth as unknown) as Record<string, unknown>)?.usuario?.id,
         endpoint: req.path,
         error: erro instanceof Error ? erro.message : String(erro),
       });
@@ -279,8 +270,8 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       });
     } catch (erro) {
       logger.error("Erro ao revisar anomalia:", {
-        requestId: (req as any).id || "unknown",
-        userId: (req.auth as any)?.usuario?.id,
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
+        userId: ((req.auth as unknown) as Record<string, unknown>)?.usuario?.id,
         endpoint: req.path,
         alertId: req.params.id,
         error: erro instanceof Error ? erro.message : String(erro),
@@ -353,8 +344,8 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       });
     } catch (erro) {
       logger.error("Erro ao atualizar anomalia:", {
-        requestId: (req as any).id || "unknown",
-        userId: (req.auth as any)?.usuario?.id,
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
+        userId: ((req.auth as unknown) as Record<string, unknown>)?.usuario?.id,
         endpoint: req.path,
         alertId: id,
         error: erro instanceof Error ? erro.message : String(erro),
@@ -370,7 +361,14 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
 // HELPER: Gera descrição amigável da resposta
 // ============================================================
 
-function gerarDescricaoResposta(resultado: any): string {
+interface AvaliacaoAnomalia {
+  severidade: string;
+  confianca: number;
+  metodos_dispararam: string[];
+  scores_individuais: Record<string, unknown>;
+}
+
+function gerarDescricaoResposta(resultado: AvaliacaoAnomalia): string {
   const { severidade, confianca, metodos_dispararam } = resultado;
 
   let desc = "";
@@ -383,14 +381,20 @@ function gerarDescricaoResposta(resultado: any): string {
     desc = `BAIXA: Possível anomalia, mas com baixa confiança (${confianca}%)`;
   }
 
-  if (resultado.scores_individuais.sigma_2) {
-    desc += ` [2-Sigma: z=${resultado.scores_individuais.sigma_2.z_score.toFixed(2)}]`;
+  const scoresIndividuais = resultado.scores_individuais as unknown as {
+    sigma_2?: { z_score: number };
+    iqr?: { confianca: number };
+    percentil?: { percentil: number; confianca: number };
+  };
+
+  if (scoresIndividuais.sigma_2) {
+    desc += ` [2-Sigma: z=${scoresIndividuais.sigma_2.z_score.toFixed(2)}]`;
   }
-  if (resultado.scores_individuais.iqr) {
-    desc += ` [IQR: ${resultado.scores_individuais.iqr.confianca}% acima limite]`;
+  if (scoresIndividuais.iqr) {
+    desc += ` [IQR: ${scoresIndividuais.iqr.confianca}% acima limite]`;
   }
-  if (resultado.scores_individuais.percentil) {
-    desc += ` [P${resultado.scores_individuais.percentil.percentil}: ${resultado.scores_individuais.percentil.confianca}%]`;
+  if (scoresIndividuais.percentil) {
+    desc += ` [P${scoresIndividuais.percentil.percentil}: ${scoresIndividuais.percentil.confianca}%]`;
   }
 
   return desc;

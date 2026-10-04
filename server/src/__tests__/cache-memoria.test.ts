@@ -3,7 +3,7 @@
  * Validar: set, get, invalidate, invalidarPrefixo, TTL automático, stats
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { cache, criarCacheRelatorio } from "../utils/cache-memoria.js";
 
 describe("Cache em Memória", () => {

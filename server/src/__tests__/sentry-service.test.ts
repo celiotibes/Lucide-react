@@ -9,7 +9,7 @@
  * - Test environment isolation (no real errors sent)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   initializeSentry,
   captureException,
