@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { initializeDatabase, closeDatabase, getDatabase, getDatabasePath } from '../database-init.js';
+import { closeDatabase, getDatabase, getDatabasePath } from '../database-init.js';
 import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';

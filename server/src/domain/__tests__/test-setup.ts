@@ -262,15 +262,15 @@ export const DADOS_TESTE = {
  */
 
 export interface InMemoryDatabase {
-  contratos: Map<string, any>;
-  processamentos: Map<string, any>;
-  descontos: Map<string, any>;
-  despesas: Map<string, any>;
-  processamento_despesas: Map<string, any>;
-  documentos_aprovacao: Map<string, any>;
-  approval_history: Map<string, any>;
-  webhook_events: Map<string, any>;
-  webhook_registros: Map<string, any>;
+  contratos: Map<string, Record<string, unknown>>;
+  processamentos: Map<string, Record<string, unknown>>;
+  descontos: Map<string, Record<string, unknown>>;
+  despesas: Map<string, Record<string, unknown>>;
+  processamento_despesas: Map<string, Record<string, unknown>>;
+  documentos_aprovacao: Map<string, Record<string, unknown>>;
+  approval_history: Map<string, Record<string, unknown>>;
+  webhook_events: Map<string, Record<string, unknown>>;
+  webhook_registros: Map<string, Record<string, unknown>>;
 }
 
 export function criarBancoDados(): InMemoryDatabase {

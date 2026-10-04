@@ -69,7 +69,7 @@ export type PublicacaoPortal = z.infer<typeof esquemaPublicacao>;
 
 /** Hash do conteúdo (sem a versão) — distingue reenvio idêntico (idempotente) de conteúdo diferente na mesma versão. */
 function hashConteudo(p: PublicacaoPortal): string {
-  const { versao: _versao, cobrancas, ...resto } = p;
+  const { cobrancas, ...resto } = p;
   const ordenadas = [...cobrancas]
     .sort((a, b) => a.cobrancaRef.localeCompare(b.cobrancaRef))
     .map((c) => ({ ...c, dataPagamento: c.dataPagamento ?? null }));
@@ -194,10 +194,10 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
       res.status(resultado.codigo).json(resultado.corpo);
     } catch (erro) {
       logger.error("Erro ao publicar espelho do portal:", {
-        requestId: (req as any).id || "unknown",
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
         userId: contexto.usuario?.id,
         endpoint: req.path,
-        contratoRef: (req.body as any)?.contratoRef,
+        contratoRef: (req.body as unknown as Record<string, unknown>)?.contratoRef,
         error: erro instanceof Error ? erro.message : String(erro),
       });
       return res.status(500).json({ erro: "Erro ao publicar espelho do portal" });
@@ -233,8 +233,8 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
       res.json({ itens, total, limite: pg.limite, offset: pg.offset });
     } catch (erro) {
       logger.error("Erro ao consultar contratos:", {
-        requestId: (req as any).id || "unknown",
-        userId: (req.auth as any)?.usuario?.id,
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
+        userId: ((req.auth as unknown) as Record<string, unknown>)?.usuario?.id,
         endpoint: req.path,
         error: erro instanceof Error ? erro.message : String(erro),
       });
@@ -287,8 +287,8 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
       res.json({ itens, total, limite: pg.limite, offset: pg.offset });
     } catch (erro) {
       logger.error("Erro ao consultar cobranças:", {
-        requestId: (req as any).id || "unknown",
-        userId: (req.auth as any)?.usuario?.id,
+        requestId: (req as unknown as Record<string, unknown>).id || "unknown",
+        userId: ((req.auth as unknown) as Record<string, unknown>)?.usuario?.id,
         endpoint: req.path,
         contratoRef: req.query.contratoRef,
         error: erro instanceof Error ? erro.message : String(erro),
