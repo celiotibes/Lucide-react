@@ -189,7 +189,7 @@ export class AuditTrailServiceDB {
          ORDER BY timestamp DESC
          LIMIT ?`
       );
-      const registros = stmt.all(usuario_id, limite) as any[];
+      const registros = stmt.all(usuario_id, limite) as unknown[];
       return this.parseRegistros(registros);
     } catch (erro) {
       logger.error("Erro ao obter histórico de usuário:", erro);
@@ -208,7 +208,7 @@ export class AuditTrailServiceDB {
          ORDER BY timestamp DESC
          LIMIT ?`
       );
-      const registros = stmt.all(recurso, limite) as any[];
+      const registros = stmt.all(recurso, limite) as unknown[];
       return this.parseRegistros(registros);
     } catch (erro) {
       logger.error("Erro ao obter histórico de recurso:", erro);
@@ -271,13 +271,13 @@ export class AuditTrailServiceDB {
       const totalStmt = this.db.prepare(
         "SELECT COUNT(*) as count FROM auditoria WHERE timestamp > ?"
       );
-      const totalResult = totalStmt.get(data_limite) as any;
+      const totalResult = totalStmt.get(data_limite) as unknown as { count: number };
 
       // Acessos negados
       const negadosStmt = this.db.prepare(
         "SELECT COUNT(*) as count FROM auditoria WHERE timestamp > ? AND resultado = 'negado'"
       );
-      const negadosResult = negadosStmt.get(data_limite) as any;
+      const negadosResult = negadosStmt.get(data_limite) as unknown as { count: number };
 
       // Ação mais comum
       const acaoStmt = this.db.prepare(
@@ -287,7 +287,7 @@ export class AuditTrailServiceDB {
          ORDER BY count DESC
          LIMIT 1`
       );
-      const acaoResult = acaoStmt.get(data_limite) as any;
+      const acaoResult = acaoStmt.get(data_limite) as unknown as { tipo_acao: TipoAcao; count: number } | undefined;
 
       // Usuário mais ativo
       const usuarioStmt = this.db.prepare(
@@ -297,7 +297,7 @@ export class AuditTrailServiceDB {
          ORDER BY count DESC
          LIMIT 1`
       );
-      const usuarioResult = usuarioStmt.get(data_limite) as any;
+      const usuarioResult = usuarioStmt.get(data_limite) as unknown as { usuario_id: string | null; count: number } | undefined;
 
       return {
         total_registros: totalResult.count || 0,
@@ -331,15 +331,23 @@ export class AuditTrailServiceDB {
          WHERE timestamp BETWEEN ? AND ?
          ORDER BY timestamp DESC`
       );
-      const registros = stmt.all(inicio, fim) as any[];
+      const registros = stmt.all(inicio, fim) as unknown[];
 
-      const acessosNegados = registros.filter((r) => r.resultado === "negado");
-      const usuariosUnicos = new Set(registros.map((r) => r.usuario_id));
+      const acessosNegados = registros.filter((r) => {
+        const row = r as unknown as Record<string, unknown>;
+        return row.resultado === "negado";
+      });
+      const usuariosUnicos = new Set(registros.map((r) => {
+        const row = r as unknown as Record<string, unknown>;
+        return row.usuario_id;
+      }));
 
       // Eventos por tipo
       const eventosPorTipo: Record<string, number> = {};
       registros.forEach((r) => {
-        eventosPorTipo[r.tipo_acao] = (eventosPorTipo[r.tipo_acao] || 0) + 1;
+        const row = r as unknown as Record<string, unknown>;
+        const tipo = row.tipo_acao as string;
+        eventosPorTipo[tipo] = (eventosPorTipo[tipo] || 0) + 1;
       });
 
       return {
@@ -348,11 +356,13 @@ export class AuditTrailServiceDB {
         usuarios_ativos: usuariosUnicos.size,
         acessos_negados: acessosNegados.length,
         eventos_por_tipo: eventosPorTipo,
-        acessos_negados_detalhes: acessosNegados.map((r) => ({
-          usuario: r.usuario_nome,
-          timestamp: r.timestamp,
-          recurso: r.recurso,
-          motivo: r.motivo_falha,
+        acessos_negados_detalhes: acessosNegados.map((r) => {
+          const row = r as unknown as Record<string, unknown>;
+          return ({
+          usuario: row.usuario_nome,
+          timestamp: row.timestamp,
+          recurso: row.recurso,
+          motivo: row.motivo_falha,
         })),
       };
     } catch (erro) {
@@ -371,11 +381,14 @@ export class AuditTrailServiceDB {
   /**
    * Parse JSON fields from database
    */
-  private parseRegistros(registros: any[]): RegistroAuditoria[] {
-    return registros.map((r) => ({
-      ...r,
-      valores_antigos: r.valores_antigos ? JSON.parse(r.valores_antigos) : undefined,
-      valores_novos: r.valores_novos ? JSON.parse(r.valores_novos) : undefined,
-    }));
+  private parseRegistros(registros: unknown[]): RegistroAuditoria[] {
+    return registros.map((r) => {
+      const row = r as unknown as Record<string, unknown>;
+      return {
+        ...row,
+        valores_antigos: row.valores_antigos ? JSON.parse(row.valores_antigos as string) : undefined,
+        valores_novos: row.valores_novos ? JSON.parse(row.valores_novos as string) : undefined,
+      } as RegistroAuditoria;
+    });
   }
 }
