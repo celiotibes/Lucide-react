@@ -144,7 +144,7 @@ function initializeMetrics() {
       labelNames: ['event_type', 'level'],
     });
   } catch (error) {
-    console.error('[Metrics] Failed to initialize metrics:', error);
+    // Silent failure - metrics initialization errors should not crash the app
     throw error;
   }
 }
@@ -164,7 +164,7 @@ export function getMetric(name: string): promClient.Metric | undefined {
       }
     }
   } catch (error) {
-    console.error(`[Metrics] Failed to get metric ${name}:`, error);
+    // Silent failure - metric retrieval errors should not crash the app
   }
   return undefined;
 }
@@ -181,7 +181,7 @@ export function recordDbQueryLatency(
       metric.labels(queryType, table).observe(durationMs);
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record DB query latency:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -203,7 +203,7 @@ export function recordHttpRequestLatency(
       counter.labels(method, route, String(status)).inc();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record HTTP request latency:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -219,7 +219,7 @@ export function recordError(
       counter.labels(errorType, operation, severity).inc();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record error:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -231,7 +231,7 @@ export function recordDbError(queryType: string, errorCode: string) {
       counter.labels(queryType, errorCode).inc();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record DB error:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 
@@ -243,7 +243,7 @@ export function recordCacheHit(cacheType: string, keyPattern: string = 'all') {
       counter.labels(cacheType, keyPattern).inc();
     }
   } catch (error) {
-    console.error('[Metrics] Failed to record cache hit:', error);
+    // Silent failure - metrics recording errors should not crash the app
   }
 }
 

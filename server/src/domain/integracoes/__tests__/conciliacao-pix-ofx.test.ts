@@ -536,7 +536,15 @@ describe("Reconciliação PIX↔OFX", () => {
     // Criar novo BD sem tabela razao
     const dbNoRazao = new Database(":memory:");
     dbNoRazao.pragma("foreign_keys = ON");
-    // Sem CREATE TABLE razao
+
+    // Cria tabelas mínimas menos razao
+    dbNoRazao.exec(`
+      CREATE TABLE cobrancas_asaas (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'PENDING'
+      );
+      INSERT INTO cobrancas_asaas VALUES ('charge-error-1', 'PAID');
+    `);
 
     const conciliacao: ConciliacaoPix = {
       id: randomUUID(),
@@ -553,10 +561,339 @@ describe("Reconciliação PIX↔OFX", () => {
       atualizado_em: null,
     };
 
-    // ANTES: mascarava com randomUUID falso
-    // DEPOIS: deve lançar erro real
-    // Essa função está em server, então talvez precise verificar outra forma
-    // Por agora, este é um placeholder
-    expect(true).toBe(true); // TODO: verificar
+    // Deve lançar erro real de "no such table: razao"
+    expect(() => gerarLancamentoContabil(dbNoRazao, conciliacao)).toThrow(
+      /no such table/i,
+    );
+    dbNoRazao.close();
+  });
+
+  // ===== TESTES AVANÇADOS: AUDITORIA E DISCREPÂNCIAS =====
+
+  it("21: Auditoria registra tipo de discrepância corretamente", () => {
+    inserirChargePaga(db, "charge-auditoria-1", 500, "Cliente Audit");
+    inserirTransacaoOFX(db, "ofx-audit-1", 500, "Cliente Audit");
+    inserirTransacaoOFX(db, "ofx-audit-2", 500, "Cliente Audit");
+
+    conciliarPixOFX(db);
+
+    const stmtAudit = db.prepare(`
+      SELECT tipo_discrepancia, descricao
+      FROM audit_conciliacao_discrepancias
+      WHERE tipo_discrepancia = 'multiplos_matches'
+    `);
+    const audit = stmtAudit.get() as any;
+
+    expect(audit).toBeDefined();
+    expect(audit.tipo_discrepancia).toBe("multiplos_matches");
+    expect(audit.descricao).toContain("múltiplos matches");
+  });
+
+  it("22: Partial match com valor próximo ao limite", () => {
+    const tolerancia = 0.05; // 5%
+    inserirChargePaga(db, "charge-partial-1", 1000, "Cliente Partial");
+    // Exatamente 5% abaixo (limite inclusivo)
+    inserirTransacaoOFX(db, "ofx-partial-1", 950, "Cliente Partial");
+
+    const result = buscarMatchPixOfx(db, "charge-partial-1", tolerancia);
+
+    expect(result.match).toBe(true);
+    expect(result.transacao!.valor).toBe(950);
+  });
+
+  it("23: Rejeita valor exatamente fora da tolerância", () => {
+    inserirChargePaga(db, "charge-outside-1", 1000, "Cliente Outside");
+    // 5.1% abaixo (fora do 5%)
+    inserirTransacaoOFX(db, "ofx-outside-1", 949, "Cliente Outside");
+
+    const result = buscarMatchPixOfx(db, "charge-outside-1", 0.05);
+
+    expect(result.match).toBe(false);
+  });
+
+  it("24: Confiança reduzida sem beneficiário", () => {
+    inserirChargePaga(db, "charge-no-ben-1", 700, "");
+    inserirTransacaoOFX(db, "ofx-no-ben-1", 700, "Descrição genérica");
+
+    const result = buscarMatchPixOfx(db, "charge-no-ben-1");
+
+    expect(result.match).toBe(true);
+    expect(result.confianca).toBeLessThan(100);
+    expect(result.confianca).toBeGreaterThanOrEqual(50);
+  });
+
+  it("25: Data exatamente no limite de ±2 dias", () => {
+    const hoje = new Date();
+    const maisDosDias = new Date(hoje.getTime() + 2 * 24 * 60 * 60 * 1000);
+
+    const stmtCharge = db.prepare(`
+      INSERT INTO cobrancas_asaas (id, status, valor, beneficiario, criado_em)
+      VALUES (?, 'PAID', ?, ?, ?)
+    `);
+    stmtCharge.run("charge-date-limit-1", 1000, "Cliente Date", hoje.toISOString());
+
+    inserirTransacaoOFX(db, "ofx-date-limit-1", 1000, "Cliente Date", maisDosDias.toISOString());
+
+    const result = buscarMatchPixOfx(db, "charge-date-limit-1", 0.05, 2);
+
+    expect(result.match).toBe(true);
+  });
+
+  it("26: Data um dia além do limite é rejeitada", () => {
+    const hoje = new Date();
+    const maisDeTreesDias = new Date(hoje.getTime() + 2.1 * 24 * 60 * 60 * 1000);
+
+    const stmtCharge = db.prepare(`
+      INSERT INTO cobrancas_asaas (id, status, valor, beneficiario, criado_em)
+      VALUES (?, 'PAID', ?, ?, ?)
+    `);
+    stmtCharge.run("charge-date-over-1", 1000, "Cliente Over", hoje.toISOString());
+
+    inserirTransacaoOFX(db, "ofx-date-over-1", 1000, "Cliente Over", maisDeTreesDias.toISOString());
+
+    const result = buscarMatchPixOfx(db, "charge-date-over-1", 0.05, 2);
+
+    expect(result.match).toBe(false);
+  });
+
+  it("27: Cargas com múltiplas transações OFX (melhor confiança vence)", () => {
+    inserirChargePaga(db, "charge-multi-1", 500, "Cliente Multi");
+    inserirTransacaoOFX(db, "ofx-multi-1", 495, "Outro lugar"); // 1% de diferença, sem beneficiário
+    inserirTransacaoOFX(db, "ofx-multi-2", 510, "Cliente Multi"); // 2% de diferença, com beneficiário
+
+    const result = buscarMatchPixOfx(db, "charge-multi-1", 0.05);
+
+    // Deve preferir o match com beneficiário (ofx-multi-2)
+    expect(result.transacao!.id).toBe("ofx-multi-2");
+    expect(result.confianca).toBeGreaterThan(50);
+  });
+
+  it("28: Descições case-insensitive no matching", () => {
+    inserirChargePaga(db, "charge-case-1", 300, "CLIENTE UPPER");
+    inserirTransacaoOFX(db, "ofx-case-1", 300, "cliente upper lowercase");
+
+    const result = buscarMatchPixOfx(db, "charge-case-1");
+
+    expect(result.match).toBe(true);
+    expect(result.confianca).toBeGreaterThan(50); // Beneficiário encontrado
+  });
+
+  it("29: Batch processing com mix de reconciliadas/pendentes/discrepâncias", () => {
+    // Reconciliada
+    inserirChargePaga(db, "batch-recon-1", 100, "Cliente A");
+    inserirTransacaoOFX(db, "ofx-batch-1", 100, "Cliente A");
+
+    // Pendente (sem OFX)
+    inserirChargePaga(db, "batch-pend-1", 200, "Cliente B");
+
+    // Discrepância (múltiplos)
+    inserirChargePaga(db, "batch-disc-1", 300, "Cliente C");
+    inserirTransacaoOFX(db, "ofx-batch-2", 300, "Cliente C");
+    inserirTransacaoOFX(db, "ofx-batch-3", 300, "Cliente C");
+
+    const resultado = conciliarPixOFX(db);
+
+    expect(resultado.conciliadas).toBe(1);
+    expect(resultado.pendentes).toBe(1);
+    expect(resultado.discrepancias).toBe(1);
+    expect(resultado.conciliadas + resultado.pendentes + resultado.discrepancias).toBe(3);
+  });
+
+  it("30: Status 'expirado' é marcado após 7 dias", () => {
+    inserirChargePaga(db, "charge-expire-1", 150, "Cliente Exp");
+
+    // Primeira reconciliação — marca como pendente
+    conciliarPixOFX(db);
+
+    // Simula passagem de 8 dias atualizando criado_em
+    const stmtUpdate = db.prepare(`
+      UPDATE conciliacoes_pix_ofx
+      SET criado_em = datetime('now', '-8 days')
+      WHERE asaas_charge_id = ?
+    `);
+    stmtUpdate.run("charge-expire-1");
+
+    // Segunda reconciliação
+    conciliarPixOFX(db);
+
+    const stmt = db.prepare("SELECT status FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
+    const conc = stmt.get("charge-expire-1") as any;
+
+    expect(conc.status).toBe("expirado");
+  });
+
+  it("31: Não expira reconciliados ou discrepâncias, apenas pendentes", () => {
+    inserirChargePaga(db, "charge-no-exp-recon-1", 100, "Cliente NoExp");
+    inserirTransacaoOFX(db, "ofx-no-exp-1", 100, "Cliente NoExp");
+
+    conciliarPixOFX(db);
+
+    // Simula 8 dias
+    const stmtUpdate = db.prepare(`
+      UPDATE conciliacoes_pix_ofx
+      SET criado_em = datetime('now', '-8 days')
+      WHERE asaas_charge_id = ?
+    `);
+    stmtUpdate.run("charge-no-exp-recon-1");
+
+    // Segunda rodada não deve mudar status
+    conciliarPixOFX(db);
+
+    const stmt = db.prepare("SELECT status FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
+    const conc = stmt.get("charge-no-exp-recon-1") as any;
+
+    expect(conc.status).toBe("reconciliado"); // Permanece reconciliado
+  });
+
+  it("32: Lançamento contábil mantém referência à conciliação", () => {
+    const hoje = new Date().toISOString();
+
+    const stmtCharge = db.prepare(`
+      INSERT INTO cobrancas_asaas (id, status, valor, beneficiario, criado_em)
+      VALUES (?, 'PAID', ?, ?, ?)
+    `);
+    stmtCharge.run("charge-ref-1", 1200, "Cliente Ref", hoje);
+
+    inserirTransacaoOFX(db, "ofx-ref-1", 1200, "Cliente Ref", hoje);
+
+    const resultado = conciliarPixOFX(db);
+
+    expect(resultado.conciliadas).toBe(1);
+
+    // Busca lançamento
+    const stmtConc = db.prepare("SELECT lancamento_razao_id FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
+    const conc = stmtConc.get("charge-ref-1") as any;
+
+    expect(conc.lancamento_razao_id).toBeDefined();
+
+    // Verifica que lançamento referencia conciliação
+    const stmtLancamento = db.prepare("SELECT conciliacao_pix_ofx_id FROM razao WHERE id = ?");
+    const lancamento = stmtLancamento.get(conc.lancamento_razao_id) as any;
+
+    expect(lancamento.conciliacao_pix_ofx_id).toBe(conc.id);
+  });
+
+  it("33: Valor zero não causa erro de divisão", () => {
+    const stmtCharge = db.prepare(`
+      INSERT INTO cobrancas_asaas (id, status, valor, beneficiario, criado_em)
+      VALUES (?, 'PAID', ?, ?, datetime('now'))
+    `);
+    stmtCharge.run("charge-zero-1", 0, "Cliente Zero");
+
+    // Não deve lançar erro
+    expect(() => {
+      buscarMatchPixOfx(db, "charge-zero-1", 0.05);
+    }).not.toThrow();
+  });
+
+  it("34: Transações negativas (devoluções) são suportadas", () => {
+    inserirChargePaga(db, "charge-neg-1", -100, "Devolução");
+    inserirTransacaoOFX(db, "ofx-neg-1", -100, "Devolução OFX");
+
+    const result = buscarMatchPixOfx(db, "charge-neg-1");
+
+    expect(result.match).toBe(true);
+    expect(result.transacao!.valor).toBe(-100);
+  });
+
+  it("35: Confiança é calculada corretamente (50 base + bonificações)", () => {
+    inserirChargePaga(db, "charge-conf-1", 1000, "Cliente Confiança");
+    // Match exato: valor próximo (20), data próxima (20), beneficiário (20) = 50+60=110 capped
+    inserirTransacaoOFX(db, "ofx-conf-1", 1010, "Cliente Confiança");
+
+    const result = buscarMatchPixOfx(db, "charge-conf-1");
+
+    // Confiança deve ser >80 (50 base + valor próximo + beneficiário)
+    expect(result.confianca).toBeGreaterThan(80);
+  });
+
+  it("36: Status de conciliação após expiry reflete mudanças", () => {
+    inserirChargePaga(db, "charge-status-1", 250, "Cliente Status");
+
+    const status1 = buscarStatusConciliacao(db, 30);
+    const antes = status1.pendentes;
+
+    conciliarPixOFX(db);
+    const status2 = buscarStatusConciliacao(db, 30);
+
+    expect(status2.pendentes).toBe(antes + 1);
+  });
+
+  it("37: Reconciliação é realmente idempotente (sem duplicatas)", () => {
+    inserirChargePaga(db, "charge-idem-1", 500, "Cliente Idem");
+    inserirTransacaoOFX(db, "ofx-idem-1", 500, "Cliente Idem");
+
+    conciliarPixOFX(db);
+    conciliarPixOFX(db);
+    conciliarPixOFX(db);
+
+    const stmtCount = db.prepare("SELECT COUNT(*) as cnt FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
+    const result = stmtCount.get("charge-idem-1") as any;
+
+    // Apenas uma reconciliação, não três
+    expect(result.cnt).toBe(1);
+  });
+
+  it("38: Lançamentos contábeis têm tipo 'entrada_pix' para receitas PIX", () => {
+    const conciliacao: ConciliacaoPix = {
+      id: randomUUID(),
+      asaas_charge_id: "charge-tipo-1",
+      pluggy_ofx_id: "ofx-tipo-1",
+      valor_asaas: 600,
+      valor_ofx: 600,
+      data_asaas: "2025-02-14",
+      data_ofx: "2025-02-14",
+      status: "reconciliado",
+      discrepancia_flag: false,
+      lancamento_razao_id: null,
+      criado_em: new Date().toISOString(),
+      atualizado_em: null,
+    };
+
+    inserirChargePaga(db, "charge-tipo-1", 600, "Cliente Tipo");
+    db.prepare(
+      `INSERT INTO conciliacoes_pix_ofx (id, asaas_charge_id, pluggy_ofx_id, valor_asaas, valor_ofx, data_asaas, data_ofx, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(conciliacao.id, conciliacao.asaas_charge_id, conciliacao.pluggy_ofx_id, conciliacao.valor_asaas, conciliacao.valor_ofx, conciliacao.data_asaas, conciliacao.data_ofx, "reconciliado");
+
+    const lancamentoId = gerarLancamentoContabil(db, conciliacao);
+
+    const stmt = db.prepare("SELECT tipo FROM razao WHERE id = ?");
+    const lancamento = stmt.get(lancamentoId) as any;
+
+    expect(lancamento.tipo).toBe("entrada_pix");
+  });
+
+  it("39: Edge case: Diferentes formatos de data ISO 8601", () => {
+    const stmtCharge = db.prepare(`
+      INSERT INTO cobrancas_asaas (id, status, valor, beneficiario, criado_em)
+      VALUES (?, 'PAID', ?, ?, ?)
+    `);
+    stmtCharge.run("charge-iso-1", 1000, "Cliente ISO", "2025-02-14T10:30:00Z");
+
+    const stmtOFX = db.prepare(`
+      INSERT INTO conciliacao_ofx_cache (id, valor, data, descricao)
+      VALUES (?, ?, ?, ?)
+    `);
+    stmtOFX.run("ofx-iso-1", 1000, "2025-02-14", "Cliente ISO");
+
+    const result = buscarMatchPixOfx(db, "charge-iso-1");
+
+    expect(result.match).toBe(true);
+  });
+
+  it("40: Descrição vazia em OFX ainda encontra match por valor/data", () => {
+    inserirChargePaga(db, "charge-desc-empty-1", 400, "Cliente Desc");
+
+    const stmtOFX = db.prepare(`
+      INSERT INTO conciliacao_ofx_cache (id, valor, data, descricao)
+      VALUES (?, ?, ?, ?)
+    `);
+    stmtOFX.run("ofx-desc-empty-1", 400, new Date().toISOString(), "");
+
+    const result = buscarMatchPixOfx(db, "charge-desc-empty-1");
+
+    expect(result.match).toBe(true); // Match por valor e data
+    expect(result.confianca).toBeLessThan(100); // Sem beneficiário
   });
 });
