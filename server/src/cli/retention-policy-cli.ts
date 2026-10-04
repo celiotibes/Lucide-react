@@ -22,7 +22,7 @@ const command = args[0] || 'help';
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../data/crmt.db');
 const db = new Database(dbPath);
 const logger = new LoggerService('retention-policy-cli');
-const executor = new RetentionPolicyExecutor(db, logger);
+const executor = new RetentionPolicyExecutor(db);
 
 function printHelp(): void {
   console.log(`

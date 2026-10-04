@@ -415,3 +415,30 @@ export {
 };
 
 export default logger;
+
+/**
+ * LoggerService class for dependency injection
+ */
+export class LoggerService {
+  private scope: string;
+
+  constructor(scope: string = 'default') {
+    this.scope = scope;
+  }
+
+  debug(message: string, meta?: Record<string, unknown>): void {
+    logger.debug(`[${this.scope}] ${message}`, meta);
+  }
+
+  info(message: string, meta?: Record<string, unknown>): void {
+    logger.info(`[${this.scope}] ${message}`, meta);
+  }
+
+  warn(message: string, meta?: Record<string, unknown>): void {
+    logger.warn(`[${this.scope}] ${message}`, meta);
+  }
+
+  error(message: string, error?: Error | Record<string, unknown>): void {
+    logger.error(`[${this.scope}] ${message}`, error);
+  }
+}

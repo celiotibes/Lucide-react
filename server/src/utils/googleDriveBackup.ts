@@ -11,7 +11,7 @@
 import fs from "fs";
 import { logger } from '../services/logger-service.js';
 import path from "path";
-import archiver from "archiver";
+import * as archiverModule from "archiver";
 import { google, drive_v3 } from "googleapis";
 import { createReadStream, createWriteStream } from "fs";
 import Database from "better-sqlite3";
@@ -112,7 +112,7 @@ async function comprimirBanco(zipPath: string): Promise<boolean> {
       }
 
       const output = createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
+      const archive = (archiverModule as any)("zip", { zlib: { level: 9 } });
 
       output.on("close", () => {
         logger.info(`[GoogleDriveBackup] Arquivo ZIP criado: ${zipPath} (${archive.pointer()} bytes)`);
