@@ -13,8 +13,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { RetentionPolicyExecutor } from '../retention-policy-executor';
-import { LoggerService } from '../logger-service';
+import { RetentionPolicyExecutor } from '../../services/retention-policy-executor';
 import {
   migracaoRetencao,
   inserirPoliticasRetencaoPadrao,
@@ -22,7 +21,6 @@ import {
 
 describe('RetentionPolicyExecutor', () => {
   let db: Database.Database;
-  let logger: LoggerService;
   let executor: RetentionPolicyExecutor;
   let dbPath: string;
 
@@ -32,8 +30,7 @@ describe('RetentionPolicyExecutor', () => {
     db = new Database(dbPath);
     db.pragma('foreign_keys = ON');
 
-    logger = new LoggerService('test');
-    executor = new RetentionPolicyExecutor(db, logger);
+    executor = new RetentionPolicyExecutor(db);
 
     // Criar tabelas de retenção
     migracaoRetencao.criar(db);

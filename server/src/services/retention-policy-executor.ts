@@ -10,7 +10,7 @@
  */
 
 import Database from 'better-sqlite3';
-import { LoggerService } from './logger-service';
+import { logger } from './logger-service';
 
 export interface PoliticaRetencao {
   id: number;
@@ -44,11 +44,9 @@ export interface OpcoesExecucaoRetencao {
 
 export class RetentionPolicyExecutor {
   private db: Database.Database;
-  private logger: LoggerService;
 
-  constructor(db: Database.Database, logger: LoggerService) {
+  constructor(db: Database.Database) {
     this.db = db;
-    this.logger = logger;
   }
 
   /**
@@ -58,7 +56,7 @@ export class RetentionPolicyExecutor {
     const inicio = Date.now();
     const resultados: ResultadoRetencao[] = [];
 
-    this.logger.info(`[RETENCAO] Iniciando execução de retenção. Modo: ${opcoes.dryRun ? 'DRY-RUN' : 'REAL'}`, {
+    logger.info(`[RETENCAO] Iniciando execução de retenção. Modo: ${opcoes.dryRun ? 'DRY-RUN' : 'REAL'}`, {
       dryRun: opcoes.dryRun,
       executadoPor: opcoes.executadoPor,
       backupValidado: opcoes.backupValidado,
@@ -66,7 +64,7 @@ export class RetentionPolicyExecutor {
 
     // Se não for dry-run, verificar se backup foi validado
     if (!opcoes.dryRun && !opcoes.backupValidado) {
-      this.logger.warn('[RETENCAO] Tentativa de deletar dados sem validar backup. Abortando.');
+      logger.warn('[RETENCAO] Tentativa de deletar dados sem validar backup. Abortando.');
       throw new Error('Não é possível deletar dados sem validar backup primeiro. Execute com --dry-run ou valide backup.');
     }
 
@@ -79,7 +77,7 @@ export class RetentionPolicyExecutor {
           const resultado = this.executarRetencaoTabela(politica, opcoes);
           resultados.push(resultado);
         } catch (error) {
-          this.logger.error(`[RETENCAO] Erro ao processar tabela ${politica.tabela_nome}:`, {
+          logger.error(`[RETENCAO] Erro ao processar tabela ${politica.tabela_nome}:`, {
             erro: String(error),
             tabela: politica.tabela_nome,
           });
@@ -100,14 +98,14 @@ export class RetentionPolicyExecutor {
         this.registrarExecucaoRetencao(resultados, opcoes);
       }
     } catch (error) {
-      this.logger.error('[RETENCAO] Erro crítico ao executar retenção:', {
+      logger.error('[RETENCAO] Erro crítico ao executar retenção:', {
         erro: String(error),
       });
       throw error;
     }
 
     const tempoTotal = Date.now() - inicio;
-    this.logger.info(`[RETENCAO] Execução concluída em ${tempoTotal}ms`, {
+    logger.info(`[RETENCAO] Execução concluída em ${tempoTotal}ms`, {
       totalResultados: resultados.length,
       tempoMs: tempoTotal,
     });
@@ -152,7 +150,7 @@ export class RetentionPolicyExecutor {
 
       if (registrosExpirados.length === 0) {
         if (opcoes.verbose) {
-          this.logger.info(
+          logger.info(
             `[RETENCAO] Nenhum registro expirado para ${politica.tabela_nome}`
           );
         }
@@ -160,7 +158,7 @@ export class RetentionPolicyExecutor {
         return resultado;
       }
 
-      this.logger.info(
+      logger.info(
         `[RETENCAO] ${registrosExpirados.length} registros expirados em ${politica.tabela_nome}`,
         {
           tabela: politica.tabela_nome,
@@ -185,7 +183,7 @@ export class RetentionPolicyExecutor {
         if (!opcoes.dryRun) {
           this.deletarRegistros(politica.tabela_nome, paraDelete);
           resultado.registros_deletados = paraDelete.length;
-          this.logger.warn(
+          logger.warn(
             `[RETENCAO] ${paraDelete.length} registros DELETADOS de ${politica.tabela_nome}`,
             {
               tabela: politica.tabela_nome,
@@ -195,7 +193,7 @@ export class RetentionPolicyExecutor {
           );
         } else {
           resultado.registros_deletados = paraDelete.length; // Simular deleção
-          this.logger.info(
+          logger.info(
             `[RETENCAO-DRY-RUN] Seriam DELETADOS ${paraDelete.length} registros de ${politica.tabela_nome}`,
             {
               tabela: politica.tabela_nome,
@@ -209,7 +207,7 @@ export class RetentionPolicyExecutor {
 
       // Log de bloqueios
       if (resultado.registros_bloqueados_litigio > 0) {
-        this.logger.warn(
+        logger.warn(
           `[RETENCAO] ${resultado.registros_bloqueados_litigio} registros BLOQUEADOS por litígio em ${politica.tabela_nome}`,
           {
             tabela: politica.tabela_nome,
@@ -219,7 +217,7 @@ export class RetentionPolicyExecutor {
       }
 
       if (resultado.registros_marcados_esquecimento > 0) {
-        this.logger.info(
+        logger.info(
           `[RETENCAO] ${resultado.registros_marcados_esquecimento} registros já marcados para esquecimento em ${politica.tabela_nome}`,
           {
             tabela: politica.tabela_nome,
@@ -253,7 +251,7 @@ export class RetentionPolicyExecutor {
       const rows = stmt.all(dataLimite.toISOString()) as Array<{ id: number }>;
       return rows.map((r) => r.id);
     } catch (error) {
-      this.logger.error(
+      logger.error(
         `[RETENCAO] Erro ao buscar registros expirados de ${tabelaNome}:`,
         {
           erro: String(error),
@@ -325,12 +323,12 @@ export class RetentionPolicyExecutor {
     try {
       const stmt = this.db.prepare(query);
       const resultado = stmt.run(...registroIds);
-      this.logger.info(`[RETENCAO] Deletados ${resultado.changes} registros de ${tabelaNome}`, {
+      logger.info(`[RETENCAO] Deletados ${resultado.changes} registros de ${tabelaNome}`, {
         tabela: tabelaNome,
         deletados: resultado.changes,
       });
     } catch (error) {
-      this.logger.error(`[RETENCAO] Erro ao deletar registros de ${tabelaNome}:`, {
+      logger.error(`[RETENCAO] Erro ao deletar registros de ${tabelaNome}:`, {
         erro: String(error),
         tabela: tabelaNome,
         quantidade: registroIds.length,
@@ -356,7 +354,7 @@ export class RetentionPolicyExecutor {
 
     try {
       stmt.run(tabelaNome, registroId, motivo, solicitadoPor);
-      this.logger.info(
+      logger.info(
         `[RETENCAO] Registro ${tabelaNome}:${registroId} marcado para esquecimento`,
         {
           tabela: tabelaNome,
@@ -366,7 +364,7 @@ export class RetentionPolicyExecutor {
         }
       );
     } catch (error) {
-      this.logger.error(
+      logger.error(
         `[RETENCAO] Erro ao marcar registro para esquecimento:`,
         {
           erro: String(error),
@@ -396,7 +394,7 @@ export class RetentionPolicyExecutor {
 
     try {
       stmt.run(tabelaNome, registroId, motivoLitigio, numeroProcesso, bloqueadoPor);
-      this.logger.warn(
+      logger.warn(
         `[RETENCAO] Registro ${tabelaNome}:${registroId} BLOQUEADO por litígio`,
         {
           tabela: tabelaNome,
@@ -407,7 +405,7 @@ export class RetentionPolicyExecutor {
         }
       );
     } catch (error) {
-      this.logger.error(`[RETENCAO] Erro ao bloquear registro por litígio:`, {
+      logger.error(`[RETENCAO] Erro ao bloquear registro por litígio:`, {
         erro: String(error),
         tabela: tabelaNome,
         registroId,
@@ -439,7 +437,7 @@ export class RetentionPolicyExecutor {
         registroId
       );
       if (resultado.changes > 0) {
-        this.logger.warn(
+        logger.warn(
           `[RETENCAO] Bloqueio de litígio removido para ${tabelaNome}:${registroId}`,
           {
             tabela: tabelaNome,
@@ -449,7 +447,7 @@ export class RetentionPolicyExecutor {
         );
       }
     } catch (error) {
-      this.logger.error(`[RETENCAO] Erro ao desbloquear registro:`, {
+      logger.error(`[RETENCAO] Erro ao desbloquear registro:`, {
         erro: String(error),
         tabela: tabelaNome,
         registroId,
@@ -468,9 +466,10 @@ export class RetentionPolicyExecutor {
     motivo_litigio: string;
     numero_processo: string;
     data_bloqueio: string;
+    ativo: number;
   }> {
     let query = `
-      SELECT id, tabela_nome, registro_id, motivo_litigio, numero_processo, data_bloqueio
+      SELECT id, tabela_nome, registro_id, motivo_litigio, numero_processo, data_bloqueio, ativo
       FROM litigio_bloqueio
       WHERE ativo = 1
     `;
@@ -492,9 +491,10 @@ export class RetentionPolicyExecutor {
         motivo_litigio: string;
         numero_processo: string;
         data_bloqueio: string;
+        ativo: number;
       }>;
     } catch (error) {
-      this.logger.error(`[RETENCAO] Erro ao listar bloqueios:`, {
+      logger.error(`[RETENCAO] Erro ao listar bloqueios:`, {
         erro: String(error),
       });
       return [];
@@ -560,7 +560,7 @@ export class RetentionPolicyExecutor {
             opcoes.executadoPor || 'sistema'
           );
         } catch (error) {
-          this.logger.error(`[RETENCAO] Erro ao registrar execução:`, {
+          logger.error(`[RETENCAO] Erro ao registrar execução:`, {
             erro: String(error),
             tabela: resultado.tabela_nome,
           });
@@ -600,7 +600,7 @@ export class RetentionPolicyExecutor {
         ultima_execucao: ueData,
       };
     } catch (error) {
-      this.logger.error(`[RETENCAO] Erro ao gerar relatório:`, {
+      logger.error(`[RETENCAO] Erro ao gerar relatório:`, {
         erro: String(error),
       });
       return {
