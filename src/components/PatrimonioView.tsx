@@ -34,22 +34,40 @@ export function PatrimonioView() {
   const [salarioMensal, setSalarioMensal] = useState("23000");
   const [taxaDesconto, setTaxaDesconto] = useState("1");
 
-  const patrimonioLiquido = useMemo(() => (db ? calcularPatrimonioLiquido(db, hoje) : null), [db, versao, hoje]);
-  const alavancagem = useMemo(() => (db ? calcularAlavancagemPorImovel(db, hoje) : []), [db, versao, hoje]);
-  const liquidez = useMemo(() => (db ? calcularLiquidezCorrente(db, hoje) : null), [db, versao, hoje]);
+  const patrimonioLiquido = useMemo(() => {
+    void versao;
+    return db ? calcularPatrimonioLiquido(db, hoje) : null;
+  }, [db, versao, hoje]);
+  const alavancagem = useMemo(() => {
+    void versao;
+    return db ? calcularAlavancagemPorImovel(db, hoje) : [];
+  }, [db, versao, hoje]);
+  const liquidez = useMemo(() => {
+    void versao;
+    return db ? calcularLiquidezCorrente(db, hoje) : null;
+  }, [db, versao, hoje]);
   const taxaDescontoNumero = Number.parseFloat(taxaDesconto.replace(",", ".")) || 0;
   const endividamento = useMemo(
-    () => (db ? calcularVPLDoEndividamento(db, hoje, taxaDescontoNumero) : []),
+    () => {
+      void versao;
+      return db ? calcularVPLDoEndividamento(db, hoje, taxaDescontoNumero) : [];
+    },
     [db, versao, hoje, taxaDescontoNumero],
   );
   const somaSaldoDevedor = endividamento.reduce((acc, l) => acc + l.saldoDevedor, 0);
   const somaVpl = endividamento.reduce((acc, l) => acc + l.vpl, 0);
   const comprometimento = useMemo(
-    () => (db ? calcularComprometimentoRenda(db, hoje, Number.parseFloat(salarioMensal.replace(",", ".")) || 0) : null),
+    () => {
+      void versao;
+      return db ? calcularComprometimentoRenda(db, hoje, Number.parseFloat(salarioMensal.replace(",", ".")) || 0) : null;
+    },
     [db, versao, hoje, salarioMensal],
   );
   const indicadoresHistorico = useMemo(
-    () => (db ? calcularIndicadoresHistoricoPortfolio(db, new Date(hoje).getFullYear(), hoje) : null),
+    () => {
+      void versao;
+      return db ? calcularIndicadoresHistoricoPortfolio(db, new Date(hoje).getFullYear(), hoje) : null;
+    },
     [db, versao, hoje],
   );
 

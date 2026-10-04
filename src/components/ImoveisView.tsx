@@ -139,38 +139,58 @@ export function ImoveisView() {
   const [motivoCancelamentoManutencao, setMotivoCancelamentoManutencao] = useState("");
 
   const imoveis = useMemo<Imovel[]>(
-    () => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade, 'zzz'), apelido") : []),
+    () => {
+      void versao;
+      return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade, 'zzz'), apelido") : [];
+    },
     [db, versao],
   );
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
 
   const formId = form?.id ?? null;
   const itensInventario = useMemo<ItemInventarioBem[]>(
-    () => (db && formId ? consultar<ItemInventarioBem>(db, "SELECT * FROM imovel_inventario_bens WHERE imovel_id = ? ORDER BY id", [formId]) : []),
+    () => {
+      void versao;
+      return db && formId ? consultar<ItemInventarioBem>(db, "SELECT * FROM imovel_inventario_bens WHERE imovel_id = ? ORDER BY id", [formId]) : [];
+    },
     [db, versao, formId],
   );
 
   const contratosDoImovel = useMemo<ContratoLocacao[]>(
-    () =>
-      db && formId
+    () => {
+      void versao;
+      return db && formId
         ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE imovel_id = ? ORDER BY data_inicio DESC", [formId])
-        : [],
+        : [];
+    },
     [db, versao, formId],
   );
 
   const inquilinos = useMemo<Inquilino[]>(
-    () => (db && formId ? listarInquilinosPorImovel(db, formId) : []),
+    () => {
+      void versao;
+      return db && formId ? listarInquilinosPorImovel(db, formId) : [];
+    },
     [db, versao, formId],
   );
 
   const manutencoes = useMemo<Manutencao[]>(
-    () => (db && formId ? listarManutencoesPorImovel(db, formId) : []),
+    () => {
+      void versao;
+      return db && formId ? listarManutencoesPorImovel(db, formId) : [];
+    },
     [db, versao, formId],
   );
 
   const resumoDespesas = useMemo(
-    () => (db && formId && entidade ? obterResumoDespesasAgendadasImovel(db, entidade.id, formId) : null),
+    () => {
+      void versao;
+      return db && formId && entidade ? obterResumoDespesasAgendadasImovel(db, entidade.id, formId) : null;
+    },
     [db, versao, formId, entidade],
   );
 

@@ -75,27 +75,47 @@ export function ContasAPagarView() {
   const [cancelandoId, setCancelandoId] = useState<number | null>(null);
   const [motivoCancelamento, setMotivoCancelamento] = useState("");
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
   const planoContas = useMemo<PlanoConta[]>(
-    () => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []),
+    () => {
+      void versao;
+      return db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : [];
+    },
     [db, versao],
   );
   const imoveis = useMemo<Imovel[]>(
-    () => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade,'zzz'), apelido") : []),
+    () => {
+      void versao;
+      return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade,'zzz'), apelido") : [];
+    },
     [db, versao],
   );
-  const documentos = useMemo(() => (db ? listarDocumentos(db) : []), [db, versao]);
-  const contasBancarias = useMemo(() => (db ? listarContasBancarias(db) : []), [db, versao]);
+  const documentos = useMemo(() => {
+    void versao;
+    return db ? listarDocumentos(db) : [];
+  }, [db, versao]);
+  const contasBancarias = useMemo(() => {
+    void versao;
+    return db ? listarContasBancarias(db) : [];
+  }, [db, versao]);
 
   const contas = useMemo(
-    () =>
-      db && entidade
+    () => {
+      void versao;
+      return db && entidade
         ? listarContasAPagar(db, entidade.id, filtroStatus === "todas" ? {} : { status: filtroStatus })
-        : [],
+        : [];
+    },
     [db, versao, entidade, filtroStatus],
   );
 
-  const aging = useMemo(() => (db && entidade ? gerarRelatorioAging(db, entidade.id) : null), [db, versao, entidade]);
+  const aging = useMemo(() => {
+    void versao;
+    return db && entidade ? gerarRelatorioAging(db, entidade.id) : null;
+  }, [db, versao, entidade]);
 
   function atualizarRascunho(campos: Partial<RascunhoNovaConta>) {
     setRascunho((atual) => ({ ...atual, ...campos }));
