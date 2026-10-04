@@ -12,7 +12,7 @@ import { criarRotasRevisaoIA } from "../revisao-ia-routes";
 describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     db = new Database(":memory:");
@@ -44,14 +44,14 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
 
     // Mock auth middleware
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
         usuario: { id: "user1", email: "test@example.com", role: "administrador" },
       };
-      (req as any).usuarioId = "user1";
-      (req as any).usuarioRole = "admin";
+      (req as unknown).usuarioId = "user1";
+      (req as unknown).usuarioRole = "admin";
       next();
     });
 

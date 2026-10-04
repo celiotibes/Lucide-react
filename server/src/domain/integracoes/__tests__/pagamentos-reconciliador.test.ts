@@ -1,16 +1,15 @@
- describe, it, expect, , $1$2vi  from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-   from "crypto";
-
+import { randomUUID } from "crypto";
+import {
   sincronizarStatusTaxaAsaas,
   sincronizarStatusTaxaAsaasComFiltro,
   sincronizarStatusTaxaAsaasComRetry,
-  type ,
   type AuditReconciliacao,
- from "../pagamentos-reconciliador.js";
+} from "../pagamentos-reconciliador.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

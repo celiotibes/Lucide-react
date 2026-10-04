@@ -256,7 +256,7 @@ describe("Batch Transaction Manager", () => {
         `);
 
         for (const item of chunk) {
-          if ((item as any).shouldFail) {
+          if ((item as unknown).shouldFail) {
             throw new Error("Simulated error for testing");
           }
           stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`, "titular");
@@ -320,7 +320,7 @@ describe("Batch Transaction Manager", () => {
         `);
 
         for (const item of chunk) {
-          if ((item as any).willFail) {
+          if ((item as unknown).willFail) {
             throw new Error("Test error in last chunk");
           }
           stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`, "titular");

@@ -2,14 +2,13 @@
  * Testes para Data Retention Policy
  */
 
- describe, it, expect,   from 'vitest';
-
+import { describe, it, expect } from 'vitest';
+import {
   calcularDataLimite,
-  ,
-  $1$2comprimirLogsAuditoria,
-  $1$2executarLimpezaMensal,
+  comprimirLogsAuditoria,
+  executarLimpezaMensal,
   POLITICAS_RETENCAO_PADRAO,
- from '../data-retention-policy';
+} from '../data-retention-policy';
 
 describe('Data Retention Policy', () => {
   describe('Cálculo de datas', () => {

@@ -13,7 +13,7 @@ import { criarRotasAnomalias } from "../anomalias-routes";
 describe("Validation Error Responses", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     db = new Database(":memory:");
@@ -49,7 +49,7 @@ describe("Validation Error Responses", () => {
     app.use(express.json());
 
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
@@ -93,7 +93,7 @@ describe("Validation Error Responses", () => {
       const appNoDB = express();
       appNoDB.use(express.json());
       appNoDB.use((req, res, next) => {
-        (req as any).auth = {
+        (req as unknown).auth = {
           usuarioId: "user1",
           token: "test-token",
           autenticado: true,

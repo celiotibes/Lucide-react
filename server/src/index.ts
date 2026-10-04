@@ -11,7 +11,7 @@ import { pluggy, normalizarTransacao } from "./pluggy.js";
 // SEC-011: Structured Logging
 import { logger } from "./services/logger-service.js";
 // SEC-012: Sentry Error Tracking & Performance Monitoring
-import { initializeSentry, attachSentryHandlers, setSentryUser, clearSentryUser } from "./services/sentry-service.js";
+import { initializeSentry, attachSentryHandlers } from "./services/sentry-service.js";
 import { requestIdMiddleware } from "./middleware/request-id-middleware.js";
 // SEC-013: CSRF Protection
 import {
@@ -20,7 +20,7 @@ import {
   adicionarTokenCSRFAoResponse,
   erroCSRF,
 } from "./middleware/csrf-middleware.js";
-import { initializeDatabase, getDatabase, closeDatabase } from "./database-init.js";
+import { initializeDatabase, closeDatabase } from "./database-init.js";
 import { AuthServiceDB } from "../src/domain/auth/auth-service-db.js";
 import { AuditTrailServiceDB } from "../src/domain/auth/audit-trail-db.js";
 import { PermissoesServiceDB } from "../src/domain/auth/permissoes-db.js";
@@ -443,7 +443,7 @@ app.post("/api/connect-token", exigirChaveApi, async (req, res) => {
     const connectToken = await pluggy.createConnectToken(undefined, clientUserId ? { clientUserId } : undefined);
     req.logger.info("Connect token created", { clientUserId });
     res.json({ accessToken: connectToken.accessToken });
-  } catch (erro) {
+  } catch {
     req.logger.error("Erro ao criar connect token", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao criar connect token" });
   }
@@ -470,7 +470,7 @@ app.get("/api/accounts", exigirChaveApi, async (req, res) => {
         saldo: conta.balance,
       })),
     );
-  } catch (erro) {
+  } catch {
     req.logger.error("Erro ao buscar contas", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao buscar contas" });
   }
@@ -492,7 +492,7 @@ app.get("/api/transactions", exigirChaveApi, async (req, res) => {
     });
     req.logger.info("Transactions fetched", { accountId, count: transacoes.length, from, to });
     res.json(transacoes.map(normalizarTransacao));
-  } catch (erro) {
+  } catch {
     req.logger.error("Erro ao buscar transações", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao buscar transações" });
   }
@@ -536,7 +536,7 @@ app.get("/api/health", async (_req, res) => {
     const statusHttp = saudeCompleta.status === "error" ? 503 : 200;
     _req.logger.info("[Health] Check executed", { leve: usarLeve, status: saudeCompleta.status });
     res.status(statusHttp).json(saudeCompleta);
-  } catch (erro) {
+  } catch {
     _req.logger.error("[Health] Erro ao executar health check", erro instanceof Error ? erro : { error: String(erro) });
     res.status(503).json({
       status: "error",

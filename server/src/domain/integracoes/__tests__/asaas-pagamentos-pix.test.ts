@@ -1,10 +1,10 @@
- describe, it, expect, , $1$2vi  from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-   from "crypto";
-
+import { randomUUID } from "crypto";
+import {
   criarPagamentoPix,
   buscarStatusPagamentoPix,
   sincronizarPagamentosPendentes,
@@ -12,9 +12,8 @@ import { fileURLToPath } from "url";
   buscarPagamentoPix,
   listarPagamentosPix,
   type DadosPagamentoPix,
-  type ,
-  $1$2AsaasConfiguracaoAusenteError,
- from "../asaas-pagamentos-pix.js";
+  type AsaasConfiguracaoAusenteError,
+} from "../asaas-pagamentos-pix.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -144,7 +144,7 @@ export class VerificadorRevisaoIA {
 
           resultado.itemsCriados.push(item.id);
           this.invalidarCache(dados.documentoId);
-        } catch (erro) {
+        } catch {
           console.error('Erro ao criar item de revisão', erro);
         }
       }

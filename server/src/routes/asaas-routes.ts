@@ -92,7 +92,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         telefone: typeof telefone === "string" ? telefone : undefined,
       });
       res.status(201).json({ asaasCustomerId: cliente.id });
-    } catch (erro) {
+    } catch {
       tratarErroAsaas(erro, res);
     }
   });
@@ -139,7 +139,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         linhaDigitavel: cobranca.identificationField ?? null,
         pixQrCode: cobranca.pixQrCodeId ?? null,
       });
-    } catch (erro) {
+    } catch {
       tratarErroAsaas(erro, res);
     }
   });
@@ -168,7 +168,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
           linhaDigitavel: cobranca.identificationField ?? null,
           pixQrCode: cobranca.pixQrCodeId ?? null,
         });
-      } catch (erro) {
+      } catch {
         tratarErroAsaas(erro, res);
       }
     }
@@ -206,7 +206,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
       await consultarCobranca(chargeId);
 
       // Monta payload com apenas os campos fornecidos
-      const payload: any = {};
+      const payload: unknown = {};
       if (description !== undefined) payload.description = description;
       if (dueDate !== undefined) payload.dueDate = dueDate;
 
@@ -220,7 +220,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         linhaDigitavel: cobrancaAtualizada.identificationField ?? null,
         pixQrCode: cobrancaAtualizada.pixQrCodeId ?? null,
       });
-    } catch (erro) {
+    } catch {
       if (erro instanceof AsaasApiError && erro.status === 404) {
         return res.status(404).json({ erro: "Cobrança não encontrada" });
       }
@@ -304,9 +304,9 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
       } else {
         eventosService.registrarEvento("webhook_asaas", body);
       }
-    } catch (erro) {
+    } catch {
       logger.error("[asaas-routes] Falha ao registrar o evento do webhook:", {
-        requestId: (req as any).id || "unknown",
+        requestId: (req as unknown).id || "unknown",
         endpoint: req.path,
         paymentId: payment.id,
         error: erro instanceof Error ? erro.message : String(erro),
@@ -344,7 +344,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     }
 
     try {
-      const db = (req as any).db;
+      const db = (req as unknown).db;
       const reembolso = await processarReembolsoAsaas(db, {
         chargeId,
         motivo: motivo.trim(),
@@ -361,7 +361,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         origemTipo: reembolso.origemTipo,
         origemId: reembolso.origemId,
       });
-    } catch (erro) {
+    } catch {
       if (erro instanceof Error && erro.message.includes("não encontrada")) {
         res.status(404).json({ erro: erro.message });
         return;
@@ -388,7 +388,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     }
 
     try {
-      const dbLocal = (req as any).db;
+      const dbLocal = (req as unknown).db;
       const reembolsos = obterReembolsosPorChargeId(dbLocal, chargeId);
 
       res.json({
@@ -403,7 +403,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
           mensagemErro: r.mensagemErro,
         })),
       });
-    } catch (erro) {
+    } catch {
       throw erro;
     }
   });
@@ -430,7 +430,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         erros: resultado.erros,
         detalhes: resultado.detalhes,
       });
-    } catch (erro) {
+    } catch {
       logger.error("[asaas-routes] Erro ao reconciliar manualmente:", erro instanceof Error ? erro.message : erro);
       res.status(500).json({
         erro: "Erro ao reconciliar cobranças Asaas",

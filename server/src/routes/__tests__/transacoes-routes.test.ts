@@ -24,8 +24,8 @@ vi.mock("../domain/transacoes/categorizacaoInteligente", () => ({
 
 describe("Rotas HTTP de Categorização de Transações", () => {
   let app: express.Application;
-  let mockDb: any;
-  let mockAuthService: any;
+  let mockDb: unknown;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     // Mock simples do banco de dados
@@ -52,7 +52,7 @@ describe("Rotas HTTP de Categorização de Transações", () => {
 
     // Mock auth middleware - simula autenticação bem-sucedida
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,

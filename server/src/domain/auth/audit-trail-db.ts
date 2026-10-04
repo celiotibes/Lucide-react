@@ -156,7 +156,7 @@ export class AuditTrailServiceDB {
       }
 
       return registro;
-    } catch (erro) {
+    } catch {
       logger.error("Erro ao registrar auditoria:", erro);
       throw erro;
     }
@@ -191,7 +191,7 @@ export class AuditTrailServiceDB {
       );
       const registros = stmt.all(usuario_id, limite) as unknown[];
       return this.parseRegistros(registros);
-    } catch (erro) {
+    } catch {
       logger.error("Erro ao obter histórico de usuário:", erro);
       return [];
     }
@@ -210,7 +210,7 @@ export class AuditTrailServiceDB {
       );
       const registros = stmt.all(recurso, limite) as unknown[];
       return this.parseRegistros(registros);
-    } catch (erro) {
+    } catch {
       logger.error("Erro ao obter histórico de recurso:", erro);
       return [];
     }
@@ -254,7 +254,7 @@ export class AuditTrailServiceDB {
       const stmt = this.db.prepare(query);
       const registros = stmt.all(...params) as RegistroAuditoria[];
       return this.parseRegistros(registros);
-    } catch (erro) {
+    } catch {
       logger.error("Erro ao obter registros de auditoria:", erro);
       return [];
     }
@@ -306,7 +306,7 @@ export class AuditTrailServiceDB {
         acao_mais_comum: (acaoResult?.tipo_acao as TipoAcao) || "login",
         periodo: `${periodo_horas}h`,
       };
-    } catch (erro) {
+    } catch {
       logger.error("Erro ao obter estatísticas:", erro);
       return {
         total_registros: 0,
@@ -366,7 +366,7 @@ export class AuditTrailServiceDB {
           };
         }),
       };
-    } catch (erro) {
+    } catch {
       logger.error("Erro ao gerar relatório:", erro);
       return {
         periodo: "",
