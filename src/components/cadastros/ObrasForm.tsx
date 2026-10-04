@@ -34,8 +34,14 @@ export function ObrasForm() {
   const { db, versao, persistir } = useDb();
   const [form, setForm] = useState<Formulario | null>(null);
 
-  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
-  const obras = useMemo<Obra[]>(() => (db ? consultar<Obra>(db, "SELECT * FROM obras ORDER BY data_inicio DESC") : []), [db, versao]);
+  const imoveis = useMemo<Imovel[]>(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : [];
+  }, [db, versao]);
+  const obras = useMemo<Obra[]>(() => {
+    void versao;
+    return db ? consultar<Obra>(db, "SELECT * FROM obras ORDER BY data_inicio DESC") : [];
+  }, [db, versao]);
   const imoveisPorId = useMemo(() => new Map(imoveis.map((i) => [i.id, i])), [imoveis]);
 
   function abrirEdicao(o: Obra) {

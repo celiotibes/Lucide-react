@@ -8,7 +8,7 @@
  * - Alertas para margens críticas
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { AlertTriangle } from "lucide-react";
 
@@ -46,11 +46,7 @@ export const MargensPropriedadesView: React.FC = () => {
   const [historicos, setHistoricos] = useState<Record<number, HistoricoCompleto>>({});
 
   // Carregar ranking
-  useEffect(() => {
-    carregarRanking();
-  }, [periodoMes]);
-
-  const carregarRanking = async () => {
+  const carregarRanking = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +70,11 @@ export const MargensPropriedadesView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodoMes]);
+
+  useEffect(() => {
+    carregarRanking();
+  }, [carregarRanking]);
 
   const carregarHistorico = async (imovelId: number) => {
     if (historicos[imovelId]) {

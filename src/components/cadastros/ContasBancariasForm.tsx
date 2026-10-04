@@ -23,7 +23,10 @@ export function ContasBancariasForm() {
   const { db, versao, persistir } = useDb();
   const [form, setForm] = useState<Formulario | null>(null);
 
-  const contas = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db, versao]);
+  const contas = useMemo<ContaBancaria[]>(() => {
+    void versao;
+    return db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : [];
+  }, [db, versao]);
 
   function abrirEdicao(c: ContaBancaria) {
     setForm({ id: c.id, banco: c.banco, agencia: c.agencia ?? "", numero: c.numero, titular: c.titular, tipo: c.tipo, ativa_desde: c.ativa_desde ?? "", observacoes: c.observacoes ?? "" });

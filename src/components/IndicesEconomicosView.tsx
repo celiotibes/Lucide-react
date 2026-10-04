@@ -22,7 +22,10 @@ export function IndicesEconomicosView() {
   const { db, versao, persistir } = useDb();
   const hoje = hojeIso();
 
-  const dataMinima = useMemo(() => (db ? dataMinimaNecessaria(db, hoje) : hoje), [db, versao, hoje]);
+  const dataMinima = useMemo(() => {
+    void versao;
+    return db ? dataMinimaNecessaria(db, hoje) : hoje;
+  }, [db, versao, hoje]);
   const [dataInicio, setDataInicio] = useState(dataMinima);
   const [dataFim, setDataFim] = useState(hoje);
   const [status, setStatus] = useState<Record<string, StatusBusca>>({});
@@ -32,6 +35,7 @@ export function IndicesEconomicosView() {
   const [manualTaxa, setManualTaxa] = useState("");
 
   const taxasPorIndice = useMemo(() => {
+    void versao;
     if (!db) return {} as Record<string, TaxaMensal[]>;
     const mapa: Record<string, TaxaMensal[]> = {};
     for (const indice of TODOS_INDICES) mapa[indice] = listarTaxas(db, indice);

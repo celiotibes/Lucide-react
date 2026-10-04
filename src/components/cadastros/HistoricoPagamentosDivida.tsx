@@ -73,11 +73,17 @@ export function HistoricoPagamentosDivida({ dividaTipo, dividaId }: Props) {
   const [manual, setManual] = useState(manualVazio());
 
   const pendentes = useMemo(
-    () => (db ? listarPagamentosPendentesConfirmacao(db, dividaTipo, dividaId) : []),
+    () => {
+      void versao;
+      return db ? listarPagamentosPendentesConfirmacao(db, dividaTipo, dividaId) : [];
+    },
     [db, versao, dividaTipo, dividaId],
   );
   const confirmados = useMemo(
-    () => (db ? listarPagamentosConfirmados(db, dividaTipo, dividaId) : []),
+    () => {
+      void versao;
+      return db ? listarPagamentosConfirmados(db, dividaTipo, dividaId) : [];
+    },
     [db, versao, dividaTipo, dividaId],
   );
 

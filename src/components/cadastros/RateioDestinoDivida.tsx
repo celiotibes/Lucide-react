@@ -33,11 +33,17 @@ export function RateioDestinoDivida({ dividaTipo, dividaId }: Props) {
   const [observacoes, setObservacoes] = useState("");
 
   const linhas = useMemo(
-    () => (db ? listarRateioDestinos(db, dividaTipo, dividaId) : []),
+    () => {
+      void versao;
+      return db ? listarRateioDestinos(db, dividaTipo, dividaId) : [];
+    },
     [db, versao, dividaTipo, dividaId],
   );
   const totalClassificado = useMemo(
-    () => (db ? percentualTotalClassificado(db, dividaTipo, dividaId) : 0),
+    () => {
+      void versao;
+      return db ? percentualTotalClassificado(db, dividaTipo, dividaId) : 0;
+    },
     [db, versao, dividaTipo, dividaId],
   );
   const faltante = Math.round((100 - totalClassificado) * 100) / 100;

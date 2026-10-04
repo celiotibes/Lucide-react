@@ -52,8 +52,14 @@ export function FinanciamentosForm() {
   const { avisar } = useToast();
   const [form, setForm] = useState<Formulario | null>(null);
 
-  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis WHERE financiado = 1 ORDER BY apelido") : []), [db, versao]);
-  const financiamentos = useMemo<Financiamento[]>(() => (db ? consultar<Financiamento>(db, "SELECT * FROM financiamentos ORDER BY data_contrato DESC") : []), [db, versao]);
+  const imoveis = useMemo<Imovel[]>(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis WHERE financiado = 1 ORDER BY apelido") : [];
+  }, [db, versao]);
+  const financiamentos = useMemo<Financiamento[]>(() => {
+    void versao;
+    return db ? consultar<Financiamento>(db, "SELECT * FROM financiamentos ORDER BY data_contrato DESC") : [];
+  }, [db, versao]);
   const imoveisPorId = useMemo(() => new Map(imoveis.map((i) => [i.id, i])), [imoveis]);
 
   function abrirEdicao(f: Financiamento) {

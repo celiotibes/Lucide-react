@@ -37,7 +37,10 @@ export function ImportarView() {
   const [arquivos, setArquivos] = useState<ArquivoProcessado[]>([]);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
-  const contas = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db, versao]);
+  const contas = useMemo<ContaBancaria[]>(() => {
+    void versao;
+    return db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : [];
+  }, [db, versao]);
 
   async function tratarArquivos(novos: File[]) {
     setProcessando(true);

@@ -59,7 +59,10 @@ export function PrestadorMobileView({ enviar }: { enviar?: EnviarItem<PayloadApo
   const enviarRef = useRef(enviar);
   enviarRef.current = enviar;
 
-  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
+  const imoveis = useMemo<Imovel[]>(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : [];
+  }, [db, versao]);
 
   const { fila, persistente } = useMemo(() => {
     const { armazenamento, persistente } = criarArmazenamentoPadrao<PayloadApontamentoCampo>();

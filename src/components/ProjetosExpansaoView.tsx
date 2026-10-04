@@ -96,10 +96,16 @@ export function ProjetosExpansaoView() {
   const [projetoSelecionadoId, setProjetoSelecionadoId] = useState<number | null>(null);
   const [statusOcupado, setStatusOcupado] = useState<number | null>(null);
 
-  const imoveis = useMemo(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
+  const imoveis = useMemo(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : [];
+  }, [db, versao]);
   const imoveisPorId = useMemo(() => new Map(imoveis.map((i) => [i.id, i])), [imoveis]);
 
-  const projetos = useMemo<ProjetoExpansao[]>(() => (db ? listarProjetosExpansao(db) : []), [db, versao]);
+  const projetos = useMemo<ProjetoExpansao[]>(() => {
+    void versao;
+    return db ? listarProjetosExpansao(db) : [];
+  }, [db, versao]);
 
   const projetoSelecionado = projetoSelecionadoId ?? projetos[0]?.id ?? null;
 

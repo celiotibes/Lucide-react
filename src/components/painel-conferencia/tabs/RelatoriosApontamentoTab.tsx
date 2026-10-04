@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Tabs,
   TabsContent,
@@ -74,7 +74,7 @@ const RelatoriosApontamentoTab: React.FC = () => {
   const [statusPagamento, setStatusPagamento] = useState<StatusPagamento | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  const gerarRelatorios = () => {
+  const gerarRelatorios = useCallback(() => {
     if (!db) return;
     setErro(null);
     try {
@@ -87,15 +87,14 @@ const RelatoriosApontamentoTab: React.FC = () => {
       console.error("Erro ao gerar relatórios de apontamento:", erroCapturado);
       setErro(erroCapturado instanceof Error ? erroCapturado.message : "Erro ao gerar relatórios.");
     }
-  };
+  }, [db, filtros]);
 
   // Gera na primeira vez que o banco fica disponível; depois só sob demanda (botão), para não
   // recalcular a cada tecla digitada nos filtros de data.
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     gerarRelatorios();
-  }, [db]);
+  }, [gerarRelatorios]);
 
   const rubricas = useMemo(() => (despesas ? (Object.keys(despesas.por_tipo) as (keyof typeof despesas.por_tipo)[]) : []), [despesas]);
 

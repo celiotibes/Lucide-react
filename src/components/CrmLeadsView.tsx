@@ -109,26 +109,37 @@ export function CrmLeadsView() {
   const [rascunhoProposta, setRascunhoProposta] = useState<RascunhoNovaProposta>(rascunhoPropostaVazio());
 
   const imoveis = useMemo<ImovelOpcao[]>(
-    () => (db ? consultar<ImovelOpcao>(db, "SELECT id, apelido FROM imoveis ORDER BY apelido") : []),
+    () => {
+      void versao;
+      return db ? consultar<ImovelOpcao>(db, "SELECT id, apelido FROM imoveis ORDER BY apelido") : [];
+    },
     [db, versao],
   );
   const imoveisPorId = useMemo(() => new Map(imoveis.map((i) => [i.id, i])), [imoveis]);
 
-  const funil = useMemo(() => (db ? funilResumo(db) : null), [db, versao]);
+  const funil = useMemo(() => {
+    void versao;
+    return db ? funilResumo(db) : null;
+  }, [db, versao]);
 
   const leads = useMemo(
-    () =>
-      db
+    () => {
+      void versao;
+      return db
         ? listarLeads(db, {
             etapa: filtroEtapa === "todas" ? undefined : filtroEtapa,
             imovelId: filtroImovelId ? Number(filtroImovelId) : undefined,
           })
-        : [],
+        : [];
+    },
     [db, versao, filtroEtapa, filtroImovelId],
   );
 
   const leadSelecionado = useMemo(
-    () => (db && leadSelecionadoId !== null ? obterLeadComHistorico(db, leadSelecionadoId) : null),
+    () => {
+      void versao;
+      return db && leadSelecionadoId !== null ? obterLeadComHistorico(db, leadSelecionadoId) : null;
+    },
     [db, versao, leadSelecionadoId],
   );
 

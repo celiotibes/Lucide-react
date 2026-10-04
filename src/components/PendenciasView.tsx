@@ -20,7 +20,10 @@ export function PendenciasView({ aoNavegar }: { aoNavegar: (aba: string) => void
   const { db, versao } = useDb();
   const hoje = hojeIso();
 
-  const pendencias = useMemo(() => (db ? gerarPainelPendencias(db, hoje) : []), [db, versao, hoje]);
+  const pendencias = useMemo(() => {
+    void versao;
+    return db ? gerarPainelPendencias(db, hoje) : [];
+  }, [db, versao, hoje]);
   const criticas = pendencias.filter((p) => p.severidade === "critica").length;
   const atencoes = pendencias.filter((p) => p.severidade === "atencao").length;
 

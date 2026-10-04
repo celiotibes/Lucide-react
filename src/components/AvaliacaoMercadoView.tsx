@@ -116,8 +116,14 @@ export function AvaliacaoMercadoView() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [rascunho, setRascunho] = useState<RascunhoAvaliacao>(rascunhoVazio());
 
-  const relatorio = useMemo(() => (db ? relatorioPatrimonioMercado(db) : null), [db, versao]);
-  const indicadores = useMemo(() => (db ? calcularIndicadoresViabilidade(db) : null), [db, versao]);
+  const relatorio = useMemo(() => {
+    void versao;
+    return db ? relatorioPatrimonioMercado(db) : null;
+  }, [db, versao]);
+  const indicadores = useMemo(() => {
+    void versao;
+    return db ? calcularIndicadoresViabilidade(db) : null;
+  }, [db, versao]);
 
   const indicadoresPorImovel = useMemo(() => {
     const mapa = new Map<number, { noiAnual: number; capRatePercentual: number | null; roiPercentual: number | null }>();
@@ -128,7 +134,10 @@ export function AvaliacaoMercadoView() {
   }, [indicadores]);
 
   const historicoSelecionado = useMemo(
-    () => (db && imovelSelecionadoId !== null ? listarAvaliacoesMercado(db, imovelSelecionadoId) : []),
+    () => {
+      void versao;
+      return db && imovelSelecionadoId !== null ? listarAvaliacoesMercado(db, imovelSelecionadoId) : [];
+    },
     [db, versao, imovelSelecionadoId],
   );
 

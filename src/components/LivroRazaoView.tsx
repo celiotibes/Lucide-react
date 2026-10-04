@@ -13,7 +13,10 @@ export function LivroRazaoView() {
   const [periodoFim, setPeriodoFim] = useState(hoje);
   const [contaSelecionada, setContaSelecionada] = useState<string | null>(null);
 
-  const lancamentos = useMemo(() => (db ? gerarLancamentos(db, periodoInicio, periodoFim) : []), [db, versao, periodoInicio, periodoFim]);
+  const lancamentos = useMemo(() => {
+    void versao;
+    return db ? gerarLancamentos(db, periodoInicio, periodoFim) : [];
+  }, [db, versao, periodoInicio, periodoFim]);
   const balancete = useMemo(() => gerarBalancete(lancamentos), [lancamentos]);
   const razaoDaConta = useMemo(() => (contaSelecionada ? gerarRazaoDaConta(lancamentos, contaSelecionada) : []), [lancamentos, contaSelecionada]);
 
