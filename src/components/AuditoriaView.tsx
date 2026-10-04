@@ -39,14 +39,24 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
   const hoje = hojeIso();
   const dataInicio36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
 
-  const duplicatas = useMemo(() => (db ? detectarDuplicatas(db) : []), [db, versao]);
-  const outliers = useMemo(() => (db ? detectarOutliers(db, dataInicio36m, hoje) : []), [db, versao, dataInicio36m, hoje]);
+  const duplicatas = useMemo(() => {
+    void versao;
+    return db ? detectarDuplicatas(db) : [];
+  }, [db, versao]);
+  const outliers = useMemo(() => {
+    void versao;
+    return db ? detectarOutliers(db, dataInicio36m, hoje) : [];
+  }, [db, versao, dataInicio36m, hoje]);
   const lacunas = useMemo(
-    () => (db ? detectarLacunasMensais(db, ["2.1.01", "2.1.05", "2.1.06"], dataInicio36m, hoje) : []),
+    () => {
+      void versao;
+      return db ? detectarLacunasMensais(db, ["2.1.01", "2.1.05", "2.1.06"], dataInicio36m, hoje) : [];
+    },
     [db, versao, dataInicio36m, hoje],
   );
 
   const valoresVariaveis = useMemo(() => {
+    void versao;
     if (!db) return [];
     return consultar<{ valor: number }>(
       db,
@@ -58,10 +68,22 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
   const benford = useMemo(() => testeBenford(valoresVariaveis), [valoresVariaveis]);
   const desvioBenfordMaximo = Math.max(0, ...benford.map((b) => Math.abs(b.frequenciaObservada - b.frequenciaEsperada)));
 
-  const caucoesSemTransacao = useMemo(() => (db ? detectarCaucoesSemTransacao(db) : []), [db, versao]);
-  const transacoesCaucaoSemRegistro = useMemo(() => (db ? detectarTransacoesCaucaoSemRegistro(db) : []), [db, versao]);
-  const financiamentosSemLancamento = useMemo(() => (db ? detectarFinanciamentosSemLancamento(db, hoje) : []), [db, versao, hoje]);
-  const logAlteracoes = useMemo(() => (db ? listarLogCompleto(db, 100) : []), [db, versao]);
+  const caucoesSemTransacao = useMemo(() => {
+    void versao;
+    return db ? detectarCaucoesSemTransacao(db) : [];
+  }, [db, versao]);
+  const transacoesCaucaoSemRegistro = useMemo(() => {
+    void versao;
+    return db ? detectarTransacoesCaucaoSemRegistro(db) : [];
+  }, [db, versao]);
+  const financiamentosSemLancamento = useMemo(() => {
+    void versao;
+    return db ? detectarFinanciamentosSemLancamento(db, hoje) : [];
+  }, [db, versao, hoje]);
+  const logAlteracoes = useMemo(() => {
+    void versao;
+    return db ? listarLogCompleto(db, 100) : [];
+  }, [db, versao]);
 
   // Log de acesso e integridade (compliance-audit-log.ts) — trilha imutável de chamadas a
   // APIs externas, distinta do "Histórico de edições" acima (que audita os CADASTROS, não o
@@ -85,13 +107,17 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
   }, [db, versao, dataInicio36m, hoje]);
 
   const relatorioAuditoria = useMemo<RelatorioAuditoria | null>(
-    () => (db ? gerarRelatorioAuditoria(db, dataInicio36m, hoje) : null),
+    () => {
+      void versao;
+      return db ? gerarRelatorioAuditoria(db, dataInicio36m, hoje) : null;
+    },
     [db, versao, dataInicio36m, hoje],
   );
 
   // Não há cadastro de usuários/login nesta tela (app local, sem sessão) — a lista de
   // usuários selecionáveis vem dos próprios registros do log, não de uma tabela à parte.
   const usuariosComAcesso = useMemo(() => {
+    void versao;
     if (!db) return [];
     return consultar<{ usuario_id: number; usuario_nome: string | null }>(
       db,
@@ -102,7 +128,10 @@ export function AuditoriaView({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTr
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<number | "">("");
 
   const acessosUsuario = useMemo(
-    () => (db && usuarioSelecionado !== "" ? listarAcessosUsuario(db, usuarioSelecionado, 50) : []),
+    () => {
+      void versao;
+      return db && usuarioSelecionado !== "" ? listarAcessosUsuario(db, usuarioSelecionado, 50) : [];
+    },
     [db, versao, usuarioSelecionado],
   );
 
