@@ -22,8 +22,8 @@ describe("asaasReembolsos", () => {
   let db: Database;
 
   const mockApiClient = {
-    criarCliente: async (dados: unknown) => ({ asaasCustomerId: `cust_${Date.now()}` }),
-    criarCobranca: async (dados: unknown) => ({
+    criarCliente: async () => ({ asaasCustomerId: `cust_${Date.now()}` }),
+    criarCobranca: async () => ({
       asaasChargeId: `charge_${Date.now()}`,
       status: "PENDING",
       boletoUrl: "https://example.com/boleto",

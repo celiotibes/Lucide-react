@@ -21,7 +21,7 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import { calcularHoras } from "../apontamentos/apontamentoUtils";
-import type { StatusApontamento, TipoApontamento } from "../apontamentos";
+import type { StatusApontamento } from "../apontamentos";
 
 export interface FiltrosRelatorioApontamento {
   data_inicio?: string; // YYYY-MM-DD, inclusive

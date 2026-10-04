@@ -26,15 +26,6 @@ import {
   type RegistroAuditoria,
 } from "../compliance-audit-log";
 
-// Espera o fire-and-forget terminar (registrarAcessoLeitura/registrarErro chamam
-// registrarChamadaAPI, que é async — várias chamadas reais a crypto.subtle por dentro —
-// sem aguardar a Promise). Só microtask (Promise.resolve() encadeado) não basta porque
-// crypto.subtle.digest/sign agendam trabalho que não resolve em ordem de microtask pura;
-// um tick de macrotask (setTimeout) dá tempo de sobra para a cadeia inteira terminar.
-async function aguardarMicrotasks() {
-  await new Promise((resolve) => setTimeout(resolve, 10));
-}
-
 /** O registro de auditoria é assíncrono (encadeia hash). Uma espera fixa de 10ms fica curta sob
  * carga e o teste ficava intermitente; aqui se espera o registro aparecer, com teto de 3s. */
 async function aguardarRegistros(db: Awaited<ReturnType<typeof criarBancoDeTeste>>, usuario_id: number) {

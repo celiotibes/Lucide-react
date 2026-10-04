@@ -122,7 +122,7 @@ function ListaDetalhe({
 }
 
 export function Conciliacao() {
-  const { db, versao, persistir } = useDb();
+  const { db, persistir } = useDb();
   const { avisar } = useToast();
 
   const [tick, setTick] = useState(0);

@@ -234,7 +234,7 @@ export async function verificarIntegridade(
 
     let hashAnterior = '';
 
-    for (const [id, timestamp, modulo, operacao, entidade, idEntidade, descricao, hashRegistro, hashAnteriorArmazenado, assinatura] of result[0].values) {
+    for (const [id, timestamp, modulo, operacao, entidade, idEntidade, descricao, hashRegistro, , assinatura] of result[0].values) {
       // Recalcular hash
       const conteudo = JSON.stringify({
         timestamp,

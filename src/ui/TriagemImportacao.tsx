@@ -57,7 +57,7 @@ function moeda(v: number | null) {
 }
 
 export function TriagemImportacao() {
-  const { db, versao, persistir } = useDb();
+  const { db, persistir } = useDb();
   const { avisar } = useToast();
   const [loteAberto, setLoteAberto] = useState<number | null>(null);
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());

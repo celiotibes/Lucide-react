@@ -41,7 +41,6 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
   filtros,
   onFiltrosChange,
   onRefresh,
-  usuarioId,
 }) => {
   const { db, persistir } = useDb();
   const [modalVisualizacao, setModalVisualizacao] = useState<{

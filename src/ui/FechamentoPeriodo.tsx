@@ -42,7 +42,7 @@ function descricaoPeriodo(p: { ano: number; mes: number }) {
 }
 
 export function FechamentoPeriodo() {
-  const { db, versao, persistir } = useDb();
+  const { db, persistir } = useDb();
   const { avisar } = useToast();
 
   const [tick, setTick] = useState(0);

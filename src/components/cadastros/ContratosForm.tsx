@@ -125,7 +125,7 @@ export function ContratosForm() {
     setForm(null);
   }
 
-  const handleTabKeyDown = (e: React.KeyboardEvent, nova: "imovel" | "valores" | "garantias") => {
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
       const tabs: ("imovel" | "valores" | "garantias")[] = ["imovel", "valores", "garantias"];

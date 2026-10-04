@@ -408,11 +408,6 @@ describe("Relatórios com Filtro de Origem de Módulo", () => {
       );
 
       const dreSemFiltro = gerarDREComFiltro(db, entidade_id, periodo_id);
-      const dreComTodos = gerarDREComFiltro(db, entidade_id, periodo_id, [
-        "contratos",
-        "rateio",
-        "manual",
-      ]);
 
       // Both should be non-zero
       expect(dreSemFiltro.receitas.total_receitas).toBeGreaterThanOrEqual(0);

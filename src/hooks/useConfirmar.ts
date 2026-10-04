@@ -49,11 +49,13 @@ export function useConfirmar(): UseConfirmarReturn {
     []
   );
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleConfirm = useCallback(() => {
     state.resolver?.(true);
     setState((prev) => ({ ...prev, isOpen: false }));
   }, [state.resolver]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleCancel = useCallback(() => {
     state.resolver?.(false);
     setState((prev) => ({ ...prev, isOpen: false }));

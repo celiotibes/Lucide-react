@@ -1,8 +1,7 @@
 import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
-import type { Database } from "sql.js";
 import { prepararBancoTeste } from "./test-setup";
-import { registrarLancamentoContabil, obterSaldoConta, estornarLancamento } from "../ledger";
+import { registrarLancamentoContabil, estornarLancamento } from "../ledger";
 
 /**
  * Testes de imutabilidade do razão: validam que lançamentos contábeis
@@ -133,7 +132,7 @@ describe("Imutabilidade do Razão (Ledger)", () => {
 
       try {
         db.run(`DELETE FROM ledger_entries WHERE id = ?`, [lancamento_id]);
-      } catch (e) {
+      } catch {
         // Esperado falhar
       }
 

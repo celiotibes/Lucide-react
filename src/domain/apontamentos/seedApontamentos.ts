@@ -71,7 +71,7 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
       executar(db, `INSERT INTO historico_horarios (apontamento_id, tipo_evento, horario, criado_em) VALUES (?, 'retorno', '13:00:00', ?)`, [aptId, agora]);
       executar(db, `INSERT INTO historico_horarios (apontamento_id, tipo_evento, horario, criado_em) VALUES (?, 'saida', '17:30:00', ?)`, [aptId, agora]);
     }
-  } catch (e) {
+  } catch {
     // Apontamento já existe
   }
 
@@ -111,7 +111,7 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
         [aptId, agora]
       );
     }
-  } catch (e) {
+  } catch {
     // Apontamento já existe
   }
 
@@ -151,7 +151,7 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
         [aptId, agora]
       );
     }
-  } catch (e) {
+  } catch {
     // Apontamento já existe
   }
 
@@ -191,7 +191,7 @@ export function gerarDadosApontamentosDemonstracao(db: Database): void {
         [aptId, agora]
       );
     }
-  } catch (e) {
+  } catch {
     // Apontamento já existe
   }
 

@@ -46,9 +46,6 @@ describe("sugerirCategoria", () => {
       });
 
       // Agora sugerir categoria para uma nova transação de SUPERMERCADO
-      const sugestao = sugerirCategoria(db, 8); // Próximo ID que não existe yet
-      // A função retorna sugestão mesmo que a transação não exista (fallback)
-
       // Queremos que uma transação do supermercado SEM categoria receba sugestão
       // Vamos criar uma sem categoria e ver a sugestão
       const novaTransacao = criarTransacaoManual(db, {

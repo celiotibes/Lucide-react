@@ -17,7 +17,6 @@ import {
   contabilizarMultaPorAtraso,
   provisarJurosMora,
   reverterProvisaoJurosMora,
-  relatorioInadimplenciaDetalhado,
   resumoInadimplenciaTotal,
 } from "../integracao-inadimplencia";
 import { gerarCompetenciasPendentes } from "../aluguel-competencias";

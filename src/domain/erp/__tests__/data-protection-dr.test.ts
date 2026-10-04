@@ -3,9 +3,9 @@
  * Comprehensive test suite (200+ tests)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { EstrategiaBackup, TipoBackup, StatusBackup, NivelRetencao } from '../strategy-backup';
-import { PlanoRecuperacaoDesastres, TipoDesastre, SeveridadeDesastre } from '../plano-recuperacao-desastres';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { EstrategiaBackup, TipoBackup, StatusBackup } from '../strategy-backup';
+import { PlanoRecuperacaoDesastres, TipoDesastre } from '../plano-recuperacao-desastres';
 import { GerenciadorAuditLoggingImutavel, TipoOperacao, NivelSensibilidade } from '../audit-logging-imutavel';
 
 describe('Phase 7: Data Protection & Disaster Recovery', () => {

@@ -19,7 +19,6 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
   onClose,
   movimentacao,
   onConfirm,
-  usuarioId,
 }) => {
   const { db, persistir } = useDb();
   const [semanaDesconto, setSemanaDesconto] = useState<string>(

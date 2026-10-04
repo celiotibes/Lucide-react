@@ -108,7 +108,7 @@ describe("Deduplicação e revisão de documentos", () => {
       };
       const documentoId = inserirDocumento(db, doc);
 
-      const sugestaoId = registrarSugestao(db, {
+      registrarSugestao(db, {
         documento_id: documentoId,
         campo: "nome_contraparte",
         valor_sugerido: "Empresa LTDA",

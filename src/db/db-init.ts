@@ -134,7 +134,7 @@ export function getDbStatus(db: Database): { connected: boolean; tables: string[
       connected: true,
       tables: (tables as Record<string, unknown>[]).map((t) => String(t.name)),
     };
-  } catch (error) {
+  } catch {
     return {
       connected: false,
       tables: [],

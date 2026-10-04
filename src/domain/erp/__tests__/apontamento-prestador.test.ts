@@ -8,11 +8,7 @@ import {
   aplicarReajusteIpca,
   validarSequenciaHoras,
   quitarEmprestimoAntecipado,
-  type ApontamentoUrgencia,
-  type AirbnbApontamento,
-  type CombustivelApontamento,
   type RegistroHora,
-  type EmprestimoApontamento,
 } from "../apontamento-prestador";
 
 describe("Apontamento do Prestador - Módulo Completo", () => {

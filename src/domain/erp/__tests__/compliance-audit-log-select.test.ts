@@ -141,7 +141,6 @@ describe('Audit Trail - SELECT Queries', () => {
     });
 
     it('exemplo: auditoria de acesso a múltiplos campos sensíveis', () => {
-      const usuarioId = 789;
       const camposAcessados = ['cpf', 'email', 'telefone'];
       const descricao = `Acesso aos campos: ${camposAcessados.join(', ')}`;
 

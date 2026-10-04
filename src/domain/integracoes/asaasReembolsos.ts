@@ -67,10 +67,6 @@ function hoje(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function agora(): string {
-  return new Date().toISOString();
-}
-
 /**
  * Detecta o tipo de reembolso a ser realizado com base no tempo desde a criação da cobrança.
  * - Se < 24h: tipo = 'reversao' (tentar reverter na Asaas, se suportado)

@@ -92,7 +92,6 @@ describe("integracao-fisco: calcularIRPJ", () => {
 
   it("lucro real bem acima do teto (R$ 30.000): 15% sobre tudo + 10% só sobre os R$ 10.000 excedentes", () => {
     const irpj = calcularIRPJ(30000, "lucro_real");
-    const esperado = 30000 * 0.15 + 10000 * 0.1; // 4500 + 1000 = 5500
     expect(irpj.valor_imposto).toBeCloseTo(5500, 2);
     expect(irpj.valor_imposto).not.toBeCloseTo(30000 * 0.25, 2); // 7500 — o valor antigo, incorreto
     // Alíquota reportada passa a ser a EFETIVA (valor/base), não mais uma constante 15/25%.

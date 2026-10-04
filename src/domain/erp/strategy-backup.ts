@@ -327,7 +327,7 @@ export class EstrategiaBackup {
 
     // Simular restauração
     const linhasRestauradas = backup.linhas_processadas;
-    const tabelasRestauradas = this.extrairTabelasDoBackup(backup);
+    const tabelasRestauradas = this.extrairTabelasDoBackup();
 
     const status: StatusRecuperacao = {
       id: recuperacaoId,
@@ -602,7 +602,7 @@ export class EstrategiaBackup {
   /**
    * Extrai lista de tabelas do backup
    */
-  private extrairTabelasDoBackup(backup: BackupExecution): string[] {
+  private extrairTabelasDoBackup(): string[] {
     return [
       'empresas',
       'contas',

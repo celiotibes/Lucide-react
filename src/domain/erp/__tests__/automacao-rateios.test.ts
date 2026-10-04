@@ -241,7 +241,7 @@ describe("automacao-rateios: integrarRateioAoAluguel", () => {
   });
 
   it("contrato existente reclassifica o crédito de rateio já lançado para a entidade/período corretos (não fixos em 1/1) e mantém o período balanceado", async () => {
-    const { db, entidade_id, periodo_id } = await montarBase();
+    const { db, entidade_id } = await montarBase();
     // Um segundo período, para provar que o valor passado é o usado (achado corrigido:
     // antes gravava sempre entidade_id=1, periodo_id=1, fixos no código).
     executar(db, "INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2025, 2, 'aberto')", [entidade_id]);

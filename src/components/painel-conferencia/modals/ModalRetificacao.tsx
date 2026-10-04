@@ -19,7 +19,6 @@ const ModalRetificacao: React.FC<ModalRetificacaoProps> = ({
   onClose,
   apontamento,
   onConfirm,
-  usuarioId,
 }) => {
   const { db, persistir } = useDb();
   const [campoAlterado, setCampoAlterado] = useState<string>("");

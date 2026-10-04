@@ -826,7 +826,6 @@ export class GerenciadorAuditLoggingImutavel {
 
     const conteudo = JSON.stringify(registrosFiltrados, null, 2);
     const checksum = await this.gerarHash(conteudo);
-    const assinatura = await this.gerarAssinatura(checksum);
 
     // Simular upload para armazenamento seguro
     const arquivoUrl = `s3://erp-audit-logs/exports/audit-${new Date().toISOString()}.json.gpg`;

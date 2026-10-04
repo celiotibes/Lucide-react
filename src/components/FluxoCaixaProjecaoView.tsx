@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useDb } from "../db/useDb";
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -12,7 +11,6 @@ import {
   Legend,
   ComposedChart,
   Area,
-  AreaChart,
 } from "recharts";
 import { KpiTile } from "./KpiTile";
 import { AlertTriangle, TrendingUp, TrendingDown, Settings } from "lucide-react";

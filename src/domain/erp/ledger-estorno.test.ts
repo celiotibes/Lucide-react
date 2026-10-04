@@ -95,7 +95,7 @@ describe("estorno contra o schema real", () => {
   });
 
   it("depois de estornar, aceita RELANÇAR a mesma origem na mesma conta (caso da reclassificação)", async () => {
-    const { db, entidade_id, pernas } = await bancoComRazao();
+    const { db, pernas } = await bancoComRazao();
     const caixa = pernas[0];
     estornarLancamento(db, caixa.id, "reclassificação", 1);
 
