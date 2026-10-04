@@ -41,6 +41,7 @@ import { criarRotasConciliacaoPixOFX } from "../conciliacao-pix-ofx-routes";
 import { criarRotasAnomalias } from "../anomalias-routes";
 import { criarRotasBackup } from "../backup-routes";
 import { criarRotasAssinaturasLGPD } from "../assinatura-lgpd-routes";
+import { criarRotasPortal } from "../portal-routes";
 
 type Classe = "interna" | "externa-propria" | "externa-posse" | "publica" | "chave-api";
 
@@ -63,6 +64,10 @@ const CLASSIFICACAO: Record<string, Classe> = {
   "GET /api/acl": "interna",
   "DELETE /api/acl/:id": "interna",
   // /api/lgpd (sempre e só sobre o próprio usuário autenticado)
+  // /api/portal (publicar = só interno; leituras = só do próprio inquilino, com posse via acl_recursos)
+  "POST /api/portal/publicar": "interna",
+  "GET /api/portal/meus-contratos": "externa-propria",
+  "GET /api/portal/minhas-cobrancas": "externa-propria",
   "GET /api/lgpd/meus-dados": "externa-propria",
   "GET /api/lgpd/acessos": "externa-propria",
   "POST /api/lgpd/deletar-conta": "externa-propria",
@@ -167,6 +172,7 @@ const MONTAGENS: Montagem[] = [
   { prefixo: "/api/auth", fabrica: "criarRotasAuth", criar: (d) => criarRotasAuth({ authService: d.authService, auditService: d.auditService, permissoesService: d.permissoesService }) },
   { prefixo: "/api/eventos-externos", fabrica: "criarRotasEventosExternos", criar: (d) => criarRotasEventosExternos({ authService: d.authService, eventosService: d.eventosService }) },
   { prefixo: "/api/acl", fabrica: "criarRotasAcl", criar: (d) => criarRotasAcl({ authService: d.authService, auditService: d.auditService, db: d.db }) },
+  { prefixo: "/api/portal", fabrica: "criarRotasPortal", criar: (d) => criarRotasPortal({ authService: d.authService, auditService: d.auditService, db: d.db }) },
   { prefixo: "/api/lgpd", fabrica: "criarRotasLgpd", criar: (d) => criarRotasLgpd({ authService: d.authService, auditService: d.auditService, db: d.db }) },
   { prefixo: "/api/carimbo-tempo", fabrica: "criarRotasCarimbo", criar: (d) => criarRotasCarimbo({ authService: d.authService }) },
   { prefixo: "/api/asaas", fabrica: "criarRotasAsaas", criar: (d) => criarRotasAsaas({ authService: d.authService, eventosService: d.eventosService, db: d.db }) },

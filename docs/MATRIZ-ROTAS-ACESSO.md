@@ -93,3 +93,6 @@ sobre o usuário autenticado). As rotas administrativas de LGPD/assinatura (`/ap
 ## Fora do escopo desta matriz
 CORS, cookies/login e rotas `/api/portal` (tratados por outros agentes). Quando `/api/portal`
 existir, suas rotas entram nesta matriz (o teste de cobertura falha até serem classificadas).
+
+### Portal do inquilino (`/api/portal`)
+`POST /publicar`: **interna** (publicação feita pelo dono). `GET /meus-contratos` e `GET /minhas-cobrancas`: **externa-propria** (só inquilino, só o que lhe pertence, com concessão em `acl_recursos`; sem posse = 404 uniforme).

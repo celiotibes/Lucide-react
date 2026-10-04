@@ -33,6 +33,7 @@ export const MIGRACOES_BOOT = [
   "migrations-phase12-asaas-webhook-dedup.sql",
   "migrations-phase12-imutabilidade.sql",
   "migrations-phase13-acl-recursos.sql",
+  "migrations-phase14-portal-inquilino.sql",
 ];
 
 export function criarBancoDoServidor(): Database.Database {
