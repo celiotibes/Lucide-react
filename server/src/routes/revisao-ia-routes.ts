@@ -19,6 +19,11 @@ import { criarMiddlewareAutenticacao } from './auth-routes.js';
 import { criarFilaRevisaoService, FilaRevisaoService } from '../domain/relatorios/fila-revisao-service.js';
 import { obterPoliticaAtual, papelPodeRevisar } from '../domain/relatorios/politicaRevisaoIA.js';
 
+interface AuthenticatedRequest extends express.Request {
+  usuarioId?: string;
+  usuarioRole?: string;
+}
+
 export interface RevisaoIARoutesDeps {
   authService: AuthServiceDB;
   db?: Database.Database;
@@ -171,7 +176,7 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
    *   - status: 'revisado' | 'autorizado' (default: 'revisado')
    *   - usuarioId: ID do revisor (deve estar autenticado)
    */
-  router.post('/:id/revisar', (req, res) => {
+  router.post('/:id/revisar', (req: AuthenticatedRequest, res) => {
     try {
       if (!filaService) {
         return res.status(500).json({ erro: 'Serviço de fila não disponível' });
@@ -179,7 +184,7 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
 
       const { id } = req.params;
       const { status } = req.body;
-      const usuarioId = (req as any).usuarioId;
+      const usuarioId = req.usuarioId;
 
       if (!usuarioId) {
         return res.status(401).json({ erro: 'Usuário não autenticado' });
@@ -191,7 +196,7 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
       }
 
       // Verificar permissão
-      const usuarioRole = (req as any).usuarioRole || 'usuario';
+      const usuarioRole = req.usuarioRole || 'usuario';
       if (!papelPodeRevisar(usuarioRole)) {
         return res.status(403).json({
           erro: 'Você não tem permissão para revisar itens',
@@ -227,7 +232,7 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
    *   - motivo: string (obrigatório)
    *   - usuarioId: ID do revisor (deve estar autenticado)
    */
-  router.post('/:id/rejeitar', (req, res) => {
+  router.post('/:id/rejeitar', (req: AuthenticatedRequest, res) => {
     try {
       if (!filaService) {
         return res.status(500).json({ erro: 'Serviço de fila não disponível' });
@@ -235,7 +240,7 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
 
       const { id } = req.params;
       const { motivo } = req.body;
-      const usuarioId = (req as any).usuarioId;
+      const usuarioId = req.usuarioId;
 
       if (!usuarioId) {
         return res.status(401).json({ erro: 'Usuário não autenticado' });
@@ -251,7 +256,7 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
       }
 
       // Verificar permissão
-      const usuarioRole = (req as any).usuarioRole || 'usuario';
+      const usuarioRole = req.usuarioRole || 'usuario';
       if (!papelPodeRevisar(usuarioRole)) {
         return res.status(403).json({
           erro: 'Você não tem permissão para revisar itens'
