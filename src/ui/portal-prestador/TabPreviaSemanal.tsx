@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Database } from "sql.js";
 import { Calendar, Download, Send, AlertCircle } from "lucide-react";
 import { consultar } from "../../db/connection";
-import type { ApontamentoDiario, ItemRemunerable, FechamentoSemanal } from "../../domain/types";
+import type { ApontamentoDiario, ItemRemunerable } from "../../domain/types";
 
 interface Props {
   db: Database | null;
@@ -37,7 +37,7 @@ export function TabPreviaSemanal({ db, prestadorId, dataSelecionada, versao }: P
             [prestadorId, inicioSemana, fimSemana]
           )
         : [],
-    [db, versao, prestadorId, inicioSemana, fimSemana]
+    [db, prestadorId, inicioSemana, fimSemana]
   );
 
   const ativiadadesSemana = useMemo<ItemRemunerable[]>(() => {
@@ -50,7 +50,7 @@ export function TabPreviaSemanal({ db, prestadorId, dataSelecionada, versao }: P
       `SELECT * FROM itens_remuneraveis WHERE apontamento_id IN (${placeholders}) ORDER BY criado_em`,
       ids
     );
-  }, [db, versao, apontamentosSemana]);
+  }, [db, apontamentosSemana]);
 
   const calcularHoras = (entrada: string, saida: string, saidaIntervalo?: string, retornoIntervalo?: string): number => {
     const [hE, mE] = entrada.split(":").map(Number);
