@@ -157,12 +157,12 @@ describe("Database Backup/Restore", () => {
   it("deve criar um backup de banco de dados com dados conhecidos", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
-    stmt.run("user-2", "outro@example.com", "hash456", "Outro User");
+    stmt.run("user-1", "Teste User", "teste@example.com", "hash123");
+    stmt.run("user-2", "Outro User", "outro@example.com", "hash456");
 
     // Criar backup
     expect(() => {
@@ -183,12 +183,12 @@ describe("Database Backup/Restore", () => {
   it("deve restaurar banco de dados em DB limpo", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
-    stmt.run("user-2", "outro@example.com", "hash456", "Outro User");
+    stmt.run("user-1", "Teste User", "teste@example.com", "hash123");
+    stmt.run("user-2", "Outro User", "outro@example.com", "hash456");
 
     // Capturar checksums originais
     const originalChecksums = getTableChecksums(db);
@@ -234,7 +234,7 @@ describe("Database Backup/Restore", () => {
   it("deve validar integridade com 1000 registros", () => {
     // Inserir 1000 registros
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
@@ -242,9 +242,9 @@ describe("Database Backup/Restore", () => {
       for (let i = 0; i < count; i++) {
         stmt.run(
           `user-${i}`,
+          `User ${i}`,
           `user${i}@example.com`,
           `hash${i}`,
-          `User ${i}`,
         );
       }
     });
@@ -298,11 +298,11 @@ describe("Database Backup/Restore", () => {
   it("deve preservar integridade referencial após restore", () => {
     // Inserir dados com relacionamentos
     const userStmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    userStmt.run("user-1", "teste@example.com", "hash123", "Teste User");
+    userStmt.run("user-1", "Teste User", "teste@example.com", "hash123");
 
     // Criar backup
     backupDatabase(db, TEST_BACKUP_PATH);
@@ -335,11 +335,11 @@ describe("Database Backup/Restore", () => {
   it("deve gerar metadata válida no backup", () => {
     // Inserir dados
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
+    stmt.run("user-1", "Teste User", "teste@example.com", "hash123");
 
     // Criar backup
     backupDatabase(db, TEST_BACKUP_PATH);
