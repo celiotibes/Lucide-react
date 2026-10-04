@@ -88,15 +88,21 @@ describe('Database Boot and Idempotency', () => {
 
     const db = init();
 
-    // List of expected tables from migrations
+    // List of expected tables from migrations (including Phase 16)
     const expectedTables = [
-      'usuarios',           // Phase 2
-      'permissoes_papel',   // Phase 2
-      'sessoes',            // Phase 2
-      'integracoes_asaas',  // Phase 3+
-      'vinculos_externos',  // Phase 4
-      'anomalias',          // Phase 4.1
-      'lembretes_agendados', // Phase 5
+      // Phase 2 (Core auth)
+      'usuarios',
+      'permissoes_papel',
+      'sessoes',
+      // Phase 3+
+      'integracoes_asaas',
+      'vinculos_externos',
+      'anomalias',
+      'lembretes_agendados',
+      // Phase 16 (Ledger and IA Review)
+      'ledger_entries',
+      'fila_revisao_ia',
+      'regras_revisao_ia',
     ];
 
     for (const tableName of expectedTables) {
@@ -104,11 +110,59 @@ describe('Database Boot and Idempotency', () => {
         "SELECT name FROM sqlite_master WHERE type='table' AND name = ?"
       ).get(tableName);
 
-      // Some tables might not exist if migrations are optional, but Phase 2 core ones should
+      // Core Phase 2 tables must exist
       if (['usuarios', 'permissoes_papel', 'sessoes'].includes(tableName)) {
         expect(result).toBeDefined();
+      } else {
+        // Phase 16 tables should exist if migrations loaded successfully
+        if (['ledger_entries', 'fila_revisao_ia', 'regras_revisao_ia'].includes(tableName)) {
+          expect(result).toBeDefined();
+        }
       }
     }
+
+    close();
+  });
+
+  it('should have Phase 16 tables with correct structure', async () => {
+    const { initializeDatabase: init, closeDatabase: close } = await import('../database-init.js');
+
+    const db = init();
+
+    // Check ledger_entries table structure
+    const ledgerColumns = db.prepare(
+      "PRAGMA table_info(ledger_entries)"
+    ).all() as Array<{ name: string; type: string }>;
+
+    const ledgerColumnNames = ledgerColumns.map(c => c.name);
+    expect(ledgerColumnNames).toContain('id');
+    expect(ledgerColumnNames).toContain('data');
+    expect(ledgerColumnNames).toContain('tipo');
+    expect(ledgerColumnNames).toContain('categoria');
+    expect(ledgerColumnNames).toContain('valor');
+
+    // Check fila_revisao_ia table structure
+    const filaColumns = db.prepare(
+      "PRAGMA table_info(fila_revisao_ia)"
+    ).all() as Array<{ name: string; type: string }>;
+
+    const filaColumnNames = filaColumns.map(c => c.name);
+    expect(filaColumnNames).toContain('id');
+    expect(filaColumnNames).toContain('documento_id');
+    expect(filaColumnNames).toContain('tipo');
+    expect(filaColumnNames).toContain('motivo');
+    expect(filaColumnNames).toContain('status');
+
+    // Check regras_revisao_ia table structure
+    const regrasColumns = db.prepare(
+      "PRAGMA table_info(regras_revisao_ia)"
+    ).all() as Array<{ name: string; type: string }>;
+
+    const regrasColumnNames = regrasColumns.map(c => c.name);
+    expect(regrasColumnNames).toContain('id');
+    expect(regrasColumnNames).toContain('nome');
+    expect(regrasColumnNames).toContain('tipo');
+    expect(regrasColumnNames).toContain('ativa');
 
     close();
   });
