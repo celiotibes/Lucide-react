@@ -193,14 +193,12 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
 
     // Valida que pelo menos um campo foi fornecido
     if (description === undefined && dueDate === undefined) {
-      res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (description, dueDate)" });
-      return;
+      return res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (description, dueDate)" });
     }
 
     // Valida dueDate se fornecido
     if (dueDate !== undefined && (typeof dueDate !== "string" || !dueDate.match(/^\d{4}-\d{2}-\d{2}$/))) {
-      res.status(400).json({ erro: "dueDate deve estar no formato YYYY-MM-DD" });
-      return;
+      return res.status(400).json({ erro: "dueDate deve estar no formato YYYY-MM-DD" });
     }
 
     try {
@@ -224,8 +222,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
       });
     } catch (erro) {
       if (erro instanceof AsaasApiError && erro.status === 404) {
-        res.status(404).json({ erro: "Cobrança não encontrada" });
-        return;
+        return res.status(404).json({ erro: "Cobrança não encontrada" });
       }
       tratarErroAsaas(erro, res);
     }
@@ -269,14 +266,12 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     // Valida formato mínimo do payload: campos obrigatórios event e payment.id
     const body = req.body ?? {};
     if (typeof body.event !== "string" || !body.event.trim()) {
-      res.status(400).json({ erro: "Campo 'event' obrigatório no payload" });
-      return;
+      return res.status(400).json({ erro: "Campo 'event' obrigatório no payload" });
     }
 
     const payment = body.payment ?? {};
     if (typeof payment.id !== "string" || !payment.id.trim()) {
-      res.status(400).json({ erro: "Campo 'payment.id' obrigatório no payload" });
-      return;
+      return res.status(400).json({ erro: "Campo 'payment.id' obrigatório no payload" });
     }
 
     // Idempotência + enfileiramento em UMA transação (padrão outbox): a marca de "já visto" e o evento
@@ -310,9 +305,13 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         eventosService.registrarEvento("webhook_asaas", body);
       }
     } catch (erro) {
-      logger.error("[asaas-routes] Falha ao registrar o evento do webhook:", erro instanceof Error ? erro.message : erro);
-      res.status(500).json({ erro: "Falha ao registrar o evento; tente novamente" });
-      return;
+      logger.error("[asaas-routes] Falha ao registrar o evento do webhook:", {
+        requestId: (req as any).id || "unknown",
+        endpoint: req.path,
+        paymentId: payment.id,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Falha ao registrar o evento; tente novamente" });
     }
 
     res.json({ recebido: true });
@@ -337,13 +336,11 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     }
 
     if (typeof motivo !== "string" || !motivo.trim()) {
-      res.status(400).json({ erro: "motivo é obrigatório (corpo)" });
-      return;
+      return res.status(400).json({ erro: "motivo é obrigatório (corpo)" });
     }
 
     if (tipoForce && !["reversao", "devolucao"].includes(tipoForce)) {
-      res.status(400).json({ erro: "tipoForce inválido — precisa ser 'reversao' ou 'devolucao'" });
-      return;
+      return res.status(400).json({ erro: "tipoForce inválido — precisa ser 'reversao' ou 'devolucao'" });
     }
 
     try {
@@ -387,8 +384,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     const chargeId = req.params.chargeId?.trim();
 
     if (!chargeId) {
-      res.status(400).json({ erro: "chargeId é obrigatório (via URL)" });
-      return;
+      return res.status(400).json({ erro: "chargeId é obrigatório (via URL)" });
     }
 
     try {

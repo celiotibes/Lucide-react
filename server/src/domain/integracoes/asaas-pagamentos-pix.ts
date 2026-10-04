@@ -26,6 +26,7 @@
 import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
+import { registrarLancamento } from '../ledger/ledger-service.js';
 
 export type FetchLike = typeof fetch;
 
@@ -507,6 +508,25 @@ export async function buscarStatusPagamentoPix(
     // Se mudou, atualiza
     if (statusNovo !== pagamento.status) {
       atualizarStatusPagamento(db, pagamentoId, statusNovo);
+
+      // TODO: ledger.registrarLancamento
+      // Se o pagamento foi completado, registra no ledger
+      if (statusNovo === "COMPLETED") {
+        const resultadoLedger = registrarLancamento(db, {
+          id: randomUUID(),
+          data: new Date().toISOString().split('T')[0],
+          tipo: 'despesa',
+          categoria: 'comissao', // categoria padrão para pagamentos
+          valor: pagamento.valor,
+          descricao: `Pagamento PIX - ${pagamento.beneficiarioNome} (${pagamento.descricao})`,
+          referencia_externa: `ASAAS-PAG-${pagamento.asaasPaymentId}`,
+          usuario_id: 'sistema-asaas-pagamentos',
+        });
+
+        if (!resultadoLedger.sucesso) {
+          logger.warn(`[AsaasPagamentosPix] Falha ao registrar no ledger: ${resultadoLedger.erro}`);
+        }
+      }
     }
 
     return buscarPagamentoPix(db, pagamentoId);

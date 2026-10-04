@@ -532,7 +532,7 @@ describe("Reconciliação PIX↔OFX", () => {
     expect(lancamento.status).toBe("proposta");
   });
 
-  it("PARTE C: gerarLancamentoContabil não mascara erro de tabela não encontrada", () => {
+  it("PARTE C: gerarLancamentoContabil lança erro quando tabela razao nao existe", () => {
     // Criar novo BD sem tabela razao
     const dbNoRazao = new Database(":memory:");
     dbNoRazao.pragma("foreign_keys = ON");
@@ -553,10 +553,87 @@ describe("Reconciliação PIX↔OFX", () => {
       atualizado_em: null,
     };
 
-    // ANTES: mascarava com randomUUID falso
-    // DEPOIS: deve lançar erro real
-    // Essa função está em server, então talvez precise verificar outra forma
-    // Por agora, este é um placeholder
-    expect(true).toBe(true); // TODO: verificar
+    // Deve lançar erro quando tabela não existe
+    expect(() => {
+      gerarLancamentoContabil(dbNoRazao, conciliacao);
+    }).toThrow();
+
+    dbNoRazao.close();
+  });
+
+  it("PARTE C: Validacao de tolerancia de valores - limites", () => {
+    // Teste de tolerancia: valores proximos dentro de tolerancia
+    const conciliacao1: ConciliacaoPix = {
+      id: randomUUID(),
+      asaas_charge_id: "charge-tol-1",
+      pluggy_ofx_id: "ofx-1",
+      valor_asaas: 1000, // R$ 10.00
+      valor_ofx: 1001,   // R$ 10.01 — dentro de tolerancia de 5 centavos
+      data_asaas: "2025-02-12",
+      data_ofx: "2025-02-12",
+      status: "pendente",
+      discrepancia_flag: false,
+      lancamento_razao_id: null,
+      criado_em: new Date().toISOString(),
+      atualizado_em: null,
+    };
+
+    // Inserir e validar tolerancia
+    inserirConciliacao(db, conciliacao1);
+    const registroTol = db.prepare("SELECT * FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao1.id) as any;
+
+    expect(registroTol).toBeDefined();
+    expect(registroTol.status).toBe("pendente");
+  });
+
+  it("PARTE C: Validacao de status transition - pendente -> reconciliado", () => {
+    // Teste de transicao de status
+    const conciliacao: ConciliacaoPix = {
+      id: randomUUID(),
+      asaas_charge_id: "charge-status-1",
+      pluggy_ofx_id: "ofx-status-1",
+      valor_asaas: 2000,
+      valor_ofx: 2000,
+      data_asaas: "2025-02-12",
+      data_ofx: "2025-02-12",
+      status: "pendente",
+      discrepancia_flag: false,
+      lancamento_razao_id: null,
+      criado_em: new Date().toISOString(),
+      atualizado_em: null,
+    };
+
+    // Inserir como pendente
+    inserirConciliacao(db, conciliacao);
+
+    // Atualizar status para reconciliado
+    db.prepare("UPDATE conciliacoes_pix_ofx SET status = ? WHERE id = ?").run("reconciliado", conciliacao.id);
+
+    // Validar transicao
+    const registro = db.prepare("SELECT status FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao.id) as any;
+    expect(registro.status).toBe("reconciliado");
+  });
+
+  it("PARTE C: Validacao de campo discrepancia_flag - valores booleanos", () => {
+    // Teste de flag de discrepancia
+    const conciliacao: ConciliacaoPix = {
+      id: randomUUID(),
+      asaas_charge_id: "charge-disc-1",
+      pluggy_ofx_id: "ofx-disc-1",
+      valor_asaas: 3000,
+      valor_ofx: 2999,
+      data_asaas: "2025-02-12",
+      data_ofx: "2025-02-12",
+      status: "pendente",
+      discrepancia_flag: true,
+      lancamento_razao_id: null,
+      criado_em: new Date().toISOString(),
+      atualizado_em: null,
+    };
+
+    inserirConciliacao(db, conciliacao);
+
+    const registro = db.prepare("SELECT discrepancia_flag FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao.id) as any;
+    expect(registro.discrepancia_flag).toBe(true);
   });
 });

@@ -8,6 +8,7 @@
  */
 
 import express from "express";
+import { z } from "zod";
 import { logger } from '../services/logger-service.js';
 import Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
@@ -21,6 +22,19 @@ import {
   marcarAnomaliaRevisada,
   atualizarAnomalia,
 } from "../domain/anomalias/detectores-anomalias.js";
+
+// Zod validation schemas
+const analisarQuerySchema = z.object({
+  valor: z.coerce.number().finite().positive(),
+  periodo_dias: z.coerce.number().int().min(1).max(365).optional().default(90),
+}).strict();
+
+const alertasQuerySchema = z.object({
+  severidade: z.enum(['baixa', 'media', 'critica']).optional(),
+  dias: z.coerce.number().int().min(1).max(365).optional().default(30),
+  revisado: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  limite: z.coerce.number().int().min(1).max(1000).optional().default(100),
+}).strict();
 
 export interface AnomalasRoutesDeps {
   db: Database.Database;
@@ -55,19 +69,20 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
   router.post("/analisar/:transacaoId", exigirAutenticacao, (req, res) => {
     try {
       const { transacaoId } = req.params;
-      const { valor, periodo_dias } = req.query;
 
-      // Validação
-      if (!valor || isNaN(Number(valor))) {
-        res.status(400).json({ erro: "Parâmetro 'valor' obrigatório e deve ser numérico" });
-        return;
+      // Validate query params with Zod
+      const parseResult = analisarQuerySchema.safeParse(req.query);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          erro: "Parâmetros de query inválidos",
+          detalhes: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+        });
       }
 
-      const valorNum = Number(valor);
-      const periodo = periodo_dias ? Math.max(1, Math.min(365, Number(periodo_dias))) : 90;
+      const { valor, periodo_dias } = parseResult.data;
 
       // Analisa
-      const resultado = avaliarAnomaliaAgregada(db, valorNum, periodo);
+      const resultado = avaliarAnomaliaAgregada(db, valor, periodo_dias);
 
       // Registra se severidade >= média
       let alerta_id: string | null = null;
@@ -86,8 +101,14 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         descricao: gerarDescricaoResposta(resultado),
       });
     } catch (erro) {
-      logger.error("Erro ao analisar anomalia:", erro instanceof Error ? erro.message : String(erro));
-      res.status(500).json({ erro: "Falha ao analisar anomalia" });
+      logger.error("Erro ao analisar anomalia:", {
+        requestId: (req as any).id || "unknown",
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        transacaoId,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Falha ao analisar anomalia" });
     }
   });
 
@@ -111,18 +132,27 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
    */
   router.get("/alertas", exigirAutenticacao, (req, res) => {
     try {
-      const { severidade, dias, revisado, limite } = req.query;
+      // Validate query params with Zod
+      const parseResult = alertasQuerySchema.safeParse(req.query);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          erro: "Parâmetros de query inválidos",
+          detalhes: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+        });
+      }
+
+      const { severidade, dias, revisado, limite } = parseResult.data;
 
       const opcoes: any = {
-        limite: Math.min(Math.max(1, Number(limite) || 100), 1000),
+        limite,
       };
 
-      if (severidade && ["baixa", "media", "critica"].includes(String(severidade))) {
-        opcoes.severidade = String(severidade);
+      if (severidade) {
+        opcoes.severidade = severidade;
       }
 
       if (dias) {
-        opcoes.dias = Math.max(1, Math.min(365, Number(dias)));
+        opcoes.dias = dias;
       }
 
       if (revisado !== undefined) {
@@ -142,8 +172,13 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         },
       });
     } catch (erro) {
-      logger.error("Erro ao listar alertas:", erro instanceof Error ? erro.message : String(erro));
-      res.status(500).json({ erro: "Falha ao listar alertas" });
+      logger.error("Erro ao listar alertas:", {
+        requestId: (req as any).id || "unknown",
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Falha ao listar alertas" });
     }
   });
 
@@ -178,8 +213,13 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         periodo_dias: periodo,
       });
     } catch (erro) {
-      logger.error("Erro ao obter estatísticas:", erro instanceof Error ? erro.message : String(erro));
-      res.status(500).json({ erro: "Falha ao obter estatísticas" });
+      logger.error("Erro ao obter estatísticas:", {
+        requestId: (req as any).id || "unknown",
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Falha ao obter estatísticas" });
     }
   });
 
@@ -209,20 +249,17 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
 
       // Validação
       if (!usuario_id || !motivo) {
-        res.status(400).json({ erro: "usuario_id e motivo são obrigatórios" });
-        return;
+        return res.status(400).json({ erro: "usuario_id e motivo são obrigatórios" });
       }
 
       // Verifica se alerta existe
       const alerta = obterAlerta(db, id);
       if (!alerta) {
-        res.status(404).json({ erro: "Alerta não encontrado" });
-        return;
+        return res.status(404).json({ erro: "Alerta não encontrado" });
       }
 
       if (alerta.revisado === 1) {
-        res.status(400).json({ erro: "Alerta já foi revisado" });
-        return;
+        return res.status(400).json({ erro: "Alerta já foi revisado" });
       }
 
       // Marca como revisado
@@ -235,8 +272,14 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         motivo,
       });
     } catch (erro) {
-      logger.error("Erro ao revisar anomalia:", erro instanceof Error ? erro.message : String(erro));
-      res.status(500).json({ erro: "Falha ao revisar anomalia" });
+      logger.error("Erro ao revisar anomalia:", {
+        requestId: (req as any).id || "unknown",
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        alertId: req.params.id,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Falha ao revisar anomalia" });
     }
   });
 
@@ -267,23 +310,20 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
 
       // Validação: pelo menos um campo deve ser fornecido
       if (severidade === undefined && descricao === undefined) {
-        res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (severidade, descricao)" });
-        return;
+        return res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (severidade, descricao)" });
       }
 
       // Valida severidade se fornecida
       if (severidade !== undefined && !["baixa", "media", "critica"].includes(severidade)) {
-        res.status(400).json({
+        return res.status(400).json({
           erro: "severidade inválida — use um de: baixa, media, critica",
         });
-        return;
       }
 
       // Verifica se alerta existe
       const alertaAntes = obterAlerta(db, id);
       if (!alertaAntes) {
-        res.status(404).json({ erro: "Alerta não encontrado" });
-        return;
+        return res.status(404).json({ erro: "Alerta não encontrado" });
       }
 
       // Atualiza
@@ -293,8 +333,7 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       });
 
       if (!alertaAtualizado) {
-        res.status(404).json({ erro: "Alerta não encontrado após atualização" });
-        return;
+        return res.status(404).json({ erro: "Alerta não encontrado após atualização" });
       }
 
       res.json({
@@ -307,8 +346,14 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
         criado_em: alertaAtualizado.criado_em,
       });
     } catch (erro) {
-      logger.error("Erro ao atualizar anomalia:", erro instanceof Error ? erro.message : String(erro));
-      res.status(500).json({ erro: "Falha ao atualizar anomalia" });
+      logger.error("Erro ao atualizar anomalia:", {
+        requestId: (req as any).id || "unknown",
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        alertId: id,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Falha ao atualizar anomalia" });
     }
   });
 

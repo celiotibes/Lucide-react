@@ -144,8 +144,16 @@ export function criarRotasConciliacaoPixOFX({ db, authService }: ConciliacaoPixO
    */
   router.get("/discrepancias", exigirAutenticacao, (req: Request, res: Response) => {
     try {
-      const limite = req.query.limite ? parseInt(String(req.query.limite), 10) : 50;
-      const offset = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
+      // Parse and validate pagination parameters
+      let limite = req.query.limite ? parseInt(String(req.query.limite), 10) : 50;
+      let offset = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
+
+      // Validate and enforce limits
+      const MAX_LIMITE = 500;
+      const DEFAULT_LIMITE = 50;
+      if (isNaN(limite) || limite < 1) limite = DEFAULT_LIMITE;
+      if (limite > MAX_LIMITE) limite = MAX_LIMITE;
+      if (isNaN(offset) || offset < 0) offset = 0;
 
       const stmtCount = db.prepare(`
         SELECT COUNT(*) as total FROM conciliacoes_pix_ofx

@@ -17,6 +17,7 @@ import { createHash } from "node:crypto";
 import express from "express";
 import { z } from "zod";
 import type Database from "better-sqlite3";
+import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type { AuditTrailServiceDB } from "../domain/auth/audit-trail-db.js";
 import type { ContextoAutenticacao } from "../domain/auth/auth-service.js";
@@ -121,11 +122,10 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
     const contexto = req.auth as ContextoAutenticacao;
     const parse = esquemaPublicacao.safeParse(req.body);
     if (!parse.success) {
-      res.status(400).json({
+      return res.status(400).json({
         erro: "Payload inválido",
         detalhes: parse.error.issues.map((i) => `${i.path.join(".") || "(raiz)"}: ${i.message}`),
       });
-      return;
     }
     const p = parse.data;
     const hash = hashConteudo(p);
@@ -133,8 +133,7 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
     try {
       const alvo = db.prepare("SELECT role FROM usuarios WHERE id = ?").get(p.usuarioId) as { role: string } | undefined;
       if (!alvo || alvo.role !== "inquilino") {
-        res.status(400).json({ erro: "usuarioId precisa ser um usuário existente com papel inquilino" });
-        return;
+        return res.status(400).json({ erro: "usuarioId precisa ser um usuário existente com papel inquilino" });
       }
 
       const resultado = db.transaction((): Resultado => {
@@ -193,8 +192,15 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
         user_agent: req.get("user-agent") ?? undefined,
       });
       res.status(resultado.codigo).json(resultado.corpo);
-    } catch {
-      res.status(500).json({ erro: "Erro ao publicar espelho do portal" });
+    } catch (erro) {
+      logger.error("Erro ao publicar espelho do portal:", {
+        requestId: (req as any).id || "unknown",
+        userId: contexto.usuario?.id,
+        endpoint: req.path,
+        contratoRef: (req.body as any)?.contratoRef,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Erro ao publicar espelho do portal" });
     }
   });
 
@@ -207,15 +213,13 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
   router.get("/meus-contratos", exigirAutenticacao, exigirInquilino, (req, res) => {
     const pg = paginacao(req.query);
     if (!pg) {
-      res.status(400).json({ erro: "limite (1-100) e offset inválidos" });
-      return;
+      return res.status(400).json({ erro: "limite (1-100) e offset inválidos" });
     }
     const uid = req.auth!.usuario!.id;
     try {
       const total = (db.prepare(`SELECT COUNT(*) AS n FROM portal_inquilino_contratos c WHERE ${FILTRO_POSSE}`).get(uid) as { n: number }).n;
       if (total === 0) {
-        res.status(404).json({ erro: "Recurso não encontrado" });
-        return;
+        return res.status(404).json({ erro: "Recurso não encontrado" });
       }
       const itens = db
         .prepare(
@@ -227,8 +231,14 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
         )
         .all(uid, pg.limite, pg.offset);
       res.json({ itens, total, limite: pg.limite, offset: pg.offset });
-    } catch {
-      res.status(500).json({ erro: "Erro ao consultar contratos" });
+    } catch (erro) {
+      logger.error("Erro ao consultar contratos:", {
+        requestId: (req as any).id || "unknown",
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Erro ao consultar contratos" });
     }
   });
 
@@ -236,8 +246,7 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
     const pg = paginacao(req.query);
     const contratoRef = req.query.contratoRef;
     if (!pg || (contratoRef !== undefined && (typeof contratoRef !== "string" || !contratoRef))) {
-      res.status(400).json({ erro: "parâmetros de consulta inválidos" });
-      return;
+      return res.status(400).json({ erro: "parâmetros de consulta inválidos" });
     }
     const uid = req.auth!.usuario!.id;
     const filtroContrato = typeof contratoRef === "string" ? " AND c.contrato_ref = ?" : "";
@@ -249,8 +258,7 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
         db.prepare(`SELECT COUNT(*) AS n FROM portal_inquilino_contratos c WHERE ${FILTRO_POSSE}${filtroContrato}`).get(...params) as { n: number }
       ).n;
       if (possui === 0) {
-        res.status(404).json({ erro: "Recurso não encontrado" });
-        return;
+        return res.status(404).json({ erro: "Recurso não encontrado" });
       }
       const total = (
         db
@@ -277,8 +285,15 @@ export function criarRotasPortal({ authService, auditService, db }: PortalRoutes
         )
         .all(...params, pg.limite, pg.offset);
       res.json({ itens, total, limite: pg.limite, offset: pg.offset });
-    } catch {
-      res.status(500).json({ erro: "Erro ao consultar cobranças" });
+    } catch (erro) {
+      logger.error("Erro ao consultar cobranças:", {
+        requestId: (req as any).id || "unknown",
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        contratoRef: req.query.contratoRef,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Erro ao consultar cobranças" });
     }
   });
 

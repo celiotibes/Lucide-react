@@ -177,6 +177,11 @@ export class BackupScheduler {
       const result = await this.backupService.criarBackup();
       if (!result.sucesso) {
         logger.error('[BackupScheduler] Falha ao criar backup:', result.erros);
+        // Enviar alerta de falha
+        await this.enviarAlertaFalhaBackup(
+          `backup-${new Date().toISOString()}`,
+          result.erros.join('; ')
+        );
         return;
       }
 
@@ -196,6 +201,11 @@ export class BackupScheduler {
       });
     } catch (erro) {
       logger.error('[BackupScheduler] Erro durante backup agendado:', erro);
+      // Enviar alerta de erro
+      await this.enviarAlertaFalhaBackup(
+        `backup-${new Date().toISOString()}`,
+        erro instanceof Error ? erro.message : String(erro)
+      );
     }
   }
 
@@ -244,6 +254,12 @@ export class BackupScheduler {
 
     } catch (erro) {
       logger.error('[BackupScheduler] Erro ao copiar para NAS (cópia local mantida):', erro);
+      // Enviar alerta de falha na cópia NAS
+      await this.enviarAlertaCopiaFalhou(
+        backupId,
+        erro instanceof Error ? erro.message : String(erro),
+        this.config.nasPath
+      );
       // Não falha o backup inteiro por erro de NAS
     }
   }
@@ -328,7 +344,12 @@ export class BackupScheduler {
           erros: testResult.erros,
           integridade: testResult.relatorio.integridade,
         });
-        // TODO: enviar alerta (email/Slack)
+        // Enviar alerta de falha na verificação de restauração
+        await this.enviarAlertaVerificacaoFalhou(
+          latestBackup.id,
+          testResult.erros.join('; '),
+          testResult.relatorio
+        );
       }
 
     } catch (erro) {
@@ -443,6 +464,62 @@ export class BackupScheduler {
       }
     } catch (erro) {
       logger.warn('[BackupScheduler] Erro ao aplicar retenção NAS:', erro);
+    }
+  }
+
+  /**
+   * Envia alerta de falha de backup
+   */
+  private async enviarAlertaFalhaBackup(backupName: string, erroMessage: string): Promise<void> {
+    try {
+      const alertService = getAlertService();
+      await alertService.enviarAlertaFalhaBackup({
+        backupName,
+        errorMessage: erroMessage,
+        timestamp: new Date(),
+        severity: 'critical',
+        recoverySteps: [
+          'Verificar logs do sistema para detalhes do erro',
+          'Verificar espaço disponível no disco',
+          'Validar permissões de arquivo/diretório',
+          'Tentar executar backup manualmente',
+          'Se o problema persistir, contactar suporte',
+        ],
+      });
+    } catch (erro) {
+      logger.error('[BackupScheduler] Erro ao enviar alerta de falha:', erro);
+    }
+  }
+
+  /**
+   * Envia alerta de falha na verificação de restauração
+   */
+  private async enviarAlertaVerificacaoFalhou(
+    backupId: string,
+    erroMessage: string,
+    detalhes?: Record<string, any>
+  ): Promise<void> {
+    try {
+      const alertService = getAlertService();
+      await alertService.enviarAlertaVerificacaoFalhou(backupId, erroMessage, detalhes);
+    } catch (erro) {
+      logger.error('[BackupScheduler] Erro ao enviar alerta de verificação falha:', erro);
+    }
+  }
+
+  /**
+   * Envia alerta de falha na cópia NAS
+   */
+  private async enviarAlertaCopiaFalhou(
+    backupId: string,
+    erroMessage: string,
+    nasPath: string
+  ): Promise<void> {
+    try {
+      const alertService = getAlertService();
+      await alertService.enviarAlertaCopiaFalhou(backupId, erroMessage, nasPath);
+    } catch (erro) {
+      logger.error('[BackupScheduler] Erro ao enviar alerta de cópia falha:', erro);
     }
   }
 

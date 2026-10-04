@@ -12,12 +12,35 @@
  */
 
 import express from 'express';
+import { z } from 'zod';
 import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from '../domain/auth/auth-service-db.js';
 import type Database from 'better-sqlite3';
 import { criarMiddlewareAutenticacao } from './auth-routes.js';
 import { criarFilaRevisaoService, FilaRevisaoService } from '../domain/relatorios/fila-revisao-service.js';
 import { obterPoliticaAtual, papelPodeRevisar } from '../domain/relatorios/politicaRevisaoIA.js';
+
+// Zod validation schemas
+const filaQuerySchema = z.object({
+  status: z.enum(['pendente', 'revisado', 'rejeitado']).optional().default('pendente'),
+  limit: z.coerce.number().int().positive().max(100).optional().default(50),
+  offset: z.coerce.number().int().nonnegative().optional().default(0),
+}).strict();
+
+const revisarBodySchema = z.object({
+  status: z.enum(['revisado', 'autorizado']).optional().default('revisado'),
+}).strict();
+
+const rejeitarBodySchema = z.object({
+  motivo: z.string().min(1).max(500).trim(),
+}).strict();
+
+const criarItemBodySchema = z.object({
+  documentoId: z.string().min(1).max(100),
+  tipo: z.enum(['revisao', 'analise', 'validacao']),
+  motivo: z.string().min(1).max(500).trim(),
+  solicitanteId: z.string().min(1).max(100),
+}).strict();
 
 interface AuthenticatedRequest extends express.Request {
   usuarioId?: string;
@@ -57,9 +80,16 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
         return res.status(500).json({ erro: 'Serviço de fila não disponível' });
       }
 
-      const limit = Math.min(Number(req.query.limit) || 50, 100);
-      const offset = Number(req.query.offset) || 0;
+      // Validate query params with Zod
+      const parseResult = filaQuerySchema.safeParse(req.query);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          erro: 'Parâmetros de query inválidos',
+          detalhes: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+        });
+      }
 
+      const { limit, offset } = parseResult.data;
       const itens = filaService.obterPendentes(limit, offset);
 
       return res.json({
@@ -183,7 +213,17 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
       }
 
       const { id } = req.params;
-      const { status } = req.body;
+
+      // Validate body with Zod
+      const bodyParseResult = revisarBodySchema.safeParse(req.body);
+      if (!bodyParseResult.success) {
+        return res.status(400).json({
+          erro: 'Corpo da requisição inválido',
+          detalhes: bodyParseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+        });
+      }
+
+      const { status } = bodyParseResult.data;
       const usuarioId = req.usuarioId;
 
       if (!usuarioId) {
@@ -204,12 +244,11 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
         });
       }
 
-      const novoStatus = status || 'revisado';
-      const itemAtualizado = filaService.marcarRevisado(id, usuarioId, novoStatus);
+      const itemAtualizado = filaService.marcarRevisado(id, usuarioId, status);
 
       logger.info('Item revisado', {
         itemId: id,
-        status: novoStatus,
+        status,
         revisorId: usuarioId
       });
 
@@ -239,15 +278,21 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
       }
 
       const { id } = req.params;
-      const { motivo } = req.body;
+
+      // Validate body with Zod
+      const bodyParseResult = rejeitarBodySchema.safeParse(req.body);
+      if (!bodyParseResult.success) {
+        return res.status(400).json({
+          erro: 'Corpo da requisição inválido',
+          detalhes: bodyParseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+        });
+      }
+
+      const { motivo } = bodyParseResult.data;
       const usuarioId = req.usuarioId;
 
       if (!usuarioId) {
         return res.status(401).json({ erro: 'Usuário não autenticado' });
-      }
-
-      if (!motivo) {
-        return res.status(400).json({ erro: 'Motivo é obrigatório' });
       }
 
       const item = filaService.obterPorId(id);
@@ -294,15 +339,16 @@ export function criarRotasRevisaoIA(deps: RevisaoIARoutesDeps): express.Router {
         return res.status(500).json({ erro: 'Serviço de fila não disponível' });
       }
 
-      const dados = req.body;
-
-      // Validação básica
-      if (!dados.documentoId || !dados.tipo || !dados.motivo || !dados.solicitanteId) {
+      // Validate body with Zod
+      const bodyParseResult = criarItemBodySchema.safeParse(req.body);
+      if (!bodyParseResult.success) {
         return res.status(400).json({
-          erro: 'Campos obrigatórios: documentoId, tipo, motivo, solicitanteId'
+          erro: 'Corpo da requisição inválido',
+          detalhes: bodyParseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
         });
       }
 
+      const dados = bodyParseResult.data;
       const item = filaService.criarItemRevisao(dados);
 
       logger.info('Item de revisão criado', {

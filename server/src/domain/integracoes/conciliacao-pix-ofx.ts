@@ -18,6 +18,7 @@
 import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
+import { registrarDoubleEntry } from '../ledger/ledger-service.js';
 
 export interface ConciliacaoPix {
   id: string;
@@ -385,6 +386,26 @@ export function conciliarPixOFX(db: Database.Database): ResultadoConciliacao {
           WHERE id = ?
         `);
         stmtUpdate.run(lancamentoId, conciliacaoId);
+
+        // TODO: ledger.registrarLancamento
+        // Registra no ledger (double-entry bookkeeping)
+        // Débito: Caixa PIX (1120) | Crédito: Receita (4110)
+        const resultadoLedger = registrarDoubleEntry(db, {
+          id: randomUUID(),
+          data: new Date(charge.data_pagamento).toISOString().split('T')[0],
+          descricao: `Recebimento PIX - ${charge.beneficiario || 'cliente'}`,
+          conta_debito: '1120', // Caixa PIX
+          conta_credito: '4110', // Receita
+          valor: charge.valor,
+          tipo: 'receita',
+          categoria: 'receita',
+          referencia_externa: `CHARGE-${charge.id}`,
+          usuario_id: 'sistema-pix-reconciliacao',
+        });
+
+        if (!resultadoLedger.sucesso) {
+          logger.warn(`[ConciliacaoPixOFX] Falha ao registrar no ledger: ${resultadoLedger.erro}`);
+        }
 
         resultado.conciliadas++;
         resultado.detalhes.push(`✓ ${charge.id}: reconciliado com confiança ${busca.confianca}%`);

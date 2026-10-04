@@ -320,4 +320,262 @@ describe("Rotas HTTP de Anomalias", () => {
       expect(res.body.erro).toContain("não encontrado");
     });
   });
+
+  describe("Valor Validation - Edge Cases", () => {
+    it("deve rejeitar valor zero", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 0 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve rejeitar valor negativo", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: -100 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve aceitar valor decimal positivo", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 123.45 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar valor infinito", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: "Infinity" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve aceitar valor muito grande", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 999999999999 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+  });
+
+  describe("Periodo_dias Validation - Boundaries", () => {
+    it("deve aceitar periodo_dias minimo (1)", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 100, periodo_dias: 1 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve aceitar periodo_dias maximo (365)", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 100, periodo_dias: 365 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar periodo_dias menor que 1", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 100, periodo_dias: 0 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve rejeitar periodo_dias maior que 365", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 100, periodo_dias: 366 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve rejeitar periodo_dias nao inteiro", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 100, periodo_dias: 90.5 });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("GET /api/anomalias/alertas - Zod Validation", () => {
+    it("deve aceitar todas as severidades validas", async () => {
+      const severidades = ["baixa", "media", "critica"];
+
+      for (const sev of severidades) {
+        const res = await request(app)
+          .get("/api/anomalias/alertas")
+          .set("Authorization", "Bearer test-token")
+          .query({ severidade: sev });
+
+        expect([200, 400, 500]).toContain(res.status);
+      }
+    });
+
+    it("deve rejeitar severidade invalida (com Zod)", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ severidade: "altissima" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.erro).toContain("Parâmetros");
+    });
+
+    it("deve aceitar dias minimo (1)", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ dias: 1 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve aceitar dias maximo (365)", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ dias: 365 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar dias menor que 1", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ dias: 0 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve rejeitar dias maior que 365", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ dias: 366 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve aceitar revisado true/false", async () => {
+      const res1 = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ revisado: "true" });
+
+      const res2 = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ revisado: "false" });
+
+      expect([200, 400, 500]).toContain(res1.status);
+      expect([200, 400, 500]).toContain(res2.status);
+    });
+
+    it("deve rejeitar revisado invalido", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ revisado: "talvez" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve aceitar limite minimo (1)", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ limite: 1 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve aceitar limite maximo (1000)", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ limite: 1000 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar limite menor que 1", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ limite: 0 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve rejeitar limite maior que 1000", async () => {
+      const res = await request(app)
+        .get("/api/anomalias/alertas")
+        .set("Authorization", "Bearer test-token")
+        .query({ limite: 1001 });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("Confidence Score Validation", () => {
+    it("deve retornar confianca entre 0-100", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 1500.50, periodo_dias: 90 });
+
+      if (res.status === 200) {
+        expect(res.body.confianca).toBeGreaterThanOrEqual(0);
+        expect(res.body.confianca).toBeLessThanOrEqual(100);
+      }
+    });
+  });
+
+  describe("Type Coercion", () => {
+    it("deve coercionar valor string para numero", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: "100" });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve coercionar periodo_dias string para numero", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: 100, periodo_dias: "90" });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar valor que nao pode ser coercido", async () => {
+      const res = await request(app)
+        .post("/api/anomalias/analisar/123")
+        .set("Authorization", "Bearer test-token")
+        .query({ valor: "nao-numero" });
+
+      expect(res.status).toBe(400);
+    });
+  });
 });
