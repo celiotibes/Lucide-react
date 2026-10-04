@@ -199,7 +199,7 @@ export function ReajustesRescisaoView() {
               className="btn"
               type="password"
               style={{ width: 240, marginTop: 4, cursor: "text" }}
-              placeholder="obtido via POST /api/auth/login"
+              placeholder="token Bearer (modo legado; prefira o login por sessão)"
               value={configNotificar.tokenSessao}
               onChange={(e) => atualizarConfigNotificar({ tokenSessao: e.target.value })}
             />

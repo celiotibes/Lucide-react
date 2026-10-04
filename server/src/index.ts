@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
 import express from "express";
-import cors from "cors";
+import { criarMiddlewareCors, interpretarOrigensCors, cookieCrossSiteAtivo } from "./middleware/cors-middleware.js";
 import helmet from "helmet";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
@@ -70,10 +70,17 @@ const envSchema = z.object({
     .min(1, "API_KEY é obrigatória")
     .min(32, "API_KEY deve ter pelo menos 32 caracteres para segurança"),
   SESSION_SECRET: z.string().optional(),
-  ALLOWED_ORIGIN: z
-    .string()
-    .url("ALLOWED_ORIGIN deve ser uma URL válida")
-    .default("http://localhost:5173"),
+  // CORS: allowlist explícita, separada por vírgula (ex.: "https://app.exemplo.com,https://admin.exemplo.com").
+  // Sem valor = só mesma origem (topologia padrão, atrás de proxy reverso) e NENHUM cabeçalho CORS.
+  CORS_ORIGINS: z.string().optional(),
+  // Legado: origem única, tratada como mais uma entrada de CORS_ORIGINS. Sem default (antes era
+  // localhost:5173): liberar uma origem tem de ser uma decisão explícita.
+  ALLOWED_ORIGIN: z.string().url("ALLOWED_ORIGIN deve ser uma URL válida").optional(),
+  // "true" => cookie de sessão SameSite=None; Secure (cliente e API em domínios diferentes).
+  COOKIE_CROSS_SITE: z.string().optional(),
+  // Nº de proxies reversos confiáveis à frente do servidor (ou "true" = 1). Necessário para o
+  // cookie Secure funcionar atrás de um proxy que termina TLS (X-Forwarded-Proto).
+  TRUST_PROXY: z.string().optional(),
   PORT: z.coerce.number().int().positive().default(8787),
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
   // Variáveis opcionais de integração
@@ -102,14 +109,29 @@ try {
 
 const API_KEY = envVars.API_KEY;
 const PORT = envVars.PORT;
-const ALLOWED_ORIGIN = envVars.ALLOWED_ORIGIN;
+const { origens: ORIGENS_CORS, descartadas: ORIGENS_CORS_DESCARTADAS } = interpretarOrigensCors(
+  [envVars.CORS_ORIGINS, envVars.ALLOWED_ORIGIN].filter(Boolean).join(","),
+);
 const DATABASE_URL = envVars.DATABASE_URL;
 const NODE_ENV = envVars.NODE_ENV;
 
 // SEC-012: Initialize Sentry FIRST (before any other operations)
 initializeSentry();
 
-logger.info("[Server] Environment", { environment: NODE_ENV, port: PORT, allowedOrigin: ALLOWED_ORIGIN });
+logger.info("[Server] Environment", {
+  environment: NODE_ENV,
+  port: PORT,
+  corsOrigins: ORIGENS_CORS,
+  cookieCrossSite: cookieCrossSiteAtivo(),
+});
+if (ORIGENS_CORS_DESCARTADAS.length > 0) {
+  logger.warn("[CORS] Entradas inválidas ignoradas em CORS_ORIGINS (curinga '*' nunca é aceito com credenciais)", {
+    descartadas: ORIGENS_CORS_DESCARTADAS,
+  });
+}
+if (cookieCrossSiteAtivo() && ORIGENS_CORS.length === 0) {
+  logger.warn("[CORS] COOKIE_CROSS_SITE=true sem CORS_ORIGINS: cookies cross-site não terão utilidade");
+}
 
 // Phase 2: Initialize database and services on startup
 logger.info("[Server] Initializing database...");
@@ -142,6 +164,11 @@ iniciarScannerAnomaliasDiario(db);
 avisarSeSegredoForTemporario();
 
 const app = express();
+
+if (envVars.TRUST_PROXY) {
+  const valor = envVars.TRUST_PROXY.trim();
+  app.set("trust proxy", valor === "true" ? 1 : /^\d+$/.test(valor) ? Number(valor) : valor);
+}
 
 // Security headers with helmet.js — positioned as first middleware before all other middlewares
 app.use(
@@ -180,7 +207,9 @@ app.use(
 // SEC-012: Sentry request handler — must be before all other middleware
 attachSentryHandlers(app);
 
-app.use(cors({ origin: ALLOWED_ORIGIN }));
+// CORS por allowlist (CORS_ORIGINS) com credenciais; sem lista = só mesma origem, sem cabeçalhos CORS.
+// Fica antes de sessão/CSRF para o preflight (OPTIONS) ser respondido sem exigir cookie nem token.
+app.use(criarMiddlewareCors(ORIGENS_CORS));
 app.use(express.json());
 
 // PERF-001: HTTP Response Compression

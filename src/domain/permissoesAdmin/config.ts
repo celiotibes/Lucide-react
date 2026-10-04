@@ -1,4 +1,7 @@
-/** Configuração local da tela de gerenciamento de permissões/usuários
+/** LEGADO: a tela de permissões agora usa a sessão por cookie (src/api/cliente.ts + LoginView) e
+ * não lê mais este módulo; mantido só enquanto não for removido junto do seu teste.
+ *
+ * Configuração local da tela de gerenciamento de permissões/usuários
  * (`GerenciamentoPermissoesView`) — mesmo espírito de `src/domain/ia/config.ts`
  * e `src/components/ConectarPluggy.tsx`: nada aqui é gravado no banco sql.js
  * da contabilidade (nem poderia — a tabela `permissoes_papel` vive no

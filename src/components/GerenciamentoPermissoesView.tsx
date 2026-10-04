@@ -2,12 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, ShieldCheck, UserPlus } from "lucide-react";
 import { useToast } from "../ui/useToast";
 import {
-  carregarConfiguracaoPermissoesAdmin,
-  salvarConfiguracaoPermissoesAdmin,
-  backendConfigurado,
-  type ConfiguracaoPermissoesAdmin,
-} from "../domain/permissoesAdmin/config";
-import {
   buscarMatrizPermissoes,
   salvarMatrizPermissoes,
   criarUsuarioAdmin,
@@ -16,15 +10,15 @@ import {
 } from "../domain/permissoesAdmin/api";
 
 /** Tela de gestão do sistema: matriz de permissões (papel × função) e criação
- * de usuário de outro papel — consome as rotas novas do backend `server/`
+ * de usuário de outro papel — consome as rotas do backend `server/`
  * (GET/PUT /api/auth/permissoes, POST /api/auth/usuarios), reservadas a
  * titular/administrador.
  *
- * Como o resto do sistema (ver `src/domain/ia/config.ts`, mesmo espírito):
- * esta funcionalidade só existe quando um backend está configurado. Sem
- * isso, a tela nunca tenta chamar API nenhuma — só explica a dependência e
- * deixa o resto do app intacto (restrição inegociável do usuário: o app
- * client-side continua 100% funcional sem backend nenhum). */
+ * Autenticação: sessão por cookie (login em <LoginView>, exigido por
+ * <ExigeSessao> em App.tsx) — não há mais endereço/token para colar. O
+ * endereço do servidor vem de `VITE_API_URL` (vazio = mesmo domínio).
+ * Sem servidor, <ExigeSessao> só explica a dependência e o resto do app
+ * (100% client-side) segue intacto. */
 
 function chave(papel: string, funcao: string): string {
   return `${papel}::${funcao}`;
@@ -49,8 +43,6 @@ function formatarPapel(papel: string): string {
 
 export function GerenciamentoPermissoesView() {
   const { avisar } = useToast();
-  const [config, setConfig] = useState<ConfiguracaoPermissoesAdmin>(() => carregarConfiguracaoPermissoesAdmin());
-  const configurado = backendConfigurado(config);
 
   const [papeis, setPapeis] = useState<string[]>([]);
   const [catalogoFuncoes, setCatalogoFuncoes] = useState<DefinicaoFuncao[]>([]);
@@ -66,19 +58,10 @@ export function GerenciamentoPermissoesView() {
   const [novoRole, setNovoRole] = useState("contador");
   const [criandoUsuario, setCriandoUsuario] = useState(false);
 
-  const salvarConfig = useCallback((patch: Partial<ConfiguracaoPermissoesAdmin>) => {
-    setConfig((atual) => {
-      const proximo = { ...atual, ...patch };
-      salvarConfiguracaoPermissoesAdmin(proximo);
-      return proximo;
-    });
-  }, []);
-
   const carregarMatriz = useCallback(async () => {
-    if (!backendConfigurado(config) || !config.tokenSessao.trim()) return;
     setCarregando(true);
     try {
-      const resposta = await buscarMatrizPermissoes(config.enderecoBackend.trim(), config.tokenSessao.trim());
+      const resposta = await buscarMatrizPermissoes();
       setPapeis(resposta.papeis);
       setCatalogoFuncoes(resposta.catalogoFuncoes);
       setMatrizOriginal(resposta.matriz);
@@ -89,18 +72,13 @@ export function GerenciamentoPermissoesView() {
       setCarregando(false);
       setCarregouUmaVez(true);
     }
-  }, [config, avisar]);
+  }, [avisar]);
 
-  // Carrega automaticamente assim que endereço + token estiverem preenchidos
-  // (ex: depois de colar os dois campos) — sem exigir um clique extra, mas
-  // sem tentar nada enquanto faltar informação (nunca chama API nenhuma sem
-  // backend configurado).
+  // Esta tela só é montada com sessão ativa (<ExigeSessao>): carrega a matriz de uma vez.
   useEffect(() => {
-    if (backendConfigurado(config) && config.tokenSessao.trim() && !carregouUmaVez) {
-      carregarMatriz();
-    }
+    if (!carregouUmaVez) carregarMatriz();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.enderecoBackend, config.tokenSessao]);
+  }, []);
 
   const entradasAlteradas = useMemo(() => {
     const porChaveOriginal = new Map(matrizOriginal.map((e) => [chave(e.papel, e.funcao), e]));
@@ -131,11 +109,7 @@ export function GerenciamentoPermissoesView() {
     if (entradasAlteradas.length === 0) return;
     setSalvando(true);
     try {
-      const novaMatriz = await salvarMatrizPermissoes(
-        config.enderecoBackend.trim(),
-        config.tokenSessao.trim(),
-        entradasAlteradas,
-      );
+      const novaMatriz = await salvarMatrizPermissoes(entradasAlteradas);
       setMatrizOriginal(novaMatriz);
       setMatrizEditavel(novaMatriz);
       avisar("good", `${entradasAlteradas.length} alteração(ões) salva(s) na matriz de permissões.`);
@@ -144,7 +118,7 @@ export function GerenciamentoPermissoesView() {
     } finally {
       setSalvando(false);
     }
-  }, [entradasAlteradas, config, avisar]);
+  }, [entradasAlteradas, avisar]);
 
   const criarUsuario = useCallback(async () => {
     if (!novoNome.trim() || !novoEmail.trim() || !novaSenha) {
@@ -157,7 +131,7 @@ export function GerenciamentoPermissoesView() {
     }
     setCriandoUsuario(true);
     try {
-      const usuario = await criarUsuarioAdmin(config.enderecoBackend.trim(), config.tokenSessao.trim(), {
+      const usuario = await criarUsuarioAdmin({
         nome: novoNome.trim(),
         email: novoEmail.trim(),
         senha: novaSenha,
@@ -172,7 +146,7 @@ export function GerenciamentoPermissoesView() {
     } finally {
       setCriandoUsuario(false);
     }
-  }, [novoNome, novoEmail, novaSenha, novoRole, config, avisar]);
+  }, [novoNome, novoEmail, novaSenha, novoRole, avisar]);
 
   const opcoesPapelNovoUsuario = papeis.length > 0 ? papeis : Object.keys(ROTULO_PAPEL);
 
@@ -185,46 +159,7 @@ export function GerenciamentoPermissoesView() {
         real — nada é gravado no banco local da contabilidade.
       </p>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3 className="section-title" style={{ marginTop: 0 }}>Conexão com o backend</h3>
-        <div className="form-grid">
-          <label>
-            Endereço do backend
-            <input
-              type="text"
-              placeholder="https://seu-backend.com"
-              defaultValue={config.enderecoBackend}
-              onBlur={(e) => salvarConfig({ enderecoBackend: e.target.value.trim() })}
-            />
-          </label>
-          <label>
-            Token de sessão (Bearer, de um titular/administrador)
-            <input
-              type="password"
-              placeholder="obtido via POST /api/auth/login"
-              defaultValue={config.tokenSessao}
-              onBlur={(e) => salvarConfig({ tokenSessao: e.target.value.trim() })}
-            />
-          </label>
-        </div>
-      </div>
-
-      {!configurado ? (
-        <div className="aviso-caixa" style={{ marginTop: 16 }}>
-          <strong>Esta funcionalidade depende de um backend configurado.</strong> Preencha o
-          endereço do backend acima — veja as instruções em <code>server/README.md</code> (seção
-          "Gestão do sistema — matriz de permissões e criação de usuário") para subir o backend e
-          obter um token de sessão via <code>POST /api/auth/login</code>. Sem backend, esta tela
-          não tenta chamar nenhuma API — o resto do sistema continua funcionando normalmente.
-        </div>
-      ) : !config.tokenSessao.trim() ? (
-        <div className="aviso-caixa" style={{ marginTop: 16 }}>
-          <strong>Falta o token de sessão.</strong> Faça login como titular ou administrador (ex:
-          <code> POST {config.enderecoBackend}/api/auth/login</code>) e cole o token retornado no
-          campo acima.
-        </div>
-      ) : (
-        <>
+      <>
           <div className="toolbar-actions" style={{ marginTop: 22, marginBottom: 10 }}>
             <h3 className="section-title" style={{ margin: 0, flex: 1 }}>
               Matriz de permissões (papel × função)
@@ -340,8 +275,7 @@ export function GerenciamentoPermissoesView() {
               backend ainda não tem esse recurso (ver <code>server/README.md</code>).
             </p>
           </div>
-        </>
-      )}
+      </>
     </div>
   );
 }

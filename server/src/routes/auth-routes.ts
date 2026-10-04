@@ -19,6 +19,7 @@ import type { PermissoesServiceDB } from "../domain/auth/permissoes-db.js";
 import { FUNCOES_CATALOGO, PAPEIS_VALIDOS, papelValido } from "../domain/auth/permissoes.js";
 import type { UserRole, ContextoAutenticacao } from "../domain/auth/auth-service.js";
 import { validateTokenSafely, generateSecureToken } from "../utils/security-helpers.js";
+import { atributosCookieSessao } from "../middleware/cors-middleware.js";
 
 export interface AuthRoutesDeps {
   authService: AuthServiceDB;
@@ -99,7 +100,7 @@ interface OpcoesMdAutenticacao {
  * SEC-015) ou, para clientes sem cookies, `Authorization: Bearer <token>`. Anexa o contexto
  * autenticado em `req.auth`. O token NUNCA é devolvido no corpo do login; sem esta leitura do cookie
  * o login gravava a sessão e nenhuma rota autenticada a reconhecia. Requisições que alteram dados
- * continuam protegidas pelo csurf global (index.ts) e pelo SameSite=Strict do cookie.
+ * continuam protegidas pelo csurf global (index.ts) e pelo SameSite do cookie (Lax por padrão).
  *
  * Por padrão, usuários com papéis externos ('inquilino', 'prestador') recebem 403 em qualquer rota
  * que use este middleware. Passe `{permitirPapeisExternos:true}` para permitir acesso a usuários
@@ -202,7 +203,7 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
    * tanto na resposta quanto no corpo; o detalhe (motivoInterno) só vai
    * para a trilha de auditoria, nunca para o cliente.
    *
-   * SEC-015: Returns httpOnly, secure, SameSite=Strict cookie with access token
+   * SEC-015: Returns httpOnly cookie with access token (SameSite=Lax; None+Secure só com COOKIE_CROSS_SITE=true)
    * Also returns a CSRF token for form submissions
    */
   router.post("/login", limitadorLogin, async (req, res) => {
@@ -246,11 +247,11 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
     });
 
     // SEC-015: Set httpOnly, secure cookie with session token
-    const isProduction = process.env.NODE_ENV === "production";
+    // SameSite=Lax no mesmo domínio (padrão); SameSite=None+Secure só com COOKIE_CROSS_SITE=true.
+    const atributosCookie = atributosCookieSessao();
     res.cookie("session_token", resultado.token, {
       httpOnly: true, // Prevents JavaScript access (XSS protection)
-      secure: isProduction, // HTTPS only in production
-      sameSite: "strict", // CSRF protection
+      ...atributosCookie,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
@@ -259,8 +260,7 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
     const csrfToken = generateSecureToken(32);
     res.cookie("csrf_token", csrfToken, {
       httpOnly: false, // JavaScript must access for form submission
-      secure: isProduction,
-      sameSite: "strict",
+      ...atributosCookie,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/",
     });
@@ -274,8 +274,9 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
 
   /**
    * GET /api/auth/me
-   * Header: Authorization: Bearer <token>
-   * Permite usuários com papéis externos (inquilino, prestador)
+   * Sessão atual: cookie `session_token` (httpOnly) ou Authorization: Bearer <token>.
+   * Devolve só { usuario } (nunca token/hash); 401 sem sessão. O cliente usa isto para
+   * saber se há sessão (useSessao). Permite usuários com papéis externos (inquilino, prestador)
    */
   router.get("/me", exigirAutenticacaoComExternos, (req, res) => {
     res.json({ usuario: usuarioParaResposta(req.auth!.usuario) });
@@ -362,12 +363,10 @@ export function criarRotasAuth({ authService, auditService, permissoesService }:
     // SEC-015: Set httpOnly, secure cookie with session token
     // Note: Bootstrap doesn't have a token from authService, so we create one
     // In production, authService.bootstrapTitular should return a token
-    const isProduction = process.env.NODE_ENV === "production";
     const csrfToken = generateSecureToken(32);
     res.cookie("csrf_token", csrfToken, {
       httpOnly: false,
-      secure: isProduction,
-      sameSite: "strict",
+      ...atributosCookieSessao(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/",
     });

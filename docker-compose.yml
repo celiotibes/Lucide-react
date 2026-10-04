@@ -24,8 +24,8 @@ services:
       API_KEY: ${API_KEY:-change-me-in-development-only}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-session-secret}
 
-      # CORS
-      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
+      # CORS (vazio = só mesma origem; ver docs/TOPOLOGIA-IMPLANTACAO.md)
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
 
       # Integrations (Optional)
       ASAAS_API_KEY: ${ASAAS_API_KEY:-}

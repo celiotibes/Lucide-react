@@ -1,9 +1,10 @@
 /** Cliente HTTP para as rotas de gestão do sistema do backend (`server/`):
- * matriz de permissões (papel × função) e criação de usuário. Mesmo padrão
- * de `src/domain/parsers/pluggyClient.ts` — chama o backend configurado,
- * nunca um serviço de terceiro direto; lança `Error` com mensagem legível em
- * qualquer falha (rede, status HTTP, corpo inesperado), para o componente
- * capturar num try/catch e mostrar um toast. */
+ * matriz de permissões (papel × função) e criação de usuário. Usa `apiFetch`
+ * (src/api/cliente.ts): sessão por cookie httpOnly + token CSRF, base em
+ * `VITE_API_URL` — não há mais token de sessão colado à mão. Lança `Error`
+ * com mensagem legível em qualquer falha (rede, status HTTP, corpo
+ * inesperado), para o componente capturar num try/catch e mostrar um toast. */
+import { apiFetch } from "../../api/cliente";
 
 export interface DefinicaoFuncao {
   id: string;
@@ -33,9 +34,7 @@ export interface UsuarioCriado {
   ativo: boolean;
 }
 
-function cabecalhos(token: string): Record<string, string> {
-  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
-}
+const CABECALHOS_JSON = { "Content-Type": "application/json" };
 
 /** Extrai a mensagem de erro do corpo JSON `{ erro }` da API quando possível;
  * cai para uma mensagem genérica com o status HTTP quando o corpo não é o
@@ -50,8 +49,8 @@ async function mensagemErroResposta(resposta: Response, acaoDescricao: string): 
   return `${acaoDescricao} (HTTP ${resposta.status})`;
 }
 
-export async function buscarMatrizPermissoes(backendUrl: string, token: string): Promise<MatrizPermissoesResposta> {
-  const resposta = await fetch(`${backendUrl}/api/auth/permissoes`, { headers: cabecalhos(token) });
+export async function buscarMatrizPermissoes(): Promise<MatrizPermissoesResposta> {
+  const resposta = await apiFetch("/api/auth/permissoes");
   if (!resposta.ok) {
     throw new Error(await mensagemErroResposta(resposta, "Falha ao carregar a matriz de permissões"));
   }
@@ -59,13 +58,11 @@ export async function buscarMatrizPermissoes(backendUrl: string, token: string):
 }
 
 export async function salvarMatrizPermissoes(
-  backendUrl: string,
-  token: string,
   entradas: EntradaPermissao[],
 ): Promise<EntradaPermissao[]> {
-  const resposta = await fetch(`${backendUrl}/api/auth/permissoes`, {
+  const resposta = await apiFetch("/api/auth/permissoes", {
     method: "PUT",
-    headers: cabecalhos(token),
+    headers: CABECALHOS_JSON,
     body: JSON.stringify({ entradas }),
   });
   if (!resposta.ok) {
@@ -76,13 +73,11 @@ export async function salvarMatrizPermissoes(
 }
 
 export async function criarUsuarioAdmin(
-  backendUrl: string,
-  token: string,
   dados: { nome: string; email: string; senha: string; role: string },
 ): Promise<UsuarioCriado> {
-  const resposta = await fetch(`${backendUrl}/api/auth/usuarios`, {
+  const resposta = await apiFetch("/api/auth/usuarios", {
     method: "POST",
-    headers: cabecalhos(token),
+    headers: CABECALHOS_JSON,
     body: JSON.stringify(dados),
   });
   if (!resposta.ok) {

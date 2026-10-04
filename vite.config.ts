@@ -71,11 +71,14 @@ export default defineConfig({
     }),
   ],
   server: {
+    // Dev em MESMO ORIGEM: o navegador fala só com o Vite (5173) e o Vite encaminha /api para o
+    // servidor Express. Assim cookie de sessão (SameSite=Lax) e CSRF funcionam sem CORS, igual à
+    // produção atrás de proxy reverso. A porta padrão do server/ é 8787 (PORT); para outra,
+    // defina VITE_DEV_API_TARGET (ex.: http://localhost:3000). Deixe VITE_API_URL vazio em dev.
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: process.env.VITE_DEV_API_TARGET || 'http://localhost:8787',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
       },
     },
   },

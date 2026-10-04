@@ -28,9 +28,10 @@ import {
  * próprio, de propósito: esta tarefa está limitada a um conjunto fechado de arquivos nesta
  * rodada — ver nota no PR). Mesmo espírito e mesmo aviso de segurança de
  * src/domain/permissoesAdmin/config.ts e src/components/ConectarPluggy.tsx: um token em
- * localStorage é legível por qualquer um com acesso a este navegador. Como ainda não existe
- * uma tela de login própria no client (fora do escopo desta tarefa), quem usar esta tela
- * precisa colar um token de sessão obtido por outro meio (ex: POST /api/auth/login).
+ * localStorage é legível por qualquer um com acesso a este navegador. O login por sessão
+ * (cookie httpOnly + CSRF, src/api/cliente.ts e <LoginView>) já existe e é o caminho
+ * recomendado; esta tela ainda usa o modo legado de token Bearer colado à mão — migrá-la para
+ * `apiFetch` é o próximo passo (hoje só GerenciamentoPermissoesView usa a sessão).
  *
  * `VITE_TELEGRAM_BOT_USERNAME` é uma env var PÚBLICA (prefixo VITE_, vai pro bundle do
  * navegador) — é só o @usuário do bot, informação que qualquer pessoa já vê ao abrir uma
@@ -215,8 +216,8 @@ export function CapturasTelegramView() {
         <div className="section-title" style={{ fontSize: 14 }}>Backend e sessão</div>
         <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 10, maxWidth: "62ch" }}>
           Esta tela consome o backend (<code>server/</code>), não a Asaas/Telegram direto. Informe o endereço e um
-          token de sessão de titular/administrador (obtido via <code>POST /api/auth/login</code>) — ainda não há
-          tela de login própria no app.
+          token Bearer de titular/administrador (modo legado). O login por sessão (tela <strong>Entrar</strong>, em
+          Permissões) é o caminho recomendado e já funciona; esta tela ainda não foi migrada para ele.
         </p>
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, marginBottom: 10 }}>
           URL do backend:

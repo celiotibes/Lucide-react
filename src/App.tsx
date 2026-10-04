@@ -14,6 +14,9 @@ import { gerarDadosSimulados, limparBanco } from "./domain/seed/dadosSimulados";
 import { registrarBackup, calcularStatusBackup, type RegistroBackup } from "./domain/backupIntegridade";
 import { gerarPainelPendencias } from "./domain/auditoria/painelPendencias";
 import { Dashboard } from "./components/Dashboard";
+import { SessaoProvider } from "./hooks/SessaoProvider";
+import { ExigeSessao } from "./components/ExigeSessao";
+import { IndicadorSessao } from "./components/IndicadorSessao";
 import type { FiltroTransacoesInicial } from "./components/TransacoesView";
 
 /** Aviso que precisa sobreviver a um window.location.reload() (hoje, só a confirmação
@@ -374,6 +377,7 @@ function Conteudo() {
             </div>
           </div>
           <div className="toolbar-actions">
+            <IndicadorSessao />
             <button className="btn" onClick={carregarDemonstracao}>
               <RotateCcw size={14} /> Carregar dados de demonstração
             </button>
@@ -511,7 +515,11 @@ function Conteudo() {
             {aba === "contaspessoais" && <ContasPessoaisView />}
             {aba === "pagamentos" && <PagamentosView />}
             {aba === "lgpd" && <LgpdView />}
-            {aba === "permissoes" && <GerenciamentoPermissoesView />}
+            {aba === "permissoes" && (
+              <ExigeSessao>
+                <GerenciamentoPermissoesView />
+              </ExigeSessao>
+            )}
             {aba === "laudo" && <LaudoView />}
             {aba === "sincronizacao" && <SincronizacaoView />}
             {aba === "ia" && <ConfiguracaoIA />}
@@ -527,9 +535,11 @@ function Conteudo() {
 function App() {
   return (
     <ToastProvider>
-      <DbProvider>
-        <Conteudo />
-      </DbProvider>
+      <SessaoProvider>
+        <DbProvider>
+          <Conteudo />
+        </DbProvider>
+      </SessaoProvider>
     </ToastProvider>
   );
 }

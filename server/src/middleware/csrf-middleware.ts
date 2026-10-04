@@ -23,6 +23,7 @@ import { logger } from '../services/logger-service.js';
 import session from "express-session";
 import csurf from "csurf";
 import { validateCsrfTokenSafely } from "../utils/security-helpers.js";
+import { atributosCookieSessao } from "./cors-middleware.js";
 
 /**
  * Cria middleware de sessão Express
@@ -35,8 +36,10 @@ export function criarMiddlewareSession(sessionSecret: string) {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // HTTPS apenas em produção
-      sameSite: "strict", // Protege contra requisições cross-site
+      // SameSite=Lax (mesmo domínio, padrão) ou None+Secure (COOKIE_CROSS_SITE=true); Secure em
+      // produção. O csurf continua exigindo o token em toda requisição mutável, então Lax não
+      // enfraquece a proteção contra CSRF.
+      ...atributosCookieSessao(),
       maxAge: 24 * 60 * 60 * 1000, // 24 horas
     },
   });
