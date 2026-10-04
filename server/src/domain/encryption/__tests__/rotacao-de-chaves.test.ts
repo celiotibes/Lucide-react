@@ -139,12 +139,12 @@ describe('reencriptarCampos', () => {
     expect(r.naoCifrados).toBe(4); // null, '', null, texto puro
 
     const soNova = new Chaveiro({ '2': k2 }, '2'); // chave antiga aposentada
-    const linhas = db.prepare('SELECT cpf, email FROM clientes WHERE id <= 5 ORDER BY id').all() as any[];
+    const linhas = db.prepare('SELECT cpf, email FROM clientes WHERE id <= 5 ORDER BY id').all() as Record<string, unknown>[];
     linhas.forEach((l, i) => {
       expect(descriptografarVersionado(l.cpf, soNova)).toBe(`cpf${i}`);
       expect(descriptografarVersionado(l.email, soNova)).toBe(`mail${i}`);
     });
-    expect((db.prepare('SELECT cpf FROM clientes WHERE id = 7').get() as any).cpf).toBe('texto puro');
+    expect((db.prepare('SELECT cpf FROM clientes WHERE id = 7').get() as Record<string, unknown>).cpf).toBe('texto puro');
   });
 
   it('é idempotente: segunda execução não reescreve nada', () => {
@@ -187,9 +187,9 @@ describe('reencriptarCampos', () => {
     expect(() =>
       reencriptarCampos(db, { tabela: 'clientes', colunas: ['cpf'], lote: 2, chaveiro: rotacionado })
     ).toThrow();
-    const ate2 = db.prepare('SELECT cpf FROM clientes WHERE id <= 2').all() as any[];
+    const ate2 = db.prepare('SELECT cpf FROM clientes WHERE id <= 2').all() as Record<string, unknown>[];
     expect(ate2.every((l) => l.cpf.startsWith('fle:2:'))).toBe(true); // lote 1 confirmado
-    const lote2 = db.prepare('SELECT cpf FROM clientes WHERE id IN (3,4)').all() as any[];
+    const lote2 = db.prepare('SELECT cpf FROM clientes WHERE id IN (3,4)').all() as Record<string, unknown>[];
     expect(lote2.some((l) => l.cpf.startsWith('fle:2:'))).toBe(false); // lote 2 desfeito
     db.exec('DROP TRIGGER barra');
     const r = reencriptarCampos(db, { tabela: 'clientes', colunas: ['cpf'], lote: 2, chaveiro: rotacionado });

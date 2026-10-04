@@ -204,7 +204,7 @@ function juntar(prefixo: string, rota: string): string {
 /** Lista {metodo, caminho} de todas as rotas de um router (ignora router.use de middleware). */
 function rotasDoRouter(router: express.Router, prefixo: string): Array<{ metodo: string; caminho: string }> {
   const saida: Array<{ metodo: string; caminho: string }> = [];
-  for (const camada of (router as any).stack as any[]) {
+  for (const camada of (router as any).stack as Record<string, unknown>[]) {
     if (!camada.route) continue;
     for (const metodo of Object.keys(camada.route.methods)) {
       if (camada.route.methods[metodo]) saida.push({ metodo: metodo.toUpperCase(), caminho: juntar(prefixo, camada.route.path) });

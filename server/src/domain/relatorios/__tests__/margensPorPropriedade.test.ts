@@ -200,7 +200,7 @@ describe("gravarMargensImovel", () => {
 
     const salvo = db
       .prepare("SELECT * FROM margens_propriedades_periodo WHERE imovel_id = 1 AND ano = 2026 AND mes = 10")
-      .get() as any;
+      .get() as Record<string, unknown>;
 
     expect(salvo).toBeDefined();
     expect(salvo.receita).toBe(1000);
@@ -236,7 +236,7 @@ describe("gravarMargensImovel", () => {
 
     gravarMargensImovel(db, 2026, 10, margem2);
 
-    const registros = db.prepare("SELECT COUNT(*) as count FROM margens_propriedades_periodo").get() as any;
+    const registros = db.prepare("SELECT COUNT(*) as count FROM margens_propriedades_periodo").get() as Record<string, unknown>;
     expect(registros.count).toBe(1); // Não duplicou
   });
 
@@ -414,7 +414,7 @@ describe("calcularEGravarMargensDoMes", () => {
     // Verificar que foram gravados
     const registros = db
       .prepare("SELECT COUNT(*) as count FROM margens_propriedades_periodo WHERE ano = 2026 AND mes = 10")
-      .get() as any;
+      .get() as Record<string, unknown>;
     expect(registros.count).toBe(3);
   });
 });

@@ -146,17 +146,17 @@ describe("Papéis de usuários externos + ACL", () => {
       expect(auditoriaDepois.cnt).toBe(1);
 
       // 5. Verificar que usuários específicos estão intactos
-      const titular = db.prepare("SELECT * FROM usuarios WHERE id = 'user_titular'").get() as any;
+      const titular = db.prepare("SELECT * FROM usuarios WHERE id = 'user_titular'").get() as Record<string, unknown>;
       expect(titular).toBeTruthy();
       expect(titular.email).toBe("titular@example.com");
       expect(titular.role).toBe("titular");
 
       // 6. Verificar que sessões e auditoria continuam intactas
-      const sessao = db.prepare("SELECT * FROM sessoes WHERE token = 'token_1'").get() as any;
+      const sessao = db.prepare("SELECT * FROM sessoes WHERE token = 'token_1'").get() as Record<string, unknown>;
       expect(sessao).toBeTruthy();
       expect(sessao.usuario_id).toBe("user_titular");
 
-      const audit = db.prepare("SELECT * FROM auditoria WHERE id = 'audit_1'").get() as any;
+      const audit = db.prepare("SELECT * FROM auditoria WHERE id = 'audit_1'").get() as Record<string, unknown>;
       expect(audit).toBeTruthy();
 
       // 7. Verificar view continua acessível

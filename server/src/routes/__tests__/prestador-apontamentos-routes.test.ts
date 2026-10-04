@@ -111,7 +111,7 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
 
     const linha = db.prepare("SELECT * FROM prestador_apontamentos_recebidos WHERE id = ?").get(r.body.id) as any;
     expect(linha).toMatchObject({ usuario_id: "u_prest1", valor_centavos: 15050, horas_minutos: 90, status: "recebido" });
-    const anexo = db.prepare("SELECT nome, tamanho, sha256 FROM prestador_apontamento_anexos").get() as any;
+    const anexo = db.prepare("SELECT nome, tamanho, sha256 FROM prestador_apontamento_anexos").get() as Record<string, unknown>;
     expect(anexo).toEqual({ nome: "__.._etc_foto.jpg", tamanho: conteudo.length, sha256: sha });
     expect(db.prepare(`SELECT COUNT(*) n FROM auditoria WHERE tipo_acao='prestador_apontamento_recebido'`).get()).toEqual({ n: 1 });
   });

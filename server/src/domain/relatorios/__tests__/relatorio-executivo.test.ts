@@ -286,7 +286,7 @@ describe("Relatório Executivo - Testes", () => {
       // Act
       const registros = db
         .prepare("SELECT * FROM relatorios_executivos_gerados ORDER BY ano, mes DESC LIMIT 12")
-        .all() as any[];
+        .all() as Record<string, unknown>[];
 
       // Assert
       expect(registros.length).toBeGreaterThanOrEqual(2);

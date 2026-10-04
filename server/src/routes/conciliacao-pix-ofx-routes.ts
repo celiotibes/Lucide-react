@@ -159,7 +159,7 @@ export function criarRotasConciliacaoPixOFX({ db, authService }: ConciliacaoPixO
         SELECT COUNT(*) as total FROM conciliacoes_pix_ofx
         WHERE status = 'discrepancia' OR discrepancia_flag = 1
       `);
-      const countResult = stmtCount.get() as any;
+      const countResult = stmtCount.get() as Record<string, unknown>;
       const total = countResult?.total ?? 0;
 
       const stmt = db.prepare(`
@@ -169,7 +169,7 @@ export function criarRotasConciliacaoPixOFX({ db, authService }: ConciliacaoPixO
         ORDER BY criado_em DESC
         LIMIT ? OFFSET ?
       `);
-      const discrepancias = (stmt.all(limite, offset) as any[]) ?? [];
+      const discrepancias = (stmt.all(limite, offset) as Record<string, unknown>[]) ?? [];
 
       res.status(200).json({
         sucesso: true,

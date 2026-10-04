@@ -640,7 +640,7 @@ export function listarPagamentosPix(
   sql += ` ORDER BY criado_em DESC`;
 
   const stmt = db.prepare(sql);
-  const registros = stmt.all(...params) as any[];
+  const registros = stmt.all(...params) as Record<string, unknown>[];
 
   return registros.map((r) => ({
     id: r.id,

@@ -232,7 +232,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
         WHERE pagamento_id = ?
         ORDER BY criado_em ASC
       `);
-      const historico = histStmt.all(id) as any[];
+      const historico = histStmt.all(id) as Record<string, unknown>[];
 
       // Projeção mínima para papéis externos: sem chave PIX, CPF/CNPJ, QR code nem ids da Asaas.
       const pagamentoVisivel = externo

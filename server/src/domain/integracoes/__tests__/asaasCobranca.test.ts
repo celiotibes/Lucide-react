@@ -225,7 +225,7 @@ describe("asaasCobranca", () => {
       const stmtAudit = db.prepare(`
         SELECT * FROM asaas_cobrancas_historico WHERE cobranca_id = ?
       `);
-      const historicos = stmtAudit.all(cobranca.id) as any[];
+      const historicos = stmtAudit.all(cobranca.id) as Record<string, unknown>[];
 
       expect(historicos.length).toBeGreaterThan(0);
       expect(historicos[0].acao).toBe("CRIACAO");
@@ -564,7 +564,7 @@ describe("asaasCobranca", () => {
         SELECT COUNT(*) as count FROM asaas_cobrancas_historico
         WHERE acao = 'ATUALIZACAO_STATUS' AND status_novo = 'vencida'
       `);
-      const auditResult = auditStmt.get() as any;
+      const auditResult = auditStmt.get() as Record<string, unknown>;
       expect(auditResult.count).toBe(numCobrancas);
 
       // Log performance info (transaction should be fast)

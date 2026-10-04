@@ -360,7 +360,7 @@ export class BackupService {
         // 4. Tentar abrir banco para verificar integridade
         try {
           const db = new Database(decryptedPath);
-          const pragmaResult = db.prepare("PRAGMA integrity_check").all() as any[];
+          const pragmaResult = db.prepare("PRAGMA integrity_check").all() as Record<string, unknown>[];
           db.close();
 
           if (pragmaResult.length > 0 && pragmaResult[0].integrity_check !== "ok") {
@@ -429,7 +429,7 @@ export class BackupService {
       db.pragma("query_only = ON");
 
       // PRAGMA integrity_check
-      const pragmaResult = db.prepare("PRAGMA integrity_check").all() as any[];
+      const pragmaResult = db.prepare("PRAGMA integrity_check").all() as Record<string, unknown>[];
       if (pragmaResult.length > 0 && pragmaResult[0].integrity_check === "ok") {
         relatorio.integridade = "ok";
       } else {
