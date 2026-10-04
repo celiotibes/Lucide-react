@@ -190,7 +190,7 @@ export function ReembolsosAsaasPanel({
                       name="tipoForce"
                       value="auto"
                       checked={tipoForce === "auto"}
-                      onChange={(e) => setTipoForce(e.target.value as any)}
+                      onChange={(e) => setTipoForce(e.target.value as "reversao" | "devolucao" | "auto")}
                       className="w-4 h-4"
                     />
                     <span className="text-sm text-slate-700 dark:text-slate-300">
@@ -203,7 +203,7 @@ export function ReembolsosAsaasPanel({
                       name="tipoForce"
                       value="reversao"
                       checked={tipoForce === "reversao"}
-                      onChange={(e) => setTipoForce(e.target.value as any)}
+                      onChange={(e) => setTipoForce(e.target.value as "reversao" | "devolucao" | "auto")}
                       className="w-4 h-4"
                     />
                     <span className="text-sm text-slate-700 dark:text-slate-300">
@@ -216,7 +216,7 @@ export function ReembolsosAsaasPanel({
                       name="tipoForce"
                       value="devolucao"
                       checked={tipoForce === "devolucao"}
-                      onChange={(e) => setTipoForce(e.target.value as any)}
+                      onChange={(e) => setTipoForce(e.target.value as "reversao" | "devolucao" | "auto")}
                       className="w-4 h-4"
                     />
                     <span className="text-sm text-slate-700 dark:text-slate-300">

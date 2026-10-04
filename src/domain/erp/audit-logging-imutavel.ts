@@ -161,8 +161,8 @@ export interface RegistroAudit {
   entidade_tipo: string;
   entidade_id: string;
   entidade_descricao: string;
-  dados_anteriores?: Record<string, any>;
-  dados_novos?: Record<string, any>;
+  dados_anteriores?: Record<string, unknown>;
+  dados_novos?: Record<string, unknown>;
   endereco_ip: string;
   user_agent: string;
   resultado: 'SUCESSO' | 'FALHA' | 'PARCIAL';
@@ -439,8 +439,8 @@ export class GerenciadorAuditLoggingImutavel {
     resultado: 'SUCESSO' | 'FALHA' | 'PARCIAL',
     motivo: string,
     nivel_sensibilidade: NivelSensibilidade = NivelSensibilidade.INTERNO,
-    dados_anteriores?: Record<string, any>,
-    dados_novos?: Record<string, any>,
+    dados_anteriores?: Record<string, unknown>,
+    dados_novos?: Record<string, unknown>,
     mensagem_erro?: string
   ): Promise<RegistroAudit> {
     this.sequenciaAtual++;
@@ -956,7 +956,7 @@ export class GerenciadorAuditLoggingImutavel {
   /**
    * Sanitiza dados sensíveis
    */
-  private sanitizarDados(dados?: Record<string, any>): Record<string, any> | undefined {
+  private sanitizarDados(dados?: Record<string, unknown>): Record<string, unknown> | undefined {
     if (!dados) return undefined;
 
     const sanitizado = { ...dados };

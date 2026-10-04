@@ -110,7 +110,7 @@ const ApontamentosPendentes: React.FC<ApontamentosPendentesProps> = ({
       );
     }
 
-    const variants: Record<StatusApontamento, string> = {
+    const variants: Record<StatusApontamento, "outline" | "secondary" | "default" | "warning" | "destructive"> = {
       rascunho: "outline",
       enviado: "secondary",
       aprovado: "default",
@@ -126,7 +126,7 @@ const ApontamentosPendentes: React.FC<ApontamentosPendentesProps> = ({
       rejeitado: "Rejeitado",
     };
 
-    return <Badge variant={variants[status] as any}>{labels[status]}</Badge>;
+    return <Badge variant={variants[status]}>{labels[status]}</Badge>;
   };
 
   return (

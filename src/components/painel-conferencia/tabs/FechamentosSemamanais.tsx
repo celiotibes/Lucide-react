@@ -98,7 +98,7 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
   );
 
   const getStatusBadge = (status: StatusFechamento) => {
-    const variants: Record<StatusFechamento, string> = {
+    const variants: Record<StatusFechamento, "outline" | "secondary" | "default" | "success"> = {
       rascunho: "outline",
       enviado: "secondary",
       aprovado: "default",
@@ -112,7 +112,7 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
       pago: "Pago",
     };
 
-    return <Badge variant={variants[status] as any}>{labels[status]}</Badge>;
+    return <Badge variant={variants[status]}>{labels[status]}</Badge>;
   };
 
   const formatarSemana = (inicio: string, fim: string) => {

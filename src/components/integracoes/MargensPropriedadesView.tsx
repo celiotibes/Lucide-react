@@ -220,12 +220,12 @@ export const MargensPropriedadesView: React.FC = () => {
             <XAxis dataKey="periodo" />
             <YAxis />
             <Tooltip
-              formatter={((value: number) => {
+              formatter={(value: unknown) => {
                 if (typeof value === "number") {
                   return value.toFixed(2) + (value > 100 ? " R$" : "%");
                 }
                 return String(value);
-              }) as any}
+              }}
             />
             <Legend />
             <Line type="monotone" dataKey="margem" stroke="#10b981" name="Margem %" dot={{ r: 4 }} />
