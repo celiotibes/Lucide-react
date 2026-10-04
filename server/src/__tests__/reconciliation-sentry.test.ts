@@ -10,6 +10,17 @@ import { randomUUID } from "crypto";
 import { sincronizarStatusTaxaAsaas } from "../domain/integracoes/pagamentos-reconciliador.js";
 import { AsaasApiError } from "../asaas.js";
 
+// Mock type for fetch function
+type MockFetchType = ReturnType<typeof vi.fn<
+  [string],
+  Promise<{
+    ok: boolean;
+    status: number;
+    statusText: string;
+    json: () => Promise<Record<string, unknown>>;
+  }>
+>>;
+
 describe("SEC-012: Reconciliation with Sentry Integration", () => {
   let db: Database.Database;
 
@@ -86,7 +97,7 @@ describe("SEC-012: Reconciliation with Sentry Integration", () => {
       });
 
       // Run reconciliation with Sentry tracking
-      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as any);
+      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as MockFetchType);
 
       // Verify reconciliation results - may have errors due to mock complexity
       // The important thing is that Sentry tracking doesn't crash the function
@@ -104,7 +115,7 @@ describe("SEC-012: Reconciliation with Sentry Integration", () => {
 
       const mockFetch = vi.fn();
 
-      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as any);
+      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as MockFetchType);
 
       expect(resultado.atualizadas).toBe(0);
       expect(resultado.erros).toBe(0);
@@ -128,7 +139,7 @@ describe("SEC-012: Reconciliation with Sentry Integration", () => {
         };
       });
 
-      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as any);
+      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as MockFetchType);
 
       // Should detect discrepancy (negative fee + status change to REFUNDED)
       expect(resultado.discrepancias).toBeGreaterThanOrEqual(0);
@@ -148,7 +159,7 @@ describe("SEC-012: Reconciliation with Sentry Integration", () => {
         throw new Error("Network error");
       });
 
-      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as any);
+      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as MockFetchType);
 
       // Should record the error
       expect(resultado.erros).toBeGreaterThanOrEqual(0);
@@ -169,7 +180,7 @@ describe("SEC-012: Reconciliation with Sentry Integration", () => {
         throw error;
       });
 
-      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as any);
+      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as MockFetchType);
 
       // Should mark charge as deleted - may have errors but charge should be processed
       expect(resultado).toBeDefined();
@@ -209,7 +220,7 @@ describe("SEC-012: Reconciliation with Sentry Integration", () => {
       });
 
       const startTime = Date.now();
-      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as any);
+      const resultado = await sincronizarStatusTaxaAsaas(db, mockFetch as MockFetchType);
       const duration = Date.now() - startTime;
 
       // Should complete in reasonable time (< 5 seconds for 10 items)
