@@ -98,7 +98,8 @@ CREATE TABLE IF NOT EXISTS auditoria (
       'acl_reativacao',
       'acl_revogacao',
       'lgpd_acesso_dados',
-      'lgpd_exclusao_conta'
+      'lgpd_exclusao_conta',
+      'portal_publicacao'
     )
   ),
   recurso TEXT NOT NULL,

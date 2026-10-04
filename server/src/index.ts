@@ -31,6 +31,7 @@ import { EventosExternosServiceDB } from "../src/domain/integracoes/eventos-exte
 import { criarRotasEventosExternos } from "../src/routes/eventos-externos-routes.js";
 import { criarRotasAsaas } from "../src/routes/asaas-routes.js";
 import { criarRotasAcl } from "../src/routes/acl-routes.js";
+import { criarRotasPortal } from "../src/routes/portal-routes.js";
 import { criarRotasLgpd } from "../src/routes/lgpd-routes.js";
 import { criarRotasCarimbo } from "../src/routes/carimbo-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
@@ -241,6 +242,9 @@ app.use(
  * concedam acesso a recursos específicos para usuários externos (inquilino, prestador).
  * Seguro por padrão: sem ACL, sem acesso (404). */
 app.use("/api/acl", criarRotasAcl({ authService, auditService, db }));
+
+/** Portal do inquilino: espelho de leitura publicado pelo dono (fase 14). Ver docs/PORTAL-INQUILINO-SERVIDOR.md. */
+app.use("/api/portal", criarRotasPortal({ authService, auditService, db }));
 
 /** Direitos do titular (LGPD): acesso aos próprios dados, trilha de acessos e anonimização da conta.
  * Operam sempre e só sobre o usuário autenticado; permitidas a papéis externos. */

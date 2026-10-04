@@ -15,6 +15,7 @@ export const TIPOS_ACAO_NOVOS = [
   "acl_revogacao",
   "lgpd_acesso_dados",
   "lgpd_exclusao_conta",
+  "portal_publicacao",
 ] as const;
 
 export function migrarTiposAcaoAuditoria(db: Database.Database): void {
