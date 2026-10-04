@@ -81,6 +81,7 @@ export function migrarPapeisUsuarios(db: Database.Database): void {
             prestador_id INTEGER,
             ativo BOOLEAN NOT NULL DEFAULT true,
             data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             ultimo_login TIMESTAMP,
             tentativas_falhas INTEGER DEFAULT 0,
             bloqueado_ate TIMESTAMP,
@@ -89,14 +90,15 @@ export function migrarPapeisUsuarios(db: Database.Database): void {
         `);
 
         // 6. Copiar dados (lista explícita de colunas para evitar divergências)
+        // updated_at é inicializado com data_criacao se a coluna não existir na tabela antiga
         db.exec(`
           INSERT INTO usuarios_novo (
             id, nome, email, senha_hash, role, prestador_id, ativo,
-            data_criacao, ultimo_login, tentativas_falhas, bloqueado_ate
+            data_criacao, updated_at, ultimo_login, tentativas_falhas, bloqueado_ate
           )
           SELECT
             id, nome, email, senha_hash, role, prestador_id, ativo,
-            data_criacao, ultimo_login, tentativas_falhas, bloqueado_ate
+            data_criacao, data_criacao, ultimo_login, tentativas_falhas, bloqueado_ate
           FROM usuarios
         `);
 
