@@ -10,6 +10,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { matrizPadrao } from "./domain/auth/permissoes.js";
 import { migrarPapeisUsuarios } from "./migrations/migrar-papeis-usuarios.js";
+import { migrarTiposAcaoAuditoria } from "./migrations/migrar-tipos-acao-auditoria.js";
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -72,6 +73,7 @@ export function initializeDatabase(): Database.Database {
     // Migração de papéis para usuários externos (inquilino, prestador) — aplicada em todo
     // boot, idempotente (verifica o CHECK antes de fazer alterações).
     migrarPapeisUsuarios(db);
+    migrarTiposAcaoAuditoria(db);
 
     // Fases 3+ (integrações Asaas/MeuPluggy/bot Telegram, vínculos externos de Telegram, e
     // o que vier depois): aplicadas em TODO boot, não só na primeira vez — ver cabeçalho de

@@ -31,6 +31,7 @@ import { EventosExternosServiceDB } from "../src/domain/integracoes/eventos-exte
 import { criarRotasEventosExternos } from "../src/routes/eventos-externos-routes.js";
 import { criarRotasAsaas } from "../src/routes/asaas-routes.js";
 import { criarRotasAcl } from "../src/routes/acl-routes.js";
+import { criarRotasLgpd } from "../src/routes/lgpd-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
 import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
@@ -239,6 +240,10 @@ app.use(
  * concedam acesso a recursos específicos para usuários externos (inquilino, prestador).
  * Seguro por padrão: sem ACL, sem acesso (404). */
 app.use("/api/acl", criarRotasAcl({ authService, auditService, db }));
+
+/** Direitos do titular (LGPD): acesso aos próprios dados, trilha de acessos e anonimização da conta.
+ * Operam sempre e só sobre o usuário autenticado; permitidas a papéis externos. */
+app.use("/api/lgpd", criarRotasLgpd({ authService, auditService, db }));
 
 /** Emissão de boleto/PIX via Asaas (aluguel e honorários advocatícios) — inclui o
  * webhook de confirmação de pagamento em /api/asaas/webhooks/asaas (sem

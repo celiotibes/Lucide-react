@@ -1,279 +1,471 @@
 /**
- * Testes para rotas LGPD
+ * Testes para rotas LGPD — direitos do titular de dados
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  criarRotasLGPD,
-  CONFIG_LGPD_PADRAO,
-  type MeusDados,
-  type ResultadoExclusao,
-} from '../lgpd-routes';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { AuthServiceDB } from '../../domain/auth/auth-service-db';
+import { AuditTrailServiceDB } from '../../domain/auth/audit-trail-db';
+import { gerarHashSenha } from '../../domain/auth/password';
+import { criarRotasAuth } from '../auth-routes';
+import { criarRotasLgpd } from '../lgpd-routes';
+import { tokenDoCookie } from './token-cookie';
 
-describe('LGPD Routes', () => {
-  describe('Configuração padrão', () => {
-    it('deve exigir 2FA por padrão', () => {
-      expect(CONFIG_LGPD_PADRAO.require2FA).toBe(true);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const TEST_DB_PATH = path.join(__dirname, `test-lgpd-routes-${process.pid}.db`);
+const SENHA_PADRAO = 'senha-correta-123';
+
+function resolverSchema(nomeArquivo: string): string {
+  const candidatos = [
+    path.join(__dirname, `../../../${nomeArquivo}`),
+    path.join(process.cwd(), `server/src/${nomeArquivo}`),
+    path.join(process.cwd(), `src/${nomeArquivo}`),
+  ];
+  const encontrado = candidatos.find((p) => fs.existsSync(p));
+  if (!encontrado) {
+    throw new Error(`Schema não encontrado: ${nomeArquivo} (tentei ${candidatos.join(', ')})`);
+  }
+  return fs.readFileSync(encontrado, 'utf-8');
+}
+
+function createTestDatabase(): Database.Database {
+  if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
+  const db = new Database(TEST_DB_PATH);
+  db.pragma('foreign_keys = ON');
+  db.exec(resolverSchema('migrations-phase2-auth.sql'));
+  return db;
+}
+
+async function criarAppDeTeste(db: Database.Database) {
+  const authService = new AuthServiceDB(db);
+  const auditService = new AuditTrailServiceDB(db);
+  const app = express();
+  app.use(express.json());
+  app.use(
+    '/api/auth',
+    criarRotasAuth({
+      authService,
+      auditService,
+      permissoesService: { listarMatriz: () => [] } as any,
+    })
+  );
+  app.use('/api/lgpd', criarRotasLgpd({ authService, auditService, db }));
+  return { app, authService, auditService };
+}
+
+async function login(app: express.Express, email: string): Promise<string> {
+  const resp = await request(app)
+    .post('/api/auth/login')
+    .send({ email, senha: SENHA_PADRAO });
+  expect(resp.status).toBe(200);
+  return tokenDoCookie(resp);
+}
+
+describe('Rotas LGPD (/api/lgpd)', () => {
+  let db: Database.Database;
+  let app: express.Express;
+  let authService: AuthServiceDB;
+  let auditService: AuditTrailServiceDB;
+
+  beforeEach(async () => {
+    db = createTestDatabase();
+    const hash = await gerarHashSenha(SENHA_PADRAO);
+
+    // Inserir usuários para teste
+    const stmt = db.prepare(
+      `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
+       VALUES (?, ?, ?, ?, ?, true, '2026-01-01')`
+    );
+    stmt.run('user_titular_1', 'Titular Um', 'titular1@example.com', hash, 'titular');
+    stmt.run('user_titular_2', 'Titular Dois', 'titular2@example.com', hash, 'titular');
+    stmt.run('user_inquilino', 'Inquilino Teste', 'inquilino@example.com', hash, 'inquilino');
+
+    ({ app, authService, auditService } = await criarAppDeTeste(db));
+  });
+
+  afterEach(() => {
+    db.close();
+    if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
+    vi.restoreAllMocks();
+  });
+
+  describe('GET /meus-dados', () => {
+    it('rejeita sem sessão (401)', async () => {
+      const resp = await request(app).get('/api/lgpd/meus-dados');
+      expect(resp.status).toBe(401);
     });
 
-    it('deve anonimizar dados ao excluir', () => {
-      expect(CONFIG_LGPD_PADRAO.anonimizarAoExcluir).toBe(true);
+    it('retorna dados do usuário: id, nome, email, role, ativo, data_criacao, ultimo_login', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(200);
+      expect(resp.body).toHaveProperty('usuario');
+      expect(resp.body.usuario).toMatchObject({
+        id: 'user_titular_1',
+        nome: 'Titular Um',
+        email: 'titular1@example.com',
+        role: 'titular',
+        ativo: 1, // SQLite: true = 1
+      });
+      expect(resp.body.usuario).toHaveProperty('data_criacao');
+      expect(resp.body.usuario).toHaveProperty('ultimo_login');
+      // NUNCA deve incluir senha_hash
+      expect(resp.body.usuario).not.toHaveProperty('senha_hash');
     });
 
-    it('deve aguardar 30 dias antes de hard delete', () => {
-      expect(CONFIG_LGPD_PADRAO.retencaoAposExclusao).toBe(30);
+    it('NÃO inclui senha_hash na resposta', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(200);
+      expect(resp.body.usuario).not.toHaveProperty('senha_hash');
+    });
+
+    it('inclui sessões ativas (sem token)', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(200);
+      expect(resp.body).toHaveProperty('sessoes_ativas');
+      expect(Array.isArray(resp.body.sessoes_ativas)).toBe(true);
+      // Não deve ter campo 'token' nas sessões
+      resp.body.sessoes_ativas.forEach((s: any) => {
+        expect(s).not.toHaveProperty('token');
+      });
+    });
+
+    it('inclui últimas ações de auditoria', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(200);
+      expect(resp.body).toHaveProperty('acessos_recentes');
+      expect(Array.isArray(resp.body.acessos_recentes)).toBe(true);
+    });
+
+    it('registra acesso na auditoria', async () => {
+      const token = await login(app, 'titular1@example.com');
+      await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+
+      const auditStmt = db.prepare(
+        `SELECT * FROM auditoria WHERE usuario_id = ? AND tipo_acao = 'lgpd_acesso_dados'
+         ORDER BY timestamp DESC LIMIT 1`
+      );
+      const audit = auditStmt.get('user_titular_1');
+      expect(audit).toBeDefined();
+      expect(audit.descricao).toContain('LGPD Art. 18');
+      expect(audit.resultado).toBe('sucesso');
+
+      // Um acesso BEM-SUCEDIDO não pode poluir a trilha de segurança com "acesso_negado".
+      const falsos = db.prepare(`SELECT COUNT(*) AS n FROM auditoria WHERE usuario_id = ? AND tipo_acao = 'acesso_negado'`).get('user_titular_1') as { n: number };
+      expect(falsos.n).toBe(0);
+    });
+
+    it('permite usuário com papel externo (inquilino)', async () => {
+      const token = await login(app, 'inquilino@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(200);
+      expect(resp.body.usuario.email).toBe('inquilino@example.com');
+    });
+
+    it('um usuário não vê dados de outro', async () => {
+      const token1 = await login(app, 'titular1@example.com');
+      // Mesmo que tentássemos enviar outro ID na URL (não temos), a rota
+      // sempre usa o usuário autenticado do token
+      const resp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token1}`);
+
+      expect(resp.status).toBe(200);
+      expect(resp.body.usuario.email).toBe('titular1@example.com');
     });
   });
 
-  describe('Estrutura de resposta - Meus Dados', () => {
-    it('deve incluir dados do usuário', () => {
-      const estrutura = {
-        usuario: {
-          id: 1,
-          nome: 'João Silva',
-          email: 'joao@example.com',
-          data_criacao: '2026-01-01T00:00:00Z',
-          ultimo_acesso: '2026-10-03T00:00:00Z',
-        },
-        dados_pessoais: {},
-        dados_financeiros: {},
-        dados_acessos: [],
-        data_exportacao: new Date().toISOString(),
-      } as MeusDados;
-
-      expect(estrutura.usuario.id).toBe(1);
-      expect(estrutura.usuario.email).toBeTruthy();
+  describe('GET /acessos', () => {
+    it('rejeita sem sessão (401)', async () => {
+      const resp = await request(app).get('/api/lgpd/acessos');
+      expect(resp.status).toBe(401);
     });
 
-    it('deve incluir dados pessoais encriptados', () => {
-      const estrutura = {
-        usuario: {
-          id: 1,
-          nome: 'João Silva',
-          email: 'joao@example.com',
-          data_criacao: '2026-01-01T00:00:00Z',
-          ultimo_acesso: '2026-10-03T00:00:00Z',
-        },
-        dados_pessoais: {
-          cpf: '[ENCRIPTADO]',
-          telefone: '[ENCRIPTADO]',
-          endereco: 'Rua A, 123',
-        },
-        dados_financeiros: {},
-        dados_acessos: [],
-        data_exportacao: new Date().toISOString(),
-      } as MeusDados;
+    it('retorna trilha de auditoria com limite padrão 100', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/acessos')
+        .set('Cookie', `session_token=${token}`);
 
-      expect(estrutura.dados_pessoais.cpf).toBe('[ENCRIPTADO]');
+      expect(resp.status).toBe(200);
+      expect(resp.body).toHaveProperty('acessos');
+      expect(resp.body).toHaveProperty('total');
+      expect(resp.body).toHaveProperty('limite');
+      expect(resp.body.limite).toBe(100);
     });
 
-    it('deve incluir dados financeiros agregados', () => {
-      const estrutura = {
-        usuario: {
-          id: 1,
-          nome: 'João Silva',
-          email: 'joao@example.com',
-          data_criacao: '2026-01-01T00:00:00Z',
-          ultimo_acesso: '2026-10-03T00:00:00Z',
-        },
-        dados_pessoais: {},
-        dados_financeiros: {
-          total_transacoes: 150,
-          creditos_totais: 5000,
-          debitos_totais: 3200,
-        },
-        dados_acessos: [],
-        data_exportacao: new Date().toISOString(),
-      } as MeusDados;
+    it('aceita limite válido na query string', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/acessos?limite=50')
+        .set('Cookie', `session_token=${token}`);
 
-      expect(estrutura.dados_financeiros.total_transacoes).toBe(150);
-      expect(estrutura.dados_financeiros.creditos_totais).toBe(5000);
+      expect(resp.status).toBe(200);
+      expect(resp.body.limite).toBe(50);
     });
 
-    it('deve incluir histórico de acessos', () => {
-      const estrutura = {
-        usuario: {
-          id: 1,
-          nome: 'João Silva',
-          email: 'joao@example.com',
-          data_criacao: '2026-01-01T00:00:00Z',
-          ultimo_acesso: '2026-10-03T00:00:00Z',
-        },
-        dados_pessoais: {},
-        dados_financeiros: {},
-        dados_acessos: [
-          {
-            id: 1,
-            timestamp: '2026-10-03T10:00:00Z',
-            usuario_id: 1,
-            usuario_nome: 'João Silva',
-            ip_origem: '192.168.1.100',
-            modulo_chamador: 'api-gateway',
-            tipo_operacao: 'leitura' as const,
-            entidade_afetada: 'cliente',
-            id_entidade: 1,
-            descricao_alteracao: 'Leitura de dados',
-            hash_sha256: 'abc123...',
-            hash_anterior: '',
-            status: 'sucesso' as const,
-            tempo_processamento_ms: 45,
-            retencao_ate: '2033-10-03',
-            assinado: false,
-            criado_em: '2026-10-03T10:00:00Z',
-          },
-        ],
-        data_exportacao: new Date().toISOString(),
-      } as MeusDados;
+    it('respeita máximo de 500 para limite', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/acessos?limite=999')
+        .set('Cookie', `session_token=${token}`);
 
-      expect(estrutura.dados_acessos.length).toBeGreaterThan(0);
-      expect(estrutura.dados_acessos[0].tipo_operacao).toBe('leitura');
+      expect(resp.status).toBe(200);
+      expect(resp.body.limite).toBe(500);
+    });
+
+    it('rejeita limite inválido (400)', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/acessos?limite=abc')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(400);
+      expect(resp.body).toHaveProperty('erro');
+    });
+
+    it('rejeita limite negativo (400)', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/acessos?limite=-10')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(400);
+    });
+
+    it('permite usuário com papel externo', async () => {
+      const token = await login(app, 'inquilino@example.com');
+      const resp = await request(app)
+        .get('/api/lgpd/acessos')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(resp.status).toBe(200);
     });
   });
 
-  describe('Estrutura de resposta - Exclusão', () => {
-    it('deve indicar sucesso de exclusão', () => {
-      const resultado: ResultadoExclusao = {
-        sucesso: true,
-        mensagem: 'Conta marcada para exclusão',
-        data_exclusao: new Date().toISOString(),
-        periodo_retencao_dias: 30,
-        data_exclusao_permanente: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      };
+  describe('POST /deletar-conta', () => {
+    it('rejeita sem sessão (401)', async () => {
+      const resp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
 
-      expect(resultado.sucesso).toBe(true);
-      expect(resultado.periodo_retencao_dias).toBe(30);
+      expect(resp.status).toBe(401);
     });
 
-    it('deve indicar período de retenção', () => {
-      const resultado: ResultadoExclusao = {
-        sucesso: true,
-        mensagem: 'Conta marcada para exclusão',
-        data_exclusao: new Date().toISOString(),
-        periodo_retencao_dias: 30,
-        data_exclusao_permanente: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      };
+    it('rejeita sem senha no corpo (400)', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ confirmacao: 'EXCLUIR' });
 
-      const dataExclusao = new Date(resultado.data_exclusao);
-      const dataPermanente = new Date(resultado.data_exclusao_permanente);
-      const diferenca = (dataPermanente.getTime() - dataExclusao.getTime()) / (24 * 60 * 60 * 1000);
+      expect(resp.status).toBe(400);
+    });
 
-      expect(Math.round(diferenca)).toBe(30);
+    it('rejeita confirmação incorreta (400)', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'SIM' });
+
+      expect(resp.status).toBe(400);
+      expect(resp.body.erro).toContain('EXCLUIR');
+    });
+
+    it('rejeita senha errada (403) e registra acesso_negado', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: 'senha-errada', confirmacao: 'EXCLUIR' });
+
+      expect(resp.status).toBe(403);
+      expect(resp.body.erro).toContain('Senha incorreta');
+
+      // Verifica que foi registrado acesso_negado
+      const auditStmt = db.prepare(
+        `SELECT * FROM auditoria WHERE usuario_id = ? AND tipo_acao = 'acesso_negado'
+         ORDER BY timestamp DESC LIMIT 1`
+      );
+      const audit = auditStmt.get('user_titular_1');
+      expect(audit).toBeDefined();
+      expect(audit.resultado).toBe('negado');
+    });
+
+    it('não anonimiza com senha errada', async () => {
+      const token = await login(app, 'titular1@example.com');
+      await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: 'senha-errada', confirmacao: 'EXCLUIR' });
+
+      const usuarioStmt = db.prepare('SELECT nome, email FROM usuarios WHERE id = ?');
+      const usuario = usuarioStmt.get('user_titular_1');
+      expect(usuario.nome).toBe('Titular Um'); // Não foi anonimizado
+      expect(usuario.email).toBe('titular1@example.com');
+    });
+
+    it('anonimiza usuário com senha correta', async () => {
+      const token = await login(app, 'titular1@example.com');
+      const resp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
+
+      expect(resp.status).toBe(200);
+
+      const usuarioStmt = db.prepare('SELECT nome, email, ativo FROM usuarios WHERE id = ?');
+      const usuario = usuarioStmt.get('user_titular_1');
+      expect(usuario.nome).toBe('Usuário removido');
+      expect(usuario.email).toBe('removido-user_titular_1@anonimizado.invalid');
+      expect(usuario.ativo).toBe(0); // false
+    });
+
+    it('revoga todas as sessões do usuário', async () => {
+      const token = await login(app, 'titular1@example.com');
+      // Verificar que a sessão estava ativa
+      let sessoesStmt = db.prepare('SELECT COUNT(*) as count FROM sessoes WHERE usuario_id = ? AND ativo = true');
+      let result = sessoesStmt.get('user_titular_1') as any;
+      expect(result.count).toBeGreaterThan(0);
+
+      // Deletar conta
+      await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
+
+      // Verificar que não há mais sessões ativas
+      sessoesStmt = db.prepare('SELECT COUNT(*) as count FROM sessoes WHERE usuario_id = ? AND ativo = true');
+      result = sessoesStmt.get('user_titular_1') as any;
+      expect(result.count).toBe(0);
+    });
+
+    it('mesma sessão passa a dar 401 após anonimização', async () => {
+      const token = await login(app, 'titular1@example.com');
+
+      // Deletar conta
+      const delResp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
+
+      expect(delResp.status).toBe(200);
+
+      // Tentar usar o mesmo token
+      const meusDadosResp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+
+      expect(meusDadosResp.status).toBe(401);
+    });
+
+    it('mantém auditoria (guarda legal)', async () => {
+      const token = await login(app, 'titular1@example.com');
+      await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
+
+      const auditStmt = db.prepare(
+        `SELECT COUNT(*) as count FROM auditoria WHERE usuario_id = ?`
+      );
+      const result = auditStmt.get('user_titular_1') as any;
+      expect(result.count).toBeGreaterThan(0);
+    });
+
+    it('rejeita se último titular ativo (409)', async () => {
+      // O segundo titular ainda está ativo, então o primeiro pode ser deletado
+      const token1 = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'titular1@example.com', senha: SENHA_PADRAO });
+      const token = tokenDoCookie(token1);
+
+      // Marcar o segundo titular como inativo
+      db.prepare('UPDATE usuarios SET ativo = false WHERE id = ?').run('user_titular_2');
+
+      const resp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
+
+      expect(resp.status).toBe(409);
+      expect(resp.body.erro).toContain('último titular ativo');
+
+      // Verifica que NÃO foi anonimizado
+      const usuarioStmt = db.prepare('SELECT nome FROM usuarios WHERE id = ?');
+      const usuario = usuarioStmt.get('user_titular_1');
+      expect(usuario.nome).toBe('Titular Um');
+    });
+
+    it('permite usuário com papel externo (inquilino) usar as 3 rotas', async () => {
+      const token = await login(app, 'inquilino@example.com');
+
+      // GET /meus-dados
+      const meusDadosResp = await request(app)
+        .get('/api/lgpd/meus-dados')
+        .set('Cookie', `session_token=${token}`);
+      expect(meusDadosResp.status).toBe(200);
+
+      // GET /acessos
+      const acessosResp = await request(app)
+        .get('/api/lgpd/acessos')
+        .set('Cookie', `session_token=${token}`);
+      expect(acessosResp.status).toBe(200);
+
+      // POST /deletar-conta
+      const delResp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
+      expect(delResp.status).toBe(200);
     });
   });
 
-  describe('Validação de 2FA', () => {
-    it('deve exigir código 2FA se habilitado', () => {
-      const config = { require2FA: true };
-      expect(config.require2FA).toBe(true);
-    });
+  describe('exclusão: trilha e cookie', () => {
+    it('grava lgpd_exclusao_conta, limpa os cookies e o inquilino exclui mesmo sendo o único não-titular', async () => {
+      const token = await login(app, 'inquilino@example.com');
+      const resp = await request(app)
+        .post('/api/lgpd/deletar-conta')
+        .set('Cookie', `session_token=${token}`)
+        .send({ senha: SENHA_PADRAO, confirmacao: 'EXCLUIR' });
 
-    it('deve aceitar diferentes formatos de código', () => {
-      const codigos = ['123456', '654321', '000000'];
-      for (const codigo of codigos) {
-        expect(codigo).toMatch(/^\d{6}$/);
-      }
-    });
+      expect(resp.status).toBe(200);
+      const limpos = ([] as string[]).concat(resp.headers['set-cookie'] ?? []);
+      expect(limpos.some((c) => c.startsWith('session_token=;'))).toBe(true);
 
-    it('deve rejeitar código 2FA inválido', () => {
-      const codigosInvalidos = ['12345', '1234567', 'abcdef', '12 34 56'];
-      for (const codigo of codigosInvalidos) {
-        expect(codigo).not.toMatch(/^\d{6}$/);
-      }
-    });
-  });
+      const audit = db.prepare(`SELECT resultado FROM auditoria WHERE usuario_id = ? AND tipo_acao = 'lgpd_exclusao_conta'`).get('user_inquilino') as { resultado: string } | undefined;
+      expect(audit?.resultado).toBe('sucesso');
 
-  describe('Confirmação de exclusão', () => {
-    it('deve exigir confirmação explícita', () => {
-      const confirmacao = 'CONFIRMO_EXCLUSAO';
-      expect(confirmacao).toBe('CONFIRMO_EXCLUSAO');
-    });
-
-    it('deve rejeitar confirmações diferentes', () => {
-      const confirmacoes = [
-        'sim',
-        'SIM',
-        'YES',
-        'CONFIRMO',
-        'CONFIRMO EXCLUSÃO',
-        'confirmo_exclusao',
-      ];
-
-      for (const confirmacao of confirmacoes) {
-        expect(confirmacao).not.toBe('CONFIRMO_EXCLUSAO');
-      }
-    });
-  });
-
-  describe('Endpoints', () => {
-    it('GET /meus-dados deve retornar dados do usuário', () => {
-      const endpoint = '/meus-dados';
-      expect(endpoint).toBe('/meus-dados');
-    });
-
-    it('GET /acessos deve listar histórico de acessos', () => {
-      const endpoint = '/acessos';
-      expect(endpoint).toBe('/acessos');
-    });
-
-    it('POST /deletar-conta deve processar exclusão', () => {
-      const endpoint = '/deletar-conta';
-      expect(endpoint).toBe('/deletar-conta');
-    });
-  });
-
-  describe('Auditoria de LGPD', () => {
-    it('deve registrar acesso a dados pessoais', () => {
-      const operacao = 'leitura';
-      const entidade = 'dados-pessoais';
-      const descricao = 'Exportação de dados pessoais (LGPD Art. 20)';
-
-      expect(operacao).toBe('leitura');
-      expect(entidade).toBe('dados-pessoais');
-      expect(descricao).toContain('LGPD');
-    });
-
-    it('deve registrar tentativa de exclusão', () => {
-      const operacao = 'delecao';
-      const entidade = 'usuario';
-      const descricao = 'Tentativa de exclusão de conta (sucesso)';
-
-      expect(operacao).toBe('delecao');
-      expect(descricao).toContain('exclusão');
-    });
-
-    it('deve incluir IP de origem na auditoria', () => {
-      const ipOrigem = '192.168.1.100';
-      expect(ipOrigem).toMatch(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
-    });
-
-    it('deve incluir timestamp na auditoria', () => {
-      const timestamp = new Date().toISOString();
-      expect(timestamp).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-    });
-  });
-
-  describe('Conformidade LGPD', () => {
-    it('deve atender Art. 17 (Direito ao Apagamento)', () => {
-      const artigo = 'Art. 17 - Direito ao Apagamento';
-      expect(artigo).toContain('Art. 17');
-      expect(artigo).toContain('Apagamento');
-    });
-
-    it('deve atender Art. 20 (Portabilidade)', () => {
-      const artigo = 'Art. 20 - Portabilidade';
-      const descricao = 'Exportação de dados pessoais (LGPD Art. 20)';
-      expect(descricao).toContain('Art. 20');
-    });
-
-    it('deve implementar soft delete com período de retenção', () => {
-      const softDeleteDias = 30;
-      expect(softDeleteDias).toBeGreaterThan(0);
-      expect(softDeleteDias).toBeLessThanOrEqual(90);
-    });
-
-    it('deve anonimizar antes de hard delete', () => {
-      const config = { anonimizarAoExcluir: true };
-      expect(config.anonimizarAoExcluir).toBe(true);
+      const u = db.prepare('SELECT nome, email, ativo FROM usuarios WHERE id = ?').get('user_inquilino') as { nome: string; email: string; ativo: number };
+      expect(u).toEqual({ nome: 'Usuário removido', email: 'removido-user_inquilino@anonimizado.invalid', ativo: 0 });
     });
   });
 });
