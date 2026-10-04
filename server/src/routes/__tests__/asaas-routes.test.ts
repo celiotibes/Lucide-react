@@ -13,6 +13,25 @@ import { criarRotasAuth } from "../auth-routes";
 import { criarRotasAsaas } from "../asaas-routes";
 import { tokenDoCookie } from "./token-cookie.js";
 
+// Mock types for auth route dependencies
+interface MockAuditService {
+  registrarAcao: () => void;
+  registrarAcessoNegado: () => void;
+}
+
+interface MockPermissoesService {
+  listarMatriz: () => unknown[];
+}
+
+// Mock type for Asaas webhook payload
+interface AsaasWebhookPayload {
+  event: string;
+  payment: {
+    id: string;
+    [key: string]: unknown;
+  };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -49,8 +68,8 @@ async function criarAppDeTeste(db: Database.Database) {
     "/api/auth",
     criarRotasAuth({
       authService,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
+      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as MockAuditService,
+      permissoesService: { listarMatriz: () => [] } as MockPermissoesService,
     }),
   );
   app.use("/api/asaas", criarRotasAsaas({ authService, eventosService, db }));
@@ -275,7 +294,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
         .send({ event: "PAYMENT_CONFIRMED", payment: { id: "pay_sem_token" } });
       expect(resp.status).toBe(503);
       const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
-      expect(pendentes.filter((e) => (e.payload as any)?.payment?.id === "pay_sem_token")).toHaveLength(0);
+      expect(pendentes.filter((e) => (e.payload as unknown as AsaasWebhookPayload)?.payment?.id === "pay_sem_token")).toHaveLength(0);
     });
 
     it("rejects a wrong token when ASAAS_WEBHOOK_TOKEN is configured", async () => {
@@ -364,7 +383,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
       // Verifica que só um evento foi enfileirado (não dois)
       const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
       const eventsWithPayDedup1 = pendentes.filter(
-        (e) => (e.payload as any)?.payment?.id === "pay_dedup_1"
+        (e) => (e.payload as unknown as AsaasWebhookPayload)?.payment?.id === "pay_dedup_1"
       );
       expect(eventsWithPayDedup1).toHaveLength(1);
     });
@@ -379,7 +398,7 @@ describe("Rotas HTTP de emissão Asaas (/api/asaas)", () => {
         expect(r.body.duplicado).toBeUndefined();
       }
       const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
-      const doPagamento = pendentes.filter((e) => (e.payload as any)?.payment?.id === "pay_multi_1");
+      const doPagamento = pendentes.filter((e) => (e.payload as unknown as AsaasWebhookPayload)?.payment?.id === "pay_multi_1");
       expect(doPagamento).toHaveLength(3);
     });
 
@@ -402,9 +421,9 @@ describe("webhook Asaas: registro atômico (marca de visto + evento pendente)", 
 
     const original = eventosService.registrarEvento.bind(eventosService);
     let falhar = true;
-    (eventosService as any).registrarEvento = (...args: any[]) => {
+    (eventosService as unknown as { registrarEvento: (...args: unknown[]) => unknown }).registrarEvento = (...args: unknown[]) => {
       if (falhar) throw new Error("disco cheio");
-      return (original as any)(...args);
+      return (original as (...args: unknown[]) => unknown)(...args);
     };
 
     const r1 = await request(app).post("/api/asaas/webhooks/asaas").set("asaas-access-token", "segredo-teste").send(corpo);
@@ -416,7 +435,7 @@ describe("webhook Asaas: registro atômico (marca de visto + evento pendente)", 
     expect(r2.status).toBe(200);
     expect(r2.body.duplicado).toBeUndefined();
     const pendentes = eventosService.listarPendentes("user_titular_1", "webhook_asaas");
-    expect(pendentes.filter((e) => (e.payload as any)?.payment?.id === "pay_atomico_1")).toHaveLength(1);
+    expect(pendentes.filter((e) => (e.payload as unknown as AsaasWebhookPayload)?.payment?.id === "pay_atomico_1")).toHaveLength(1);
     delete process.env.ASAAS_WEBHOOK_TOKEN;
     db.close();
   });
