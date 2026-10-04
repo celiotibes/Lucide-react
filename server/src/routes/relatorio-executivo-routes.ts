@@ -108,9 +108,19 @@ export function criarRotasRelatorioExecutivo(deps: RelatorioExecutivoRoutesDeps)
         return res.status(400).json({ erro: "ano deve ser número entre 2000 e 2100" });
       }
 
-      const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(limit, offset);
+      // Validate pagination params
+      const limitNum = limit ? Number(limit) : 50;
+      const offsetNum = offset ? Number(offset) : 0;
 
-      const margens = gerarMargensResumodaPaginado(db, mesNum, anoNum, parsedLimit, parsedOffset);
+      if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 500) {
+        return res.status(400).json({ erro: "limit deve ser número entre 1 e 500" });
+      }
+
+      if (!Number.isInteger(offsetNum) || offsetNum < 0) {
+        return res.status(400).json({ erro: "offset deve ser número >= 0" });
+      }
+
+      const margens = gerarMargensResumodaPaginado(db, mesNum, anoNum, limitNum, offsetNum);
       return res.json(margens);
     } catch (erro) {
       logger.error("[RelatorioExecutivoRoutes] Erro ao obter margens paginadas:", erro);

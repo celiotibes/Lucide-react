@@ -106,6 +106,30 @@ function inserirTransacaoOFX(db: Database.Database, id: string, valor: number, d
   stmt.run(id, valor, dataInsert, descricao);
 }
 
+function inserirConciliacao(db: Database.Database, conciliacao: ConciliacaoPix) {
+  const stmt = db.prepare(`
+    INSERT INTO conciliacoes_pix_ofx (
+      id, asaas_charge_id, pluggy_ofx_id, valor_asaas, valor_ofx,
+      data_asaas, data_ofx, status, discrepancia_flag, lancamento_razao_id,
+      criado_em, atualizado_em
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(
+    conciliacao.id,
+    conciliacao.asaas_charge_id,
+    conciliacao.pluggy_ofx_id || null,
+    conciliacao.valor_asaas,
+    conciliacao.valor_ofx || null,
+    conciliacao.data_asaas,
+    conciliacao.data_ofx || null,
+    conciliacao.status,
+    conciliacao.discrepancia_flag ? 1 : 0,
+    conciliacao.lancamento_razao_id || null,
+    conciliacao.criado_em,
+    conciliacao.atualizado_em || null
+  );
+}
+
 describe("Reconciliação PIX↔OFX", () => {
   let db: Database.Database;
 
@@ -634,6 +658,6 @@ describe("Reconciliação PIX↔OFX", () => {
     inserirConciliacao(db, conciliacao);
 
     const registro = db.prepare("SELECT discrepancia_flag FROM conciliacoes_pix_ofx WHERE id = ?").get(conciliacao.id) as any;
-    expect(registro.discrepancia_flag).toBe(true);
+    expect(!!registro.discrepancia_flag).toBe(true);
   });
 });

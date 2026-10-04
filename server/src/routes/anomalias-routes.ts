@@ -73,9 +73,12 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       // Validate query params with Zod
       const parseResult = analisarQuerySchema.safeParse(req.query);
       if (!parseResult.success) {
+        const issues = parseResult.error.issues;
+        const mainIssue = issues[0];
+        const fieldName = mainIssue?.path[0] || "campo desconhecido";
         return res.status(400).json({
-          erro: "Parâmetros de query inválidos",
-          detalhes: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+          erro: `Parâmetro '${fieldName}' inválido: ${mainIssue?.message}`,
+          detalhes: issues.map((i) => `${i.path.join('.')}: ${i.message}`),
         });
       }
 
@@ -135,9 +138,12 @@ export function criarRotasAnomalias({ db, authService }: AnomalasRoutesDeps): ex
       // Validate query params with Zod
       const parseResult = alertasQuerySchema.safeParse(req.query);
       if (!parseResult.success) {
+        const issues = parseResult.error.issues;
+        const mainIssue = issues[0];
+        const fieldName = mainIssue?.path[0] || "campo desconhecido";
         return res.status(400).json({
-          erro: "Parâmetros de query inválidos",
-          detalhes: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+          erro: `Parâmetro '${fieldName}' inválido: ${mainIssue?.message}`,
+          detalhes: issues.map((i) => `${i.path.join('.')}: ${i.message}`),
         });
       }
 

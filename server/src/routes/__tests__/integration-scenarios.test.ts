@@ -177,7 +177,7 @@ describe("Integration Scenarios", () => {
 
       for (const valor of transacoes) {
         const res = await request(app)
-          .post("/api/anomalias/analisar/tx-batch-${valor}`)
+          .post(`/api/anomalias/analisar/tx-batch-${valor}`)
           .set("Authorization", "Bearer test-token")
           .query({ valor, periodo_dias: 90 });
 
