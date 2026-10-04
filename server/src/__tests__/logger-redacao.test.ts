@@ -423,7 +423,7 @@ describe('Logger Redação de PII', () => {
     it('trata Error em metadados', () => {
       const msg = 'Erro ao processar';
       const erro = new Error('CPF 123.456.789-01 não encontrado');
-      const { meta: metaRedatada } = aplicarRedacao(msg, { erro } as any);
+      const { meta: metaRedatada } = aplicarRedacao(msg, { erro } as Record<string, unknown>);
 
       if (metaRedatada && metaRedatada.erro) {
         expect(metaRedatada.erro.message).toContain('***.***.***-01');
@@ -437,14 +437,14 @@ import { aplicarRedacao as aplicar, redactarObjeto as redactar } from "../servic
 
 describe("robustez da redação (revisão)", () => {
   it("mensagem não-string não lança e é redigida", () => {
-    expect(() => aplicar(undefined as any)).not.toThrow();
-    expect(() => aplicar(12345 as any)).not.toThrow();
-    expect(aplicar({ cpf: "123.456.789-01", senha: "x" } as any).mensagem).toEqual({ cpf: "***.***.***-01", senha: "[REDACTED]" });
+    expect(() => aplicar(undefined as unknown as string)).not.toThrow();
+    expect(() => aplicar(12345 as unknown as string)).not.toThrow();
+    expect(aplicar({ cpf: "123.456.789-01", senha: "x" } as unknown as string).mensagem).toEqual({ cpf: "***.***.***-01", senha: "[REDACTED]" });
   });
 
   it("falha na redação é fail-closed: omite o conteúdo e não lança", () => {
     const hostil = { get x(): string { throw new Error("getter hostil"); } };
-    const r = aplicar("msg 123.456.789-01", hostil as any);
+    const r = aplicar("msg 123.456.789-01", hostil as unknown as Record<string, unknown>);
     expect(r.mensagem).toBe("[REDACTION-ERROR: conteúdo omitido]");
     expect(JSON.stringify(r)).not.toContain("123.456.789-01");
   });
