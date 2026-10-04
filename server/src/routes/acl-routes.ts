@@ -16,6 +16,22 @@ import type { ContextoAutenticacao } from "../domain/auth/auth-service.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import type { TipoRecurso } from "../middleware/posse-recurso.js";
 
+// Tipos para segurança
+interface UsuarioRow {
+  id: string;
+  role: string;
+}
+
+interface AclResourceRow {
+  id: string;
+  usuario_id: string;
+  tipo_recurso: TipoRecurso;
+  recurso_id: string;
+  revogado_em: string | null;
+  concedido_em: string;
+  concedido_por: string;
+}
+
 // Tipos permitidos em acl_recursos (deve estar em sinconia com a CHECK constraint)
 const TIPOS_PERMITIDOS: readonly TipoRecurso[] = [
   "cobranca",
@@ -85,7 +101,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
 
     try {
       // Verificar se o usuário-alvo existe e tem papel externo
-      const usuarioAlvo = db.prepare("SELECT id, role FROM usuarios WHERE id = ?").get(usuarioId) as any;
+      const usuarioAlvo = db.prepare("SELECT id, role FROM usuarios WHERE id = ?").get(usuarioId) as unknown as UsuarioRow;
 
       if (!usuarioAlvo) {
         res.status(400).json({ erro: "Usuário não encontrado" });
@@ -99,53 +115,67 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
         return;
       }
 
-      // Tentar reativar se existir revogada
-      const aclExistente = db
-        .prepare("SELECT id, revogado_em FROM acl_recursos WHERE usuario_id = ? AND tipo_recurso = ? AND recurso_id = ?")
-        .get(usuarioId, tipoRecurso, recursoId) as any;
+      // Transação atômica: verifica e insere/atualiza com isolamento completo
+      const processarConcessao = db.transaction(() => {
+        // Tentar reativar se existir revogada
+        const aclExistente = db
+          .prepare("SELECT id, revogado_em FROM acl_recursos WHERE usuario_id = ? AND tipo_recurso = ? AND recurso_id = ?")
+          .get(usuarioId, tipoRecurso, recursoId) as unknown as Pick<AclResourceRow, "id" | "revogado_em">;
 
-      if (aclExistente && !aclExistente.revogado_em) {
-        // Já está ativa — retorna 200 idempotente
-        res.json({ ok: true, mensagem: "Acesso já está concedido" });
+        if (aclExistente && !aclExistente.revogado_em) {
+          // Já está ativa — retorna 200 idempotente
+          auditService.registrarAcao(contexto, "acl_concessao", "acl_recurso", aclExistente.id, {
+            descricao: `ACL — reconcessão de acesso já ativo: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
+            resultado: "sucesso",
+          });
+          return { tipo: "ativo", id: aclExistente.id };
+        }
 
-        auditService.registrarAcao(contexto, "acl_concessao", "acl_recurso", aclExistente.id, {
-          descricao: `ACL — reconcessão de acesso já ativo: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
+        if (aclExistente) {
+          // Reativar
+          db.prepare(
+            "UPDATE acl_recursos SET revogado_em = NULL, concedido_em = datetime('now'), concedido_por = ? WHERE id = ?",
+          ).run(contexto.usuario!.id, aclExistente.id);
+
+          auditService.registrarAcao(contexto, "acl_reativacao", "acl_recurso", aclExistente.id, {
+            descricao: `ACL — acesso reativado: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
+            resultado: "sucesso",
+          });
+
+          return { tipo: "reativado", id: aclExistente.id };
+        }
+
+        // Criar nova linha
+        const resultado = db
+          .prepare(
+            `INSERT INTO acl_recursos (usuario_id, tipo_recurso, recurso_id, concedido_por, concedido_em)
+           VALUES (?, ?, ?, ?, datetime('now'))`,
+          )
+          .run(usuarioId, tipoRecurso, recursoId, contexto.usuario!.id);
+
+        const id = resultado.lastInsertRowid;
+
+        auditService.registrarAcao(contexto, "acl_concessao", "acl_recurso", String(id), {
+          descricao: `ACL — acesso concedido: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
           resultado: "sucesso",
         });
+
+        return { tipo: "criado", id };
+      });
+
+      const resultado = processarConcessao();
+
+      if (resultado.tipo === "ativo") {
+        res.json({ ok: true, mensagem: "Acesso já está concedido" });
         return;
       }
 
-      if (aclExistente) {
-        // Reativar
-        db.prepare(
-          "UPDATE acl_recursos SET revogado_em = NULL, concedido_em = datetime('now'), concedido_por = ? WHERE id = ?",
-        ).run(contexto.usuario!.id, aclExistente.id);
-
-        auditService.registrarAcao(contexto, "acl_reativacao", "acl_recurso", aclExistente.id, {
-          descricao: `ACL — acesso reativado: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
-          resultado: "sucesso",
-        });
-
+      if (resultado.tipo === "reativado") {
         res.json({ ok: true, mensagem: "Acesso reativado" });
         return;
       }
 
-      // Criar nova linha
-      const resultado = db
-        .prepare(
-          `INSERT INTO acl_recursos (usuario_id, tipo_recurso, recurso_id, concedido_por, concedido_em)
-         VALUES (?, ?, ?, ?, datetime('now'))`,
-        )
-        .run(usuarioId, tipoRecurso, recursoId, contexto.usuario!.id);
-
-      const id = resultado.lastInsertRowid;
-
-      auditService.registrarAcao(contexto, "acl_concessao", "acl_recurso", String(id), {
-        descricao: `ACL — acesso concedido: usuário ${usuarioId}, recurso ${tipoRecurso}/${recursoId}`,
-        resultado: "sucesso",
-      });
-
-      res.status(201).json({ ok: true, id, mensagem: "Acesso concedido com sucesso" });
+      res.status(201).json({ ok: true, id: resultado.id, mensagem: "Acesso concedido com sucesso" });
     } catch (erro: any) {
       if (erro.message?.includes("UNIQUE constraint failed")) {
         // Já existe na mesma transação — retorna 201
@@ -154,6 +184,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
       }
       // Handler async no Express 4: relançar vira rejeição não tratada e a requisição fica pendurada.
       res.status(500).json({ erro: "Erro ao conceder acesso" });
+      return;
     }
   });
 
@@ -168,7 +199,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
     const { usuarioId } = req.query;
 
     try {
-      let acls: any[];
+      let acls: AclResourceRow[];
 
       if (usuarioId && typeof usuarioId === "string") {
         acls = db
@@ -176,19 +207,20 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
             `SELECT id, usuario_id, tipo_recurso, recurso_id, concedido_por, concedido_em, revogado_em
            FROM acl_recursos WHERE usuario_id = ? ORDER BY concedido_em DESC`,
           )
-          .all(usuarioId);
+          .all(usuarioId) as unknown as AclResourceRow[];
       } else {
         acls = db
           .prepare(
             `SELECT id, usuario_id, tipo_recurso, recurso_id, concedido_por, concedido_em, revogado_em
            FROM acl_recursos ORDER BY concedido_em DESC`,
           )
-          .all();
+          .all() as unknown as AclResourceRow[];
       }
 
       res.json({ acls });
     } catch (erro) {
       res.status(500).json({ erro: "Erro ao listar ACL" });
+      return;
     }
   });
 
@@ -197,14 +229,15 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
    * Header: Authorization: Bearer <token> — exige papel titular/administrador
    *
    * Revoga uma concessão de ACL (marca com revogado_em = agora, nunca apaga a linha).
-   * Idempotente: se já foi revogada, retorna 200.
+   * Idempotente: se já foi revogada, retorna 204 No Content.
+   * Retorna 204 No Content em caso de sucesso, conforme convenção REST.
    */
   router.delete("/:id", exigirAutenticacao, requerTitularOuAdmin, (req: express.Request, res: express.Response) => {
     const contexto = req.auth as ContextoAutenticacao;
     const { id } = req.params;
 
     try {
-      const acl = db.prepare("SELECT id, usuario_id, tipo_recurso, recurso_id, revogado_em FROM acl_recursos WHERE id = ?").get(id) as any;
+      const acl = db.prepare("SELECT id, usuario_id, tipo_recurso, recurso_id, revogado_em FROM acl_recursos WHERE id = ?").get(id) as unknown as Pick<AclResourceRow, "id" | "usuario_id" | "tipo_recurso" | "recurso_id" | "revogado_em">;
 
       if (!acl) {
         res.status(404).json({ erro: "ACL não encontrada" });
@@ -212,8 +245,8 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
       }
 
       if (acl.revogado_em) {
-        // Já estava revogada — idempotente
-        res.json({ ok: true, mensagem: "ACL já estava revogada" });
+        // Já estava revogada — idempotente, retorna 204 No Content
+        res.status(204).end();
         return;
       }
 
@@ -225,9 +258,11 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
         resultado: "sucesso",
       });
 
-      res.json({ ok: true, mensagem: "Acesso revogado com sucesso" });
+      // 204 No Content: operação sucesso, sem corpo de resposta
+      res.status(204).end();
     } catch (erro) {
       res.status(500).json({ erro: "Erro ao revogar ACL" });
+      return;
     }
   });
 

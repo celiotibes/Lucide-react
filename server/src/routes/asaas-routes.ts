@@ -78,12 +78,10 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
   router.post("/clientes", exigirAutenticacao, async (req, res) => {
     const { nome, cpfCnpj, email, telefone } = req.body ?? {};
     if (typeof nome !== "string" || !nome.trim()) {
-      res.status(400).json({ erro: "nome é obrigatório" });
-      return;
+      return res.status(400).json({ erro: "nome é obrigatório" });
     }
     if (typeof cpfCnpj !== "string" || !cpfCnpj.trim()) {
-      res.status(400).json({ erro: "cpfCnpj é obrigatório" });
-      return;
+      return res.status(400).json({ erro: "cpfCnpj é obrigatório" });
     }
 
     try {
@@ -111,20 +109,16 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
   router.post("/cobrancas", exigirAutenticacao, async (req, res) => {
     const { customer, billingType, value, dueDate, description, fine, interest } = req.body ?? {};
     if (typeof customer !== "string" || !customer.trim()) {
-      res.status(400).json({ erro: "customer (asaasCustomerId) é obrigatório" });
-      return;
+      return res.status(400).json({ erro: "customer (asaasCustomerId) é obrigatório" });
     }
     if (typeof billingType !== "string" || !TIPOS_COBRANCA_VALIDOS.includes(billingType as TipoCobrancaAsaas)) {
-      res.status(400).json({ erro: `billingType inválido — precisa ser um de: ${TIPOS_COBRANCA_VALIDOS.join(", ")}` });
-      return;
+      return res.status(400).json({ erro: `billingType inválido — precisa ser um de: ${TIPOS_COBRANCA_VALIDOS.join(", ")}` });
     }
     if (typeof value !== "number" || !(value > 0)) {
-      res.status(400).json({ erro: "value precisa ser um número maior que zero" });
-      return;
+      return res.status(400).json({ erro: "value precisa ser um número maior que zero" });
     }
     if (typeof dueDate !== "string" || !dueDate) {
-      res.status(400).json({ erro: "dueDate é obrigatório (AAAA-MM-DD)" });
-      return;
+      return res.status(400).json({ erro: "dueDate é obrigatório (AAAA-MM-DD)" });
     }
 
     try {

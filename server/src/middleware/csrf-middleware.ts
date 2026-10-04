@@ -25,6 +25,10 @@ import csurf from "csurf";
 import { validateCsrfTokenSafely } from "../utils/security-helpers.js";
 import { atributosCookieSessao } from "./cors-middleware.js";
 
+interface CsrfRequest extends express.Request {
+  csrfToken?: () => string;
+}
+
 /**
  * Cria middleware de sessão Express
  * Necessário para que o csurf funcione em modo session-based

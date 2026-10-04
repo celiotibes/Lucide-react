@@ -17,8 +17,8 @@
 import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { calcularMargensImovel } from "./margensPorPropriedade.js";
-import { calcularDREPeriodo, type ResultadoDRE } from "./dre.js";
-import { obterPeriodoMes } from "./report-helpers.js";
+import { calcularDREPeriodo, buscarDREPeriodo, type ResultadoDRE } from "./dre.js";
+import { obterPeriodoMes, obterMesAnterior, calcularVariacaoPercentual, obterUltimosNMeses } from "./report-helpers.js";
 
 /** Seção que o servidor não consegue calcular com os dados que possui. */
 export interface SecaoIndisponivel {
@@ -175,7 +175,12 @@ export function tabelaExiste(db: Database.Database, nome: string): boolean {
  * Converte ResultadoDRE (valores em centavos) para DREResumo (valores em reais).
  * Divide todos os valores por 100 e calcula variações e histórico.
  */
-function converterDREParaResumo(db: Database.Database, dre: ResultadoDRE): DREResumo {
+function converterDREParaResumo(db: Database.Database, dre: ResultadoDRE, mes: number, ano: number): DREResumo {
+  // Calcula variação e histórico
+  const variacaoMesAnterior = calcularVariacaoMesAnterior(db, mes, ano);
+  const { ytd: ytdCentavos, ytdPercentual } = calcularYTD(db, mes, ano);
+  const historico12Meses = obterHistorico12Meses(db, mes, ano);
+
   // Converte centavos para reais (÷100)
   return {
     receitaTotal: dre.receitaTotal / 100,
@@ -191,10 +196,15 @@ function converterDREParaResumo(db: Database.Database, dre: ResultadoDRE): DRERe
     lucroLiquido: dre.lucroLiquido / 100,
     lucroBruto: dre.lucroBruto / 100,
     variacao: {
-      mesAnterior: 0, // TODO: implementar cálculo de variação
-      ytd: 0, // TODO: implementar cálculo YTD
+      mesAnterior: variacaoMesAnterior,
+      ytd: ytdPercentual,
     },
-    historico: [], // TODO: implementar histórico
+    historico: historico12Meses.map((item) => ({
+      mes: item.mes,
+      ano: item.ano,
+      receita: item.receita / 100,
+      despesa: item.despesa / 100,
+    })),
   };
 }
 
@@ -227,7 +237,7 @@ function calcularDREOuIndisponivel(
     const periodo = obterPeriodoMes(mes, ano);
     const resultado = calcularDREPeriodo(db, periodo.inicio, periodo.fim);
 
-    return converterDREParaResumo(db, resultado);
+    return converterDREParaResumo(db, resultado, mes, ano);
   } catch (erro) {
     logger.warn("[RelatorioExecutivo] Erro ao calcular DRE:", erro);
     return {
@@ -240,6 +250,134 @@ function calcularDREOuIndisponivel(
 
 function tabelasAusentes(db: Database.Database, nomes: string[]): string[] {
   return nomes.filter((n) => !tabelaExiste(db, n));
+}
+
+/**
+ * Calcula variação do lucro líquido em relação ao mês anterior.
+ * Fórmula: ((lucroLiquidoMesAtual - lucroLiquidoMesAnterior) / lucroLiquidoMesAnterior) * 100
+ *
+ * Casos especiais:
+ * - Se mês anterior tem lucro = 0 e atual > 0, retorna 100
+ * - Se ambos são 0, retorna 0
+ * - Se não conseguir buscar dados, retorna 0
+ */
+export function calcularVariacaoMesAnterior(
+  db: Database.Database,
+  mes: number,
+  ano: number,
+): number {
+  try {
+    // Busca o DRE do mês atual
+    const dreAtual = buscarDREPeriodo(db, ano, mes);
+    if (!dreAtual) return 0;
+
+    // Busca o DRE do mês anterior
+    const { mes: mesPrecedente, ano: anoPrecedente } = obterMesAnterior(mes, ano);
+    const drePrecedente = buscarDREPeriodo(db, anoPrecedente, mesPrecedente);
+    if (!drePrecedente) return 0;
+
+    // Calcula variação percentual
+    return calcularVariacaoPercentual(dreAtual.lucroLiquido, drePrecedente.lucroLiquido);
+  } catch (erro) {
+    logger.warn("[RelatorioExecutivo] Erro ao calcular variação mês anterior:", erro);
+    return 0;
+  }
+}
+
+/**
+ * Calcula acumulado ano-a-data (YTD) do lucro líquido.
+ *
+ * Retorna:
+ * - ytd: Valor acumulado em centavos
+ * - ytdPercentual: Percentual de variação em relação a janeiro
+ *
+ * Casos especiais:
+ * - Se janeiro tem lucro = 0 e há lucro acumulado, retorna percentual 100
+ * - Se não conseguir dados, retorna 0 para ambos
+ */
+export function calcularYTD(
+  db: Database.Database,
+  mes: number,
+  ano: number,
+): { ytd: number; ytdPercentual: number } {
+  try {
+    // Lista todos os meses de janeiro até o mês atual
+    const meses = obterUltimosNMeses(mes, ano, mes);
+
+    let somaYTD = 0;
+    let lucroJaneiro = 0;
+
+    for (const periodo of meses) {
+      const dre = buscarDREPeriodo(db, periodo.ano, periodo.mes);
+      if (dre) {
+        somaYTD += dre.lucroLiquido;
+
+        // Captura o valor de janeiro
+        if (periodo.mes === 1) {
+          lucroJaneiro = dre.lucroLiquido;
+        }
+      }
+    }
+
+    // Calcula percentual em relação a janeiro
+    const ytdPercentual = calcularVariacaoPercentual(somaYTD, lucroJaneiro);
+
+    return {
+      ytd: somaYTD,
+      ytdPercentual,
+    };
+  } catch (erro) {
+    logger.warn("[RelatorioExecutivo] Erro ao calcular YTD:", erro);
+    return { ytd: 0, ytdPercentual: 0 };
+  }
+}
+
+/**
+ * Obtém histórico de 12 meses retroativos com receita e despesa totais.
+ *
+ * Retorna array ordenado de forma mais antiga para mais recente com:
+ * - mes, ano, receita (total), despesa (total)
+ *
+ * Casos especiais:
+ * - Se mês não tem DRE gravado, inclui com valores zero (marca dados indisponíveis)
+ * - Se não conseguir buscar dados, retorna array vazio
+ */
+export function obterHistorico12Meses(
+  db: Database.Database,
+  mes: number,
+  ano: number,
+): Array<{ mes: number; ano: number; receita: number; despesa: number }> {
+  try {
+    // Obtém os 12 últimos meses
+    const meses = obterUltimosNMeses(mes, ano, 12);
+    const historico = [];
+
+    for (const periodo of meses) {
+      const dre = buscarDREPeriodo(db, periodo.ano, periodo.mes);
+
+      if (dre) {
+        historico.push({
+          mes: periodo.mes,
+          ano: periodo.ano,
+          receita: dre.receitaTotal,
+          despesa: dre.despesaVariavelTotal + dre.despesaFixaTotal,
+        });
+      } else {
+        // Mês sem dados gravados — inclui com zeros
+        historico.push({
+          mes: periodo.mes,
+          ano: periodo.ano,
+          receita: 0,
+          despesa: 0,
+        });
+      }
+    }
+
+    return historico;
+  } catch (erro) {
+    logger.warn("[RelatorioExecutivo] Erro ao obter histórico 12 meses:", erro);
+    return [];
+  }
 }
 
 const FONTE_RAZAO_CANONICO =

@@ -21,6 +21,7 @@
 
 import { logger } from './logger-service.js';
 import BackupService, { BackupManifest } from './backup-service.js';
+import { getAlertService } from './alert-service.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';

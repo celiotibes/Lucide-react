@@ -53,8 +53,20 @@ export function criarRotasTransacoes({ db, authService }: TransacoesRoutesDeps):
 
       res.json(sugestao);
     } catch (erro) {
-      logger.error("Erro ao sugerir categoria:", erro instanceof Error ? erro.message : String(erro));
-      res.status(500).json({ erro: "Falha ao sugerir categoria" });
+      logger.error("Erro ao sugerir categoria:", {
+        requestId: req.id,
+        userId: (req.auth as any)?.usuario?.id,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      const isExternalFailure = erro instanceof Error && (
+        erro.message.includes("API") ||
+        erro.message.includes("service") ||
+        erro.message.includes("timeout")
+      );
+      return res.status(isExternalFailure ? 503 : 500).json({
+        erro: isExternalFailure ? "Serviço temporariamente indisponível" : "Falha ao sugerir categoria"
+      });
     }
   });
 
