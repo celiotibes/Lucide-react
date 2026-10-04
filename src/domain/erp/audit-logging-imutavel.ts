@@ -807,7 +807,15 @@ export class GerenciadorAuditLoggingImutavel {
   /**
    * Exporta audit log (com assinatura digital)
    */
-  async exportarAudit(filtros?: any): Promise<{
+  async exportarAudit(filtros?: {
+    data_inicio?: Date;
+    data_fim?: Date;
+    usuario_id?: string;
+    tipos_operacao?: TipoOperacao[];
+    entidade_tipo?: string;
+    resultado?: 'SUCESSO' | 'FALHA' | 'PARCIAL';
+    limite?: number;
+  }): Promise<{
     arquivo_url: string;
     checksum: string;
     data_exportacao: Date;

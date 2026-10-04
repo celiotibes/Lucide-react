@@ -4,6 +4,8 @@
  * Conformidade com LGPD, Lei 6404/76, retenção de 7 anos
  */
 
+import type { Database } from "sql.js";
+
 /** Segredo de assinatura HMAC.
  *
  * Aqui havia `process.env.AUDIT_LOG_SECRET`. Este app roda no navegador, onde `process`
@@ -60,8 +62,8 @@ export interface RegistroAuditoria {
   entidade_afetada: string; // 'ledger_entry', 'pagamento', 'banco_transacao', etc
   id_entidade: number;
   descricao_alteracao: string;
-  valor_anterior?: any;
-  valor_novo?: any;
+  valor_anterior?: unknown;
+  valor_novo?: unknown;
   campos_acessados?: string[]; // Array de nomes de campos lidos em operações SELECT (LGPD - auditoria de leitura)
   hash_sha256: string; // Hash SHA-256 do registro (para imutabilidade)
   hash_anterior?: string; // Hash do registro anterior (para cadeia)
@@ -99,7 +101,7 @@ export interface VerificacaoIntegridade {
  * Registra chamada de API externa no log de auditoria
  */
 export async function registrarChamadaAPI(
-  db: any,
+  db: Database,
   // `retencao_ate` entrou no Omit: a própria função calcula os 7 anos logo abaixo, e
   // exigi-la do chamador era o que fazia TODA chamada deste módulo não compilar — o
   // campo era pedido na assinatura e ignorado no corpo.
@@ -193,7 +195,7 @@ export async function registrarChamadaAPI(
  * Verifica integridade da cadeia de registros de auditoria
  */
 export async function verificarIntegridade(
-  db: any,
+  db: Database,
   dataInicio?: string,
   dataFim?: string,
   opcoes: OpcoesAssinatura = {},
@@ -290,7 +292,7 @@ export async function verificarIntegridade(
  * Gera relatório de auditoria completo
  */
 export function gerarRelatorioAuditoria(
-  db: any,
+  db: Database,
   periodo_inicio: string,
   periodo_fim: string
 ): RelatorioAuditoria {
@@ -366,7 +368,7 @@ export function gerarRelatorioAuditoria(
           usuario_nome: row[3],
           ip_origem: row[4],
           modulo_chamador: row[5],
-          tipo_operacao: row[6] as any,
+          tipo_operacao: row[6] as 'leitura' | 'escrita' | 'delecao' | 'alteracao' | 'autenticacao' | 'configuracao',
           entidade_afetada: row[7],
           id_entidade: row[8],
           descricao_alteracao: row[9],
@@ -374,7 +376,7 @@ export function gerarRelatorioAuditoria(
           valor_novo: row[11] ? JSON.parse(row[11]) : undefined,
           hash_sha256: row[12],
           hash_anterior: row[13],
-          status: row[14] as any,
+          status: row[14] as 'sucesso' | 'erro' | 'pendente',
           mensagem_erro: row[15],
           tempo_processamento_ms: row[16],
           retencao_ate: row[17],
@@ -480,7 +482,7 @@ export function extrairCamposSelect(query: string): string[] {
  * Registra acesso de leitura no ledger com campos acessados
  */
 export function registrarAcessoLeitura(
-  db: any,
+  db: Database,
   usuario_id: number,
   usuario_nome: string,
   ip_origem: string,
@@ -511,7 +513,7 @@ export function registrarAcessoLeitura(
  * Exemplo: usuario 123 acessou CPF de cliente 456 em 2026-10-03 14:30
  */
 export function registrarAcessoCampos(
-  db: any,
+  db: Database,
   usuario_id: number,
   usuario_nome: string,
   ip_origem: string,
@@ -546,7 +548,7 @@ export function registrarAcessoCampos(
  * Registra erro de operação
  */
 export function registrarErro(
-  db: any,
+  db: Database,
   usuario_id: number,
   modulo: string,
   entidade: string,

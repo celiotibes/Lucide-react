@@ -5,6 +5,7 @@
  */
 
 import { assegurarPeriodoAberto } from "./ledger-period-validation";
+import type { Database } from "../../db/db-init";
 
 export interface TaxCalculationParams {
   receita_bruta: number;
@@ -252,7 +253,7 @@ export function calcularISS(
  * Valida conformidade com regras EFD-Reinf
  */
 export function validarEFD(
-  db: any,
+  db: Database,
   entidade_id: number,
   periodo_id: number
 ): {
@@ -301,7 +302,7 @@ export function validarEFD(
  * Gera DRE com impacto de impostos
  */
 export function gerarDREComImpactoTaxes(
-  db: any,
+  db: Database,
   periodo_id: number,
   params: TaxCalculationParams
 ): DREComImpactoTaxes {
@@ -337,7 +338,7 @@ export function gerarDREComImpactoTaxes(
  * Gera relatório de obrigações fiscais com cronograma
  */
 export function gerarRelatorioObrigacoesFiscais(
-  db: any,
+  db: Database,
   periodo_inicio: string,
   periodo_fim: string
 ): RelatorioObrigacoesFiscais {
@@ -487,7 +488,7 @@ function origemIdImposto(periodo_id: number, tipo_imposto: string): number {
 }
 
 export function registrarImpostoNoLedger(
-  db: any,
+  db: Database,
   entidade_id: number,
   periodo_id: number,
   imposto: ImpostoCalculado,

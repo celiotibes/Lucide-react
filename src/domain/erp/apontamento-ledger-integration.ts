@@ -13,6 +13,7 @@ import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import { registrarLancamentoContabil, LancamentoContabil } from "./ledger";
 import { arredondarCentavos } from "./centavos";
+import type { ResultadoUrgencia, ResultadoAirbnb, ResultadoCombustivel, ResultadoHoras, ResultadoEmprestimo } from "./apontamento-calculos";
 
 /**
  * Rastreamento bidirecional: apontamento ↔ ledger
@@ -58,7 +59,7 @@ const CONTAS_APONTAMENTO = {
  */
 export function registrarApontamentoUrgenciaNoLedger(
   db: Database,
-  resultado_urgencia: any, // ResultadoUrgencia
+  resultado_urgencia: ResultadoUrgencia,
   apontamento_id: number,
   prestador_id: number,
   entidade_id: number,
@@ -146,7 +147,7 @@ export function registrarApontamentoUrgenciaNoLedger(
  */
 export function registrarApontamentoAirbnbNoLedger(
   db: Database,
-  resultado_airbnb: any, // ResultadoAirbnb
+  resultado_airbnb: ResultadoAirbnb,
   apontamento_id: number,
   prestador_id: number,
   entidade_id: number,
@@ -234,7 +235,7 @@ export function registrarApontamentoAirbnbNoLedger(
  */
 export function registrarApontamentoCombustivelNoLedger(
   db: Database,
-  resultado_combustivel: any, // ResultadoCombustivel
+  resultado_combustivel: ResultadoCombustivel,
   apontamento_id: number,
   prestador_id: number,
   entidade_id: number,
@@ -323,7 +324,7 @@ export function registrarApontamentoCombustivelNoLedger(
  */
 export function registrarApontamentoHorasNoLedger(
   db: Database,
-  resultado_horas: any, // ResultadoHoras
+  resultado_horas: ResultadoHoras,
   apontamento_id: number,
   valor_hora: number,
   prestador_id: number,
@@ -418,7 +419,7 @@ export function registrarApontamentoHorasNoLedger(
  */
 export function registrarApontamentoEmprestimoNoLedger(
   db: Database,
-  resultado_emprestimo: any, // ResultadoEmprestimo
+  resultado_emprestimo: ResultadoEmprestimo,
   apontamento_id: number,
   prestador_id: number,
   entidade_id: number,
