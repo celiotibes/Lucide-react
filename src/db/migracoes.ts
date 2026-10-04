@@ -165,6 +165,15 @@ export function reconstruirLedgerEntries(db: Database, schemaSql: string): void 
     );
     // A view de titularidade referencia ledger_entries; com a tabela dropada ela ficaria pendente e
     // o RENAME falharia. O db.run(schemaSql) que roda logo depois a recria (IF NOT EXISTS).
+    // Os read-models de BI (schema.sql, bloco READ MODELS BI) dependem dela e da tabela: caem antes.
+    for (const v of [
+      "v_bi_resultado_por_centro_custo",
+      "v_bi_resultado_mensal",
+      "v_bi_saldo_contas",
+      "v_bi_lancamento_efetivo",
+    ]) {
+      db.run(`DROP VIEW IF EXISTS ${v}`);
+    }
     db.run("DROP VIEW IF EXISTS v_ledger_titular_atual");
     db.run("DROP TABLE ledger_entries");
     db.run("ALTER TABLE ledger_entries_migracao RENAME TO ledger_entries");

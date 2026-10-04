@@ -2404,3 +2404,101 @@ BEGIN
     SELECT RAISE(ABORT, 'Carimbo de tempo é append-only: não pode ser excluído.');
 END;
 -- END CARIMBO DE TEMPO RFC 3161
+
+-- BEGIN READ MODELS BI
+-- Read-models para BI (item 13 da auditoria): views SOMENTE LEITURA sobre o razão canônico
+-- (`ledger_entries`, via `v_ledger_titular_atual`). Nada aqui grava, e nenhuma tem divisão/float:
+-- cada perna do razão vira centavos INTEIROS (ROUND(valor*100) — valor_debito/valor_credito já são
+-- centavos exatos, garantidos por tg_ledger_entries_centavos) e só se SOMA inteiro. A conversão
+-- para reais acontece na borda de apresentação (src/domain/erp/readModelsBi.ts).
+--
+-- ESTORNO: o par (original com estornado_por_id preenchido + reverso com estorno_de_id preenchido)
+-- é EXCLUÍDO inteiro — o mesmo critério dos índices/consultas de deduplicação do código
+-- (estornado_por_id IS NULL AND estorno_de_id IS NULL), o par se anula e o BI mostra a atividade
+-- efetiva. Diferença conhecida para quem soma o razão cru (par incluso): só aparece quando original e
+-- reverso caem em meses diferentes — ver docs/BI-READ-MODELS.md.
+--
+-- Mês = mês do PERÍODO CONTÁBIL do lançamento (periodos_contabeis.ano/mes), a mesma competência do
+-- resto dos relatórios. Titular = titular econômico vigente (overlay de titularidade).
+-- DROP+CREATE (e não IF NOT EXISTS) para a definição poder ser versionada; reconstruirLedgerEntries
+-- (db/migracoes.ts) derruba estas views antes de recriar a tabela.
+DROP VIEW IF EXISTS v_bi_resultado_por_centro_custo;
+DROP VIEW IF EXISTS v_bi_resultado_mensal;
+DROP VIEW IF EXISTS v_bi_saldo_contas;
+DROP VIEW IF EXISTS v_bi_lancamento_efetivo;
+
+CREATE VIEW v_bi_lancamento_efetivo AS
+SELECT t.id                    AS lancamento_id,
+       t.entidade_id           AS entidade_id,
+       t.titular_economico_id  AS titular_economico_id,
+       t.periodo_id            AS periodo_id,
+       p.ano                   AS ano,
+       p.mes                   AS mes,
+       printf('%04d-%02d', p.ano, p.mes) AS competencia,
+       t.data_lancamento       AS data_lancamento,
+       t.conta_id              AS conta_id,
+       cp.codigo               AS conta_codigo,
+       cp.descricao            AS conta_descricao,
+       cp.grupo                AS grupo,
+       cp.natureza             AS natureza,
+       t.centro_custo_id       AS centro_custo_id,
+       cc.codigo               AS centro_custo_codigo,
+       cc.descricao            AS centro_custo_descricao,
+       cc.tipo                 AS centro_custo_tipo,
+       -- Convenção de criarCentroCustoImovel: codigo 'IM-0007' => imóvel 7. Não há FK.
+       CASE WHEN cc.tipo = 'imovel' AND cc.codigo GLOB 'IM-[0-9]*'
+            THEN CAST(SUBSTR(cc.codigo, 4) AS INTEGER) END AS imovel_id,
+       -- Zeragem de resultado do encerramento (fecharContasDeResultado): não é resultado operacional.
+       CASE WHEN t.origem_modulo = 'manual' AND t.referencia_documento LIKE 'ENCERRAMENTO-%'
+            THEN 1 ELSE 0 END  AS eh_encerramento,
+       CAST(ROUND(COALESCE(t.valor_debito, 0) * 100) AS INTEGER)  AS debito_centavos,
+       CAST(ROUND(COALESCE(t.valor_credito, 0) * 100) AS INTEGER) AS credito_centavos
+FROM v_ledger_titular_atual t
+JOIN contas_plano_contas cp ON cp.id = t.conta_id
+JOIN periodos_contabeis p   ON p.id = t.periodo_id
+LEFT JOIN centros_custo cc  ON cc.id = t.centro_custo_id
+WHERE t.estornado_por_id IS NULL AND t.estorno_de_id IS NULL;
+
+-- Resultado por mês x conta x centro de custo x titular (só contas de receita/despesa, sem a
+-- zeragem de encerramento). resultado_centavos = crédito − débito (receita +, despesa −).
+CREATE VIEW v_bi_resultado_mensal AS
+SELECT entidade_id, titular_economico_id, periodo_id, ano, mes, competencia,
+       conta_id, conta_codigo, conta_descricao, grupo,
+       centro_custo_id, centro_custo_codigo,
+       SUM(debito_centavos)                       AS debito_centavos,
+       SUM(credito_centavos)                      AS credito_centavos,
+       SUM(credito_centavos) - SUM(debito_centavos) AS resultado_centavos,
+       COUNT(*)                                   AS qtd_lancamentos
+FROM v_bi_lancamento_efetivo
+WHERE grupo IN ('receita', 'despesa') AND eh_encerramento = 0
+GROUP BY entidade_id, titular_economico_id, periodo_id, ano, mes, competencia,
+         conta_id, conta_codigo, conta_descricao, grupo, centro_custo_id, centro_custo_codigo;
+
+-- Saldo acumulado por conta (todas as contas, inclusive encerramento: é saldo patrimonial).
+-- saldo_centavos segue a natureza da conta (devedora: débito − crédito; credora: crédito − débito).
+CREATE VIEW v_bi_saldo_contas AS
+SELECT entidade_id, titular_economico_id,
+       conta_id, conta_codigo, conta_descricao, grupo, natureza,
+       SUM(debito_centavos)  AS debito_centavos,
+       SUM(credito_centavos) AS credito_centavos,
+       CASE WHEN natureza = 'debito' THEN SUM(debito_centavos) - SUM(credito_centavos)
+            ELSE SUM(credito_centavos) - SUM(debito_centavos) END AS saldo_centavos,
+       COUNT(*) AS qtd_lancamentos
+FROM v_bi_lancamento_efetivo
+GROUP BY entidade_id, titular_economico_id, conta_id, conta_codigo, conta_descricao, grupo, natureza;
+
+-- Resultado por centro de custo (e, pela convenção IM-####, por imóvel — ledger_entries não tem
+-- imovel_id; centro_custo_id NULL = sem centro). receita/despesa LÍQUIDAS de contrapartida.
+CREATE VIEW v_bi_resultado_por_centro_custo AS
+SELECT entidade_id, titular_economico_id, periodo_id, ano, mes, competencia,
+       centro_custo_id, centro_custo_codigo, centro_custo_descricao, centro_custo_tipo, imovel_id,
+       SUM(CASE WHEN grupo = 'receita' THEN credito_centavos - debito_centavos ELSE 0 END) AS receita_centavos,
+       SUM(CASE WHEN grupo = 'despesa' THEN debito_centavos - credito_centavos ELSE 0 END) AS despesa_centavos,
+       SUM(CASE WHEN grupo = 'receita' THEN credito_centavos - debito_centavos
+                WHEN grupo = 'despesa' THEN credito_centavos - debito_centavos ELSE 0 END) AS resultado_centavos,
+       COUNT(*) AS qtd_lancamentos
+FROM v_bi_lancamento_efetivo
+WHERE grupo IN ('receita', 'despesa') AND eh_encerramento = 0
+GROUP BY entidade_id, titular_economico_id, periodo_id, ano, mes, competencia,
+         centro_custo_id, centro_custo_codigo, centro_custo_descricao, centro_custo_tipo, imovel_id;
+-- END READ MODELS BI
