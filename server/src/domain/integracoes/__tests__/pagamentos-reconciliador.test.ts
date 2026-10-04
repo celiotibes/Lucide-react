@@ -3,7 +3,6 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { randomUUID } from "crypto";
 import {
   sincronizarStatusTaxaAsaas,
   sincronizarStatusTaxaAsaasComFiltro,
@@ -11,11 +10,9 @@ import {
   type AuditReconciliacao,
 } from "../pagamentos-reconciliador.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEST_DB_PATH = path.join(__dirname, `test-reconciliador-${process.pid}-${Date.now()}.db`);
-const SENHA_PADRAO = "senha-correta-123";
 
 function resolverSchema(nomeArquivo: string): string {
   const candidatos = [
@@ -45,13 +42,13 @@ function createTestDatabase(): Database.Database {
   // Rodar migrations
   try {
     db.exec(resolverSchema("migrations-phase2-auth.sql"));
-  } catch (e) {
+  } catch {
     console.warn("Phase 2 migration não encontrada, continuando...");
   }
 
   try {
     db.exec(resolverSchema("migrations-phase3-integracoes.sql"));
-  } catch (e) {
+  } catch {
     console.warn("Phase 3 migration não encontrada, criando schema manualmente...");
   }
 
