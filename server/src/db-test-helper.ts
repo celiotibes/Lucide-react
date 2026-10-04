@@ -39,11 +39,8 @@ export function createTestDatabase(dbPath: string): Database.Database {
   // Enable foreign keys
   db.pragma("foreign_keys = ON");
 
-  // Execute schema statements one by one
-  const statements = SCHEMA
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith("--") && !s.startsWith("/*"));
+  // Parse SQL statements properly, removing comments first
+  const statements = parseSQLStatements(SCHEMA);
 
   for (const statement of statements) {
     try {
@@ -57,6 +54,31 @@ export function createTestDatabase(dbPath: string): Database.Database {
   }
 
   return db;
+}
+
+/**
+ * Parse SQL statements from schema text, properly handling comments
+ */
+function parseSQLStatements(schema: string): string[] {
+  // Remove SQL comments (both -- line comments and /* */ block comments)
+  let cleaned = schema
+    // Remove /* */ block comments
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    // Remove -- line comments
+    .split("\n")
+    .map((line) => {
+      const commentIndex = line.indexOf("--");
+      return commentIndex === -1 ? line : line.substring(0, commentIndex);
+    })
+    .join("\n");
+
+  // Split by semicolon and filter empty statements
+  const statements = cleaned
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  return statements;
 }
 
 /**

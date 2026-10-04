@@ -25,7 +25,7 @@ describe("Query Validator", () => {
 
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, email, senha_hash, nome)
       VALUES (?, ?, ?, ?)
     `);
 
@@ -232,7 +232,7 @@ describe("Query Validator", () => {
     const queries = [
       "SELECT * FROM usuarios WHERE id = ?",
       "SELECT COUNT(*) FROM usuarios",
-      "SELECT email FROM usuarios WHERE nome_completo = ?",
+      "SELECT email FROM usuarios WHERE nome = ?",
       "SELECT * FROM usuarios ORDER BY email",
     ];
 

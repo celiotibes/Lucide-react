@@ -35,12 +35,12 @@ describe("Batch Transaction Manager", () => {
     const manager = createBatchTransactionManager(db);
 
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
     const result = await manager.simple((txDb) => {
-      stmt.run("user-1", "test@example.com", "hash", "Test User");
+      stmt.run("user-1", "test@example.com", "hash", "Test User", "titular");
       return "success";
     });
 
@@ -64,8 +64,8 @@ describe("Batch Transaction Manager", () => {
       items,
       (chunk) => {
         const stmt = db.prepare(`
-          INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO usuarios (id, email, senha_hash, nome, role)
+          VALUES (?, ?, ?, ?, ?)
         `);
 
         let count = 0;
@@ -105,8 +105,8 @@ describe("Batch Transaction Manager", () => {
       items,
       (chunk) => {
         const stmt = db.prepare(`
-          INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO usuarios (id, email, senha_hash, nome, role)
+          VALUES (?, ?, ?, ?, ?)
         `);
 
         let count = 0;
@@ -148,8 +148,8 @@ describe("Batch Transaction Manager", () => {
       (chunk) => {
         // Simular operação lenta
         const stmt = db.prepare(`
-          INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO usuarios (id, email, senha_hash, nome, role)
+          VALUES (?, ?, ?, ?, ?)
         `);
 
         // Dormir um pouco para simular operação lenta
@@ -176,8 +176,8 @@ describe("Batch Transaction Manager", () => {
   it("deve usar batchUpdate helper para atualizar múltiplos registros", async () => {
     // Inserir usuários
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
     for (let i = 0; i < 100; i++) {
@@ -188,7 +188,7 @@ describe("Batch Transaction Manager", () => {
     const updates = Array.from({ length: 100 }, (_, i) => ({
       id: `user-${i}`,
       data: {
-        nome_completo: `Updated User ${i}`,
+        nome: `Updated User ${i}`,
       },
     }));
 
@@ -202,7 +202,7 @@ describe("Batch Transaction Manager", () => {
 
     // Verificar que updates foram aplicados
     const updatedUser = db.prepare("SELECT * FROM usuarios WHERE id = ?").get("user-50") as any;
-    expect(updatedUser.nome_completo).toBe("Updated User 50");
+    expect(updatedUser.nome).toBe("Updated User 50");
   });
 
   it("deve registrar múltiplos chunks em logs", async () => {
@@ -217,8 +217,8 @@ describe("Batch Transaction Manager", () => {
       items,
       (chunk) => {
         const stmt = db.prepare(`
-          INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO usuarios (id, email, senha_hash, nome, role)
+          VALUES (?, ?, ?, ?, ?)
         `);
 
         for (const item of chunk) {
@@ -251,8 +251,8 @@ describe("Batch Transaction Manager", () => {
       items,
       (chunk) => {
         const stmt = db.prepare(`
-          INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO usuarios (id, email, senha_hash, nome, role)
+          VALUES (?, ?, ?, ?, ?)
         `);
 
         for (const item of chunk) {
@@ -287,8 +287,8 @@ describe("Batch Transaction Manager", () => {
       items,
       (chunk) => {
         const stmt = db.prepare(`
-          INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO usuarios (id, email, senha_hash, nome, role)
+          VALUES (?, ?, ?, ?, ?)
         `);
 
         for (const item of chunk) {
@@ -315,8 +315,8 @@ describe("Batch Transaction Manager", () => {
       items,
       (chunk) => {
         const stmt = db.prepare(`
-          INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO usuarios (id, email, senha_hash, nome, role)
+          VALUES (?, ?, ?, ?, ?)
         `);
 
         for (const item of chunk) {

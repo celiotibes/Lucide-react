@@ -157,7 +157,7 @@ describe("Database Backup/Restore", () => {
   it("deve criar um backup de banco de dados com dados conhecidos", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, email, senha_hash, nome)
       VALUES (?, ?, ?, ?)
     `);
 
@@ -183,7 +183,7 @@ describe("Database Backup/Restore", () => {
   it("deve restaurar banco de dados em DB limpo", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, email, senha_hash, nome)
       VALUES (?, ?, ?, ?)
     `);
 
@@ -234,7 +234,7 @@ describe("Database Backup/Restore", () => {
   it("deve validar integridade com 1000 registros", () => {
     // Inserir 1000 registros
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, email, senha_hash, nome)
       VALUES (?, ?, ?, ?)
     `);
 
@@ -298,7 +298,7 @@ describe("Database Backup/Restore", () => {
   it("deve preservar integridade referencial após restore", () => {
     // Inserir dados com relacionamentos
     const userStmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, email, senha_hash, nome)
       VALUES (?, ?, ?, ?)
     `);
 
@@ -335,7 +335,7 @@ describe("Database Backup/Restore", () => {
   it("deve gerar metadata válida no backup", () => {
     // Inserir dados
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, email, senha_hash, nome)
       VALUES (?, ?, ?, ?)
     `);
 
