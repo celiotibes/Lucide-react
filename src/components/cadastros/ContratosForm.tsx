@@ -62,11 +62,6 @@ function num(valor: string, fallback: number): number {
   return Number.isNaN(n) ? fallback : n;
 }
 
-/** Como num(), mas trava o resultado em [min, max] — usado para percentuais que não fazem
- * sentido físico fora da faixa (ex: mais de 100% do valor recebido sendo "aluguel efetivo"
- * produziria renda tributável maior que o próprio recebimento). O campo era texto livre sem
- * nenhum limite, nem no HTML nem no banco — um erro de digitação distorcia silenciosamente a
- * renda tributável reportada (achado de auditoria adversarial). */
 function numFaixa(valor: string, fallback: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, num(valor, fallback)));
 }
@@ -75,6 +70,7 @@ export function ContratosForm() {
   const { db, versao, persistir } = useDb();
   const [form, setForm] = useState<Formulario | null>(null);
   const [expandidoId, setExpandidoId] = useState<number | null>(null);
+  const [tabAtiva, setTabAtiva] = useState<"imovel" | "valores" | "garantias">("imovel");
 
   const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
   const contratos = useMemo<ContratoLocacao[]>(() => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao ORDER BY data_inicio DESC") : []), [db, versao]);
@@ -128,11 +124,21 @@ export function ContratosForm() {
     setForm(null);
   }
 
+  const handleTabKeyDown = (e: React.KeyboardEvent, nova: "imovel" | "valores" | "garantias") => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      const tabs: ("imovel" | "valores" | "garantias")[] = ["imovel", "valores", "garantias"];
+      const indiceAtual = tabs.indexOf(tabAtiva);
+      const novoIndice = e.key === "ArrowRight" ? (indiceAtual + 1) % tabs.length : (indiceAtual - 1 + tabs.length) % tabs.length;
+      setTabAtiva(tabs[novoIndice]);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h3 style={{ fontSize: 15 }}>Contratos de locação ({contratos.length})</h3>
-        <button className="btn primary" disabled={imoveis.length === 0} onClick={() => setForm(formVazio(imoveis[0]?.id ?? null))}>
+        <button className="btn primary" disabled={imoveis.length === 0} onClick={() => { setForm(formVazio(imoveis[0]?.id ?? null)); setTabAtiva("imovel"); }}>
           <Plus size={14} /> Novo contrato
         </button>
       </div>
@@ -142,111 +148,147 @@ export function ContratosForm() {
 
       {form && (
         <div className="card" style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 6, fontWeight: 600 }}>Dados básicos</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Imóvel
-              <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.imovel_id ?? ""} onChange={(e) => setForm({ ...form, imovel_id: Number(e.target.value) })}>
-                {imoveis.map((i) => <option key={i.id} value={i.id}>{i.apelido}{i.uso_pessoal ? " — uso pessoal" : ""}</option>)}
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Locatário principal *
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.locatario} onChange={(e) => setForm({ ...form, locatario: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Tipo
-              <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoContrato })}>
-                <option value="residencial_fixo">Residencial (prazo fixo)</option>
-                <option value="airbnb_temporada">Airbnb / temporada</option>
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Valor de referência (R$) *
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.valor_referencia} onChange={(e) => setForm({ ...form, valor_referencia: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Dia de vencimento
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.dia_vencimento} onChange={(e) => setForm({ ...form, dia_vencimento: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Início *
-              <input type="date" className="btn" style={{ width: "100%", marginTop: 4 }} value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Fim (vazio = vigente)
-              <input type="date" className="btn" style={{ width: "100%", marginTop: 4 }} value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              % do valor que é aluguel efetivo
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.percentual_aluguel_efetivo} onChange={(e) => setForm({ ...form, percentual_aluguel_efetivo: e.target.value })} title="100 = contrato simples, sem rateio de custeio embutido" />
-            </label>
+          <div role="tablist" style={{ display: "flex", borderBottom: "1px solid var(--line)", marginBottom: 14 }}>
+            {(["imovel", "valores", "garantias"] as const).map((tab) => (
+              <button
+                key={tab}
+                role="tab"
+                aria-selected={tabAtiva === tab}
+                aria-controls={`tab-${tab}`}
+                onClick={() => setTabAtiva(tab)}
+                onKeyDown={(e) => handleTabKeyDown(e, tab)}
+                style={{
+                  padding: "12px 16px",
+                  fontSize: 13,
+                  fontWeight: tabAtiva === tab ? 600 : 400,
+                  border: "none",
+                  background: "transparent",
+                  borderBottom: tabAtiva === tab ? "2px solid var(--ink)" : "2px solid transparent",
+                  cursor: "pointer",
+                  color: tabAtiva === tab ? "var(--ink)" : "var(--ink-soft)",
+                }}
+              >
+                {tab === "imovel" && "Imóvel/Prazo"}
+                {tab === "valores" && "Valores/Reajuste"}
+                {tab === "garantias" && "Garantias/Encargos"}
+              </button>
+            ))}
           </div>
 
-          <div style={{ fontSize: 12, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 6, fontWeight: 600 }}>Reajuste e rescisão</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Índice de reajuste
-              <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.indice_reajuste} onChange={(e) => setForm({ ...form, indice_reajuste: e.target.value as IndiceReajuste })}>
-                <option value="igpm">IGP-M</option>
-                <option value="ipca">IPCA</option>
-                <option value="nenhum">Nenhum</option>
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              % fixo na 1ª renovação (opcional)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.percentual_reajuste_primeira_renovacao} onChange={(e) => setForm({ ...form, percentual_reajuste_primeira_renovacao: e.target.value })} placeholder="ex: 6" />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Duração do ciclo (meses)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.duracao_minima_meses} onChange={(e) => setForm({ ...form, duracao_minima_meses: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Teto multa rescisória (meses)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_rescisoria_teto_meses} onChange={(e) => setForm({ ...form, multa_rescisoria_teto_meses: e.target.value })} />
-            </label>
-          </div>
+          {tabAtiva === "imovel" && (
+            <div role="tabpanel" id="tab-imovel" style={{ marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Imóvel
+                  <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.imovel_id ?? ""} onChange={(e) => setForm({ ...form, imovel_id: Number(e.target.value) })}>
+                    {imoveis.map((i) => <option key={i.id} value={i.id}>{i.apelido}{i.uso_pessoal ? " — uso pessoal" : ""}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Locatário principal *
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.locatario} onChange={(e) => setForm({ ...form, locatario: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Tipo
+                  <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoContrato })}>
+                    <option value="residencial_fixo">Residencial (prazo fixo)</option>
+                    <option value="airbnb_temporada">Airbnb / temporada</option>
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Valor de referência (R$) *
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.valor_referencia} onChange={(e) => setForm({ ...form, valor_referencia: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Dia de vencimento
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.dia_vencimento} onChange={(e) => setForm({ ...form, dia_vencimento: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Início *
+                  <input type="date" className="btn" style={{ width: "100%", marginTop: 4 }} value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Fim (vazio = vigente)
+                  <input type="date" className="btn" style={{ width: "100%", marginTop: 4 }} value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  % do valor que é aluguel efetivo
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.percentual_aluguel_efetivo} onChange={(e) => setForm({ ...form, percentual_aluguel_efetivo: e.target.value })} title="100 = contrato simples, sem rateio de custeio embutido" />
+                </label>
+              </div>
+            </div>
+          )}
 
-          <div style={{ fontSize: 12, textTransform: "uppercase", color: "var(--ink-soft)", marginBottom: 6, fontWeight: 600 }}>Inadimplência</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Multa inicial (%)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_percentual} onChange={(e) => setForm({ ...form, multa_percentual: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Multa inicial até (dias)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_ate_dias} onChange={(e) => setForm({ ...form, multa_ate_dias: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Multa substitutiva (%)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_percentual_substitutiva} onChange={(e) => setForm({ ...form, multa_percentual_substitutiva: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Juros mora (% a.m.)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.juros_mensal_percentual} onChange={(e) => setForm({ ...form, juros_mensal_percentual: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Índice de correção da mora
-              <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.indice_correcao_mora} onChange={(e) => setForm({ ...form, indice_correcao_mora: e.target.value as IndiceReajuste })}>
-                <option value="igpm">IGP-M</option>
-                <option value="ipca">IPCA</option>
-                <option value="nenhum">Nenhum</option>
-              </select>
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Honorários advocatícios (%)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.honorarios_percentual} onChange={(e) => setForm({ ...form, honorarios_percentual: e.target.value })} />
-            </label>
-            <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Gatilho judicial (dias de atraso)
-              <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.dias_gatilho_judicial} onChange={(e) => setForm({ ...form, dias_gatilho_judicial: e.target.value })} />
-            </label>
-          </div>
+          {tabAtiva === "valores" && (
+            <div role="tabpanel" id="tab-valores" style={{ marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Índice de reajuste
+                  <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.indice_reajuste} onChange={(e) => setForm({ ...form, indice_reajuste: e.target.value as IndiceReajuste })}>
+                    <option value="igpm">IGP-M</option>
+                    <option value="ipca">IPCA</option>
+                    <option value="nenhum">Nenhum</option>
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  % fixo na 1ª renovação (opcional)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.percentual_reajuste_primeira_renovacao} onChange={(e) => setForm({ ...form, percentual_reajuste_primeira_renovacao: e.target.value })} placeholder="ex: 6" />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Duração do ciclo (meses)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.duracao_minima_meses} onChange={(e) => setForm({ ...form, duracao_minima_meses: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Teto multa rescisória (meses)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_rescisoria_teto_meses} onChange={(e) => setForm({ ...form, multa_rescisoria_teto_meses: e.target.value })} />
+                </label>
+              </div>
+            </div>
+          )}
 
-          <label style={{ fontSize: 12, color: "var(--ink-soft)", display: "block", marginBottom: 14 }}>
-            Observações
-            <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
-          </label>
+          {tabAtiva === "garantias" && (
+            <div role="tabpanel" id="tab-garantias" style={{ marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Multa inicial (%)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_percentual} onChange={(e) => setForm({ ...form, multa_percentual: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Multa inicial até (dias)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_ate_dias} onChange={(e) => setForm({ ...form, multa_ate_dias: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Multa substitutiva (%)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.multa_percentual_substitutiva} onChange={(e) => setForm({ ...form, multa_percentual_substitutiva: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Juros mora (% a.m.)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.juros_mensal_percentual} onChange={(e) => setForm({ ...form, juros_mensal_percentual: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Índice de correção da mora
+                  <select className="btn" style={{ width: "100%", marginTop: 4 }} value={form.indice_correcao_mora} onChange={(e) => setForm({ ...form, indice_correcao_mora: e.target.value as IndiceReajuste })}>
+                    <option value="igpm">IGP-M</option>
+                    <option value="ipca">IPCA</option>
+                    <option value="nenhum">Nenhum</option>
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Honorários advocatícios (%)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.honorarios_percentual} onChange={(e) => setForm({ ...form, honorarios_percentual: e.target.value })} />
+                </label>
+                <label style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                  Gatilho judicial (dias de atraso)
+                  <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.dias_gatilho_judicial} onChange={(e) => setForm({ ...form, dias_gatilho_judicial: e.target.value })} />
+                </label>
+              </div>
+
+              <label style={{ fontSize: 12, color: "var(--ink-soft)", display: "block", marginBottom: 14 }}>
+                Observações
+                <input className="btn" style={{ cursor: "text", width: "100%", marginTop: 4 }} value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
+              </label>
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn primary" disabled={form.imovel_id === null || form.locatario.trim() === "" || form.valor_referencia.trim() === "" || form.data_inicio === ""} onClick={salvar}>
@@ -268,7 +310,7 @@ export function ContratosForm() {
                 imovelApelido={imoveisPorId.get(c.imovel_id)?.apelido ?? String(c.imovel_id)}
                 expandido={expandidoId === c.id}
                 onToggle={() => setExpandidoId(expandidoId === c.id ? null : c.id)}
-                onEditar={() => setForm(paraFormulario(c))}
+                onEditar={() => { setForm(paraFormulario(c)); setTabAtiva("imovel"); }}
               />
             ))}
             {contratos.length === 0 && (

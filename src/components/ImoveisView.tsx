@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus, Pencil, Home, Users, Trash2, Wrench, Check, X } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
+import { useConfirmar } from "../hooks/useConfirmar";
 import type {
   ContratoLocacao,
   Imovel,
@@ -125,6 +126,7 @@ const FORM_VAZIO: FormularioImovel = {
 
 export function ImoveisView() {
   const { db, versao, persistir } = useDb();
+  const { confirmar, dialogo } = useConfirmar();
   const [form, setForm] = useState<FormularioImovel | null>(null);
   const [novoItemInventario, setNovoItemInventario] = useState({ descricao: "", valor_reposicao: "", data_vistoria: "" });
   const [abaOperacional, setAbaOperacional] = useState<"inquilinos" | "manutencoes">("inquilinos");
@@ -222,11 +224,14 @@ export function ImoveisView() {
         .reduce((acc, i) => acc + (i.fracao_ideal ?? 0), 0);
       const somaTotal = somaOutrosImoveis + fracaoIdeal;
       if (somaTotal > 1.01) {
-        const continuar = confirm(
-          `A soma das frações ideais já cadastradas para a matrícula-mãe "${form.matricula_mae.trim()}" ficaria em ` +
+        const continuar = await confirmar({
+          titulo: "Fração ideal acima de 100%",
+          mensagem: `A soma das frações ideais já cadastradas para a matrícula-mãe "${form.matricula_mae.trim()}" ficaria em ` +
             `${(somaTotal * 100).toFixed(1)}% — mais que 100%. Confira se não há erro de digitação ou unidade ` +
             "esquecida antes de continuar. Salvar mesmo assim?",
-        );
+          textoConfirmar: "Salvar mesmo assim",
+          perigo: true,
+        });
         if (!continuar) return;
       }
     }
@@ -406,6 +411,7 @@ export function ImoveisView() {
   }
 
   return (
+    <>
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h2 className="section-title">Imóveis ({imoveis.length})</h2>
@@ -913,5 +919,7 @@ export function ImoveisView() {
         </table>
       </div>
     </div>
+    {dialogo}
+    </>
   );
 }

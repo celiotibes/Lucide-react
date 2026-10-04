@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState, type FormEvent } from "react";
+import { useConfirmar } from "../hooks/useConfirmar";
 import {
   ShieldCheck, ShieldAlert, KeyRound, FileJson, UserCheck, Trash2, Pencil, ClipboardList, Eye, Download, Clock,
   CalendarClock, Lock, Ban,
@@ -65,6 +66,7 @@ function formatarData(iso: string | null): string {
 export function LgpdView() {
   const { db, versao, persistir } = useDb();
   const { avisar } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
 
   // --- Seção 1: solicitações de titular ---------------------------------------------
   const solicitacoes = useMemo(
@@ -312,14 +314,14 @@ export function LgpdView() {
 
   async function encerrarHold(r: RetencaoLegal) {
     if (!db) return;
-    if (
-      !confirm(
-        `Encerrar a retenção legal de ${ROTULO_ENTIDADE_TIPO[r.entidade_tipo] ?? r.entidade_tipo} #${r.entidade_id}? ` +
-          "Depois de encerrada, este registro deixa de bloquear exclusão/anonimização por LGPD caso não haja outro hold ativo sobre ele.",
-      )
-    ) {
-      return;
-    }
+    const resultado = await confirmar({
+      titulo: "Encerrar retenção legal",
+      mensagem: `Encerrar a retenção legal de ${ROTULO_ENTIDADE_TIPO[r.entidade_tipo] ?? r.entidade_tipo} #${r.entidade_id}? ` +
+        "Depois de encerrada, este registro deixa de bloquear exclusão/anonimização por LGPD caso não haja outro hold ativo sobre ele.",
+      textoConfirmar: "Encerrar",
+      perigo: true,
+    });
+    if (!resultado) return;
     setEncerrandoHoldId(r.id);
     try {
       encerrarRetencaoLegal(db, r.id);
@@ -333,6 +335,7 @@ export function LgpdView() {
   }
 
   return (
+    <>
     <div>
       <h2 className="section-title"><ShieldCheck size={16} /> LGPD — direitos do titular e política de chave</h2>
       <p style={{ maxWidth: "72ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 20 }}>
@@ -800,5 +803,7 @@ export function LgpdView() {
         )}
       </div>
     </div>
+    {dialogo}
+    </>
   );
 }

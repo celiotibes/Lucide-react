@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { FileText, Loader2, Link2, X, Check, Plus, Trash2, Pencil } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
+import { useConfirmar, type OpcoesConfirm } from "../hooks/useConfirmar";
 import { Dropzone } from "./Dropzone";
 import { extrairTextoDocumento, extrairCamposDeTexto } from "../domain/documentos/extrairCampos";
 import { buscarRegraPorCnpjCpf, salvarOuAtualizarRegraDocumento } from "../domain/categorize/regrasDocumentos";
@@ -56,6 +57,7 @@ interface RascunhoDocumento {
 
 export function DocumentosView() {
   const { db, versao, persistir } = useDb();
+  const { confirmar, dialogo } = useConfirmar();
   const [processando, setProcessando] = useState(false);
   const [rascunhos, setRascunhos] = useState<RascunhoDocumento[]>([]);
   const [documentoExpandidoId, setDocumentoExpandidoId] = useState<number | null>(null);
@@ -194,6 +196,7 @@ export function DocumentosView() {
   }
 
   return (
+    <>
     <div>
       <h2 className="section-title">Documentos ({documentos.length})</h2>
       <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 18 }}>
@@ -352,6 +355,7 @@ export function DocumentosView() {
                   onMudou={persistir}
                   imoveis={imoveis}
                   planoContas={planoContas}
+                  confirmar={confirmar}
                 />
               ))}
               {documentos.length === 0 && (
@@ -366,6 +370,8 @@ export function DocumentosView() {
         </div>
       </div>
     </div>
+    {dialogo}
+    </>
   );
 }
 
@@ -388,6 +394,7 @@ function DocumentoLinha({
   onMudou,
   imoveis,
   planoContas,
+  confirmar,
 }: {
   documento: Documento;
   expandido: boolean;
@@ -395,6 +402,7 @@ function DocumentoLinha({
   onMudou: () => Promise<void>;
   imoveis: Imovel[];
   planoContas: PlanoConta[];
+  confirmar: (opcoes: OpcoesConfirm) => Promise<boolean>;
 }) {
   const { db, versao } = useDb();
   const [editando, setEditando] = useState<FormularioEdicao | null>(null);
@@ -407,7 +415,7 @@ function DocumentoLinha({
     [db, versao, expandido, editando, documento, confirmados.length],
   );
 
-  async function confirmar(s: SugestaoTransacao) {
+  async function confirmarSugestao(s: SugestaoTransacao) {
     if (!db) return;
     vincularDocumento(db, documento.id, s.transacaoId, s.score);
     await onMudou();
@@ -460,11 +468,17 @@ function DocumentoLinha({
 
   async function excluir() {
     if (!db) return;
-    const aviso =
+    const mensagem =
       confirmados.length > 0
         ? `Este documento está vinculado a ${confirmados.length} transação(ões) confirmada(s). Excluir o documento NÃO desfaz a classificação (imóvel/categoria) já aplicada a elas — só remove o documento e o vínculo. Continuar?`
         : `Excluir "${documento.arquivo_nome}"?`;
-    if (!confirm(aviso)) return;
+    const resultado = await confirmar({
+      titulo: "Excluir documento",
+      mensagem,
+      textoConfirmar: "Excluir",
+      perigo: true,
+    });
+    if (!resultado) return;
     excluirDocumento(db, documento.id);
     await onMudou();
   }
@@ -600,7 +614,7 @@ function DocumentoLinha({
                       <span className={`pill ${s.score >= 0.7 ? "good" : s.score >= 0.4 ? "warning" : ""}`}>{(s.score * 100).toFixed(0)}%</span>
                       <span>{s.data} · {formatarMoeda(s.valor)} · {s.descricaoOriginal}</span>
                       <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>({s.motivos.join(", ")})</span>
-                      <button className="btn primary" style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => confirmar(s)}>
+                      <button className="btn primary" style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => confirmarSugestao(s)}>
                         Confirmar
                       </button>
                       <button className="btn" style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => rejeitar(s)}>

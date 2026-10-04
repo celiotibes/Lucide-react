@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useConfirmar } from "./hooks/useConfirmar";
 import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell, Droplets, BellRing, ClipboardCheck } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
@@ -141,6 +142,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
 function Conteudo() {
   const { db, versao, carregando, persistir, reiniciar } = useDb();
   const { avisar } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
 
   // A importação confirma o resultado depois de recarregar a página; este é o outro
   // lado dessa entrega. Consome a mensagem numa leitura só, senão ela reapareceria
@@ -300,7 +302,13 @@ function Conteudo() {
 
   const importarBanco = useCallback(
     async (arquivo: File) => {
-      if (!confirm("Isso substitui todos os dados salvos neste navegador pelo conteúdo do arquivo importado — irreversível. Continuar?")) return;
+      const resultado = await confirmar({
+        titulo: "Importar arquivo",
+        mensagem: "Isso substitui todos os dados salvos neste navegador pelo conteúdo do arquivo importado — irreversível. Continuar?",
+        textoConfirmar: "Importar",
+        perigo: true,
+      });
+      if (!resultado) return;
       try {
         const bytes = new Uint8Array(await arquivo.arrayBuffer());
         await importarArquivo(bytes);
@@ -320,7 +328,7 @@ function Conteudo() {
         avisar("critical", erro instanceof Error ? erro.message : "Falha ao importar o arquivo — verifique se é um backup .sqlite válido deste sistema.");
       }
     },
-    [avisar],
+    [avisar, confirmar],
   );
 
   if (carregando || !db) {
@@ -351,6 +359,7 @@ function Conteudo() {
   }
 
   return (
+    <>
     <div className="app-shell">
       <div className="app-sticky-top">
         <header className="app-header">
@@ -395,8 +404,14 @@ function Conteudo() {
             />
             <button
               className="btn danger"
-              onClick={() => {
-                if (confirm("Isso apaga todos os dados salvos neste navegador. Continuar?")) reiniciar();
+              onClick={async () => {
+                const resultado = await confirmar({
+                  titulo: "Limpar tudo",
+                  mensagem: "Isso apaga todos os dados salvos neste navegador. Continuar?",
+                  textoConfirmar: "Limpar",
+                  perigo: true,
+                });
+                if (resultado) reiniciar();
               }}
             >
               Limpar tudo
@@ -500,6 +515,8 @@ function Conteudo() {
         </div>
       </main>
     </div>
+    {dialogo}
+    </>
   );
 }
 

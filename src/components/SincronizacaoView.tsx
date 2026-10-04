@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw, Download, Upload, AlertTriangle } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { importarArquivo } from "../db/connection";
+import { useConfirmar } from "../hooks/useConfirmar";
 import {
   obterEstadoServidor, baixarBancoDoServidor, enviarBancoAoServidor,
   ConflitoSincronizacaoError, type EstadoSincronizacao,
@@ -29,6 +30,7 @@ function lerVersaoConhecida(serverUrl: string): number {
 
 export function SincronizacaoView() {
   const { db } = useDb();
+  const { confirmar, dialogo } = useConfirmar();
   const [serverUrl, setServerUrl] = useState(() => localStorage.getItem(CHAVE_SERVER_URL) ?? "http://localhost:8788");
   const [chaveApi, setChaveApi] = useState(() => localStorage.getItem(CHAVE_API_KEY) ?? "");
   const [nomeDispositivo, setNomeDispositivo] = useState(() => localStorage.getItem(CHAVE_DISPOSITIVO) ?? "");
@@ -84,7 +86,13 @@ export function SincronizacaoView() {
 
   async function baixar() {
     if (!configurado) return;
-    if (!confirm("Isso substitui todos os dados salvos NESTE dispositivo pelo conteúdo mais recente do servidor de sincronização — irreversível. Continuar?")) return;
+    const resultado = await confirmar({
+      titulo: "Baixar do servidor",
+      mensagem: "Isso substitui todos os dados salvos NESTE dispositivo pelo conteúdo mais recente do servidor de sincronização — irreversível. Continuar?",
+      textoConfirmar: "Baixar",
+      perigo: true,
+    });
+    if (!resultado) return;
     setErro(null);
     setCarregando("baixando");
     try {
@@ -123,6 +131,7 @@ export function SincronizacaoView() {
   const divergente = estadoServidor !== null && estadoServidor.versao !== versaoConhecida;
 
   return (
+    <>
     <div>
       <h2 className="section-title">Sincronização entre dispositivos</h2>
       <p style={{ maxWidth: "68ch", color: "var(--ink-soft)", fontSize: 13.5, marginBottom: 18 }}>
@@ -193,5 +202,7 @@ export function SincronizacaoView() {
         </p>
       )}
     </div>
+    {dialogo}
+    </>
   );
 }

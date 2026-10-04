@@ -3,6 +3,7 @@ import { Check, Loader2, RefreshCcw, Send, X } from "lucide-react";
 import { useDb } from "../db/useDb";
 import { consultar } from "../db/connection";
 import { useToast } from "../ui/useToast";
+import { useConfirmar } from "../hooks/useConfirmar";
 import { obterEntidadeAtiva } from "../domain/erp/entidadeLegal";
 import { listarContasBancarias } from "../domain/conciliacao/conciliacao";
 import {
@@ -101,6 +102,7 @@ function classePillSeveridade(status: InadimplenciaPorCompetencia["status"]): st
 export function ContratosInadimplenciaView() {
   const { db, versao, persistir } = useDb();
   const { avisar } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const hoje = hojeIso();
   const inicioJanela36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
 
@@ -289,9 +291,13 @@ export function ContratosInadimplenciaView() {
       avisar("critical", "Informe o motivo da reversão da provisão.");
       return;
     }
-    if (!confirm("Reverter a provisão de juros/multa de mora lançada para esta competência? Os lançamentos originais ficam no histórico, estornados.")) {
-      return;
-    }
+    const resultado = await confirmar({
+      titulo: "Reverter provisão",
+      mensagem: "Reverter a provisão de juros/multa de mora lançada para esta competência? Os lançamentos originais ficam no histórico, estornados.",
+      textoConfirmar: "Reverter",
+      perigo: true,
+    });
+    if (!resultado) return;
     try {
       const resultado = reverterProvisaoJurosMora(db, revertendoCompetenciaId, motivoReversao.trim());
       if (!resultado.sucesso) {
@@ -337,6 +343,7 @@ export function ContratosInadimplenciaView() {
   }
 
   return (
+    <>
     <div>
       <h2 className="section-title">Contratos de locação ({contratos.length})</h2>
       <div className="table-wrap" style={{ marginBottom: 28 }}>
@@ -719,5 +726,7 @@ export function ContratosInadimplenciaView() {
         </table>
       </div>
     </div>
+    {dialogo}
+    </>
   );
 }

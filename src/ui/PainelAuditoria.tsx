@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useConfirmar } from "../hooks/useConfirmar";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -138,6 +139,7 @@ const ROTULO_STATUS_EXERCICIO: Record<StatusExercicio, { texto: string; pill: st
  */
 export function PainelAuditoria() {
   const { avisar } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const { db, persistir } = useDb();
 
   const [tick, setTick] = useState(0);
@@ -567,9 +569,13 @@ export function PainelAuditoria() {
   const revogarExportacaoAtual = useCallback(
     async (exportacaoId: number) => {
       if (!db) return;
-      if (!confirm("Revogar esta exportação? Acessos futuros a ela serão bloqueados. O conteúdo já entregue antes não é apagado nem desfeito.")) {
-        return;
-      }
+      const resultado = await confirmar({
+        titulo: "Revogar exportação",
+        mensagem: "Revogar esta exportação? Acessos futuros a ela serão bloqueados. O conteúdo já entregue antes não é apagado nem desfeito.",
+        textoConfirmar: "Revogar",
+        perigo: true,
+      });
+      if (!resultado) return;
       setProcessandoExportacaoId(exportacaoId);
       try {
         revogarExportacao(db, exportacaoId);
@@ -586,6 +592,7 @@ export function PainelAuditoria() {
   );
 
   return (
+    <>
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
         <div>
@@ -1213,5 +1220,7 @@ export function PainelAuditoria() {
         )}
       </div>
     </div>
+    {dialogo}
+    </>
   );
 }

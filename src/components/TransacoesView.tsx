@@ -3,6 +3,7 @@ import { Wand2, Split, Scissors, Trash2, Download, Plus, X, FileSearch, Fingerpr
 import { useDb } from "../db/useDb";
 import { consultar, executar } from "../db/connection";
 import { useToast } from "../ui/useToast";
+import { useConfirmar } from "../hooks/useConfirmar";
 import type { ContaBancaria, Imovel, PlanoConta, Transacao } from "../domain/types";
 import { aplicarRateio, obterRateiosDaTransacao, removerRateio, type CriterioRateio } from "../domain/rateio/motorRateio";
 import { escaparParaRegex, listarRegras, salvarRegra, excluirRegra, aplicarRegrasSalvas } from "../domain/categorize/regrasAprendidas";
@@ -61,6 +62,7 @@ function formatarDataHora(valor: string | null): string {
 export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransacoesInicial | null }) {
   const { db, versao, persistir } = useDb();
   const { avisar } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const [somentePendentes, setSomentePendentes] = useState(false);
   const [provenanciaAbertaId, setProvenanciaAbertaId] = useState<number | null>(null);
   const [hashCopiado, setHashCopiado] = useState<string | null>(null);
@@ -302,7 +304,13 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
 
   async function confirmarExclusao(transacao: Transacao) {
     if (!db) return;
-    if (!confirm(`Excluir o lançamento "${transacao.descricao_original}" (${transacao.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})? Fica registrado no histórico de edições, mas não pode ser desfeito aqui.`)) return;
+    const resultado = await confirmar({
+      titulo: "Excluir lançamento",
+      mensagem: `Excluir o lançamento "${transacao.descricao_original}" (${transacao.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})? Fica registrado no histórico de edições, mas não pode ser desfeito aqui.`,
+      textoConfirmar: "Excluir",
+      perigo: true,
+    });
+    if (!resultado) return;
     excluirTransacao(db, transacao.id);
     await persistir();
     setMensagem("Lançamento excluído.");
@@ -378,6 +386,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   }
 
   return (
+    <>
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <h2 className="section-title">Transações {totalPendentes > 0 && <span className="pill warning">{totalPendentes} pendente(s) de categorização</span>}</h2>
@@ -962,5 +971,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
         </table>
       </div>
     </div>
+    {dialogo}
+    </>
   );
 }
