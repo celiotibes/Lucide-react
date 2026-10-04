@@ -152,7 +152,7 @@ export class BackupService {
         try {
           const result = db.prepare(`SELECT COUNT(*) as count FROM ${name}`).get() as { count: number };
           metadados.rowCounts[name] = result.count;
-        } catch (e) {
+        } catch {
           metadados.rowCounts[name] = 0;
         }
       }

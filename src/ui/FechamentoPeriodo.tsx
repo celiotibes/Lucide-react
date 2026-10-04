@@ -54,7 +54,10 @@ export function FechamentoPeriodo() {
   const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db]);
 
   const periodos = useMemo<PeriodoContabilResumo[]>(
-    () => (db && entidade ? listarPeriodosContabeis(db, entidade.id) : []),
+    () => {
+      void tick;
+      return db && entidade ? listarPeriodosContabeis(db, entidade.id) : [];
+    },
     [db, entidade, tick],
   );
 
@@ -67,20 +70,28 @@ export function FechamentoPeriodo() {
   );
 
   const balancete = useMemo(
-    () => (db && periodoSelecionado ? gerarBalancete(db, periodoSelecionado.id) : null),
+    () => {
+      void tick;
+      return db && periodoSelecionado ? gerarBalancete(db, periodoSelecionado.id) : null;
+    },
     [db, periodoSelecionado, tick],
   );
 
   const validacao = useMemo(
-    () => (db && periodoSelecionado ? validarBalanceamento(db, periodoSelecionado.id) : null),
+    () => {
+      void tick;
+      return db && periodoSelecionado ? validarBalanceamento(db, periodoSelecionado.id) : null;
+    },
     [db, periodoSelecionado, tick],
   );
 
   const encerramento = useMemo(
-    () =>
-      db && periodoSelecionado && periodoSelecionado.status === "fechado"
+    () => {
+      void tick;
+      return db && periodoSelecionado && periodoSelecionado.status === "fechado"
         ? obterUltimoEncerramento(db, periodoSelecionado.id)
-        : null,
+        : null;
+    },
     [db, periodoSelecionado, tick],
   );
 

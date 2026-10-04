@@ -141,7 +141,10 @@ export function Conciliacao() {
   const [conciliacaoAbertaId, setConciliacaoAbertaId] = useState<number | null>(null);
 
   const historico = useMemo(
-    () => (db && contaAtiva ? listarConciliacoes(db, contaAtiva) : []),
+    () => {
+      void tick;
+      return db && contaAtiva ? listarConciliacoes(db, contaAtiva) : [];
+    },
     [db, tick, contaAtiva],
   );
 
@@ -149,17 +152,24 @@ export function Conciliacao() {
   // a partir dos lotes de importação concluídos da conta (não há um período separado
   // selecionado nesta tela, só a data de corte), ver deteccaoLacunas.ts.
   const lacunasResultado = useMemo(
-    () => (db && contaAtiva ? detectarLacunasEmLotesImportados(db, contaAtiva) : null),
+    () => {
+      void tick;
+      return db && contaAtiva ? detectarLacunasEmLotesImportados(db, contaAtiva) : null;
+    },
     [db, tick, contaAtiva],
   );
 
   const conciliacaoDetalhe = useMemo(
-    () => (db && conciliacaoAbertaId ? obterConciliacao(db, conciliacaoAbertaId) : null),
+    () => {
+      void tick;
+      return db && conciliacaoAbertaId ? obterConciliacao(db, conciliacaoAbertaId) : null;
+    },
     [db, conciliacaoAbertaId, tick],
   );
 
   const [itemHistoricoAberto, setItemHistoricoAberto] = useState<ConciliacaoItemRegistrado | null>(null);
   const detalheHistoricoResolvido = useMemo(() => {
+    void tick;
     if (!db || !itemHistoricoAberto) return null;
     return resolverReferenciasItem(db, itemHistoricoAberto.tipo, itemHistoricoAberto.referencias);
   }, [db, itemHistoricoAberto, tick]);

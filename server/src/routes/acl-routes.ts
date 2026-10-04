@@ -218,7 +218,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
       }
 
       res.json({ acls });
-    } catch (erro) {
+    } catch {
       res.status(500).json({ erro: "Erro ao listar ACL" });
       return;
     }
@@ -260,7 +260,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
 
       // 204 No Content: operação sucesso, sem corpo de resposta
       res.status(204).end();
-    } catch (erro) {
+    } catch {
       res.status(500).json({ erro: "Erro ao revogar ACL" });
       return;
     }
