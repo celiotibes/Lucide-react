@@ -16,6 +16,8 @@ export const TIPOS_ACAO_NOVOS = [
   "lgpd_acesso_dados",
   "lgpd_exclusao_conta",
   "portal_publicacao",
+  "prestador_apontamento_recebido",
+  "prestador_apontamento_conferencia",
 ] as const;
 
 export function migrarTiposAcaoAuditoria(db: Database.Database): void {

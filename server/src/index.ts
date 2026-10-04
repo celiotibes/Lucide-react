@@ -32,6 +32,7 @@ import { criarRotasEventosExternos } from "../src/routes/eventos-externos-routes
 import { criarRotasAsaas } from "../src/routes/asaas-routes.js";
 import { criarRotasAcl } from "../src/routes/acl-routes.js";
 import { criarRotasPortal } from "../src/routes/portal-routes.js";
+import { criarRotasPrestadorApontamentos, ROTA_POST_APONTAMENTOS } from "../src/routes/prestador-apontamentos-routes.js";
 import { criarRotasLgpd } from "../src/routes/lgpd-routes.js";
 import { criarRotasCarimbo } from "../src/routes/carimbo-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
@@ -210,7 +211,12 @@ attachSentryHandlers(app);
 // CORS por allowlist (CORS_ORIGINS) com credenciais; sem lista = só mesma origem, sem cabeçalhos CORS.
 // Fica antes de sessão/CSRF para o preflight (OPTIONS) ser respondido sem exigir cookie nem token.
 app.use(criarMiddlewareCors(ORIGENS_CORS));
-app.use(express.json());
+// O POST de apontamentos do prestador carrega anexos em base64 (até ~21 MB) e usa parser próprio com
+// limite maior, dentro da própria rota; todas as demais rotas seguem no limite padrão do express.json.
+const jsonPadrao = express.json();
+app.use((req, res, next) =>
+  req.method === "POST" && req.path.replace(/\/+$/, "") === ROTA_POST_APONTAMENTOS ? next() : jsonPadrao(req, res, next),
+);
 
 // PERF-001: HTTP Response Compression
 // Compresses responses larger than 1KB (typical threshold)
@@ -274,6 +280,9 @@ app.use("/api/acl", criarRotasAcl({ authService, auditService, db }));
 
 /** Portal do inquilino: espelho de leitura publicado pelo dono (fase 14). Ver docs/PORTAL-INQUILINO-SERVIDOR.md. */
 app.use("/api/portal", criarRotasPortal({ authService, auditService, db }));
+
+/** Caixa de entrada de apontamentos do prestador (fila offline do PWA, fase 15). Ver docs/PWA-PRESTADOR.md. */
+app.use("/api/prestador/apontamentos", criarRotasPrestadorApontamentos({ authService, auditService, db }));
 
 /** Direitos do titular (LGPD): acesso aos próprios dados, trilha de acessos e anonimização da conta.
  * Operam sempre e só sobre o usuário autenticado; permitidas a papéis externos. */

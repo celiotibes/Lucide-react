@@ -28,7 +28,9 @@ export type TipoAcao =
   | "acl_revogacao"
   | "lgpd_acesso_dados"
   | "lgpd_exclusao_conta"
-  | "portal_publicacao";
+  | "portal_publicacao"
+  | "prestador_apontamento_recebido"
+  | "prestador_apontamento_conferencia";
 
 export interface RegistroAuditoria {
   id: string;

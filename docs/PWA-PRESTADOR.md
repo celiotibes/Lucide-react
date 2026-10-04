@@ -30,9 +30,9 @@ Estratégia de cache:
 - Blobs só são liberados após confirmação do servidor; itens "enviado" ficam listados até "Limpar enviados".
 - Retomada: ao sincronizar, itens `enviando` órfãos (app fechado no meio do envio) voltam a `pendente`.
 
-### Contrato do `enviar(item)` (a implementar na integração)
+### Contrato do `enviar(item)`
 
-Não existe endpoint neste repositório; a função é injetada em `<PrestadorMobileView enviar={...} />`.
+O lado servidor existe (ver "Servidor" abaixo); o adaptador `enviar` do cliente ainda é injetado em `<PrestadorMobileView enviar={...} />`.
 
 - Enviar `item.payload` + anexos com `item.uuid` como chave de idempotência (`Idempotency-Key`
   ou `uuid_cliente`). O servidor deve responder sucesso também para `uuid` repetido (409 → `{ confirmado: true }`).
@@ -42,6 +42,54 @@ Não existe endpoint neste repositório; a função é injetada em `<PrestadorMo
 
 Enquanto `enviar` não for fornecido, a tela mostra aviso, mantém os registros no aparelho e desabilita
 "Sincronizar agora".
+
+## Servidor (`server/src/routes/prestador-apontamentos-routes.ts`)
+
+Migração `migrations-phase15-prestador-apontamentos.sql` (tabelas `prestador_apontamentos_recebidos` e
+`prestador_apontamento_anexos`). O prestador **não grava no razão**: o apontamento entra com status
+`recebido`; o dono confere depois. A integração ao ledger está fora deste escopo.
+
+| Rota | Papel | Resumo |
+| --- | --- | --- |
+| `POST /api/prestador/apontamentos` | prestador | cria; `201` novo, `200` reenvio idêntico (`idempotente: true`, mesmo `id`), `409` mesmo `uuid` com conteúdo diferente, `400` payload inválido, `413` anexo > 5 MB |
+| `GET /api/prestador/apontamentos?limite=&offset=` | prestador | só os do próprio usuário, mais recentes primeiro (limite 1-100, padrão 20); metadados dos anexos, nunca o conteúdo |
+| `POST /api/prestador/apontamentos/:id/conferir` | interno | `{ status: "conferido" \| "rejeitado", motivo? }` (motivo obrigatório ao rejeitar); só marca status e audita; repetir a mesma decisão é idempotente, trocar uma decisão já tomada dá `409` |
+
+Inquilino e interno em POST/GET do prestador recebem `403`; prestador/inquilino em `conferir` recebem `403`.
+A identidade vem da sessão (`usuario_id`), nunca do payload; o `uuid` é único **por usuário**.
+
+Corpo do `POST` (JSON estrito — campo desconhecido gera `400`):
+
+```json
+{
+  "uuid": "…",            // 8-64 chars [0-9a-zA-Z_-]; é a chave de idempotência
+  "tipo": "servico",      // "servico" | "vistoria"
+  "imovelRef": "12",      // string (<=100)
+  "servico": "Troca de chuveiro",
+  "data": "2026-10-03",   // YYYY-MM-DD
+  "horasMinutos": 90,     // opcional, inteiro 1..1440
+  "valorCentavos": 15050, // opcional, inteiro >= 0
+  "anexos": [{ "nome": "foto.jpg", "tipo": "image/jpeg", "conteudoBase64": "…", "sha256": "…(opcional)" }]
+}
+```
+
+Mapeamento do `PayloadApontamentoCampo` do cliente para o servidor (feito no adaptador `enviar`):
+`imovel_id` → `imovelRef` (string); `horas` (decimal) → `horasMinutos = Math.round(horas*60)`; `valor` (reais)
+→ `valorCentavos = Math.round(valor*100)`; `data` → `data`; `item.uuid` → `uuid`. `observacoes` e
+`registrado_em` **não são enviados** (minimização LGPD: texto livre pode conter dado pessoal; o servidor
+carimba `recebido_em`).
+
+Anexos: até 3 por apontamento, tipos `jpeg/png/webp/heic/heif/pdf`, 5 MB por arquivo e 15 MB no lote
+(limites do cliente), em base64 dentro do JSON, guardados em BLOB. O servidor recalcula o `sha256` (e rejeita
+com `400` se o informado não conferir) e sanitiza o nome. O corpo desta rota usa parser próprio de 21 MB; as
+demais rotas continuam no limite padrão. Mapeamento de status para o `enviar`: `200/201` → `{ confirmado: true }`;
+`409` → conflito permanente (gere novo uuid), `400/413` → `{ confirmado: false, permanente: true, mensagem }`;
+`401/403/5xx`/rede → transitório.
+
+Auditoria: tipos próprios `prestador_apontamento_recebido` e `prestador_apontamento_conferencia`
+(acrescentados ao CHECK de `auditoria.tipo_acao` em `migrations-phase2-auth.sql` e em `TIPOS_ACAO_NOVOS`).
+Não exige concessão em `acl_recursos` por imóvel: a caixa de entrada só recebe, e o dono confere antes de
+qualquer efeito contábil. Testes: `cd server && npx vitest run src/routes/__tests__/prestador-apontamentos-routes.test.ts`.
 
 ## Tela (`src/components/PrestadorMobileView.tsx`)
 

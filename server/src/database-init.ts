@@ -97,6 +97,7 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase12-imutabilidade.sql",
       "migrations-phase13-acl-recursos.sql",
       "migrations-phase14-portal-inquilino.sql",
+      "migrations-phase15-prestador-apontamentos.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions
