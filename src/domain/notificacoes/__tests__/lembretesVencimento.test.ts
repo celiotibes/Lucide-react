@@ -138,8 +138,8 @@ function criarApiClientFake(
     destinatario,
     status: "enviado",
   }),
-): NotificacoesApiClient & { chamadas: any[] } {
-  const chamadas: any[] = [];
+): NotificacoesApiClient & { chamadas: Record<string, unknown>[] } {
+  const chamadas: Record<string, unknown>[] = [];
   return {
     chamadas,
     async disparar(dados) {
