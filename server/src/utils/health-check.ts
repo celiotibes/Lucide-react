@@ -201,7 +201,7 @@ export async function executarHealthCheck(db: Database): Promise<RespostaSaude> 
       statusAgregado = "error";
       break;
     }
-    if (check.status === "degraded" && statusAgregado !== "error") {
+    if (check.status === "degraded" && statusAgregado === "ok") {
       statusAgregado = "degraded";
     }
   }
@@ -233,7 +233,7 @@ export async function executarHealthCheckLeve(db: Database): Promise<RespostaSau
       statusAgregado = "error";
       break;
     }
-    if (check.status === "degraded" && statusAgregado !== "error") {
+    if (check.status === "degraded" && statusAgregado === "ok") {
       statusAgregado = "degraded";
     }
   }
