@@ -184,7 +184,7 @@ export class BatchTransactionManager {
         }
       }
     } catch {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+      const _errorMsg = error instanceof Error ? error.message : String(error);
       captureException(error, {
         tags: {
           operation: "batch_transaction_fatal",

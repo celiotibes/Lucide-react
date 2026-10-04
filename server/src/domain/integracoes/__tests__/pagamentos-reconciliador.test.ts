@@ -367,7 +367,7 @@ describe("Reconciliador de Pagamentos Asaas", () => {
         VALUES (?, ?, ?, ?, ?)
       `).run(cobracaId, "charge_10", "PENDING", 0, 100);
 
-      const fetchMock = vi.fn().mockRejectedValue({
+      const _fetchMock = vi.fn().mockRejectedValue({
         name: "AsaasApiError",
         status: 404,
         message: "Cobrança não encontrada",
@@ -378,7 +378,7 @@ describe("Reconciliador de Pagamentos Asaas", () => {
 
       try {
         // Simula AsaasApiError manualmente
-        const consultarMock = vi.fn().mockRejectedValue({
+        const _consultarMock = vi.fn().mockRejectedValue({
           name: "AsaasApiError",
           status: 404,
           message: "Cobrança não encontrada",

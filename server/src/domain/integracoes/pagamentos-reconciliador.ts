@@ -103,7 +103,7 @@ function atualizarCobranca(
 ): boolean {
   const statusMudou = cobrancaAnterior.status !== statusNovo;
   const taxaMudou = cobrancaAnterior.taxa_asaas !== taxaNova;
-  const saldoMudou = taxaMudou; // saldo_final é recalculado com base na taxa
+  const _saldoMudou = taxaMudou; // saldo_final é recalculado com base na taxa
 
   if (!statusMudou && !taxaMudou) {
     return false; // nenhuma mudança

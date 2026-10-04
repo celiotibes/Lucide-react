@@ -166,7 +166,7 @@ test.describe('Margens', () => {
     await page.waitForLoadState('networkidle');
 
     // Get initial margins
-    const initialMargins = await page.locator('[data-testid="margin-percentage"]').first().textContent();
+    const _initialMargins = await page.locator('[data-testid="margin-percentage"]').first().textContent();
 
     // Check if period selector exists
     const periodSelector = page.locator('[data-testid="period-selector"]');

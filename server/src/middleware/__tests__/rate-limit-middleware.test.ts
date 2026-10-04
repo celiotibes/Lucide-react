@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
 import {
   createRateLimitMiddleware,
   RateLimitStore,

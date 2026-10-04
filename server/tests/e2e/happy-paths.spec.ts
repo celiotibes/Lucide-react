@@ -44,7 +44,7 @@ test.describe('Happy Path Tests', () => {
 
         // Check for successful login (presence of dashboard element)
         const dashboard = page.locator('[data-testid="dashboard"]');
-        const isLoggedIn = await dashboard.isVisible().catch(() => false);
+        const _isLoggedIn = await dashboard.isVisible().catch(() => false);
 
         // Either dashboard loaded or still on some page (no errors)
         expect(consoleErrors.length).toBe(0);

@@ -535,7 +535,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
 
       const mockFetch = vi.fn() as MockFetch;
 
-      const resultado = await sincronizarPagamentosPendentes(db, mockFetch);
+      const _resultado = await sincronizarPagamentosPendentes(db, mockFetch);
 
       // Não deve ter chamado fetch para pagamento antigo
       expect(mockFetch).not.toHaveBeenCalled();
@@ -701,7 +701,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
       `).run(new Date().toISOString(), pag.id);
 
       // Verificar histórico
-      const hist = db.prepare(`
+      const _hist = db.prepare(`
         SELECT COUNT(*) as cnt FROM pagamentos_pix_historico
         WHERE pagamento_id = ? AND status_novo = 'COMPLETED'
       `).get(pag.id) as unknown as { cnt: number };

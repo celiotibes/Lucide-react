@@ -2,7 +2,7 @@
  * SEC-011B: Tests for Timing Attack Protection
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import crypto from "crypto";
 import {
   timingSafeStringEqual,

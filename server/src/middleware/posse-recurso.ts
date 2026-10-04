@@ -76,7 +76,7 @@ export function criarExigirPosse(db: Database.Database) {
           }
 
           next();
-        } catch (erro) {
+        } catch {
           res.status(500).json({ erro: "Erro ao verificar acesso ao recurso" });
           return;
         }

@@ -57,7 +57,7 @@ describe('RetentionPolicyExecutor', () => {
       if (fs.existsSync(dbPath)) {
         fs.unlinkSync(dbPath);
       }
-    } catch {}
+    } catch
   });
 
   describe('Execução com DRY-RUN', () => {
