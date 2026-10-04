@@ -96,3 +96,6 @@ existir, suas rotas entram nesta matriz (o teste de cobertura falha até serem c
 
 ### Portal do inquilino (`/api/portal`)
 `POST /publicar`: **interna** (publicação feita pelo dono). `GET /meus-contratos` e `GET /minhas-cobrancas`: **externa-propria** (só inquilino, só o que lhe pertence, com concessão em `acl_recursos`; sem posse = 404 uniforme).
+
+### Apontamentos do prestador (`/api/prestador/apontamentos`)
+`POST /` e `GET /`: **externa-propria** (só prestador, só os próprios). `POST /:id/conferir`: **interna** (dono confere; não grava no razão).
