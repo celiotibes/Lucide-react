@@ -32,6 +32,7 @@ import { criarRotasEventosExternos } from "../src/routes/eventos-externos-routes
 import { criarRotasAsaas } from "../src/routes/asaas-routes.js";
 import { criarRotasAcl } from "../src/routes/acl-routes.js";
 import { criarRotasLgpd } from "../src/routes/lgpd-routes.js";
+import { criarRotasCarimbo } from "../src/routes/carimbo-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
 import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
@@ -244,6 +245,9 @@ app.use("/api/acl", criarRotasAcl({ authService, auditService, db }));
 /** Direitos do titular (LGPD): acesso aos próprios dados, trilha de acessos e anonimização da conta.
  * Operam sempre e só sobre o usuário autenticado; permitidas a papéis externos. */
 app.use("/api/lgpd", criarRotasLgpd({ authService, auditService, db }));
+
+/** Carimbo de tempo RFC 3161 do selo de encerramento (o navegador não alcança a TSA por CORS). */
+app.use("/api/carimbo-tempo", criarRotasCarimbo({ authService }));
 
 /** Emissão de boleto/PIX via Asaas (aluguel e honorários advocatícios) — inclui o
  * webhook de confirmação de pagamento em /api/asaas/webhooks/asaas (sem

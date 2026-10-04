@@ -2372,3 +2372,35 @@ SELECT le.*,
        ) AS titular_economico_id
 FROM ledger_entries le;
 -- END TITULARIDADE ECONOMICA
+
+-- ===== BEGIN CARIMBO DE TEMPO RFC 3161 =====
+-- Tabela append-only para armazenar carimbos de tempo (RFC 3161) do selo de encerramento
+-- Um encerramento pode ter múltiplos carimbos (várias TSAs complementares).
+-- Idempotente por (encerramento_id, tsa_url): não grava de novo a mesma TSA.
+CREATE TABLE IF NOT EXISTS ledger_selo_carimbos (
+    id              INTEGER PRIMARY KEY,
+    encerramento_id INTEGER NOT NULL REFERENCES ledger_encerramentos(id),
+    hash_selo       TEXT NOT NULL,             -- cópia do hash_selo do encerramento (para ref rápida)
+    tsa_url         TEXT NOT NULL,             -- URL da autoridade de carimbo (ex: https://freetsa.org/tsr)
+    token_base64    TEXT NOT NULL,             -- Token RFC 3161 em base64 (resposta da TSA)
+    solicitado_em   TEXT NOT NULL,             -- ISO 8601 quando foi solicitado
+    criado_em       TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (encerramento_id, tsa_url)          -- idempotência: não duplicar a mesma TSA
+);
+
+CREATE INDEX IF NOT EXISTS idx_selo_carimbos_encerramento ON ledger_selo_carimbos(encerramento_id);
+CREATE INDEX IF NOT EXISTS idx_selo_carimbos_hash ON ledger_selo_carimbos(hash_selo);
+
+-- Triggers append-only: recusa UPDATE/DELETE em ledger_selo_carimbos
+CREATE TRIGGER IF NOT EXISTS tg_selo_carimbos_no_update
+BEFORE UPDATE ON ledger_selo_carimbos
+BEGIN
+    SELECT RAISE(ABORT, 'Carimbo de tempo é append-only: registre um novo carimbo de outra TSA.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS tg_selo_carimbos_no_delete
+BEFORE DELETE ON ledger_selo_carimbos
+BEGIN
+    SELECT RAISE(ABORT, 'Carimbo de tempo é append-only: não pode ser excluído.');
+END;
+-- END CARIMBO DE TEMPO RFC 3161
