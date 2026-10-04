@@ -693,7 +693,7 @@ export function reverterApontamentoNoLedger(
       executar(
         db,
         `UPDATE apontamento_ledger_entries SET descricao = ? WHERE id = ?`,
-        [`${rastreamento.descricao} [REVERTIDO: ${motivo_reversao}]`, rastreamento.id]
+        [`${rastreamento.descricao} [REVERTIDO: ${motivo_reversao}]`, rastreamento.id!]
       );
     } catch (erro) {
       console.error(`Erro ao reverter rastreamento ${rastreamento.id}:`, erro);
