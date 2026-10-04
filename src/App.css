@@ -568,3 +568,52 @@
 .btn.icon-only {
   padding: 8px;
 }
+
+/* Tela mobile do prestador (PrestadorMobileView): alvos de toque >= 44px. */
+.prestador-mobile {
+  max-width: 640px;
+  margin: 0 auto;
+}
+.prestador-mobile .btn,
+.prestador-mobile .form-grid input,
+.prestador-mobile .form-grid select {
+  min-height: 44px;
+  font-size: 16px; /* evita zoom automático do iOS ao focar */
+}
+.prestador-mobile .btn {
+  justify-content: center;
+  padding: 10px 16px;
+}
+.prestador-mobile__status,
+.prestador-mobile__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.prestador-mobile__form {
+  grid-template-columns: 1fr;
+}
+.prestador-mobile__foto-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.prestador-mobile__foto-input:focus-visible + .btn {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.prestador-mobile__lista {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: grid;
+  gap: 8px;
+}
+.prestador-mobile__erro {
+  color: var(--warn);
+  font-size: 13px;
+}

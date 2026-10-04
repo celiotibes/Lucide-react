@@ -49,7 +49,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,svg,png,webmanifest,wasm}'],
         globIgnores: ['tesseract/**'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        navigateFallbackDenylist: [/^\/icons\//],
+        // /api nunca recebe o fallback de navegação (index.html) nem é precacheado: respostas
+        // autenticadas não passam pelo cache do service worker (não há runtimeCaching para /api).
+        navigateFallbackDenylist: [/^\/icons\//, /^\/api\//],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/tesseract/'),

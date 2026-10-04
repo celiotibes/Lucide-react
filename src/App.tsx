@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConfirmar } from "./hooks/useConfirmar";
-import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell, Droplets, BellRing, ClipboardCheck } from "lucide-react";
+import { BookOpen, LayoutDashboard, UploadCloud, ListChecks, FileSignature, Landmark, Banknote, BanknoteArrowDown, ShieldAlert, FileText, Receipt, BookOpenCheck, TrendingUp, LineChart, Building2, FolderSearch, ClipboardList, Scale, Download, Upload as UploadIcon, RotateCcw, AlertTriangle, Copy, Check, ListTodo, RefreshCw, Gavel, Users, Send, ShieldCheck, UserPlus, Wrench, Link2, CircleDollarSign, Gauge, KeyRound, Hammer, Percent, ArrowDownUp, Wallet, Bell, Droplets, BellRing, ClipboardCheck, Smartphone } from "lucide-react";
 import "./App.css";
 import { DbProvider } from "./db/DbContext";
 import { ToastProvider } from "./ui/ToastProvider";
@@ -77,12 +77,14 @@ const SimulacaoLiquidezView = lazy(() => import("./components/SimulacaoLiquidezV
 const LembretesVencimentoView = lazy(() => import("./components/integracoes/LembretesVencimentoView").then((m) => ({ default: m.LembretesVencimentoView })));
 const VistoriaView = lazy(() => import("./components/VistoriaView").then((m) => ({ default: m.VistoriaView })));
 
+const PrestadorMobileView = lazy(() => import("./components/PrestadorMobileView").then((m) => ({ default: m.PrestadorMobileView })));
+
 type Aba =
   | "dashboard" | "pendencias" | "importar" | "imoveis" | "cadastros" | "documentos" | "contasapagar" | "transacoes" | "contratos" | "caucao"
   | "financiamentos" | "patrimonio" | "auditoria" | "laudo" | "renda" | "razao" | "reajustes" | "indices" | "sincronizacao"
   | "relatorios" | "analytics" | "integridade" | "budget" | "forecast" | "ecd" | "conferencia" | "trilha" | "triagem" | "fechamento" | "conciliacao" | "ia"
   | "advocacia" | "contaspessoais" | "pagamentos" | "lgpd" | "crm" | "operacoes" | "hubconsolidacao" | "avaliacaomercado" | "indicadoresgestao" | "permissoes" | "expansao" | "juros" | "quitacao"
-  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes" | "indicadoresajustadosjuros" | "simulacaoliquidez" | "lembretesvencimento" | "vistorias";
+  | "cobrancasasaas" | "pluggymeu" | "capturastelegram" | "notificacoes" | "indicadoresajustadosjuros" | "simulacaoliquidez" | "lembretesvencimento" | "vistorias" | "prestadormobile";
 
 const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "dashboard", rotulo: "Painel", icone: LayoutDashboard },
@@ -100,6 +102,7 @@ const ABAS: { id: Aba; rotulo: string; icone: typeof LayoutDashboard }[] = [
   { id: "reajustes", rotulo: "Reajustes e rescisão", icone: TrendingUp },
   { id: "caucao", rotulo: "Depósitos caução", icone: Landmark },
   { id: "vistorias", rotulo: "Vistorias de imóveis", icone: ClipboardCheck },
+  { id: "prestadormobile", rotulo: "Apontamento em campo (celular)", icone: Smartphone },
   { id: "financiamentos", rotulo: "Financiamentos", icone: Banknote },
   { id: "patrimonio", rotulo: "Patrimônio e alavancagem", icone: Scale },
   { id: "expansao", rotulo: "Projetos de expansão", icone: Hammer },
@@ -484,6 +487,7 @@ function Conteudo() {
             {aba === "notificacoes" && <NotificacoesView />}
             {aba === "lembretesvencimento" && <LembretesVencimentoView />}
             {aba === "vistorias" && <VistoriaView />}
+            {aba === "prestadormobile" && <PrestadorMobileView />}
             {aba === "indicadoresajustadosjuros" && <IndicadoresAjustadosJurosView />}
             {aba === "simulacaoliquidez" && <SimulacaoLiquidezView />}
             {aba === "avaliacaomercado" && <AvaliacaoMercadoView />}
