@@ -175,7 +175,7 @@ describe("Rotas HTTP de Anomalias", () => {
         .send({});
 
       expect(res.status).toBe(400);
-      expect(res.body.erro).toContain("numérico");
+      expect(res.body.erro).toContain("valor");
     });
 
     it("deve usar período padrão de 90 dias", async () => {
@@ -231,9 +231,9 @@ describe("Rotas HTTP de Anomalias", () => {
         .query({ severidade: "invalida" })
         .send({});
 
-      expect(res.status).toBe(200);
-      // Filtro inválido é ignorado silenciosamente
-      expect(res.body.filtros.severidade).toBeUndefined();
+      expect(res.status).toBe(400);
+      // Validação ativa rejeita valores inválidos
+      expect(res.body.erro).toBeDefined();
     });
   });
 
@@ -436,7 +436,7 @@ describe("Rotas HTTP de Anomalias", () => {
         .query({ severidade: "altissima" });
 
       expect(res.status).toBe(400);
-      expect(res.body.erro).toContain("Parâmetros");
+      expect(res.body.erro).toContain("severidade");
     });
 
     it("deve aceitar dias minimo (1)", async () => {
