@@ -135,7 +135,6 @@ describe('Event Sourcing Foundation', () => {
       const store = new EventStore(db);
 
       const dataInicio = '2026-10-01T00:00:00Z';
-      const dataMeio = '2026-10-15T12:00:00Z';
       const dataFim = '2026-10-31T23:59:59Z';
 
       const event1 = criarCobrancaCriadaEvent(1, 10, 20, 1000.0, '2026-11-03');

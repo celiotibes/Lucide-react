@@ -297,10 +297,7 @@ test.describe('OWASP Security Tests', () => {
     if (fileCount > 0) {
       // Create temporary XXE file and try to upload
       // Note: Cannot directly create files in Playwright, but can test response
-      const _firstFileInput = fileInputs.first();
-
-      // Check if file upload validates XML
-      // This would need proper setup, but main point is to test server-side validation
+      // File upload tests would need proper setup, but main point is to test server-side validation
     }
   });
 

@@ -13,7 +13,6 @@ import Database from "better-sqlite3";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 describe("Google Drive Backup - Integração", () => {
   const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
@@ -137,7 +136,7 @@ describe("Google Drive Backup - Integração", () => {
   describe("Caminho do banco de dados", () => {
     it("deve resolver caminho correto para data/app.db", () => {
       const expectedPath = path.join(process.cwd(), "data", "app.db");
-      expect(expectedPath).toMatch(/data[\/\\]app\.db$/);
+      expect(expectedPath).toMatch(/data[\\/]app\.db$/);
     });
 
     it("deve permitir criar diretório data se não existir", () => {

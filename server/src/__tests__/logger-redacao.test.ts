@@ -284,10 +284,10 @@ describe('Logger Redação de PII', () => {
     });
 
     it('detecta referências circulares', () => {
-      const obj: any = { nome: 'João' };
-      obj.self = obj; // Referência circular
+      const obj: unknown = { nome: 'João' };
+      (obj as Record<string, unknown>).self = obj; // Referência circular
       const resultado = redactarObjeto(obj);
-      expect(resultado.self).toBe('[CIRCULAR]');
+      expect((resultado as Record<string, unknown>).self).toBe('[CIRCULAR]');
     });
 
     it('trata Error com mensagem contendo CPF', () => {
@@ -452,7 +452,7 @@ describe("robustez da redação (revisão)", () => {
   it("o mesmo objeto referenciado duas vezes (sem ciclo) não vira [CIRCULAR]", () => {
     const comum = { a: 1 };
     expect(redactar({ x: comum, y: comum })).toEqual({ x: { a: 1 }, y: { a: 1 } });
-    const ciclo: any = { n: 1 }; ciclo.self = ciclo;
+    const ciclo: unknown = { n: 1 }; (ciclo as Record<string, unknown>).self = ciclo;
     expect(redactar(ciclo)).toEqual({ n: 1, self: "[CIRCULAR]" });
   });
 

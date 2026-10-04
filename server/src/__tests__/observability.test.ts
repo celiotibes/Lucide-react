@@ -3,7 +3,7 @@
  * Validates that metrics are exposed correctly and logging works as expected
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import * as promClient from 'prom-client';
 import fs from 'fs';
 import path from 'path';
@@ -247,7 +247,6 @@ describe('Observability - Winston Logger', () => {
 
   it('should have log directory structure', () => {
     const logsDir = path.join(__dirname, '../../logs');
-    const archiveDir = path.join(logsDir, 'archive');
 
     expect(fs.existsSync(logsDir)).toBe(true);
   });

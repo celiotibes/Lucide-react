@@ -2,14 +2,13 @@
  * Testes: Migração de papéis (inquilino, prestador) + ACL de recursos
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { gerarHashSenha } from "../domain/auth/password.js";
 import { migrarPapeisUsuarios } from "../migrations/migrar-papeis-usuarios.js";
-import { initializeDatabase } from "../database-init.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

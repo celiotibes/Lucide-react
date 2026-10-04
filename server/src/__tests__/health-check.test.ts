@@ -16,7 +16,7 @@ import {
 
 // Mock fetch global
 const fetchMock = vi.fn();
-global.fetch = fetchMock as any;
+global.fetch = fetchMock as unknown as typeof fetch;
 
 describe("Health Check", () => {
   beforeEach(() => {
@@ -55,9 +55,9 @@ describe("Health Check", () => {
         prepare: () => ({
           get: () => {
             // Simula um pouco de delay
-            let sum = 0;
+            let _sum = 0;
             for (let i = 0; i < 100000; i++) {
-              sum += i;
+              _sum += i;
             }
             return { ping: 1 };
           },
