@@ -143,7 +143,20 @@ export class FilaRevisaoService {
       WHERE id = ?
     `);
 
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as unknown as {
+      id: string;
+      documentoId: string;
+      tipo: TipoRevisao;
+      motivo: MotivoRevisao;
+      solicitanteId: string;
+      revisorId: string | null;
+      status: StatusRevisao;
+      descricao: string | null;
+      dados_adicionaisJson: string | null;
+      dataCriacao: string;
+      dataRevisao: string | null;
+      motivoRejeicao: string | null;
+    } | undefined;
     if (!row) return null;
 
     return {
@@ -265,7 +278,7 @@ export class FilaRevisaoService {
       WHERE documento_id = ? AND status = 'pendente'
     `);
 
-    const result = stmt.get(documentoId) as any;
+    const result = stmt.get(documentoId) as unknown as { count: number };
     return result.count > 0;
   }
 
@@ -286,7 +299,7 @@ export class FilaRevisaoService {
         (SELECT COUNT(*) FROM fila_revisao_ia WHERE status = 'rejeitado') as rejeitado
     `);
 
-    const counts = countStmt.get() as any;
+    const counts = countStmt.get() as unknown as { pendente: number; revisado: number; rejeitado: number };
 
     const tipoStmt = this.db.prepare(`
       SELECT tipo, COUNT(*) as count FROM fila_revisao_ia GROUP BY tipo
@@ -298,18 +311,20 @@ export class FilaRevisaoService {
       lancamento: 0
     };
 
-    (tipoStmt.all() as any[]).forEach((row) => {
-      porTipo[row.tipo as TipoRevisao] = row.count;
+    (tipoStmt.all() as unknown as Array<{ tipo: TipoRevisao; count: number }>).forEach((row) => {
+      porTipo[row.tipo] = row.count;
     });
 
     const motivoStmt = this.db.prepare(`
       SELECT motivo, COUNT(*) as count FROM fila_revisao_ia GROUP BY motivo
     `);
 
-    const porMotivo: Record<MotivoRevisao, number> = {} as any;
+    const porMotivo: Record<MotivoRevisao, number> = Object.fromEntries(
+      Object.keys({ policy: 0, manual: 0, urgencia: 0 }).map(k => [k, 0])
+    ) as Record<MotivoRevisao, number>;
 
-    (motivoStmt.all() as any[]).forEach((row) => {
-      porMotivo[row.motivo as MotivoRevisao] = row.count;
+    (motivoStmt.all() as unknown as Array<{ motivo: MotivoRevisao; count: number }>).forEach((row) => {
+      porMotivo[row.motivo] = row.count;
     });
 
     return {
