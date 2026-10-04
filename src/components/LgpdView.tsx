@@ -70,7 +70,10 @@ export function LgpdView() {
 
   // --- Seção 1: solicitações de titular ---------------------------------------------
   const solicitacoes = useMemo(
-    () => (db ? consultar<SolicitacaoLGPD>(db, "SELECT * FROM solicitacoes_lgpd ORDER BY data_solicitacao DESC") : []),
+    () => {
+      void versao;
+      return db ? consultar<SolicitacaoLGPD>(db, "SELECT * FROM solicitacoes_lgpd ORDER BY data_solicitacao DESC") : [];
+    },
     [db, versao],
   );
 
@@ -197,8 +200,14 @@ export function LgpdView() {
   }
 
   // --- Seção 2: rotação de chave -----------------------------------------------------
-  const rotacoes = useMemo(() => (db ? listarRotacoes(db) : []), [db, versao]);
-  const statusRotacao = useMemo(() => (db ? proximaRotacaoDevida(db) : null), [db, versao]);
+  const rotacoes = useMemo(() => {
+    void versao;
+    return db ? listarRotacoes(db) : [];
+  }, [db, versao]);
+  const statusRotacao = useMemo(() => {
+    void versao;
+    return db ? proximaRotacaoDevida(db) : null;
+  }, [db, versao]);
 
   const [rotForm, setRotForm] = useState({ responsavel: "", motivo: "", chave_anterior_hash: "", observacoes: "" });
 
@@ -231,16 +240,19 @@ export function LgpdView() {
   // domínio não expõe um "listar todas" porque nenhum fluxo de negócio precisava disso até
   // agora — só a tela, para dar visibilidade ao usuário).
   const politicas = useMemo(
-    () =>
-      db
+    () => {
+      void versao;
+      return db
         ? consultar<PoliticaRetencao>(db, "SELECT * FROM politicas_retencao ORDER BY dominio ASC, vigente_desde DESC, versao DESC")
-        : [],
+        : [];
+    },
     [db, versao],
   );
   const dominiosDistintos = useMemo(() => Array.from(new Set(politicas.map((p) => p.dominio))), [politicas]);
   // Marca, entre as várias versões listadas de um domínio, qual é a vigente hoje — mesma
   // regra de `obterPoliticaVigente` (maior vigente_desde <= hoje), só para destaque visual.
   const idsPoliticaVigente = useMemo(() => {
+    void versao;
     if (!db) return new Set<number>();
     const ids = new Set<number>();
     for (const dominio of dominiosDistintos) {
@@ -251,10 +263,12 @@ export function LgpdView() {
   }, [db, versao, dominiosDistintos]);
 
   const retencoesLegaisAtivas = useMemo(
-    () =>
-      db
+    () => {
+      void versao;
+      return db
         ? consultar<RetencaoLegal>(db, "SELECT * FROM retencoes_legais WHERE ativo = 1 ORDER BY criado_em DESC")
-        : [],
+        : [];
+    },
     [db, versao],
   );
 
