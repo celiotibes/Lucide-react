@@ -13,7 +13,7 @@ import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { gerarRelatorioExecutivo, gerarPDFRelatorioExecutivo, enviarRelatorioEmailMensal, gerarMargensResumodaPaginado } from "../domain/relatorios/relatorio-executivo.js";
-import { parsePaginationParams } from "../domain/pagination/pagination.js";
+   from "../domain/pagination/pagination.js";
 
 export interface RelatorioExecutivoRoutesDeps {
   authService: AuthServiceDB;

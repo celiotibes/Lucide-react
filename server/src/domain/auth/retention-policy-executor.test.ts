@@ -9,15 +9,14 @@
  * - Auditoria completa
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+ describe, it, expect,$1$2  from 'vitest';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { RetentionPolicyExecutor } from '../../services/retention-policy-executor';
 import {
   migracaoRetencao,
-  inserirPoliticasRetencaoPadrao,
-} from '../../migrations/criar-politica-retencao';
+  inserirPoliticasRetencaoPadrao } from '../../migrations/criar-politica-retencao';
 
 describe('RetentionPolicyExecutor', () => {
   let db: Database.Database;

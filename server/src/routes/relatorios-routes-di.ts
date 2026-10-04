@@ -15,15 +15,14 @@ import type { LoggerService } from '../services/logger-service.js';
 import type Database from 'better-sqlite3';
 import type { AuthServiceDB } from '../domain/auth/auth-service-db.js';
 import { criarMiddlewareAutenticacao } from './auth-routes.js';
-import {
-  calcularMargensImovel,
-  gravarMargensImovel,
-  obterMargensHistorico,
+
+  ,
+  $1$2obterMargensHistorico,
   obterMargensRanking,
   obterMargensRankingPaginado,
   calcularEGravarMargensDoMes,
-} from '../domain/relatorios/margensPorPropriedade.js';
-import { parsePaginationParams } from '../domain/pagination/pagination.js';
+ from '../domain/relatorios/margensPorPropriedade.js';
+   from '../domain/pagination/pagination.js';
 
 export interface RelatoriosRoutesDIOptions {
   container: Container;

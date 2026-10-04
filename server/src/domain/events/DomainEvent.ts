@@ -27,7 +27,7 @@ export interface DomainEvent {
   /**
    * Payload com dados do evento
    */
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
 
   /**
    * Timestamp de quando foi criado
@@ -42,7 +42,7 @@ export interface DomainEvent {
   /**
    * Metadados adicionais (usuário, IP, etc)
    */
-  metadados?: Record<string, any>;
+  metadados?: Record<string, unknown>;
 
   /**
    * Correlação com outro evento (para rastreabilidade)
@@ -57,8 +57,8 @@ export function criarDomainEvent(
   type: string,
   agregadoId: string,
   agregadoTipo: string,
-  payload: Record<string, any>,
-  metadados?: Record<string, any>,
+  payload: Record<string, unknown>,
+  metadados?: Record<string, unknown>,
   correlacaoId?: string
 ): DomainEvent {
   return {

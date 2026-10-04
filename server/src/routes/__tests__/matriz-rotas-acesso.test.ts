@@ -14,7 +14,7 @@
  * FALHAR. A classificação é documentada em docs/MATRIZ-ROTAS-ACESSO.md.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+ describe, it, expect, beforeAll,$1$2  from "vitest";
 import express from "express";
 import request from "supertest";
 import fs from "fs";
@@ -165,9 +165,9 @@ interface Montagem {
 }
 interface Deps {
   db: Database.Database;
-  authService: any;
-  auditService: any;
-  permissoesService: any;
+  authService: unknown;
+  auditService: unknown;
+  permissoesService: unknown;
   eventosService: EventosExternosServiceDB;
   lembretesService: LembretesAgendadosServiceDB;
 }
@@ -204,7 +204,7 @@ function juntar(prefixo: string, rota: string): string {
 /** Lista {metodo, caminho} de todas as rotas de um router (ignora router.use de middleware). */
 function rotasDoRouter(router: express.Router, prefixo: string): Array<{ metodo: string; caminho: string }> {
   const saida: Array<{ metodo: string; caminho: string }> = [];
-  for (const camada of (router as any).stack as Record<string, unknown>[]) {
+  for (const camada of (router as unknown).stack as Record<string, unknown>[]) {
     if (!camada.route) continue;
     for (const metodo of Object.keys(camada.route.methods)) {
       if (camada.route.methods[metodo]) saida.push({ metodo: metodo.toUpperCase(), caminho: juntar(prefixo, camada.route.path) });
