@@ -176,7 +176,7 @@ export interface ResultadoGeracaoSugestoes {
  * sugestão desta vez — as demais candidatas continuam sendo processadas normalmente. */
 export async function gerarSugestoesPendentes(
   db: Database,
-  /* eslint-disable-next-line @typescript-eslint/no-unused-vars -- reservado, ver comentário acima; `transacoes` ainda não tem coluna de entidade para filtrar por */
+   
   entidade_id?: number,
   limite = 20,
 ): Promise<ResultadoGeracaoSugestoes> {

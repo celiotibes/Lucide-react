@@ -329,7 +329,7 @@ describe("Relatório Executivo - Testes", () => {
     it("Teste 13: Deve calcular próximo disparo como 1º dia útil do mês", () => {
       // Test helper: cálculo de próximo 1º dia útil
       const calcularProxima1oDiaUtil = () => {
-        let data = new Date();
+        const data = new Date();
         data.setMonth(data.getMonth() + 1);
         data.setDate(1);
         data.setHours(8, 0, 0, 0);

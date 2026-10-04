@@ -60,8 +60,8 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
       }
 
       // Default: últimos 12 meses
-      let inicio = dataInicio ? String(dataInicio) : new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      let fim = dataFim ? String(dataFim) : new Date().toISOString().split("T")[0];
+      const inicio = dataInicio ? String(dataInicio) : new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const fim = dataFim ? String(dataFim) : new Date().toISOString().split("T")[0];
 
       // Validar datas
       if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(fim)) {

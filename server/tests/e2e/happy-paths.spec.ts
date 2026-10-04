@@ -10,7 +10,7 @@ test.describe('Happy Path Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Track console errors
-    let consoleErrors: string[] = [];
+    const consoleErrors: string[] = [];
     page.on('console', msg => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
@@ -18,7 +18,7 @@ test.describe('Happy Path Tests', () => {
     });
 
     // Track response errors (500, 403, etc)
-    let responseErrors: number[] = [];
+    const responseErrors: number[] = [];
     page.on('response', response => {
       if (response.status() >= 400) {
         responseErrors.push(response.status());

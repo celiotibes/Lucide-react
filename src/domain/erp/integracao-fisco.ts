@@ -419,7 +419,7 @@ export function gerarRelatorioObrigacoesFiscais(
  */
 function getProximoVencimento(periodicidade: string, dia_vencimento: number): string {
   const hoje = new Date();
-  let dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), dia_vencimento);
+  const dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), dia_vencimento);
 
   if (periodicidade === 'mensal') {
     if (dataVencimento <= hoje) {

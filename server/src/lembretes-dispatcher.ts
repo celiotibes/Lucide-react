@@ -266,7 +266,7 @@ export async function enviarRelatorioExecutivoMensal(
  */
 function calcularProximoDisparo1oDiaUtil(): Date {
   const agora = new Date();
-  let data = new Date(agora.getFullYear(), agora.getMonth() + 1, 1, 8, 0, 0);
+  const data = new Date(agora.getFullYear(), agora.getMonth() + 1, 1, 8, 0, 0);
 
   // Verifica se é sábado (6) ou domingo (0)
   while (data.getDay() === 0 || data.getDay() === 6) {

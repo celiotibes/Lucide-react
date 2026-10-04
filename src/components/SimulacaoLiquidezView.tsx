@@ -85,7 +85,7 @@ export function SimulacaoLiquidezView() {
       "Manter como está": m.liquidezAcumuladaManter,
       [ROTULO_CENARIO[cenario]]: m.liquidezAcumuladaAlternativo,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [resultado, cenario]);
 
   const rotuloAlternativo = ROTULO_CENARIO[cenario];

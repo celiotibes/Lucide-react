@@ -91,7 +91,7 @@ const RelatoriosApontamentoTab: React.FC = () => {
 
   // Gera na primeira vez que o banco fica disponível; depois só sob demanda (botão), para não
   // recalcular a cada tecla digitada nos filtros de data.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   useEffect(() => {
     gerarRelatorios();
   }, [db]);

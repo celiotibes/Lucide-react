@@ -44,7 +44,7 @@ test.describe('Happy Path Tests', () => {
 
         // Check for successful login (presence of dashboard element)
         const dashboard = page.locator('[data-testid="dashboard"]');
-        _const _isLoggedIn = await dashboard.isVisible().catch(() => false);
+        await dashboard.isVisible().catch(() => false);
 
         // Either dashboard loaded or still on some page (no errors)
         expect(consoleErrors.length).toBe(0);
@@ -147,11 +147,9 @@ test.describe('Happy Path Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Track download
-    let downloadPath: string | null = null;
+    // Track download event
     page.on('popup', async popup => {
       await popup.waitForLoadState();
-      downloadPath = popup.url();
     });
 
     // Try to navigate to reports section
@@ -177,7 +175,7 @@ test.describe('Happy Path Tests', () => {
             expect(fileName.endsWith('.pdf')).toBeTruthy();
             expect(download.fail()).toBeNull();
           }
-        } catch (_e) {
+        } catch {
           // If no download event, check for success message or PDF viewer
           const successMsg = page.locator('text=/sucesso|success|gerado|generated/i').first();
           expect(successMsg.isVisible() || page.url().includes('pdf')).toBeTruthy();

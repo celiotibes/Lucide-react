@@ -84,7 +84,7 @@ test.describe('Margens', () => {
       await expandButton.click();
       await page.waitForTimeout(300);
 
-      let chart = page.locator('[data-testid="margin-chart"]').first();
+      const chart = page.locator('[data-testid="margin-chart"]').first();
       await expect(chart).toBeVisible();
 
       // Collapse

@@ -99,7 +99,7 @@ describe("Batch Transaction Manager", () => {
       email: `user${i}@example.com`,
     }));
 
-    _const _startTime = Date.now();
+    const startTime = Date.now();
 
     const result = await manager.processBatch(
       items,
@@ -201,7 +201,7 @@ describe("Batch Transaction Manager", () => {
     expect(result.errors).toHaveLength(0);
 
     // Verificar que updates foram aplicados
-    const updatedUser = db.prepare("SELECT * FROM usuarios WHERE id = ?").get("user-50") as any;
+    const updatedUser = db.prepare("SELECT * FROM usuarios WHERE id = ?").get("user-50") as { nome_completo: string };
     expect(updatedUser.nome_completo).toBe("Updated User 50");
   });
 
@@ -281,8 +281,6 @@ describe("Batch Transaction Manager", () => {
       id: `user-${i}`,
     }));
 
-    _const _startTime = Date.now();
-
     const result = await manager.processBatch(
       items,
       (chunk) => {
@@ -320,7 +318,7 @@ describe("Batch Transaction Manager", () => {
         `);
 
         for (const item of chunk) {
-          if ((item as any).willFail) {
+          if ((item as { willFail?: boolean }).willFail) {
             throw new Error("Test error in last chunk");
           }
           stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`);

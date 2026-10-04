@@ -58,7 +58,7 @@ test.describe('OWASP Security Tests', () => {
       const errorMsg = page.locator('text=/SQL|erro|error|inválido|invalid/i').first();
       const hasError = await errorMsg.isVisible().catch(() => false);
 
-      let consoleErrors: string[] = [];
+      const consoleErrors: string[] = [];
       page.on('console', msg => {
         if (msg.type() === 'error' && msg.text().toLowerCase().includes('sql')) {
           consoleErrors.push(msg.text());

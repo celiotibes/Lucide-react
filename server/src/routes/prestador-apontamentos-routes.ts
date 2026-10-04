@@ -268,7 +268,7 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
 
       // Batch load all annexes to avoid N+1 queries
       const apontamentoIds = linhas.map(l => l.id);
-      let anexosPorApontamento: Map<number, Array<{ nome: string; tipo: string; tamanho: number; sha256: string }>> = new Map();
+      const anexosPorApontamento: Map<number, Array<{ nome: string; tipo: string; tamanho: number; sha256: string }>> = new Map();
 
       if (apontamentoIds.length > 0) {
         const placeholders = apontamentoIds.map(() => "?").join(",");

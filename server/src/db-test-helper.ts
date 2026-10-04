@@ -64,7 +64,7 @@ export function createTestDatabase(dbPath: string): Database.Database {
  */
 function parseSQLStatements(schema: string): string[] {
   // Remove SQL comments (both -- line comments and /* */ block comments)
-  let cleaned = schema
+  const cleaned = schema
     // Remove /* */ block comments
     .replace(/\/\*[\s\S]*?\*\//g, " ")
     // Remove -- line comments

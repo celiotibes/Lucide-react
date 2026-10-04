@@ -138,7 +138,7 @@ describe('AlertService', () => {
     it('deve limpar alertas antigos', () => {
       // Simular passagem de tempo
       const originalNow = Date.now;
-      let currentTime = originalNow();
+      const currentTime = originalNow();
 
       vi.spyOn(Date, 'now').mockImplementation(() => currentTime);
 
