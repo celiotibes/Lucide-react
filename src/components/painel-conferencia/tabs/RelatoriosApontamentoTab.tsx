@@ -93,6 +93,7 @@ const RelatoriosApontamentoTab: React.FC = () => {
   // recalcular a cada tecla digitada nos filtros de data.
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     gerarRelatorios();
   }, [gerarRelatorios]);
 
