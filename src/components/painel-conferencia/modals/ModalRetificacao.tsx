@@ -106,7 +106,7 @@ const ModalRetificacao: React.FC<ModalRetificacaoProps> = ({
       await persistir();
       onConfirm();
       onClose();
-    } catch (error) {
+    } catch {
       console.error("Erro ao confirmar retificação:", error);
       setErro(error instanceof Error ? error.message : "Erro ao confirmar retificação");
     } finally {

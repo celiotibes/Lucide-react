@@ -154,7 +154,7 @@ function runMigrations(db: Database.Database): void {
     try {
       db.exec(migrationSQL);
       logger.info("[Database] Migration script executed successfully");
-    } catch (error) {
+    } catch {
       // If that fails, try splitting and executing one by one
       // This helps identify and skip problematic statements
       const statements = migrationSQL

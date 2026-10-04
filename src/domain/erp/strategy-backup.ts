@@ -278,7 +278,7 @@ export class EstrategiaBackup {
 
       this.backupHistory.push(backup);
       return backup;
-    } catch (error) {
+    } catch {
       throw new Error(`Falha ao executar backup ${tipo}: ${error}`);
     }
   }
@@ -370,7 +370,7 @@ export class EstrategiaBackup {
       }
 
       return integro;
-    } catch (error) {
+    } catch {
       throw new Error(`Erro ao verificar integridade: ${error}`);
     }
   }
@@ -402,7 +402,7 @@ export class EstrategiaBackup {
         sucesso: resultadoTeste,
         detalhes: resultadoTeste ? 'Restauração bem-sucedida' : 'Erro na restauração'
       };
-    } catch (error) {
+    } catch {
       return { sucesso: false, detalhes: `Erro ao testar: ${error}` };
     }
   }
@@ -567,7 +567,7 @@ export class EstrategiaBackup {
           corrompidos++;
           avisos.push(`Backup ${backup.id} falhou na verificação`);
         }
-      } catch (error) {
+      } catch {
         corrompidos++;
         avisos.push(`Erro ao verificar ${backup.id}: ${error}`);
       }

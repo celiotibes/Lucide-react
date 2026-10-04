@@ -67,7 +67,7 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
       aprovarFechamento(db, id);
       await persistir();
       onRefresh();
-    } catch (error) {
+    } catch {
       console.error("Erro ao aprovar:", error);
       alert(error instanceof Error ? error.message : "Erro ao aprovar fechamento");
     } finally {
@@ -83,7 +83,7 @@ const FechamentosSemamanais: React.FC<FechamentosSemamanaisProps> = ({
       await persistir();
       alert("Pagamento gerado com sucesso!");
       onRefresh();
-    } catch (error) {
+    } catch {
       console.error("Erro ao gerar pagamento:", error);
       alert(error instanceof Error ? error.message : "Erro ao gerar pagamento");
     } finally {

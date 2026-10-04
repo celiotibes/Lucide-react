@@ -109,7 +109,7 @@ const envSchema = z.object({
 let envVars: z.infer<typeof envSchema>;
 try {
   envVars = envSchema.parse(process.env);
-} catch (error) {
+} catch {
   if (error instanceof z.ZodError) {
     logger.error("[Server] Erro na validação das variáveis de ambiente", {
       errors: error.errors.map((e) => `  - ${e.path.join(".")}: ${e.message}`).join("\n"),
@@ -182,7 +182,7 @@ if (process.env.BACKUP_LOCAL_DIR && process.env.BACKUP_ENCRYPTION_KEY) {
     backupScheduler = new BackupScheduler(backupService);
     backupScheduler.start();
     logger.info("[Server] Backup scheduler iniciado com sucesso");
-  } catch (error) {
+  } catch {
     logger.error("[Server] Erro ao inicializar backup scheduler:", error instanceof Error ? error.message : error);
     // Falha aberta: backup automático desabilitado, mas sistema continua funcionando
   }
@@ -583,7 +583,7 @@ app.get("/metrics", async (_req, res) => {
     const registry = getMetricsRegistry();
     res.set("Content-Type", registry.contentType);
     res.end(await registry.metrics());
-  } catch (error) {
+  } catch {
     logger.error("[Metrics] Failed to expose metrics endpoint", error instanceof Error ? error : { error: String(error) });
     res.status(500).json({ erro: "Failed to generate metrics" });
   }

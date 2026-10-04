@@ -202,7 +202,7 @@ export function initializeSentry(): void {
       release,
       tracesSampleRate: environment === "production" ? 0.1 : 1.0,
     });
-  } catch (error) {
+  } catch {
     logger.error("[Sentry] Initialization failed", error instanceof Error ? error : { error: String(error) });
   }
 }
@@ -222,7 +222,7 @@ export function attachSentryHandlers(app: any): void {
     app.use(Sentry.Handlers.errorHandler());
 
     logger.info("[Sentry] Handlers attached to Express");
-  } catch (error) {
+  } catch {
     logger.error("[Sentry] Failed to attach handlers", error instanceof Error ? error : { error: String(error) });
   }
 }
@@ -247,7 +247,7 @@ export function createSentryTransaction(
       data,
     });
     return transaction;
-  } catch (error) {
+  } catch {
     logger.error("[Sentry] Failed to create transaction", error instanceof Error ? error : { error: String(error) });
     return null;
   }
@@ -284,7 +284,7 @@ export function trackDatabaseOperation(
     });
 
     return span;
-  } catch (error) {
+  } catch {
     logger.debug("[Sentry] Failed to track database operation", { error: String(error) });
     return null;
   }
@@ -328,7 +328,7 @@ export function trackPaymentOperation(
         transaction.finish();
       }, 100);
     }
-  } catch (error) {
+  } catch {
     logger.debug("[Sentry] Failed to track payment operation", { error: String(error) });
   }
 }
@@ -358,7 +358,7 @@ export function trackCobrancaReconciliation(
         duration_ms: details?.duration,
       },
     });
-  } catch (error) {
+  } catch {
     logger.debug("[Sentry] Failed to track cobrança reconciliation", { error: String(error) });
   }
 }
@@ -390,7 +390,7 @@ export function trackChargeCreation(
         error: details?.error,
       },
     });
-  } catch (error) {
+  } catch {
     logger.debug("[Sentry] Failed to track charge creation", { error: String(error) });
   }
 }
@@ -422,7 +422,7 @@ export function trackPaymentRegistration(
         error: details?.error,
       },
     });
-  } catch (error) {
+  } catch {
     logger.debug("[Sentry] Failed to track payment registration", { error: String(error) });
   }
 }
@@ -553,7 +553,7 @@ export function startDbTransaction(
     });
 
     return transaction;
-  } catch (error) {
+  } catch {
     logger.error("[Sentry] Failed to start DB transaction", error instanceof Error ? error : { error: String(error) });
     return null;
   }
@@ -597,7 +597,7 @@ export function createDbStatementSpan(
     });
 
     return span;
-  } catch (error) {
+  } catch {
     logger.error("[Sentry] Failed to create DB statement span", error instanceof Error ? error : { error: String(error) });
     return null;
   }
@@ -645,7 +645,7 @@ export function detectN1Queries(
         },
       });
     }
-  } catch (error) {
+  } catch {
     logger.error("[Sentry] Failed to detect N+1 queries", error instanceof Error ? error : { error: String(error) });
   }
 }
@@ -713,7 +713,7 @@ export async function traceParallelOperations<T>(
     } else {
       return Promise.all(promises);
     }
-  } catch (error) {
+  } catch {
     if (transaction) {
       transaction.setStatus("error");
       transaction.setData("error", error instanceof Error ? error.message : String(error));
@@ -762,7 +762,7 @@ export async function trackDatabaseTransaction<T>(
     );
 
     return result;
-  } catch (error) {
+  } catch {
     const duration = Date.now() - startTime;
 
     if (transaction) {

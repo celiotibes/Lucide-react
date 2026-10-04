@@ -168,7 +168,7 @@ async function executeRetention(): Promise<void> {
     }
 
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao executar retenção:', String(error));
     process.exit(1);
   }
@@ -197,7 +197,7 @@ function listBlocked(): void {
     }
 
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao listar bloqueios:', String(error));
     process.exit(1);
   }
@@ -236,7 +236,7 @@ function listForgotten(): void {
     }
 
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao listar esquecimentos:', String(error));
     process.exit(1);
   }
@@ -272,7 +272,7 @@ function holdRecord(): void {
       console.log(`   Processo: ${numero}`);
     }
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao bloquear registro:', String(error));
     process.exit(1);
   }
@@ -293,7 +293,7 @@ function releaseRecord(): void {
       `✅ Bloqueio removido de ${tabelaNome}:${registroId}.`
     );
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao desbloquear registro:', String(error));
     process.exit(1);
   }
@@ -323,7 +323,7 @@ function forgetRecord(): void {
     );
     console.log(`   Motivo: ${motivo}`);
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao marcar para esquecimento:', String(error));
     process.exit(1);
   }
@@ -343,7 +343,7 @@ function printReport(): void {
       console.log('   Última Execução: Nenhuma');
     }
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao gerar relatório:', String(error));
     process.exit(1);
   }

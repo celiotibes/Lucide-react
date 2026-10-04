@@ -342,7 +342,7 @@ export async function sincronizarStatusTaxaAsaas(
     );
 
     return resultado;
-  } catch (error) {
+  } catch {
     // SEC-012: Capture unexpected errors
     captureException(error, {
       tags: {

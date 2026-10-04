@@ -74,7 +74,7 @@ export class QueryValidator {
       const plans = stmt.all() as QueryPlan[];
 
       return plans;
-    } catch (error) {
+    } catch {
       logger.warn(`Failed to get query plan: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }

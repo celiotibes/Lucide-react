@@ -75,7 +75,7 @@ export class AlertService {
       });
 
       logger.info('[AlertService] Email transporter inicializado', { host, port, secure });
-    } catch (error) {
+    } catch {
       logger.warn('[AlertService] Erro ao inicializar email transporter:', error);
       this.emailTransporter = null;
     }
@@ -153,7 +153,7 @@ export class AlertService {
         await this.enviarAlertaEmail(payload);
         state.alertsSent.email = true;
         logger.info('[AlertService] Alerta de email enviado com sucesso', { backupId });
-      } catch (error) {
+      } catch {
         logger.error('[AlertService] Erro ao enviar alerta de email:', error);
         state.alertsSent.email = false;
       }
@@ -165,7 +165,7 @@ export class AlertService {
         await this.enviarAlertaSlack(payload);
         state.alertsSent.slack = true;
         logger.info('[AlertService] Alerta de Slack enviado com sucesso', { backupId });
-      } catch (error) {
+      } catch {
         logger.error('[AlertService] Erro ao enviar alerta de Slack:', error);
         state.alertsSent.slack = false;
       }
@@ -263,7 +263,7 @@ export class AlertService {
         messageId: info.messageId,
         recipients: this.alertEmails.length,
       });
-    } catch (error) {
+    } catch {
       logger.error('[AlertService] Erro ao enviar email:', error);
       throw error;
     }

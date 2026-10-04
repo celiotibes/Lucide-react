@@ -307,7 +307,7 @@ describe("SEC-012: Sentry Service", () => {
         // Simulate error during operation
         try {
           throw new Error("Operation failed mid-way");
-        } catch (error) {
+        } catch {
           captureException(error, {
             tags: {
               operation: "operation",

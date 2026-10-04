@@ -76,7 +76,7 @@ export class RetentionPolicyExecutor {
         try {
           const resultado = this.executarRetencaoTabela(politica, opcoes);
           resultados.push(resultado);
-        } catch (error) {
+        } catch {
           logger.error(`[RETENCAO] Erro ao processar tabela ${politica.tabela_nome}:`, {
             erro: String(error),
             tabela: politica.tabela_nome,
@@ -97,7 +97,7 @@ export class RetentionPolicyExecutor {
       if (!opcoes.dryRun) {
         this.registrarExecucaoRetencao(resultados, opcoes);
       }
-    } catch (error) {
+    } catch {
       logger.error('[RETENCAO] Erro crítico ao executar retenção:', {
         erro: String(error),
       });
@@ -225,7 +225,7 @@ export class RetentionPolicyExecutor {
           }
         );
       }
-    } catch (error) {
+    } catch {
       resultado.erros.push(String(error));
     }
 
@@ -250,7 +250,7 @@ export class RetentionPolicyExecutor {
       const stmt = this.db.prepare(query);
       const rows = stmt.all(dataLimite.toISOString()) as Array<{ id: number }>;
       return rows.map((r) => r.id);
-    } catch (error) {
+    } catch {
       logger.error(
         `[RETENCAO] Erro ao buscar registros expirados de ${tabelaNome}:`,
         {
@@ -327,7 +327,7 @@ export class RetentionPolicyExecutor {
         tabela: tabelaNome,
         deletados: resultado.changes,
       });
-    } catch (error) {
+    } catch {
       logger.error(`[RETENCAO] Erro ao deletar registros de ${tabelaNome}:`, {
         erro: String(error),
         tabela: tabelaNome,
@@ -363,7 +363,7 @@ export class RetentionPolicyExecutor {
           solicitadoPor,
         }
       );
-    } catch (error) {
+    } catch {
       logger.error(
         `[RETENCAO] Erro ao marcar registro para esquecimento:`,
         {
@@ -404,7 +404,7 @@ export class RetentionPolicyExecutor {
           bloqueadoPor,
         }
       );
-    } catch (error) {
+    } catch {
       logger.error(`[RETENCAO] Erro ao bloquear registro por litígio:`, {
         erro: String(error),
         tabela: tabelaNome,
@@ -446,7 +446,7 @@ export class RetentionPolicyExecutor {
           }
         );
       }
-    } catch (error) {
+    } catch {
       logger.error(`[RETENCAO] Erro ao desbloquear registro:`, {
         erro: String(error),
         tabela: tabelaNome,
@@ -493,7 +493,7 @@ export class RetentionPolicyExecutor {
         data_bloqueio: string;
         ativo: number;
       }>;
-    } catch (error) {
+    } catch {
       logger.error(`[RETENCAO] Erro ao listar bloqueios:`, {
         erro: String(error),
       });
@@ -559,7 +559,7 @@ export class RetentionPolicyExecutor {
             'real',
             opcoes.executadoPor || 'sistema'
           );
-        } catch (error) {
+        } catch {
           logger.error(`[RETENCAO] Erro ao registrar execução:`, {
             erro: String(error),
             tabela: resultado.tabela_nome,
@@ -599,7 +599,7 @@ export class RetentionPolicyExecutor {
         registros_bloqueados_total: bCount,
         ultima_execucao: ueData,
       };
-    } catch (error) {
+    } catch {
       logger.error(`[RETENCAO] Erro ao gerar relatório:`, {
         erro: String(error),
       });

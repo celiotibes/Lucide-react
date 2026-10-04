@@ -264,7 +264,7 @@ export function inserirPoliticasRetencaoPadrao(db: Database.Database): void {
         p.coluna_data,
         p.descricao
       );
-    } catch (error) {
+    } catch {
       console.error(
         `[MIGRAÇÃO] Erro ao inserir política para ${p.tabela_nome}:`,
         error

@@ -73,7 +73,7 @@ const ApontamentosPendentes: React.FC<ApontamentosPendentesProps> = ({
       aprovarApontamento(db, id);
       await persistir();
       onRefresh();
-    } catch (error) {
+    } catch {
       console.error("Erro ao aprovar:", error);
       alert(error instanceof Error ? error.message : "Erro ao aprovar apontamento");
     } finally {
@@ -87,7 +87,7 @@ const ApontamentosPendentes: React.FC<ApontamentosPendentesProps> = ({
       // Ver nota de limitações em data/painelConferenciaRepo.ts: o schema atual não tem um
       // status "rejeitado" para apontamentos_diarios, então isto sempre lança um erro claro.
       rejeitarApontamento();
-    } catch (error) {
+    } catch {
       console.error("Erro ao rejeitar:", error);
       alert(error instanceof Error ? error.message : "Erro ao rejeitar apontamento");
     } finally {
