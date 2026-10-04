@@ -125,7 +125,6 @@ const PORT = envVars.PORT;
 const { origens: ORIGENS_CORS, descartadas: ORIGENS_CORS_DESCARTADAS } = interpretarOrigensCors(
   [envVars.CORS_ORIGINS, envVars.ALLOWED_ORIGIN].filter(Boolean).join(","),
 );
-const DATABASE_URL = envVars.DATABASE_URL;
 const NODE_ENV = envVars.NODE_ENV;
 
 // SEC-012: Initialize Sentry FIRST (before any other operations)
@@ -411,14 +410,6 @@ app.use("/api", criarRotasAssinaturasLGPD({
   certisignApiKey: envVars.CERTISIGN_API_KEY || "test-key",
   serProIdApiKey: envVars.SERPROID_API_KEY || "test-key",
 }));
-
-/** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
- * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
- * usado na autenticação com a Pluggy — logar o objeto completo arriscaria vazar o segredo em
- * qualquer plataforma de hospedagem que agregue/exponha logs. */
-function mensagemErro(erro: unknown): string {
-  return erro instanceof Error ? erro.message : String(erro);
-}
 
 /** Exige a mesma chave (X-API-Key) configurada no .env em toda rota de dados — CORS por si só
  * não protege nada aqui: é imposto pelo navegador, não pelo servidor, então qualquer chamada

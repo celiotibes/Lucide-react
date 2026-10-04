@@ -9,7 +9,7 @@
  * - Obter estatísticas
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type {
   ItemRevisao,
   PoliticaRevisao,
@@ -35,7 +35,7 @@ export interface UseRevisaoIAMethods {
   carregarPorDocumento: (documentoId: string) => Promise<ItemRevisao[]>;
 
   // Ações
-  criarItemRevisao: (dados: any) => Promise<ItemRevisao>;
+  criarItemRevisao: (dados: Record<string, unknown>) => Promise<ItemRevisao>;
   autorizarItem: (itemId: string) => Promise<ItemRevisao>;
   rejeitarItem: (itemId: string, motivo: string) => Promise<ItemRevisao>;
 
@@ -156,7 +156,7 @@ export function useRevisaoIA(): UseRevisaoIAState & UseRevisaoIAMethods {
     }
   }, [setErro]);
 
-  const criarItemRevisao = useCallback(async (dados: any): Promise<ItemRevisao> => {
+  const criarItemRevisao = useCallback(async (dados: Record<string, unknown>): Promise<ItemRevisao> => {
     try {
       setState(prev => ({ ...prev, loading: true, erro: null }));
 
