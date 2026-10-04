@@ -73,12 +73,6 @@ export class QueryValidator {
       const stmt = this.db.prepare(explainQuery);
       const plans = stmt.all() as QueryPlan[];
 
-      // Debug logging
-      if (process.env.NODE_ENV === 'test') {
-        console.log(`[DEBUG] Query: ${query}`);
-        console.log(`[DEBUG] Query Plan:`, JSON.stringify(plans, null, 2));
-      }
-
       return plans;
     } catch (error) {
       logger.warn(`Failed to get query plan: ${error instanceof Error ? error.message : String(error)}`);
