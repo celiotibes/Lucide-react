@@ -11,6 +11,21 @@ import {
   getEndpointConfig,
 } from "../rate-limit-middleware.js";
 
+// Mock types for Request and Response
+interface MockRequest extends Partial<Request> {
+  ip?: string | null;
+  path?: string;
+  auth?: { usuario?: { id: string } | null } | undefined;
+}
+
+interface MockResponse extends Partial<Response> {
+  statusCode?: number;
+  jsonData?: unknown;
+  set: (key: string, value: string) => MockResponse;
+  status: (code: number) => MockResponse;
+  json: (data: unknown) => MockResponse;
+}
+
 describe("SEC-XXX: Adaptive Rate Limiting", () => {
   describe("RateLimitStore", () => {
     let store: RateLimitStore;
@@ -134,10 +149,12 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
 
       // Simulate time passing by manipulating the bucket
       // This allows us to test the exponential backoff without waiting
-      const bucket = (store as any).buckets.get(key2);
-      const originalBlockedUntil = bucket.blockedUntil;
-      // Simulate 11 seconds passing by setting blockedUntil to past
-      bucket.blockedUntil = Date.now() - 1000;
+      const storeInternal = store as unknown as { buckets: Map<string, { blockedUntil: number }> };
+      const bucket = storeInternal.buckets.get(key2);
+      if (bucket) {
+        // Simulate 11 seconds passing by setting blockedUntil to past
+        bucket.blockedUntil = Date.now() - 1000;
+      }
 
       // Third request - should unblock and allow one more request
       result = store.check(key2, limit, windowMs);
@@ -186,100 +203,100 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
 
   describe("generateRateLimitKey", () => {
     it("should generate key from IP only when not authenticated", () => {
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.1",
         auth: undefined,
-      } as any as Request;
+      };
 
-      const key = generateRateLimitKey(req, false);
+      const key = generateRateLimitKey(req as Request, false);
       expect(key).toBe("192.168.1.1");
     });
 
     it("should generate key from IP when includeUserId is false", () => {
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.1",
         auth: { usuario: { id: "user-123" } },
-      } as any as Request;
+      };
 
-      const key = generateRateLimitKey(req, false);
+      const key = generateRateLimitKey(req as Request, false);
       expect(key).toBe("192.168.1.1");
     });
 
     it("should generate key from userId:IP when authenticated", () => {
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.1",
         auth: { usuario: { id: "user-123" } },
-      } as any as Request;
+      };
 
-      const key = generateRateLimitKey(req, true);
+      const key = generateRateLimitKey(req as Request, true);
       expect(key).toBe("user-123:192.168.1.1");
     });
 
     it("should handle missing IP gracefully", () => {
-      const req = {
+      const req: MockRequest = {
         ip: null,
         auth: undefined,
-      } as any as Request;
+      };
 
-      const key = generateRateLimitKey(req, false);
+      const key = generateRateLimitKey(req as Request, false);
       expect(key).toBe("unknown");
     });
 
     it("should handle authenticated without userId", () => {
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.1",
         auth: { usuario: null },
-      } as any as Request;
+      };
 
-      const key = generateRateLimitKey(req, true);
+      const key = generateRateLimitKey(req as Request, true);
       expect(key).toBe("192.168.1.1");
     });
   });
 
   describe("getEndpointConfig", () => {
     it("should return critical limits for login endpoint", () => {
-      const req = { path: "/api/auth/login" } as any as Request;
-      const config = getEndpointConfig(req);
+      const req: MockRequest = { path: "/api/auth/login" };
+      const config = getEndpointConfig(req as Request);
 
       expect(config.limit).toBe(10);
       expect(config.windowMs).toBe(60 * 1000);
     });
 
     it("should return critical limits for bootstrap endpoint", () => {
-      const req = { path: "/api/auth/bootstrap" } as any as Request;
-      const config = getEndpointConfig(req);
+      const req: MockRequest = { path: "/api/auth/bootstrap" };
+      const config = getEndpointConfig(req as Request);
 
       expect(config.limit).toBe(10);
       expect(config.windowMs).toBe(60 * 1000);
     });
 
     it("should return critical limits for payment endpoints", () => {
-      const req = { path: "/api/payments/create" } as any as Request;
-      const config = getEndpointConfig(req);
+      const req: MockRequest = { path: "/api/payments/create" };
+      const config = getEndpointConfig(req as Request);
 
       expect(config.limit).toBe(10);
       expect(config.windowMs).toBe(60 * 1000);
     });
 
     it("should return critical limits for permissões endpoint", () => {
-      const req = { path: "/api/auth/permissoes" } as any as Request;
-      const config = getEndpointConfig(req);
+      const req: MockRequest = { path: "/api/auth/permissoes" };
+      const config = getEndpointConfig(req as Request);
 
       expect(config.limit).toBe(10);
       expect(config.windowMs).toBe(60 * 1000);
     });
 
     it("should return standard limits for other endpoints", () => {
-      const req = { path: "/api/transactions" } as any as Request;
-      const config = getEndpointConfig(req);
+      const req: MockRequest = { path: "/api/transactions" };
+      const config = getEndpointConfig(req as Request);
 
       expect(config.limit).toBe(100);
       expect(config.windowMs).toBe(15 * 60 * 1000);
     });
 
     it("should return standard limits for unknown endpoints", () => {
-      const req = { path: "/api/unknown" } as any as Request;
-      const config = getEndpointConfig(req);
+      const req: MockRequest = { path: "/api/unknown" };
+      const config = getEndpointConfig(req as Request);
 
       expect(config.limit).toBe(100);
       expect(config.windowMs).toBe(15 * 60 * 1000);
@@ -301,24 +318,26 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       const store = new RateLimitStore();
       const middleware = createRateLimitMiddleware({ limit: 3, windowMs: 60000, store });
 
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.99",
         path: "/api/test",
-      } as any as Request;
+      };
 
-      const res = {
+      const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           this.statusCode = code;
           return this;
         },
-        json: function (data: any) {
+        json: function (data: unknown) {
           this.jsonData = data;
           return this;
         },
         set: function () {
           return this;
         },
-      } as any as Response;
+      };
 
       let nextCalled = false;
       const next = () => {
@@ -328,7 +347,7 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       // Allow all requests within limit
       for (let i = 0; i < 3; i++) {
         nextCalled = false;
-        middleware(req, res, next);
+        middleware(req as Request, res as Response, next);
         expect(nextCalled).toBe(true);
       }
       store.destroy();
@@ -338,18 +357,20 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       const store = new RateLimitStore();
       const middleware = createRateLimitMiddleware({ limit: 5, windowMs: 60000, store });
 
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.100",
         path: "/api/test",
-      } as any as Request;
+      };
 
       const headers: Record<string, string> = {};
-      const res = {
+      const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           this.statusCode = code;
           return this;
         },
-        json: function (data: any) {
+        json: function (data: unknown) {
           this.jsonData = data;
           return this;
         },
@@ -357,11 +378,11 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
           headers[key] = value;
           return this;
         },
-      } as any as Response;
+      };
 
       const next = () => {};
 
-      middleware(req, res, next);
+      middleware(req as Request, res as Response, next);
 
       expect(headers["X-RateLimit-Limit"]).toBe("5");
       expect(headers["X-RateLimit-Remaining"]).toBe("4");
@@ -373,34 +394,36 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       const store = new RateLimitStore();
       const middleware = createRateLimitMiddleware({ limit: 1, windowMs: 60000, store });
 
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.101",
         path: "/api/test",
-      } as any as Request;
+      };
 
       let statusCode = 0;
-      const res = {
+      const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           statusCode = code;
           return this;
         },
-        json: function (data: any) {
+        json: function (data: unknown) {
           this.jsonData = data;
           return this;
         },
         set: function () {
           return this;
         },
-      } as any as Response;
+      };
 
       const next = () => {};
 
       // First request allowed
-      middleware(req, res, next);
+      middleware(req as Request, res as Response, next);
       expect(statusCode).not.toBe(429);
 
       // Second request blocked
-      middleware(req, res, next);
+      middleware(req as Request, res as Response, next);
       expect(statusCode).toBe(429);
       store.destroy();
     });
@@ -409,18 +432,20 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       const store = new RateLimitStore();
       const middleware = createRateLimitMiddleware({ limit: 1, windowMs: 60000, store });
 
-      const req = {
+      const req: MockRequest = {
         ip: "192.168.1.102",
         path: "/api/test",
-      } as any as Request;
+      };
 
       const headers: Record<string, string> = {};
-      const res = {
+      const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           this.statusCode = code;
           return this;
         },
-        json: function (data: any) {
+        json: function (data: unknown) {
           this.jsonData = data;
           return this;
         },
@@ -428,15 +453,15 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
           headers[key] = value;
           return this;
         },
-      } as any as Response;
+      };
 
       const next = () => {};
 
       // First request
-      middleware(req, res, next);
+      middleware(req as Request, res as Response, next);
 
       // Second request (blocked)
-      middleware(req, res, next);
+      middleware(req as Request, res as Response, next);
 
       expect(headers["Retry-After"]).toBeDefined();
       expect(parseInt(headers["Retry-After"])).toBeGreaterThan(0);
