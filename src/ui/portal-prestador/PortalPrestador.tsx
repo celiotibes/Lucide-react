@@ -51,12 +51,12 @@ export function PortalPrestador({ aoNavegar }: Props) {
         db,
         "UPDATE apontamentos_diarios SET entrada = ?, saida_intervalo = ?, retorno_intervalo = ?, saida_final = ?, status = ?, observacoes = ?, atualizado_em = ? WHERE id = ?",
         [
-          dados.entrada ?? apontamentoHoje.entrada,
-          dados.saida_intervalo ?? apontamentoHoje.saida_intervalo,
-          dados.retorno_intervalo ?? apontamentoHoje.retorno_intervalo,
-          dados.saida_final ?? apontamentoHoje.saida_final,
-          dados.status ?? apontamentoHoje.status,
-          dados.observacoes ?? apontamentoHoje.observacoes,
+          dados.entrada ?? apontamentoHoje.entrada ?? null,
+          dados.saida_intervalo ?? apontamentoHoje.saida_intervalo ?? null,
+          dados.retorno_intervalo ?? apontamentoHoje.retorno_intervalo ?? null,
+          dados.saida_final ?? apontamentoHoje.saida_final ?? null,
+          dados.status ?? apontamentoHoje.status ?? null,
+          dados.observacoes ?? apontamentoHoje.observacoes ?? null,
           agora,
           apontamentoHoje.id,
         ]

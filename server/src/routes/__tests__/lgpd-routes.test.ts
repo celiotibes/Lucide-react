@@ -169,10 +169,10 @@ describe('Rotas LGPD (/api/lgpd)', () => {
         `SELECT * FROM auditoria WHERE usuario_id = ? AND tipo_acao = 'lgpd_acesso_dados'
          ORDER BY timestamp DESC LIMIT 1`
       );
-      const audit = auditStmt.get('user_titular_1');
+      const audit = auditStmt.get('user_titular_1') as { descricao: string; resultado: string } | undefined;
       expect(audit).toBeDefined();
-      expect(audit.descricao).toContain('LGPD Art. 18');
-      expect(audit.resultado).toBe('sucesso');
+      expect(audit!.descricao).toContain('LGPD Art. 18');
+      expect(audit!.resultado).toBe('sucesso');
 
       // Um acesso BEM-SUCEDIDO não pode poluir a trilha de segurança com "acesso_negado".
       const falsos = db.prepare(`SELECT COUNT(*) AS n FROM auditoria WHERE usuario_id = ? AND tipo_acao = 'acesso_negado'`).get('user_titular_1') as { n: number };
@@ -315,9 +315,9 @@ describe('Rotas LGPD (/api/lgpd)', () => {
         `SELECT * FROM auditoria WHERE usuario_id = ? AND tipo_acao = 'acesso_negado'
          ORDER BY timestamp DESC LIMIT 1`
       );
-      const audit = auditStmt.get('user_titular_1');
+      const audit = auditStmt.get('user_titular_1') as { resultado: string } | undefined;
       expect(audit).toBeDefined();
-      expect(audit.resultado).toBe('negado');
+      expect(audit!.resultado).toBe('negado');
     });
 
     it('não anonimiza com senha errada', async () => {
@@ -328,9 +328,9 @@ describe('Rotas LGPD (/api/lgpd)', () => {
         .send({ senha: 'senha-errada', confirmacao: 'EXCLUIR' });
 
       const usuarioStmt = db.prepare('SELECT nome, email FROM usuarios WHERE id = ?');
-      const usuario = usuarioStmt.get('user_titular_1');
-      expect(usuario.nome).toBe('Titular Um'); // Não foi anonimizado
-      expect(usuario.email).toBe('titular1@example.com');
+      const usuario = usuarioStmt.get('user_titular_1') as { nome: string; email: string } | undefined;
+      expect(usuario?.nome).toBe('Titular Um'); // Não foi anonimizado
+      expect(usuario?.email).toBe('titular1@example.com');
     });
 
     it('anonimiza usuário com senha correta', async () => {
@@ -343,10 +343,10 @@ describe('Rotas LGPD (/api/lgpd)', () => {
       expect(resp.status).toBe(200);
 
       const usuarioStmt = db.prepare('SELECT nome, email, ativo FROM usuarios WHERE id = ?');
-      const usuario = usuarioStmt.get('user_titular_1');
-      expect(usuario.nome).toBe('Usuário removido');
-      expect(usuario.email).toBe('removido-user_titular_1@anonimizado.invalid');
-      expect(usuario.ativo).toBe(0); // false
+      const usuario = usuarioStmt.get('user_titular_1') as { nome: string; email: string; ativo: number } | undefined;
+      expect(usuario?.nome).toBe('Usuário removido');
+      expect(usuario?.email).toBe('removido-user_titular_1@anonimizado.invalid');
+      expect(usuario?.ativo).toBe(0); // false
     });
 
     it('revoga todas as sessões do usuário', async () => {
@@ -421,8 +421,8 @@ describe('Rotas LGPD (/api/lgpd)', () => {
 
       // Verifica que NÃO foi anonimizado
       const usuarioStmt = db.prepare('SELECT nome FROM usuarios WHERE id = ?');
-      const usuario = usuarioStmt.get('user_titular_1');
-      expect(usuario.nome).toBe('Titular Um');
+      const usuario = usuarioStmt.get('user_titular_1') as { nome: string } | undefined;
+      expect(usuario?.nome).toBe('Titular Um');
     });
 
     it('permite usuário com papel externo (inquilino) usar as 3 rotas', async () => {

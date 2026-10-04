@@ -157,12 +157,12 @@ describe("Database Backup/Restore", () => {
   it("deve criar um backup de banco de dados com dados conhecidos", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
-    stmt.run("user-2", "outro@example.com", "hash456", "Outro User");
+    stmt.run("user-1", "teste@example.com", "hash123", "Teste User", "titular");
+    stmt.run("user-2", "outro@example.com", "hash456", "Outro User", "titular");
 
     // Criar backup
     expect(() => {
@@ -183,12 +183,12 @@ describe("Database Backup/Restore", () => {
   it("deve restaurar banco de dados em DB limpo", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
-    stmt.run("user-2", "outro@example.com", "hash456", "Outro User");
+    stmt.run("user-1", "teste@example.com", "hash123", "Teste User", "titular");
+    stmt.run("user-2", "outro@example.com", "hash456", "Outro User", "titular");
 
     // Capturar checksums originais
     const originalChecksums = getTableChecksums(db);
@@ -234,8 +234,8 @@ describe("Database Backup/Restore", () => {
   it("deve validar integridade com 1000 registros", () => {
     // Inserir 1000 registros
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
     const insertMany = db.transaction((count: number) => {
@@ -245,6 +245,7 @@ describe("Database Backup/Restore", () => {
           `user${i}@example.com`,
           `hash${i}`,
           `User ${i}`,
+          "titular",
         );
       }
     });
@@ -298,20 +299,20 @@ describe("Database Backup/Restore", () => {
   it("deve preservar integridade referencial após restore", () => {
     // Inserir dados com relacionamentos
     const userStmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
-    userStmt.run("user-1", "teste@example.com", "hash123", "Teste User");
+    userStmt.run("user-1", "teste@example.com", "hash123", "Teste User", "titular");
 
     // Criar backup
-    backupDatabase(db, TEST_BACKUP_PATH);
+    backupDatabase(db, TEST_BACKUP_DIR);
     db.close();
 
     // Restaurar
     cleanupTestDatabase(TEST_DB_PATH);
     const restoreDbPath = path.join(process.cwd(), "test-restore-fk.db");
-    restoreDatabase(TEST_BACKUP_PATH, restoreDbPath);
+    restoreDatabase(TEST_BACKUP_DIR, restoreDbPath);
 
     const restoredDb = new Database(restoreDbPath);
     restoredDb.pragma("foreign_keys = ON");
@@ -335,18 +336,18 @@ describe("Database Backup/Restore", () => {
   it("deve gerar metadata válida no backup", () => {
     // Inserir dados
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
+    stmt.run("user-1", "teste@example.com", "hash123", "Teste User", "titular");
 
     // Criar backup
-    backupDatabase(db, TEST_BACKUP_PATH);
+    backupDatabase(db, TEST_BACKUP_DIR);
 
     // Extrair e validar metadata
-    const zip = new AdmZip(TEST_BACKUP_PATH);
-    const metadata = JSON.parse(zip.readAsText("backup-metadata.json"));
+    const metadataContent = fs.readFileSync(TEST_BACKUP_METADATA_PATH, "utf-8");
+    const metadata = JSON.parse(metadataContent);
 
     // Verificar campos obrigatórios
     expect(metadata.timestamp).toBeDefined();

@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   prestador_id INTEGER,
   ativo BOOLEAN NOT NULL DEFAULT true,
   data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ultimo_login TIMESTAMP,
   tentativas_falhas INTEGER DEFAULT 0,
   bloqueado_ate TIMESTAMP,

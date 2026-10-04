@@ -145,7 +145,7 @@ export function acuraciaIA(
   filtro?: { de?: string; ate?: string },
 ): ResultadoAcuraciaIA {
   const whereClause = [];
-  const params: (string | undefined)[] = [];
+  const params: (string | number | null)[] = [];
 
   if (filtro?.de) {
     whereClause.push("criado_em >= ?");

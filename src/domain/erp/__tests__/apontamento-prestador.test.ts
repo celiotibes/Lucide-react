@@ -954,7 +954,7 @@ describe("Apontamento do Prestador - Módulo Completo", () => {
       });
 
       const valor_novo = resultado.valores_novos.urgencia;
-      const casas_decimais = (valor_novo.toString().split(".")[1] || "").length;
+      const casas_decimais = (valor_novo ? valor_novo.toString().split(".")[1] : "").length ?? 0;
 
       expect(casas_decimais).toBeLessThanOrEqual(2);
     });

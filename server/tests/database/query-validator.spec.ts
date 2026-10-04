@@ -25,12 +25,12 @@ describe("Query Validator", () => {
 
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO usuarios (id, email, senha_hash, nome, role)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
     for (let i = 0; i < 100; i++) {
-      stmt.run(`user-${i}`, `user${i}@example.com`, `hash-${i}`, `User ${i}`);
+      stmt.run(`user-${i}`, `user${i}@example.com`, `hash-${i}`, `User ${i}`, 'titular');
     }
   });
 
@@ -232,7 +232,7 @@ describe("Query Validator", () => {
     const queries = [
       "SELECT * FROM usuarios WHERE id = ?",
       "SELECT COUNT(*) FROM usuarios",
-      "SELECT email FROM usuarios WHERE nome_completo = ?",
+      "SELECT email FROM usuarios WHERE nome = ?",
       "SELECT * FROM usuarios ORDER BY email",
     ];
 

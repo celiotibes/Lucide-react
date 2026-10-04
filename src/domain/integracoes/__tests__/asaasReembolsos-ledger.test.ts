@@ -95,7 +95,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
 
     // 5. Processar reembolso
     const reembolso = await processarReembolsoAsaas(db, {
-      chargeId: cobranca.asaasChargeId,
+      chargeId: cobranca.asaasChargeId!,
       motivo: "Cliente desistiu",
     });
 
@@ -118,7 +118,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
     }>(
       db,
       "SELECT id, estornado_por_id, motivo_estorno FROM ledger_entries WHERE id = ?",
-      [resultadoBaixa.ledger_entry_id_baixa],
+      [resultadoBaixa.ledger_entry_id_baixa!],
     );
 
     expect(lancamentoOriginal.estornado_por_id).not.toBeNull();
@@ -131,7 +131,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
     const baixa = baixarCompetencia(db, 1, conta_bancaria_id, "2025-01-20", entidade_id);
     expect(baixa.sucesso).toBe(true);
 
-    await processarReembolsoAsaas(db, { chargeId: cobranca.asaasChargeId, motivo: "Cliente desistiu" });
+    await processarReembolsoAsaas(db, { chargeId: cobranca.asaasChargeId!, motivo: "Cliente desistiu" });
 
     const [tot] = consultar<{ deb: number; cred: number }>(
       db,
@@ -164,7 +164,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
     ]);
 
     await expect(
-      processarReembolsoAsaas(db, { chargeId: cobranca.asaasChargeId, motivo: "x" }),
+      processarReembolsoAsaas(db, { chargeId: cobranca.asaasChargeId!, motivo: "x" }),
     ).rejects.toThrow(/Estorno contábil não realizado/);
 
     const [r] = consultar<{ status: string; mensagem_erro: string | null }>(
@@ -187,7 +187,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
 
     // NÃO baixa a competência, só registra o reembolso
     const reembolso = await processarReembolsoAsaas(db, {
-      chargeId: cobranca.asaasChargeId,
+      chargeId: cobranca.asaasChargeId!,
       motivo: "Sem baixa prévia",
     });
 
@@ -224,7 +224,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
 
     // 2. Primeiro reembolso
     const reembolso1 = await processarReembolsoAsaas(db, {
-      chargeId: cobranca.asaasChargeId,
+      chargeId: cobranca.asaasChargeId!,
       motivo: "Motivo 1",
     });
 
@@ -237,7 +237,7 @@ describe("PARTE A: Estorno de Reembolso com Ledger (schema real)", () => {
 
     // 3. Segundo reembolso (webhook retrypado, por exemplo)
     const reembolso2 = await processarReembolsoAsaas(db, {
-      chargeId: cobranca.asaasChargeId,
+      chargeId: cobranca.asaasChargeId!,
       motivo: "Motivo diferente",
     });
 

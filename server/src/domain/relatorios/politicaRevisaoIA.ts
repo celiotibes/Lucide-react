@@ -189,7 +189,7 @@ export function verificarMudancaThreshold(
       : Math.abs((valorNovo - valorAnterior) / valorAnterior) * 100;
 
   const threshold = THRESHOLDS_REVISAO.find(
-    (t) => t.aplicaA.includes(nomeCampo) && percentualMudanca > t.percentualMudanca
+    (t) => t.aplicaA.includes(nomeCampo) && percentualMudanca >= t.percentualMudanca
   );
 
   if (threshold) {

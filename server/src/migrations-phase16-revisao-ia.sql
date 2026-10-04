@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS fila_revisao_ia (
   -- Índices para query rápida
   FOREIGN KEY(solicitante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY(revisor_id) REFERENCES usuarios(id) ON DELETE SET NULL,
-  UNIQUE(documento_id, tipo, motivo, datetime(data_criacao))
+  UNIQUE(documento_id, tipo, motivo, data_criacao)
 );
 
 -- Índice para listar pendentes

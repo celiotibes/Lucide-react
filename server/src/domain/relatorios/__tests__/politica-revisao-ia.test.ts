@@ -2,6 +2,7 @@
  * Testes para Política de Revisão IA
  */
 
+import { describe, it, expect } from 'vitest';
 import {
   campoNecessitaRevisao,
   relatarioNecessitaRevisao,

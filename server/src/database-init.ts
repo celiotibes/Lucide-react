@@ -98,6 +98,8 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase13-acl-recursos.sql",
       "migrations-phase14-portal-inquilino.sql",
       "migrations-phase15-prestador-apontamentos.sql",
+      "migrations-phase16-ledger-entries.sql",
+      "migrations-phase16-revisao-ia.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions
