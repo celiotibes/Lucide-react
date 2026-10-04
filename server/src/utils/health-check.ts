@@ -28,6 +28,7 @@
  */
 
 import type { Database } from "better-sqlite3";
+import os from "os";
 
 export type StatusSaude = "ok" | "degraded" | "error";
 
@@ -166,7 +167,7 @@ export async function verificarSaudePluggy(): Promise<CheckResultado> {
  */
 export function verificarSaudeMemoria(): CheckResultado {
   const info = process.memoryUsage();
-  const totalMemoriaDisponivelMB = require("os").totalmem() / 1024 / 1024;
+  const totalMemoriaDisponivelMB = os.totalmem() / 1024 / 1024;
   const memoriaUsadaMB = info.heapUsed / 1024 / 1024;
   const percentualUsado = (info.heapUsed / info.heapTotal) * 100;
 

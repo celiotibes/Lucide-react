@@ -1,6 +1,8 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -243,8 +245,6 @@ function ensureLogDirectories() {
 function initWinston() {
   try {
     // Only initialize Winston in node environments
-    const winston = require('winston');
-    const DailyRotateFile = require('winston-daily-rotate-file');
 
     // Ensure directories exist
     ensureLogDirectories();

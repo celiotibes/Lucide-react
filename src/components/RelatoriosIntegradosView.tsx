@@ -69,7 +69,10 @@ export function RelatoriosIntegradosView() {
 
   const [periodoSelecionado, setPeriodoSelecionado] = useState(periodosDisp[0]?.id || 1);
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
 
   // Padrão "considerar" (bruto) = números históricos; "desconsiderar" exclui o par estornado+estornador.
   const [tratamentoEstorno, setTratamentoEstorno] = useState<TratamentoEstorno>("bruto");
@@ -92,16 +95,19 @@ export function RelatoriosIntegradosView() {
   // de rateios (esperado vs. recebido). Recalculam ao trocar de período e após
   // `sincronizarCentrosCustoImoveis` (via `versao`, que muda ao persistir).
   const dashboardRentabilidade = useMemo(() => {
+    void versao;
     if (!db || !entidade) return null;
     return dashboardRentabilidadePorImovel(db, entidade.id, periodoSelecionado, { tratamentoEstorno });
   }, [db, versao, entidade, periodoSelecionado, tratamentoEstorno]);
 
   const despesasPorCentro = useMemo(() => {
+    void versao;
     if (!db || !entidade) return [];
     return relatorioDespesosPorCentro(db, entidade.id, periodoSelecionado);
   }, [db, versao, entidade, periodoSelecionado]);
 
   const rateiosRealizados = useMemo(() => {
+    void versao;
     if (!db) return [];
     return relatorioRateiosRealizados(db, periodoSelecionado);
   }, [db, versao, periodoSelecionado]);

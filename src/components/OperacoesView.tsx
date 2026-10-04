@@ -232,11 +232,17 @@ export function OperacoesView() {
   }
 
   const imoveis = useMemo<Imovel[]>(
-    () => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []),
+    () => {
+      void versao;
+      return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : [];
+    },
     [db, versao],
   );
   const prestadores = useMemo<Prestador[]>(
-    () => (db ? consultar<Prestador>(db, "SELECT * FROM prestadores ORDER BY nome") : []),
+    () => {
+      void versao;
+      return db ? consultar<Prestador>(db, "SELECT * FROM prestadores ORDER BY nome") : [];
+    },
     [db, versao],
   );
 
@@ -248,7 +254,10 @@ export function OperacoesView() {
     return prestadores.find((p) => p.id === prestadorId)?.nome ?? `Prestador #${prestadorId}`;
   }
 
-  const todasOrdens = useMemo(() => (db ? listarOrdensServico(db) : []), [db, versao]);
+  const todasOrdens = useMemo(() => {
+    void versao;
+    return db ? listarOrdensServico(db) : [];
+  }, [db, versao]);
 
   const contagemPorStatus = useMemo(() => {
     const contagem: Record<StatusOS, number> = {
@@ -264,6 +273,7 @@ export function OperacoesView() {
   }, [todasOrdens]);
 
   const ordensFiltradas = useMemo(() => {
+    void versao;
     if (!db) return [];
     return listarOrdensServico(db, {
       imovelId: filtroImovelId === "todos" ? undefined : filtroImovelId,
@@ -273,7 +283,10 @@ export function OperacoesView() {
   }, [db, versao, filtroImovelId, filtroStatus, filtroPrestadorId]);
 
   const detalheOrdem = useMemo(
-    () => (db && ordemSelecionadaId !== null ? obterOrdemServicoComHistorico(db, ordemSelecionadaId) : null),
+    () => {
+      void versao;
+      return db && ordemSelecionadaId !== null ? obterOrdemServicoComHistorico(db, ordemSelecionadaId) : null;
+    },
     [db, versao, ordemSelecionadaId],
   );
 
