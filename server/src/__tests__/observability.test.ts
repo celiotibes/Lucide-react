@@ -3,8 +3,13 @@
  * Validates that metrics are exposed correctly and logging works as expected
  */
 
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { promClient } from 'prom-client';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as promClient from 'prom-client';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import {
   recordDbQueryLatency,
   recordHttpRequestLatency,
@@ -235,15 +240,12 @@ describe('Observability - Metrics Service', () => {
 });
 
 describe('Observability - Winston Logger', () => {
-  it('should have log rotation configured', () => {
+  it('should have log rotation configured', async () => {
     // Verify that logger-service exports proper functions
-    expect(require('../services/logger-service.js')).toBeDefined();
+    expect((await import('../services/logger-service.js'))).toBeDefined();
   });
 
   it('should have log directory structure', () => {
-    const fs = require('fs');
-    const path = require('path');
-
     const logsDir = path.join(__dirname, '../../logs');
     const archiveDir = path.join(logsDir, 'archive');
 
@@ -252,14 +254,14 @@ describe('Observability - Winston Logger', () => {
 });
 
 describe('Observability - Request Sampling', () => {
-  it('should have request ID middleware with sampling', () => {
-    const middleware = require('../middleware/request-id-middleware.js');
+  it('should have request ID middleware with sampling', async () => {
+    const middleware = (await import('../middleware/request-id-middleware.js'));
     expect(middleware.requestIdMiddleware).toBeDefined();
     expect(middleware.getRequestSamplerStats).toBeDefined();
   });
 
-  it('should export sampler stats', () => {
-    const middleware = require('../middleware/request-id-middleware.js');
+  it('should export sampler stats', async () => {
+    const middleware = (await import('../middleware/request-id-middleware.js'));
     const stats = middleware.getRequestSamplerStats();
 
     expect(stats).toHaveProperty('requestCount');
@@ -268,8 +270,8 @@ describe('Observability - Request Sampling', () => {
 });
 
 describe('Observability - Sentry Performance Tracing', () => {
-  it('should have performance tracing functions', () => {
-    const sentry = require('../services/sentry-service.js');
+  it('should have performance tracing functions', async () => {
+    const sentry = (await import('../services/sentry-service.js'));
 
     expect(sentry.startDbTransaction).toBeDefined();
     expect(sentry.createDbStatementSpan).toBeDefined();

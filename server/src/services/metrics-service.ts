@@ -1,4 +1,4 @@
-import { promClient } from 'prom-client';
+import * as promClient from 'prom-client';
 
 /**
  * OBS-001: Prometheus Metrics Service

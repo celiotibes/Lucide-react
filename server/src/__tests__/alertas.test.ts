@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { logger } from "../services/logger-service.js";
 import { enviarAlertaEmail, templateAlertaCritico, _resetProvedorParaTestes } from "../utils/email-alertas.js";
 import { enviarAlertaSlack, enviarNotificacaoSlack, enviarResumoSlack } from "../utils/slack-alertas.js";
 
@@ -23,7 +24,8 @@ describe("Email Alertas", () => {
 
   describe("enviarAlertaEmail", () => {
     it("deve logar alerta com severidade quando provider = none", async () => {
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      // O código registra pelo logger (não por console.log): é nele que o alerta aparece.
+      const loggerSpy = vi.spyOn(logger, "info").mockImplementation((() => logger) as any);
 
       await enviarAlertaEmail({
         assunto: "Teste",
@@ -32,8 +34,8 @@ describe("Email Alertas", () => {
         severidade: "warning",
       });
 
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
+      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining("[ALERTA-WARNING] Teste"));
+      loggerSpy.mockRestore();
     });
 
     it("deve não travar em erro de envio", async () => {
@@ -238,7 +240,7 @@ describe("Integração: Email + Slack", () => {
     process.env.SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/test";
     fetchMock.mockResolvedValueOnce({ ok: true });
 
-    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const loggerSpy = vi.spyOn(logger, "info").mockImplementation((() => logger) as any);
 
     // Envia em paralelo
     await Promise.all([
@@ -255,11 +257,11 @@ describe("Integração: Email + Slack", () => {
       }),
     ]);
 
-    // Email via mock (provider = none)
-    expect(consoleLogSpy).toHaveBeenCalled();
+    // Email via mock (provider = none): registrado pelo logger
+    expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining("[ALERTA-CRITICAL] Falha na DRE"));
     // Slack via fetch
     expect(fetchMock).toHaveBeenCalled();
 
-    consoleLogSpy.mockRestore();
+    loggerSpy.mockRestore();
   });
 });

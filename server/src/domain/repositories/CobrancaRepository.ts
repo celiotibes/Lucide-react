@@ -6,17 +6,49 @@
 import type Database from 'better-sqlite3';
 import type { Cobranca, ICobrancaRepository } from './ICobrancaRepository.js';
 
+/** Linha crua da tabela `cobrancas` (snake_case). */
+interface LinhaCobranca {
+  id: number;
+  usuario_id: number;
+  imovel_id: number;
+  data_cobranca: string;
+  data_vencimento: string;
+  valor: number;
+  status: Cobranca['status'];
+  descricao: string;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+/** O repositório GRAVA em camelCase (entidade -> colunas snake_case) e antes devolvia as linhas cruas
+ * com um cast `as Cobranca`: usuarioId, imovelId etc. voltavam `undefined`. Toda leitura passa por aqui. */
+function paraCobranca(l: LinhaCobranca): Cobranca {
+  return {
+    id: l.id,
+    usuarioId: l.usuario_id,
+    imovelId: l.imovel_id,
+    dataCobranca: l.data_cobranca,
+    dataVencimento: l.data_vencimento,
+    valor: l.valor,
+    status: l.status,
+    descricao: l.descricao,
+    criadoEm: l.criado_em,
+    atualizadoEm: l.atualizado_em,
+  };
+}
+
 export class CobrancaRepository implements ICobrancaRepository {
   constructor(private db: Database.Database) {}
 
   async findById(id: number): Promise<Cobranca | null> {
     const stmt = this.db.prepare('SELECT * FROM cobrancas WHERE id = ?');
-    return stmt.get(id) as Cobranca | null;
+    const linha = stmt.get(id) as LinhaCobranca | undefined;
+    return linha ? paraCobranca(linha) : null;
   }
 
   async findAll(): Promise<Cobranca[]> {
     const stmt = this.db.prepare('SELECT * FROM cobrancas ORDER BY data_cobranca DESC');
-    return stmt.all() as Cobranca[];
+    return (stmt.all() as LinhaCobranca[]).map(paraCobranca);
   }
 
   async save(entity: Cobranca): Promise<Cobranca> {
@@ -67,17 +99,17 @@ export class CobrancaRepository implements ICobrancaRepository {
 
   async findByUsuarioId(usuarioId: number): Promise<Cobranca[]> {
     const stmt = this.db.prepare('SELECT * FROM cobrancas WHERE usuario_id = ? ORDER BY data_cobranca DESC');
-    return stmt.all(usuarioId) as Cobranca[];
+    return (stmt.all(usuarioId) as LinhaCobranca[]).map(paraCobranca);
   }
 
   async findByImovelId(imovelId: number): Promise<Cobranca[]> {
     const stmt = this.db.prepare('SELECT * FROM cobrancas WHERE imovel_id = ? ORDER BY data_cobranca DESC');
-    return stmt.all(imovelId) as Cobranca[];
+    return (stmt.all(imovelId) as LinhaCobranca[]).map(paraCobranca);
   }
 
   async findByStatus(status: Cobranca['status']): Promise<Cobranca[]> {
     const stmt = this.db.prepare('SELECT * FROM cobrancas WHERE status = ? ORDER BY data_cobranca DESC');
-    return stmt.all(status) as Cobranca[];
+    return (stmt.all(status) as LinhaCobranca[]).map(paraCobranca);
   }
 
   async findVencidas(): Promise<Cobranca[]> {
@@ -87,7 +119,7 @@ export class CobrancaRepository implements ICobrancaRepository {
       WHERE status IN ('pendente', 'atrasado') AND data_vencimento < ?
       ORDER BY data_vencimento ASC
     `);
-    return stmt.all(hoje) as Cobranca[];
+    return (stmt.all(hoje) as LinhaCobranca[]).map(paraCobranca);
   }
 
   async updateStatus(id: number, status: Cobranca['status']): Promise<boolean> {
