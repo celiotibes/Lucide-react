@@ -21,6 +21,8 @@ import {
   Cell,
 } from "recharts";
 import { KpiTile } from "./KpiTile";
+import { SeletorEstornos } from "./SeletorEstornos";
+import { resultadosDivergem, tratamentoAlternativo, type TratamentoEstorno } from "../domain/erp/criterioBi";
 
 function formatarMoeda(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -69,19 +71,30 @@ export function RelatoriosIntegradosView() {
 
   const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
 
+  // Padrão "considerar" (bruto) = números históricos; "desconsiderar" exclui o par estornado+estornador.
+  const [tratamentoEstorno, setTratamentoEstorno] = useState<TratamentoEstorno>("bruto");
+
   // Gerar relatórios
   const relatorio = useMemo(() => {
     if (!db) return null;
-    return gerarRelatorioIntegrado(db, 1, periodoSelecionado);
-  }, [db, periodoSelecionado]);
+    return gerarRelatorioIntegrado(db, 1, periodoSelecionado, { tratamentoEstorno });
+  }, [db, periodoSelecionado, tratamentoEstorno]);
+
+  const estornosDivergem = useMemo(() => {
+    if (!db || !relatorio) return false;
+    const alt = gerarRelatorioIntegrado(db, 1, periodoSelecionado, {
+      tratamentoEstorno: tratamentoAlternativo(tratamentoEstorno),
+    });
+    return resultadosDivergem(relatorio, alt);
+  }, [db, relatorio, periodoSelecionado, tratamentoEstorno]);
 
   // Rateio e Centro de Custo: rentabilidade por imóvel, despesas alocadas e reconciliação
   // de rateios (esperado vs. recebido). Recalculam ao trocar de período e após
   // `sincronizarCentrosCustoImoveis` (via `versao`, que muda ao persistir).
   const dashboardRentabilidade = useMemo(() => {
     if (!db || !entidade) return null;
-    return dashboardRentabilidadePorImovel(db, entidade.id, periodoSelecionado);
-  }, [db, versao, entidade, periodoSelecionado]);
+    return dashboardRentabilidadePorImovel(db, entidade.id, periodoSelecionado, { tratamentoEstorno });
+  }, [db, versao, entidade, periodoSelecionado, tratamentoEstorno]);
 
   const despesasPorCentro = useMemo(() => {
     if (!db || !entidade) return [];
@@ -184,6 +197,7 @@ export function RelatoriosIntegradosView() {
           ))}
         </select>
       </div>
+      <SeletorEstornos valor={tratamentoEstorno} onChange={setTratamentoEstorno} divergente={estornosDivergem} />
 
       {/* KPIs */}
       <div className="kpi-grid">

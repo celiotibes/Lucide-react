@@ -24,6 +24,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { KpiTile } from "./KpiTile";
+import { SeletorEstornos } from "./SeletorEstornos";
+import { resultadosDivergem, tratamentoAlternativo, type TratamentoEstorno } from "../domain/erp/criterioBi";
 
 function formatarMoeda(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -62,34 +64,57 @@ export function AnalyticsIntegradosView() {
   const [periodoAtual, setPeriodoAtual] = useState(periodosDisp[0]?.id || 1);
   const periodoPrevio = periodosDisp[1]?.id || periodosDisp[0]?.id || 1;
 
+  // Padrão "considerar" (bruto) = números históricos; "desconsiderar" exclui o par estornado+estornador.
+  const [tratamentoEstorno, setTratamentoEstorno] = useState<TratamentoEstorno>("bruto");
+
   // Calcular KPIs
   const kpiAtual = useMemo(() => {
     if (!db) return null;
-    return calcularKPIRentabilidade(db, 1, periodoAtual);
-  }, [db, periodoAtual]);
+    return calcularKPIRentabilidade(db, 1, periodoAtual, { tratamentoEstorno });
+  }, [db, periodoAtual, tratamentoEstorno]);
 
   const tendencia = useMemo(() => {
     if (!db || !kpiAtual) return null;
-    return calcularTendencia(db, 1, periodoAtual, periodoPrevio);
-  }, [db, kpiAtual, periodoAtual, periodoPrevio]);
+    return calcularTendencia(db, 1, periodoAtual, periodoPrevio, { tratamentoEstorno });
+  }, [db, kpiAtual, periodoAtual, periodoPrevio, tratamentoEstorno]);
 
   // Ocupação
   const ocupacao = useMemo(() => {
     if (!db) return null;
-    return calcularOcupacao(db);
-  }, [db]);
+    return calcularOcupacao(db, { tratamentoEstorno });
+  }, [db, tratamentoEstorno]);
 
   // Patrimônio
   const patrimonio = useMemo(() => {
     if (!db) return null;
-    return calcularComposicaoPatrimonio(db);
-  }, [db]);
+    return calcularComposicaoPatrimonio(db, { tratamentoEstorno });
+  }, [db, tratamentoEstorno]);
 
   // Ranking
   const ranking = useMemo(() => {
     if (!db) return [];
-    return calcularRankingImoveisPerformance(db).slice(0, 10);
-  }, [db]);
+    return calcularRankingImoveisPerformance(db, { tratamentoEstorno }).slice(0, 10);
+  }, [db, tratamentoEstorno]);
+
+  // Aviso: o critério alternativo daria números diferentes nas telas desta página?
+  const estornosDivergem = useMemo(() => {
+    if (!db) return false;
+    const alt = { tratamentoEstorno: tratamentoAlternativo(tratamentoEstorno) };
+    return resultadosDivergem(
+      [
+        calcularKPIRentabilidade(db, 1, periodoAtual, { tratamentoEstorno }),
+        calcularOcupacao(db, { tratamentoEstorno }),
+        calcularComposicaoPatrimonio(db, { tratamentoEstorno }),
+        calcularRankingImoveisPerformance(db, { tratamentoEstorno }),
+      ],
+      [
+        calcularKPIRentabilidade(db, 1, periodoAtual, alt),
+        calcularOcupacao(db, alt),
+        calcularComposicaoPatrimonio(db, alt),
+        calcularRankingImoveisPerformance(db, alt),
+      ],
+    );
+  }, [db, periodoAtual, tratamentoEstorno]);
 
   if (!db || !kpiAtual || !tendencia || !ocupacao || !patrimonio) {
     return (
@@ -156,6 +181,7 @@ export function AnalyticsIntegradosView() {
           ))}
         </select>
       </div>
+      <SeletorEstornos valor={tratamentoEstorno} onChange={setTratamentoEstorno} divergente={estornosDivergem} />
 
       {/* KPIs Principais */}
       <div className="kpi-grid">

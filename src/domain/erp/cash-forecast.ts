@@ -6,6 +6,7 @@
 
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
+import { fragmentoLedger, type CriterioBi } from "./criterioBi";
 
 export interface ProjecaoMensal {
   ano: number;
@@ -40,7 +41,10 @@ export function gerarProjecaoCaixa(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): RelatorioProjecaoCaixa {
+  // criterio ausente = comportamento histórico (bruto, sem filtro): o fragmento é vazio.
+  const f = fragmentoLedger(criterio);
   // Obter período atual
   const [periodAtual] = consultar<{ ano: number; mes: number }>(
     db,
@@ -69,8 +73,8 @@ export function gerarProjecaoCaixa(
            ELSE le.valor_credito END), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`,
-    [entidade_id, periodo_id],
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   const saldoInicial = saldoAtual?.total || 0;
@@ -90,12 +94,12 @@ export function gerarProjecaoCaixa(
       COALESCE(SUM(le.valor_debito), 0) as entradas,
       COALESCE(SUM(le.valor_credito), 0) as saidas
      FROM periodos_contabeis p
-     LEFT JOIN ledger_entries le ON le.periodo_id = p.id AND le.entidade_id = ?
+     LEFT JOIN ledger_entries le ON le.periodo_id = p.id AND le.entidade_id = ?${f.sql}
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')
      WHERE p.entidade_id = ? AND p.id < ?
      GROUP BY p.mes
      ORDER BY p.mes`,
-    [entidade_id, entidade_id, periodo_id],
+    [entidade_id, ...f.params, entidade_id, periodo_id],
   );
 
   // Calcular média por mês (sazonalidade)

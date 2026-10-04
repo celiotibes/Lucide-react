@@ -9,6 +9,7 @@
 
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
+import { fragmentoLedger } from "./criterioBi";
 
 export interface FiltroBi {
   entidadeId?: number;
@@ -171,4 +172,173 @@ export function resultadoPorCentroCusto(
     `SELECT * FROM v_bi_resultado_por_centro_custo ${where} ORDER BY competencia, centro_custo_codigo`,
     params,
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Comparação bruto x líquido (impacto dos estornos, sem trocar números silenciosamente)
+// ---------------------------------------------------------------------------------------------
+
+export interface FiltroComparacaoBrutoLiquido {
+  entidadeId?: number;
+  titularId?: number;
+  contaId?: number;
+  grupo?: "receita" | "despesa";
+  /** Competência inicial/final inclusivas, 'YYYY-MM'. */
+  de?: string;
+  ate?: string;
+  /** Data de corte (ver CriterioBi.asOf): compara como o BI estava naquele fechamento. */
+  asOf?: string;
+}
+
+export interface LinhaComparacaoBrutoLiquido {
+  competencia: string;
+  conta_id: number;
+  conta_codigo: string;
+  conta_descricao: string;
+  grupo: "receita" | "despesa";
+  /** crédito − débito do razão cru (par estornado+estornador incluso), em centavos. */
+  bruto_centavos: number;
+  /** crédito − débito sem o par estornado+estornador (critério das views v_bi_*), em centavos. */
+  liquido_centavos: number;
+  /** bruto − líquido: o que os estornos pesam naquele mês/conta. */
+  diferenca_centavos: number;
+}
+
+interface LinhaAgregada {
+  competencia: string;
+  conta_id: number;
+  conta_codigo: string;
+  conta_descricao: string;
+  grupo: "receita" | "despesa";
+  resultado_centavos: number;
+}
+
+/** Mesmo universo das views (receita/despesa, sem a zeragem de encerramento), com ou sem o par estornado. */
+function agregarRazao(
+  db: Database,
+  filtro: FiltroComparacaoBrutoLiquido,
+  tratamento: "bruto" | "liquido",
+): LinhaAgregada[] {
+  const frag = fragmentoLedger(
+    { tratamentoEstorno: tratamento, de: filtro.de, ate: filtro.ate, asOf: filtro.asOf },
+    "t",
+  );
+  const { where, params } = montarWhere([
+    ["t.entidade_id = ?", filtro.entidadeId],
+    ["t.titular_economico_id = ?", filtro.titularId],
+    ["t.conta_id = ?", filtro.contaId],
+    ["cp.grupo = ?", filtro.grupo],
+  ]);
+  const condicoes = [
+    "cp.grupo IN ('receita', 'despesa')",
+    "NOT (t.origem_modulo = 'manual' AND t.referencia_documento LIKE 'ENCERRAMENTO-%')",
+  ];
+  const whereFinal = where ? `${where} AND ${condicoes.join(" AND ")}` : `WHERE ${condicoes.join(" AND ")}`;
+  return consultar<LinhaAgregada>(
+    db,
+    `SELECT printf('%04d-%02d', p.ano, p.mes) AS competencia,
+            t.conta_id AS conta_id, cp.codigo AS conta_codigo, cp.descricao AS conta_descricao, cp.grupo AS grupo,
+            SUM(CAST(ROUND(COALESCE(t.valor_credito, 0) * 100) AS INTEGER))
+              - SUM(CAST(ROUND(COALESCE(t.valor_debito, 0) * 100) AS INTEGER)) AS resultado_centavos
+       FROM v_ledger_titular_atual t
+       JOIN contas_plano_contas cp ON cp.id = t.conta_id
+       JOIN periodos_contabeis p ON p.id = t.periodo_id
+       ${whereFinal}${frag.sql}
+      GROUP BY competencia, t.conta_id, cp.codigo, cp.descricao, cp.grupo`,
+    [...params, ...frag.params],
+  );
+}
+
+/** Líquido pelas views v_bi_* (sem `asOf`) ou pela mesma regra em SQL direto (com `asOf`, que as views não têm). */
+function liquidoPorMesConta(db: Database, filtro: FiltroComparacaoBrutoLiquido): LinhaAgregada[] {
+  if (filtro.asOf !== undefined) return agregarRazao(db, filtro, "liquido");
+  const linhas = resultadoMensal(db, {
+    entidadeId: filtro.entidadeId,
+    titularId: filtro.titularId,
+    contaId: filtro.contaId,
+    grupo: filtro.grupo,
+    competenciaDe: filtro.de,
+    competenciaAte: filtro.ate,
+  });
+  const acumulado = new Map<string, LinhaAgregada>();
+  for (const l of linhas) {
+    const chave = `${l.competencia}|${l.conta_id}`;
+    const atual = acumulado.get(chave);
+    if (atual) {
+      atual.resultado_centavos += l.resultado_centavos;
+    } else {
+      acumulado.set(chave, {
+        competencia: l.competencia,
+        conta_id: l.conta_id,
+        conta_codigo: l.conta_codigo,
+        conta_descricao: l.conta_descricao,
+        grupo: l.grupo,
+        resultado_centavos: l.resultado_centavos,
+      });
+    }
+  }
+  return [...acumulado.values()];
+}
+
+/**
+ * Por mês e conta de resultado: valor bruto (razão cru), líquido (sem o par estornado+estornador,
+ * critério das views v_bi_*) e a diferença. Só leitura; serve para a UI mostrar o impacto dos
+ * estornos sem trocar silenciosamente os números exibidos. Todas as linhas são devolvidas
+ * (inclusive diferença 0); use `resumirDivergenciaEstornos` para decidir se avisa.
+ */
+export function compararBrutoLiquido(
+  db: Database,
+  filtros: FiltroComparacaoBrutoLiquido = {},
+): LinhaComparacaoBrutoLiquido[] {
+  const bruto = agregarRazao(db, filtros, "bruto");
+  const liquido = liquidoPorMesConta(db, filtros);
+
+  const mapa = new Map<string, LinhaComparacaoBrutoLiquido>();
+  const obter = (l: LinhaAgregada): LinhaComparacaoBrutoLiquido => {
+    const chave = `${l.competencia}|${l.conta_id}`;
+    let linha = mapa.get(chave);
+    if (!linha) {
+      linha = {
+        competencia: l.competencia,
+        conta_id: l.conta_id,
+        conta_codigo: l.conta_codigo,
+        conta_descricao: l.conta_descricao,
+        grupo: l.grupo,
+        bruto_centavos: 0,
+        liquido_centavos: 0,
+        diferenca_centavos: 0,
+      };
+      mapa.set(chave, linha);
+    }
+    return linha;
+  };
+  for (const l of bruto) obter(l).bruto_centavos = l.resultado_centavos;
+  for (const l of liquido) obter(l).liquido_centavos = l.resultado_centavos;
+
+  const linhas = [...mapa.values()];
+  for (const l of linhas) l.diferenca_centavos = l.bruto_centavos - l.liquido_centavos;
+  return linhas.sort(
+    (a, b) => a.competencia.localeCompare(b.competencia) || a.conta_codigo.localeCompare(b.conta_codigo),
+  );
+}
+
+export interface ResumoDivergenciaEstornos {
+  temDivergencia: boolean;
+  /** Soma das diferenças (bruto − líquido), em centavos; pode compensar entre contas. */
+  diferencaTotalCentavos: number;
+  /** Soma dos módulos das diferenças: o tamanho real do desvio, sem compensação. */
+  diferencaAbsolutaCentavos: number;
+  competenciasAfetadas: string[];
+  contasAfetadas: number;
+}
+
+export function resumirDivergenciaEstornos(linhas: LinhaComparacaoBrutoLiquido[]): ResumoDivergenciaEstornos {
+  const afetadas = linhas.filter((l) => l.diferenca_centavos !== 0);
+  return {
+    temDivergencia: afetadas.length > 0,
+    diferencaTotalCentavos: afetadas.reduce((a, l) => a + l.diferenca_centavos, 0),
+    diferencaAbsolutaCentavos: afetadas.reduce((a, l) => a + Math.abs(l.diferenca_centavos), 0),
+    competenciasAfetadas: [...new Set(afetadas.map((l) => l.competencia))].sort(),
+    contasAfetadas: new Set(afetadas.map((l) => l.conta_id)).size,
+  };
 }

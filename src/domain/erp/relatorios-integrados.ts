@@ -8,6 +8,7 @@
 
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
+import { fragmentoLedger, type CriterioBi } from "./criterioBi";
 
 export type OrigemModulo =
   | "transacoes"
@@ -171,7 +172,10 @@ export function gerarDRE(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): LinhasDRE {
+  // criterio ausente = comportamento histórico (bruto, sem filtro): o fragmento é vazio.
+  const f = fragmentoLedger(criterio);
   // Líquido, não bruto: uma reclassificação (reclassificarTransacao.ts) estorna a perna
   // antiga NA MESMA CONTA (débito original + crédito de estorno de mesmo valor) e lança a
   // nova numa conta diferente. Somar só valor_credito (receita) ou só valor_debito
@@ -197,8 +201,8 @@ export function gerarDRE(
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?
-         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'`,
-      [entidade_id, periodo_id, codigo],
+         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'${f.sql}`,
+      [entidade_id, periodo_id, codigo, ...f.params],
     );
     return result?.total || 0;
   };
@@ -210,8 +214,8 @@ export function gerarDRE(
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo LIKE ?
-         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'`,
-      [entidade_id, periodo_id, codigo],
+         AND le.referencia_documento NOT LIKE 'ENCERRAMENTO-%'${f.sql}`,
+      [entidade_id, periodo_id, codigo, ...f.params],
     );
     return result?.total || 0;
   };
@@ -317,7 +321,10 @@ export function gerarBalanco(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): LinhasBalancete {
+  // criterio ausente = comportamento histórico (bruto, sem filtro): o fragmento é vazio.
+  const f = fragmentoLedger(criterio);
   const condicaoAcumulada = `
        le.periodo_id IN (
          SELECT pc2.id FROM periodos_contabeis pc2
@@ -334,8 +341,8 @@ export function gerarBalanco(
              ELSE COALESCE(le.valor_credito, 0) - COALESCE(le.valor_debito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'ativo'`,
-      [entidade_id, periodo_id, codigo],
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'ativo'${f.sql}`,
+      [entidade_id, periodo_id, codigo, ...f.params],
     );
     return result?.total || 0;
   };
@@ -348,8 +355,8 @@ export function gerarBalanco(
              ELSE COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'passivo'`,
-      [entidade_id, periodo_id, codigo],
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'passivo'${f.sql}`,
+      [entidade_id, periodo_id, codigo, ...f.params],
     );
     return result?.total || 0;
   };
@@ -362,8 +369,8 @@ export function gerarBalanco(
              ELSE COALESCE(le.valor_debito, 0) - COALESCE(le.valor_credito, 0) END), 0) as total
        FROM ledger_entries le
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'`,
-      [entidade_id, periodo_id, codigo],
+       WHERE le.entidade_id = ? AND ${condicaoAcumulada} AND cp.codigo LIKE ? AND cp.grupo = 'patrimonio_liquido'${f.sql}`,
+      [entidade_id, periodo_id, codigo, ...f.params],
     );
     return result?.total || 0;
   };
@@ -426,7 +433,10 @@ export function gerarFluxoCaixa(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): FluxoCaixaResultado {
+  // criterio ausente = comportamento histórico (bruto, sem filtro): o fragmento é vazio.
+  const f = fragmentoLedger(criterio);
   // Saldo inicial = saldo ACUMULADO de caixa em TODOS os períodos anteriores a este, não
   // o movimento de um único período. Achado B do teste golden-path: a versão anterior (1)
   // só olhava o período IMEDIATAMENTE anterior — um saldo de 3+ meses atrás desaparecia a
@@ -448,8 +458,8 @@ export function gerarFluxoCaixa(
        INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
        INNER JOIN periodos_contabeis pc ON le.periodo_id = pc.id
        WHERE le.entidade_id = ? AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')
-         AND pc.entidade_id = ? AND (pc.ano < ? OR (pc.ano = ? AND pc.mes < ?))`,
-      [entidade_id, entidade_id, periodo.ano, periodo.ano, periodo.mes],
+         AND pc.entidade_id = ? AND (pc.ano < ? OR (pc.ano = ? AND pc.mes < ?))${f.sql}`,
+      [entidade_id, entidade_id, periodo.ano, periodo.ano, periodo.mes, ...f.params],
     );
     saldo_inicial = saldo?.total || 0;
   }
@@ -461,8 +471,8 @@ export function gerarFluxoCaixa(
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
      WHERE le.entidade_id = ? AND le.periodo_id = ?
-       AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`,
-    [entidade_id, periodo_id],
+       AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   // Saídas: Créditos em contas de caixa (1.1.01, 1.1.02, 1.1.03)
@@ -472,8 +482,8 @@ export function gerarFluxoCaixa(
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
      WHERE le.entidade_id = ? AND le.periodo_id = ?
-       AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')`,
-    [entidade_id, periodo_id],
+       AND cp.codigo IN ('1.1.01', '1.1.02', '1.1.03')${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   // Investimento: Aquisição de Imóvel (1.2.05 — imóveis/ativo imobilizado; "2.1.01" é
@@ -483,8 +493,8 @@ export function gerarFluxoCaixa(
     `SELECT COALESCE(SUM(le.valor_debito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '1.2.05'`,
-    [entidade_id, periodo_id],
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '1.2.05'${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   // Financiamento: Empréstimos (3.2.01)
@@ -493,8 +503,8 @@ export function gerarFluxoCaixa(
     `SELECT COALESCE(SUM(le.valor_credito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '3.2.01'`,
-    [entidade_id, periodo_id],
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '3.2.01'${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   // Amortizações (3.2.01)
@@ -503,8 +513,8 @@ export function gerarFluxoCaixa(
     `SELECT COALESCE(SUM(le.valor_debito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '3.2.01'`,
-    [entidade_id, periodo_id],
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo = '3.2.01'${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   const ent = entradas?.total || 0;
@@ -549,10 +559,11 @@ export function gerarRelatorioIntegrado(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): RelatorioIntegrado {
-  const dre = gerarDRE(db, entidade_id, periodo_id);
-  const balanço = gerarBalanco(db, entidade_id, periodo_id);
-  const fluxo_caixa = gerarFluxoCaixa(db, entidade_id, periodo_id);
+  const dre = gerarDRE(db, entidade_id, periodo_id, criterio);
+  const balanço = gerarBalanco(db, entidade_id, periodo_id, criterio);
+  const fluxo_caixa = gerarFluxoCaixa(db, entidade_id, periodo_id, criterio);
 
   const resultado_liquido = dre.resultado_final;
   const receita_total = dre.receitas.total_receitas;

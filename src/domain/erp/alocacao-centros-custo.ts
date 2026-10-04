@@ -6,6 +6,7 @@
 
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
+import { fragmentoLedger, type CriterioBi } from "./criterioBi";
 
 export interface CentroCustoInfo {
   id: number;
@@ -177,6 +178,7 @@ export function analiseRentabilidadePorCentro(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): Array<{
   centro_codigo: string;
   centro_descricao: string;
@@ -185,6 +187,9 @@ export function analiseRentabilidadePorCentro(
   resultado_liquido: number;
   margem_percentual: number;
 }> {
+  // criterio ausente = comportamento histórico (bruto, sem filtro): o fragmento é vazio.
+  // Vai no ON do LEFT JOIN para manter os centros sem lançamento no resultado.
+  const f = fragmentoLedger(criterio);
   return consultar<{
     centro_codigo: string;
     centro_descricao: string;
@@ -207,12 +212,12 @@ export function analiseRentabilidadePorCentro(
               COALESCE(SUM(CASE WHEN cp.grupo = 'receita' THEN le.valor_credito ELSE 0 END), 1) * 100)
         ELSE 0 END as margem_percentual
      FROM centros_custo cc
-     LEFT JOIN ledger_entries le ON cc.id = le.centro_custo_id AND le.periodo_id = ?
+     LEFT JOIN ledger_entries le ON cc.id = le.centro_custo_id AND le.periodo_id = ?${f.sql}
      LEFT JOIN contas_plano_contas cp ON le.conta_id = cp.id
      WHERE cc.entidade_id = ? AND cc.tipo = 'imovel' AND cc.ativo = 1
      GROUP BY cc.id
      ORDER BY resultado_liquido DESC`,
-    [periodo_id, entidade_id],
+    [periodo_id, ...f.params, entidade_id],
   );
 }
 
@@ -221,6 +226,7 @@ export function dashboardRentabilidadePorImovel(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): {
   melhor_imovel: { nome: string; margem: number; resultado: number } | null;
   pior_imovel: { nome: string; margem: number; resultado: number } | null;
@@ -230,6 +236,7 @@ export function dashboardRentabilidadePorImovel(
     db,
     entidade_id,
     periodo_id,
+    criterio,
   );
 
   if (analise.length === 0) {

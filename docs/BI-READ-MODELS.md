@@ -51,8 +51,70 @@ provadas em `src/domain/erp/__tests__/readModelsBi.test.ts` (teste "paridade com
 6. **`cash-forecast.ts`** soma caixa por códigos `1.1.01-03` (da numeração do plano do app, que não coincide com o
    plano ERP — ver mapeamentoPlanoApp.ts) e usa `periodo_id`, não data; não comparável com `v_bi_saldo_contas`.
 
+## Critério explícito de estorno, período e `asOf` (sem mudar números nem dados)
+
+Em vez de trocar os cálculos antigos (decisão de produto pendente), eles ganharam um último parâmetro
+opcional `criterio?: CriterioBi` (`src/domain/erp/criterioBi.ts`). **Omitido, o SQL é byte a byte o de antes**
+(`fragmentoLedger` devolve fragmento vazio), então nenhum número exibido muda.
+
+| Campo | Efeito |
+|---|---|
+| `tratamentoEstorno: 'bruto'` (padrão) | comportamento histórico: soma o razão como está, par estornado+estornador incluso |
+| `tratamentoEstorno: 'liquido'` | exclui o par (`estornado_por_id IS NULL AND estorno_de_id IS NULL`), o critério das views `v_bi_*` |
+| `de` / `ate` (`YYYY-MM`) | competência do período contábil do lançamento (`periodos_contabeis.ano/mes`), inclusivo |
+| `asOf` (`YYYY-MM-DD` ou `YYYY-MM-DD HH:MM[:SS]`) | só lançamentos com `criado_em <= asOf`; data sem hora vale o dia inteiro (23:59:59) |
+
+Funções que aceitam o critério: `calcularKPIRentabilidade`, `calcularTendencia`, `calcularOcupacao`,
+`calcularComposicaoPatrimonio`, `calcularRankingImoveisPerformance` (analytics-integradas.ts),
+`calcularBudgetVariance`, `gerarProjecaoCaixa`, `analiseRentabilidadePorCentro` e
+`dashboardRentabilidadePorImovel` (alocacao-centros-custo.ts), `gerarDRE`, `gerarBalanco`, `gerarFluxoCaixa` e
+`gerarRelatorioIntegrado` (relatorios-integrados.ts).
+
+Fora do escopo, de propósito:
+- `dashboard-portfolio.ts` **não lê `ledger_entries`** (usa `contas_a_pagar` e `contratos_locacao`), então estorno do
+  razão não o afeta; não recebeu o parâmetro.
+- Relatórios de auditoria/por módulo (`obterLancamentosParModulo`, `gerarRelatorioAuditoriaParModulo`, variantes
+  `...ComFiltro`) mostram o razão cru por definição e ficam como estão.
+
+### Retroativo e histórico acumulado (somente leitura)
+
+- **Retroativo**: recalcular um período já fechado é só chamar a função com o `periodo_id` e o critério desejados;
+  nada é gravado. Nada escreve em `ledger_entries` (lançamentos importados/conferidos continuam imutáveis) nem migra dados.
+- **`asOf`** reconstitui o que o BI mostraria numa data de corte. Usa `ledger_entries.criado_em`
+  (`DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`, UTC). **Não existe coluna de data de estorno**: o instante do estorno é
+  o `criado_em` da linha reversa (apontada por `estornado_por_id`). Com `'liquido'`, o original só sai da soma se o
+  reverso já existia em `asOf`; antes disso o par ainda contava como vivo, como no fechamento da época.
+- **Limites**: `asOf` assume que `criado_em` é fiel ao momento da gravação. Lançamentos importados em lote ficam com a
+  data da importação, não a do fato (use `de`/`ate` e `data_lancamento` para o fato). Mudanças de titularidade
+  (overlay) e de `centro_custo_id` (atualizável) não têm histórico por data: valem pelo estado atual.
+  O estado de um período (aberto/fechado) não entra em `asOf`.
+
+### Views x SQL direto no `'liquido'`
+
+As views `v_bi_*` não têm `asOf`. `compararBrutoLiquido` usa **a view** (`v_bi_resultado_mensal`) para o líquido
+quando não há `asOf`, e o mesmo critério em SQL direto quando há; um teste prova que os dois caminhos coincidem. Já as
+funções antigas, com `'liquido'`, mantêm a fórmula própria (crédito bruto em receita, débito bruto em despesa) e só
+acrescentam a exclusão do par: coincidem com a view quando não há contrapartida/devolução nem zeragem de encerramento
+(a view usa crédito − débito e ignora `ENCERRAMENTO-%`), por isso não foram trocadas pela view.
+
+### `compararBrutoLiquido(db, filtros)` (readModelsBi.ts)
+
+Devolve, por **mês e conta de resultado**, `bruto_centavos`, `liquido_centavos` e `diferenca_centavos` (bruto − líquido),
+em centavos inteiros, usando o resultado crédito − débito (mesma definição de `resultado_centavos` das views, sem a
+zeragem de encerramento). Filtros: `entidadeId`, `titularId`, `contaId`, `grupo`, `de`, `ate`, `asOf`.
+`resumirDivergenciaEstornos(linhas)` resume (`temDivergencia`, diferença total e absoluta, competências afetadas).
+Atenção: como é crédito − débito, a divergência só aparece quando o par cruza meses; as funções antigas, que somam só
+um lado, também divergem no mesmo mês (veja o item 1 acima). Por isso a UI compara o resultado da própria tela nos dois
+critérios para avisar.
+
+### UI
+
+`AnalyticsIntegradosView`, `BudgetVarianceView`, `CashForecastView` e `RelatoriosIntegradosView` têm o seletor
+"Estornos: considerar / desconsiderar" (`SeletorEstornos`, `<label>`+`<select>` nativos). Padrão "considerar" = `'bruto'`
+= números de sempre. Quando o critério alternativo daria números diferentes na tela, aparece um aviso (`role="status"`).
+
 ## Próximo passo sugerido
 
-Decidir o item 1 (excluir pares estornados nos cálculos antigos). Se aprovado, trocar `analiseRentabilidadePorCentro`
+Decidir o item 1 (tornar `'liquido'` o padrão, ou excluir pares estornados nos cálculos antigos). Se aprovado, trocar `analiseRentabilidadePorCentro`
 e `calcularKPIRentabilidade` por `resultadoPorCentroCusto`/`resultadoMensal` e ajustar os testes que fixam os números
 atuais.

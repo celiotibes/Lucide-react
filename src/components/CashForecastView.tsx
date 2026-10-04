@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useDb } from "../db/useDb";
 import { gerarProjecaoCaixa } from "../domain/erp/cash-forecast";
 import {
@@ -13,6 +13,8 @@ import {
   Legend,
 } from "recharts";
 import { KpiTile } from "./KpiTile";
+import { SeletorEstornos } from "./SeletorEstornos";
+import { resultadosDivergem, tratamentoAlternativo, type TratamentoEstorno } from "../domain/erp/criterioBi";
 import { AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 
 function formatarMoeda(valor: number): string {
@@ -36,10 +38,19 @@ function formatarMoedaDetalhado(valor: number): string {
 export function CashForecastView() {
   const { db } = useDb();
 
+  // Padrão "considerar" (bruto) = números históricos; "desconsiderar" exclui o par estornado+estornador.
+  const [tratamentoEstorno, setTratamentoEstorno] = useState<TratamentoEstorno>("bruto");
+
   const projecaoCaixa = useMemo(() => {
     if (!db) return null;
-    return gerarProjecaoCaixa(db, 1, 1);
-  }, [db]);
+    return gerarProjecaoCaixa(db, 1, 1, { tratamentoEstorno });
+  }, [db, tratamentoEstorno]);
+
+  const estornosDivergem = useMemo(() => {
+    if (!db || !projecaoCaixa) return false;
+    const alt = gerarProjecaoCaixa(db, 1, 1, { tratamentoEstorno: tratamentoAlternativo(tratamentoEstorno) });
+    return resultadosDivergem(projecaoCaixa, alt);
+  }, [db, projecaoCaixa, tratamentoEstorno]);
 
   if (!db || !projecaoCaixa) {
     return (
@@ -76,6 +87,7 @@ export function CashForecastView() {
           <span className="text-sm text-gray-600 capitalize">{projecaoCaixa.tendencia}</span>
         </div>
       </div>
+      <SeletorEstornos valor={tratamentoEstorno} onChange={setTratamentoEstorno} divergente={estornosDivergem} />
 
       {/* KPIs principais */}
       <div className="kpi-grid">

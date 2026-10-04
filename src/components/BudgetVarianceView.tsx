@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useDb } from "../db/useDb";
 import { calcularBudgetVariance } from "../domain/erp/budget-variance";
 import {
@@ -11,6 +11,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { KpiTile } from "./KpiTile";
+import { SeletorEstornos } from "./SeletorEstornos";
+import { resultadosDivergem, tratamentoAlternativo, type TratamentoEstorno } from "../domain/erp/criterioBi";
 
 function formatarMoeda(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -37,10 +39,19 @@ function formatarPercentual(valor: number): string {
 export function BudgetVarianceView() {
   const { db } = useDb();
 
+  // Padrão "considerar" (bruto) = números históricos; "desconsiderar" exclui o par estornado+estornador.
+  const [tratamentoEstorno, setTratamentoEstorno] = useState<TratamentoEstorno>("bruto");
+
   const varianceBudget = useMemo(() => {
     if (!db) return null;
-    return calcularBudgetVariance(db, 1, 1);
-  }, [db]);
+    return calcularBudgetVariance(db, 1, 1, { tratamentoEstorno });
+  }, [db, tratamentoEstorno]);
+
+  const estornosDivergem = useMemo(() => {
+    if (!db || !varianceBudget) return false;
+    const alt = calcularBudgetVariance(db, 1, 1, { tratamentoEstorno: tratamentoAlternativo(tratamentoEstorno) });
+    return resultadosDivergem(varianceBudget, alt);
+  }, [db, varianceBudget, tratamentoEstorno]);
 
   if (!db || !varianceBudget) {
     return (
@@ -80,6 +91,7 @@ export function BudgetVarianceView() {
         <h2 className="text-lg font-bold">Análise de Variação Orçamentária</h2>
         <span className="text-sm text-gray-600">Período: {varianceBudget.periodo}</span>
       </div>
+      <SeletorEstornos valor={tratamentoEstorno} onChange={setTratamentoEstorno} divergente={estornosDivergem} />
 
       {/* KPIs de resumo */}
       <div className="kpi-grid">

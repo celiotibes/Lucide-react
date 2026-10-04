@@ -6,6 +6,7 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import { resumoInadimplenciaTotal } from "./integracao-inadimplencia";
+import { fragmentoLedger, type CriterioBi } from "./criterioBi";
 
 /** KPI: Indicador de Desempenho de Rentabilidade */
 export interface KPIRentabilidade {
@@ -22,15 +23,18 @@ export function calcularKPIRentabilidade(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): KPIRentabilidade {
+  // criterio ausente = comportamento histórico (bruto, sem filtro): o fragmento é vazio.
+  const f = fragmentoLedger(criterio);
   // Receita Total: contas 5.x.xx
   const [receita] = consultar<{ total: number }>(
     db,
     `SELECT COALESCE(SUM(le.valor_credito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.grupo = 'receita'`,
-    [entidade_id, periodo_id],
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.grupo = 'receita'${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   // Despesa Total: contas 6.x.xx
@@ -39,8 +43,8 @@ export function calcularKPIRentabilidade(
     `SELECT COALESCE(SUM(le.valor_debito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.grupo = 'despesa'`,
-    [entidade_id, periodo_id],
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.grupo = 'despesa'${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   const receita_total = receita?.total || 0;
@@ -56,8 +60,8 @@ export function calcularKPIRentabilidade(
            ELSE le.valor_credito END), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.2.05')`,
-    [entidade_id, periodo_id],
+     WHERE le.entidade_id = ? AND le.periodo_id = ? AND cp.codigo IN ('1.2.05')${f.sql}`,
+    [entidade_id, periodo_id, ...f.params],
   );
 
   const roi = patrimonio?.total ? (resultado_liquido / patrimonio.total) * 100 : 0;
@@ -141,9 +145,10 @@ export function calcularTendencia(
   entidade_id: number,
   periodo_atual_id: number,
   periodo_anterior_id: number,
+  criterio?: CriterioBi,
 ): AnaliseTendencia {
-  const atual = calcularKPIRentabilidade(db, entidade_id, periodo_atual_id);
-  const anterior = calcularKPIRentabilidade(db, entidade_id, periodo_anterior_id);
+  const atual = calcularKPIRentabilidade(db, entidade_id, periodo_atual_id, criterio);
+  const anterior = calcularKPIRentabilidade(db, entidade_id, periodo_anterior_id, criterio);
 
   const variacao_receita_pct =
     anterior.receita_total > 0
@@ -185,7 +190,8 @@ export interface AnaliseOcupacao {
   gap_receita: number;
 }
 
-export function calcularOcupacao(db: Database): AnaliseOcupacao {
+export function calcularOcupacao(db: Database, criterio?: CriterioBi): AnaliseOcupacao {
+  const f = fragmentoLedger(criterio);
   const [imoveis] = consultar<{ total: number }>(
     db,
     "SELECT COUNT(*) as total FROM imoveis WHERE uso_pessoal = 0 AND financiado = 0",
@@ -205,8 +211,8 @@ export function calcularOcupacao(db: Database): AnaliseOcupacao {
     `SELECT COALESCE(SUM(le.valor_credito), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE cp.codigo = '4.1.01'`,
-    [],
+     WHERE cp.codigo = '4.1.01'${f.sql}`,
+    [...f.params],
   );
 
   const total = imoveis?.total || 0;
@@ -240,7 +246,9 @@ export interface AnalisePatrimonio {
 
 export function calcularComposicaoPatrimonio(
   db: Database,
+  criterio?: CriterioBi,
 ): AnalisePatrimonio {
+  const f = fragmentoLedger(criterio);
   // Imóveis para Locação + Uso Pessoal
   const [imoveis] = consultar<{ valor_total: number }>(
     db,
@@ -257,8 +265,8 @@ export function calcularComposicaoPatrimonio(
            ELSE le.valor_debito END), 0) as valor_financiado
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE cp.codigo = '3.2.01'`,
-    [],
+     WHERE cp.codigo = '3.2.01'${f.sql}`,
+    [...f.params],
   );
 
   // Depreciação Acumulada (2.2.01)
@@ -269,8 +277,8 @@ export function calcularComposicaoPatrimonio(
            ELSE le.valor_debito END), 0) as total
      FROM ledger_entries le
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
-     WHERE cp.codigo = '5.3.01'`,
-    [],
+     WHERE cp.codigo = '5.3.01'${f.sql}`,
+    [...f.params],
   );
 
   const valor_total = imoveis?.valor_total || 0;
@@ -302,7 +310,10 @@ export interface RankingImovelPerformance {
 
 export function calcularRankingImoveisPerformance(
   db: Database,
+  criterio?: CriterioBi,
 ): RankingImovelPerformance[] {
+  // O filtro vai no ON do LEFT JOIN (não no WHERE) para não eliminar imóveis sem lançamento.
+  const f = fragmentoLedger(criterio);
   return consultar<RankingImovelPerformance>(
     db,
     `SELECT
@@ -317,10 +328,10 @@ export function calcularRankingImoveisPerformance(
                 COALESCE(SUM(CASE WHEN le.origem_modulo IN ('rateios', 'vistorias') THEN le.valor_debito ELSE 0 END), 0)) / i.valor_aquisicao) * 100)
         ELSE 0 END as taxa_rentabilidade_pct
      FROM imoveis i
-     LEFT JOIN ledger_entries le ON i.id = le.origem_id AND le.origem_modulo IN ('contratos', 'rateios', 'vistorias')
+     LEFT JOIN ledger_entries le ON i.id = le.origem_id AND le.origem_modulo IN ('contratos', 'rateios', 'vistorias')${f.sql}
      WHERE i.uso_pessoal = 0 AND i.financiado = 0
      GROUP BY i.id
      ORDER BY resultado_liquido DESC`,
-    [],
+    [...f.params],
   );
 }

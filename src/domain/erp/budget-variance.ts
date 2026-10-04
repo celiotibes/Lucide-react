@@ -5,6 +5,7 @@
 
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
+import { fragmentoLedger, type CriterioBi } from "./criterioBi";
 
 export interface LinhaBudget {
   codigo: string;
@@ -36,7 +37,10 @@ export function calcularBudgetVariance(
   db: Database,
   entidade_id: number,
   periodo_id: number,
+  criterio?: CriterioBi,
 ): ResumoBudget {
+  // criterio ausente = comportamento histórico (bruto, sem filtro): o fragmento é vazio.
+  const f = fragmentoLedger(criterio);
   // Obter período para exibição
   const [periodo] = consultar<{ ano: number; mes: number }>(
     db,
@@ -58,9 +62,9 @@ export function calcularBudgetVariance(
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
      INNER JOIN periodos_contabeis p ON le.periodo_id = p.id
      WHERE le.entidade_id = ? AND cp.grupo = 'receita'
-       AND p.id < ?
+       AND p.id < ?${f.sql}
      ORDER BY p.id DESC LIMIT 1`,
-    [entidade_id, periodo_id],
+    [entidade_id, periodo_id, ...f.params],
   );
 
   const receitasOrcada = (receitasAnterior?.total || 0) * 0.75;
@@ -73,9 +77,9 @@ export function calcularBudgetVariance(
      INNER JOIN contas_plano_contas cp ON le.conta_id = cp.id
      INNER JOIN periodos_contabeis p ON le.periodo_id = p.id
      WHERE le.entidade_id = ? AND cp.grupo = 'despesa'
-       AND p.id < ?
+       AND p.id < ?${f.sql}
      ORDER BY p.id DESC LIMIT 1`,
-    [entidade_id, periodo_id],
+    [entidade_id, periodo_id, ...f.params],
   );
 
   const despesasOrcada = despesasAnterior?.total || 0;
@@ -92,11 +96,11 @@ export function calcularBudgetVariance(
             COALESCE(SUM(le.valor_credito), 0) as realizado
      FROM contas_plano_contas cp
      LEFT JOIN ledger_entries le ON le.conta_id = cp.id
-       AND le.entidade_id = ? AND le.periodo_id = ?
+       AND le.entidade_id = ? AND le.periodo_id = ?${f.sql}
      WHERE cp.grupo = 'receita' AND cp.codigo LIKE '4.1%'
      GROUP BY cp.id, cp.codigo, cp.descricao
      ORDER BY cp.codigo`,
-    [entidade_id, periodo_id],
+    [entidade_id, periodo_id, ...f.params],
   );
 
   let totalReceitasOrcadas = 0;
@@ -140,11 +144,11 @@ export function calcularBudgetVariance(
             COALESCE(SUM(le.valor_debito), 0) as realizado
      FROM contas_plano_contas cp
      LEFT JOIN ledger_entries le ON le.conta_id = cp.id
-       AND le.entidade_id = ? AND le.periodo_id = ?
+       AND le.entidade_id = ? AND le.periodo_id = ?${f.sql}
      WHERE cp.grupo = 'despesa' AND (cp.codigo LIKE '5.2%' OR cp.codigo LIKE '5.3%' OR cp.codigo LIKE '5.5%' OR cp.codigo LIKE '6.%')
      GROUP BY cp.id, cp.codigo, cp.descricao
      ORDER BY cp.codigo`,
-    [entidade_id, periodo_id],
+    [entidade_id, periodo_id, ...f.params],
   );
 
   let totalDespesasOrcadas = 0;
