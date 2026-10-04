@@ -73,13 +73,13 @@ export function criarMiddlewareCSRF() {
  * Deve ser aplicado ANTES das rotas que retornam formulários.
  */
 export function adicionarTokenCSRFAoResponse(
-  req: express.Request,
+  req: CsrfRequest,
   res: express.Response,
   next: express.NextFunction,
 ) {
   // res.locals.csrfToken é acessível em templates EJS/Pug
   // Para APIs REST, retornamos no header (cliente lê com response.headers.get("XSRF-TOKEN"))
-  const token = (req as any).csrfToken?.() || "";
+  const token = req.csrfToken?.() || "";
 
   // Adiciona header XSRF-TOKEN para que o cliente possa ler
   res.setHeader("XSRF-TOKEN", token);
@@ -103,11 +103,11 @@ export function adicionarTokenCSRFAoResponse(
  * Alternativa: incluir o token manualmente em cada handler GET
  */
 export function comTokenCSRF(
-  req: express.Request,
+  req: CsrfRequest,
   res: express.Response,
   next: express.NextFunction,
 ) {
-  const token = (req as any).csrfToken?.() || "";
+  const token = req.csrfToken?.() || "";
   res.locals.csrfToken = token;
   res.setHeader("XSRF-TOKEN", token);
   next();
@@ -122,10 +122,10 @@ export function comTokenCSRF(
  *   }));
  */
 export function retornarComToken(
-  handler: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<void> | void,
+  handler: (req: CsrfRequest, res: express.Response, next: express.NextFunction) => Promise<void> | void,
 ) {
-  return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const token = (req as any).csrfToken?.() || "";
+  return async (req: CsrfRequest, res: express.Response, next: express.NextFunction) => {
+    const token = req.csrfToken?.() || "";
     res.locals.csrfToken = token;
     res.setHeader("XSRF-TOKEN", token);
     return handler(req, res, next);
@@ -149,7 +149,7 @@ export function validarCSRFTokenSeguro(
  * Uses timing-safe comparison to prevent timing attacks
  */
 export function validarCSRFToken(
-  req: express.Request,
+  req: CsrfRequest,
   res: express.Response,
   next: express.NextFunction,
 ) {
@@ -166,7 +166,7 @@ export function validarCSRFToken(
     "";
 
   // Get expected token from session
-  const tokenExpected = (req as any).csrfToken?.() || "";
+  const tokenExpected = req.csrfToken?.() || "";
 
   if (!tokenFromRequest || !tokenExpected) {
     logger.warn("[CSRF] Missing CSRF token", {
