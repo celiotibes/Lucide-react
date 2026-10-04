@@ -10,7 +10,7 @@ import { enviarAlertaSlack, enviarNotificacaoSlack, enviarResumoSlack } from "..
 
 // Mock fetch global
 const fetchMock = vi.fn();
-global.fetch = fetchMock as any;
+global.fetch = fetchMock as unknown as typeof global.fetch;
 
 describe("Email Alertas", () => {
   beforeEach(() => {
@@ -25,7 +25,7 @@ describe("Email Alertas", () => {
   describe("enviarAlertaEmail", () => {
     it("deve logar alerta com severidade quando provider = none", async () => {
       // O código registra pelo logger (não por console.log): é nele que o alerta aparece.
-      const loggerSpy = vi.spyOn(logger, "info").mockImplementation((() => logger) as any);
+      const loggerSpy = vi.spyOn(logger, "info").mockImplementation((() => logger) as unknown as (message: string, meta?: Record<string, unknown>) => void);
 
       await enviarAlertaEmail({
         assunto: "Teste",
@@ -240,7 +240,7 @@ describe("Integração: Email + Slack", () => {
     process.env.SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/test";
     fetchMock.mockResolvedValueOnce({ ok: true });
 
-    const loggerSpy = vi.spyOn(logger, "info").mockImplementation((() => logger) as any);
+    const loggerSpy = vi.spyOn(logger, "info").mockImplementation((() => logger) as unknown as (message: string, meta?: Record<string, unknown>) => void);
 
     // Envia em paralelo
     await Promise.all([
