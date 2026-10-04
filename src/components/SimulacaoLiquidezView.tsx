@@ -257,7 +257,7 @@ export function SimulacaoLiquidezView() {
                   <CartesianGrid stroke="var(--viz-grid)" vertical={false} />
                   <XAxis dataKey="periodo" tick={{ fontSize: 11.5, fill: "var(--viz-muted)" }} axisLine={{ stroke: "var(--viz-baseline)" }} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "var(--viz-muted)" }} axisLine={false} tickLine={false} width={70} tickFormatter={(v) => formatarMoeda(v)} />
-                  <Tooltip formatter={(valor: number, nome: string) => [formatarMoeda(valor), nome]} />
+                  <Tooltip formatter={((valor: number, nome: string) => [formatarMoeda(valor), nome]) as any} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <ReferenceLine y={0} stroke="var(--viz-critical)" strokeDasharray="4 4" />
                   <Line type="monotone" dataKey="Manter como está" stroke="var(--viz-resultado)" strokeWidth={2} dot={{ r: 3 }} />
