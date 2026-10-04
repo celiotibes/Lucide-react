@@ -70,7 +70,7 @@ describe("Batch Transaction Manager", () => {
 
         let count = 0;
         for (const item of chunk) {
-          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`);
+          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`, "titular");
           count++;
         }
         return count;
@@ -111,7 +111,7 @@ describe("Batch Transaction Manager", () => {
 
         let count = 0;
         for (const item of chunk) {
-          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`);
+          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`, "titular");
           count++;
         }
         return count;
@@ -154,7 +154,7 @@ describe("Batch Transaction Manager", () => {
 
         // Dormir um pouco para simular operação lenta
         for (const item of chunk) {
-          stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`);
+          stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`, "titular");
           // Adicionar um sleep pequeno
           const start = Date.now();
           while (Date.now() - start < 10) {
@@ -181,7 +181,7 @@ describe("Batch Transaction Manager", () => {
     `);
 
     for (let i = 0; i < 100; i++) {
-      stmt.run(`user-${i}`, `user${i}@example.com`, "hash", `User ${i}`);
+      stmt.run(`user-${i}`, `user${i}@example.com`, "hash", `User ${i}`, "titular");
     }
 
     // Preparar updates
@@ -222,7 +222,7 @@ describe("Batch Transaction Manager", () => {
         `);
 
         for (const item of chunk) {
-          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`);
+          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`, "titular");
         }
 
         return chunk.length;
@@ -259,7 +259,7 @@ describe("Batch Transaction Manager", () => {
           if ((item as any).shouldFail) {
             throw new Error("Simulated error for testing");
           }
-          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`);
+          stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`, "titular");
         }
 
         return chunk.length;
@@ -292,7 +292,7 @@ describe("Batch Transaction Manager", () => {
         `);
 
         for (const item of chunk) {
-          stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`);
+          stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`, "titular");
         }
 
         return chunk.length;
@@ -323,7 +323,7 @@ describe("Batch Transaction Manager", () => {
           if ((item as any).willFail) {
             throw new Error("Test error in last chunk");
           }
-          stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`);
+          stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`, "titular");
         }
 
         return chunk.length;
