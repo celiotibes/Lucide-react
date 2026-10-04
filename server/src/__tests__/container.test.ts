@@ -31,8 +31,8 @@ describe('Dependency Injection Container', () => {
         return { value: 'factory' };
       });
 
-      const resolved1 = container.resolve('testFactory');
-      const resolved2 = container.resolve('testFactory');
+      const resolved1 = container.resolve('testFactory') as { value: string };
+      const resolved2 = container.resolve('testFactory') as { value: string };
 
       expect(resolved1.value).toBe('factory');
       expect(resolved2.value).toBe('factory');
@@ -195,7 +195,7 @@ describe('Dependency Injection Container', () => {
 
       container.register('service', mockService);
 
-      const service = container.resolve('service');
+      const service = container.resolve('service') as { getValue: () => string; getRealValue: () => string };
       expect(service.getValue()).toBe('mocked-value');
       expect(service.getRealValue()).toBe('real-value');
     });
@@ -219,9 +219,9 @@ describe('Dependency Injection Container', () => {
       }));
 
       container.registerSingleton('userRepository', () => {
-        const logger = container.resolve('logger');
-        const cache = container.resolve('cache');
-        const db = container.resolve('db');
+        const logger = container.resolve('logger') as { log: (msg: string) => void };
+        const cache = container.resolve('cache') as { get: (key: string) => unknown; set: (key: string, value: unknown) => void };
+        const db = container.resolve('db') as { query: () => unknown[] };
 
         return {
           findAll: async () => {
@@ -249,7 +249,7 @@ describe('Dependency Injection Container', () => {
         dep2: container.resolve('dependency2'),
       }));
 
-      const service = container.resolve('service');
+      const service = container.resolve('service') as { dep2: { value: string; dep1: { value: string } } };
       expect(service.dep2.value).toBe('dep2');
       expect(service.dep2.dep1.value).toBe('dep1');
     });
