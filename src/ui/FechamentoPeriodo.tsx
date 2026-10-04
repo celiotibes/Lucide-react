@@ -51,11 +51,11 @@ export function FechamentoPeriodo() {
   const [encerrando, setEncerrando] = useState(false);
   const [hashCopiado, setHashCopiado] = useState(false);
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db]);
 
   const periodos = useMemo<PeriodoContabilResumo[]>(
     () => (db && entidade ? listarPeriodosContabeis(db, entidade.id) : []),
-    [db, entidade, versao, tick],
+    [db, entidade, tick],
   );
 
   // Período selecionado por clique; sem seleção prévia, cai no mais recente da lista
@@ -68,12 +68,12 @@ export function FechamentoPeriodo() {
 
   const balancete = useMemo(
     () => (db && periodoSelecionado ? gerarBalancete(db, periodoSelecionado.id) : null),
-    [db, periodoSelecionado, versao, tick],
+    [db, periodoSelecionado, tick],
   );
 
   const validacao = useMemo(
     () => (db && periodoSelecionado ? validarBalanceamento(db, periodoSelecionado.id) : null),
-    [db, periodoSelecionado, versao, tick],
+    [db, periodoSelecionado, tick],
   );
 
   const encerramento = useMemo(
@@ -81,7 +81,7 @@ export function FechamentoPeriodo() {
       db && periodoSelecionado && periodoSelecionado.status === "fechado"
         ? obterUltimoEncerramento(db, periodoSelecionado.id)
         : null,
-    [db, periodoSelecionado, versao, tick],
+    [db, periodoSelecionado, tick],
   );
 
   const selecionarPeriodo = useCallback((id: number) => {

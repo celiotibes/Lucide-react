@@ -126,7 +126,7 @@ export function Conciliacao() {
   const { avisar } = useToast();
 
   const [tick, setTick] = useState(0);
-  const contas = useMemo(() => (db ? listarContasBancarias(db) : []), [db, versao]);
+  const contas = useMemo(() => (db ? listarContasBancarias(db) : []), [db]);
 
   const [contaId, setContaId] = useState<number | null>(null);
   const contaAtiva = contaId ?? contas[0]?.id ?? null;
@@ -142,7 +142,7 @@ export function Conciliacao() {
 
   const historico = useMemo(
     () => (db && contaAtiva ? listarConciliacoes(db, contaAtiva) : []),
-    [db, versao, tick, contaAtiva],
+    [db, tick, contaAtiva],
   );
 
   // Lacunas no extrato importado — reusa a mesma conta selecionada acima. Infere o período
@@ -150,19 +150,19 @@ export function Conciliacao() {
   // selecionado nesta tela, só a data de corte), ver deteccaoLacunas.ts.
   const lacunasResultado = useMemo(
     () => (db && contaAtiva ? detectarLacunasEmLotesImportados(db, contaAtiva) : null),
-    [db, versao, tick, contaAtiva],
+    [db, tick, contaAtiva],
   );
 
   const conciliacaoDetalhe = useMemo(
     () => (db && conciliacaoAbertaId ? obterConciliacao(db, conciliacaoAbertaId) : null),
-    [db, conciliacaoAbertaId, versao, tick],
+    [db, conciliacaoAbertaId, tick],
   );
 
   const [itemHistoricoAberto, setItemHistoricoAberto] = useState<ConciliacaoItemRegistrado | null>(null);
   const detalheHistoricoResolvido = useMemo(() => {
     if (!db || !itemHistoricoAberto) return null;
     return resolverReferenciasItem(db, itemHistoricoAberto.tipo, itemHistoricoAberto.referencias);
-  }, [db, itemHistoricoAberto, versao, tick]);
+  }, [db, itemHistoricoAberto, tick]);
 
   const carregarSaldoSalvo = useCallback(
     (conta: number, data: string) => {

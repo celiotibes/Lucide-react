@@ -64,10 +64,10 @@ export function TriagemImportacao() {
   const [tick, setTick] = useState(0);
   const [hashCopiado, setHashCopiado] = useState<string | null>(null);
 
-  const lotes = useMemo<ResumoLote[]>(() => (db ? listarLotes(db) : []), [db, versao, tick]);
+  const lotes = useMemo<ResumoLote[]>(() => (db ? listarLotes(db) : []), [db, tick]);
   const linhas = useMemo<LinhaTriagem[]>(
     () => (db && loteAberto ? listarLinhas(db, loteAberto) : []),
-    [db, loteAberto, versao, tick],
+    [db, loteAberto, tick],
   );
 
   const atualizar = useCallback(async () => {

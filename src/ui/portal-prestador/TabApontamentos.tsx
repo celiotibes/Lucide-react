@@ -23,7 +23,7 @@ export function TabApontamentos({
   onSalvar,
   onPersistir,
 }: Props) {
-  const [_secaoAtiva, setSecaoAtiva] = useState<SecaoAtiva>("entrada");
+  const [, setSecaoAtiva] = useState<SecaoAtiva>("entrada");
   const [horarioCapturado, setHorarioCapturado] = useState<{ tipo: string; horario: string } | null>(null);
   const [novaAtividade, setNovaAtividade] = useState({ rubrica: "", tipo: "diaria" as const, valor: 0 });
   const [observacoes, setObservacoes] = useState("");
@@ -36,7 +36,6 @@ export function TabApontamentos({
   const totalRemuneracao = useMemo(() => atividades.reduce((sum, a) => sum + a.valor_final, 0), [atividades]);
 
   const podeAvansarParaIntervalo = apontamentoAtual?.entrada && !apontamentoAtual?.saida_intervalo;
-  const _podeAvansarParaRetorno = apontamentoAtual?.saida_intervalo && !apontamentoAtual?.retorno_intervalo;
   const podeAvansarParaSaida = apontamentoAtual?.entrada && apontamentoAtual?.saida_final === null;
 
   const adicionarAtividade = async () => {

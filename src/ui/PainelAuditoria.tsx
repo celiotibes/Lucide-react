@@ -588,7 +588,7 @@ export function PainelAuditoria() {
         setProcessandoExportacaoId(null);
       }
     },
-    [db, avisar, forcarAtualizacao, persistir],
+    [db, avisar, confirmar, forcarAtualizacao, persistir],
   );
 
   return (
