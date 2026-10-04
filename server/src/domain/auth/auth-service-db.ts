@@ -225,7 +225,7 @@ export class AuthServiceDB {
         prestador_id: sessao.prestador_id,
         token,
       };
-    } catch (erro) {
+    } catch {
       return null;
     }
   }

@@ -312,10 +312,6 @@ describe("AuditTrailSerceDB (Phase 2)", () => {
 
   describe("Period Reports", () => {
     beforeEach(() => {
-      const now = new Date();
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-
       // Register actions at different times
       auditSerce.registrarAcao(
         adminContexto,
@@ -406,7 +402,7 @@ describe("AuditTrailSerceDB (Phase 2)", () => {
     });
 
     it("is append-only (no UPDATE or DELETE)", () => {
-      const registro = auditSerce.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",

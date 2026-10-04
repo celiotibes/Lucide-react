@@ -47,8 +47,8 @@ export interface RegistroAuditoria {
   recurso_id: string;
   prestador_id?: number;
   descricao: string;
-  valores_antigos?: Record<string, any>;
-  valores_novos?: Record<string, any>;
+  valores_antigos?: Record<string, unknown>;
+  valores_novos?: Record<string, unknown>;
   endereco_ip?: string;
   user_agent?: string;
   resultado: "sucesso" | "falha" | "negado";
@@ -83,8 +83,8 @@ export class AuditTrailServiceDB {
     recurso_id: string,
     opcoes?: {
       descricao?: string;
-      valores_antigos?: Record<string, any>;
-      valores_novos?: Record<string, any>;
+      valores_antigos?: Record<string, unknown>;
+      valores_novos?: Record<string, unknown>;
       endereco_ip?: string;
       user_agent?: string;
       resultado?: "sucesso" | "falha" | "negado";
