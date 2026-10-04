@@ -102,7 +102,7 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
     });
 
     it("should implement exponential backoff", () => {
-      const key = "test-key";
+      const key = "test-key-exponential";
       const limit = 1;
       const windowMs = 60000;
 
@@ -117,12 +117,39 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       expect(firstRetryAfter).toBeGreaterThan(0);
       expect(firstRetryAfter).toBeLessThanOrEqual(10);
 
-      // Store is now blocked
-      result = store.check(key, limit, windowMs);
+      // Immediately try again while still blocked - should still be blocked
+      // but next violation will have longer backoff
+      // Create a new key to simulate second violation
+      const key2 = "test-key-exponential-2";
+
+      // Exceed limit immediately (first violation for key2)
+      result = store.check(key2, limit, windowMs);
+      expect(result.allowed).toBe(true);
+
+      result = store.check(key2, limit, windowMs);
       expect(result.allowed).toBe(false);
-      // Second violation should have longer backoff
-      const secondRetryAfter = result.retryAfter || 0;
-      expect(secondRetryAfter).toBeGreaterThan(firstRetryAfter);
+      const firstViolationRetryAfter = result.retryAfter || 0;
+      expect(firstViolationRetryAfter).toBeGreaterThan(0);
+      expect(firstViolationRetryAfter).toBeLessThanOrEqual(10);
+
+      // Simulate time passing by manipulating the bucket
+      // This allows us to test the exponential backoff without waiting
+      const bucket = (store as any).buckets.get(key2);
+      const originalBlockedUntil = bucket.blockedUntil;
+      // Simulate 11 seconds passing by setting blockedUntil to past
+      bucket.blockedUntil = Date.now() - 1000;
+
+      // Third request - should unblock and allow one more request
+      result = store.check(key2, limit, windowMs);
+      expect(result.allowed).toBe(true);
+
+      // Fourth request - violates limit again (second violation)
+      result = store.check(key2, limit, windowMs);
+      expect(result.allowed).toBe(false);
+      const secondViolationRetryAfter = result.retryAfter || 0;
+      // Second violation should have longer backoff (20s)
+      expect(secondViolationRetryAfter).toBeGreaterThan(firstViolationRetryAfter);
+      expect(secondViolationRetryAfter).toBeGreaterThanOrEqual(20);
     });
 
     it("should handle different keys independently", () => {
@@ -271,10 +298,11 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
     });
 
     it("should allow requests within limit", async () => {
-      const middleware = createRateLimitMiddleware({ limit: 3, windowMs: 60000 });
+      const store = new RateLimitStore();
+      const middleware = createRateLimitMiddleware({ limit: 3, windowMs: 60000, store });
 
       const req = {
-        ip: "192.168.1.1",
+        ip: "192.168.1.99",
         path: "/api/test",
       } as any as Request;
 
@@ -303,13 +331,15 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
         middleware(req, res, next);
         expect(nextCalled).toBe(true);
       }
+      store.destroy();
     });
 
     it("should set rate limit headers", async () => {
-      const middleware = createRateLimitMiddleware({ limit: 5, windowMs: 60000 });
+      const store = new RateLimitStore();
+      const middleware = createRateLimitMiddleware({ limit: 5, windowMs: 60000, store });
 
       const req = {
-        ip: "192.168.1.1",
+        ip: "192.168.1.100",
         path: "/api/test",
       } as any as Request;
 
@@ -336,13 +366,15 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       expect(headers["X-RateLimit-Limit"]).toBe("5");
       expect(headers["X-RateLimit-Remaining"]).toBe("4");
       expect(headers["X-RateLimit-Reset"]).toBeDefined();
+      store.destroy();
     });
 
     it("should block exceeded requests with 429 status", async () => {
-      const middleware = createRateLimitMiddleware({ limit: 1, windowMs: 60000 });
+      const store = new RateLimitStore();
+      const middleware = createRateLimitMiddleware({ limit: 1, windowMs: 60000, store });
 
       const req = {
-        ip: "192.168.1.1",
+        ip: "192.168.1.101",
         path: "/api/test",
       } as any as Request;
 
@@ -370,13 +402,15 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       // Second request blocked
       middleware(req, res, next);
       expect(statusCode).toBe(429);
+      store.destroy();
     });
 
     it("should include retry-after header when rate limited", async () => {
-      const middleware = createRateLimitMiddleware({ limit: 1, windowMs: 60000 });
+      const store = new RateLimitStore();
+      const middleware = createRateLimitMiddleware({ limit: 1, windowMs: 60000, store });
 
       const req = {
-        ip: "192.168.1.1",
+        ip: "192.168.1.102",
         path: "/api/test",
       } as any as Request;
 
@@ -406,6 +440,7 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
 
       expect(headers["Retry-After"]).toBeDefined();
       expect(parseInt(headers["Retry-After"])).toBeGreaterThan(0);
+      store.destroy();
     });
   });
 });

@@ -289,8 +289,8 @@ describe("SEC-011B: Security Helpers - Timing Attack Protection", () => {
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U";
       const redacted = redactSensitive(token);
 
-      expect(redacted).toEndWith("R8U");
-      expect(redacted).toStartWith("*");
+      expect(redacted.endsWith("sR8U")).toBe(true);
+      expect(redacted.startsWith("*")).toBe(true);
     });
 
     it("should fully redact short strings", () => {

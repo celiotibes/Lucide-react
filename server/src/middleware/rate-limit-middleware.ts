@@ -25,6 +25,7 @@ interface RateLimitBucket {
   windowStart: number;
   blocked: boolean;
   blockedUntil?: number;
+  violationCount: number; // Track number of consecutive violations for exponential backoff
 }
 
 interface RateLimitConfig {
@@ -61,6 +62,7 @@ class RateLimitStore {
         requestCount: 0,
         windowStart: Date.now(),
         blocked: false,
+        violationCount: 0,
       });
     }
     return this.buckets.get(key)!;
@@ -85,6 +87,7 @@ class RateLimitStore {
       bucket.requestCount = 0;
       bucket.windowStart = now;
       bucket.blocked = false;
+      bucket.violationCount = 0;
       delete bucket.blockedUntil;
     }
 
@@ -98,12 +101,12 @@ class RateLimitStore {
       };
     }
 
-    // Unblock if window passed
+    // Unblock if window passed (but keep violationCount for exponential backoff)
     if (bucket.blocked) {
       bucket.blocked = false;
       delete bucket.blockedUntil;
       bucket.requestCount = 0;
-      bucket.windowStart = now;
+      // Don't reset violationCount - it persists for exponential backoff within same window
     }
 
     // Increment counter
@@ -113,9 +116,11 @@ class RateLimitStore {
 
     // Check if limit exceeded
     if (bucket.requestCount > limit) {
+      bucket.violationCount += 1;
       bucket.blocked = true;
-      // Exponential backoff: 10s for first violation, 60s for subsequent
-      bucket.blockedUntil = now + (bucket.requestCount > limit + 1 ? 60000 : 10000);
+      // Exponential backoff: 10s for 1st violation, 20s for 2nd, 60s for 3rd+
+      const backoffMs = bucket.violationCount === 1 ? 10000 : bucket.violationCount === 2 ? 20000 : 60000;
+      bucket.blockedUntil = now + backoffMs;
 
       return {
         allowed: false,
@@ -224,7 +229,7 @@ function getEndpointConfig(req: Request): {
  * Create rate limiting middleware
  * Uses userId + IP combination for authenticated users, just IP for others
  */
-export function createRateLimitMiddleware(customConfig?: Partial<RateLimitConfig>) {
+export function createRateLimitMiddleware(customConfig?: Partial<RateLimitConfig & { store?: RateLimitStore }>) {
   return function rateLimitMiddleware(
     req: Request,
     res: Response,
@@ -232,17 +237,21 @@ export function createRateLimitMiddleware(customConfig?: Partial<RateLimitConfig
   ) {
     // Get endpoint-specific config
     const endpointConfig = getEndpointConfig(req);
+    const { store, ...restConfig } = customConfig || {};
     const config: RateLimitConfig = {
       ...endpointConfig,
-      ...customConfig,
+      ...restConfig,
     };
+
+    // Use provided store or global store
+    const storeInstance = store || rateLimitStore;
 
     // Generate rate limit key (includeUserId for authenticated requests)
     const isAuthenticated = !!(req.auth as any)?.usuario;
     const key = generateRateLimitKey(req, isAuthenticated);
 
     // Check rate limit
-    const result = rateLimitStore.check(key, config.limit, config.windowMs);
+    const result = storeInstance.check(key, config.limit, config.windowMs);
 
     // Set rate limit headers (standard X-RateLimit-* format)
     const resetDate = new Date(result.resetTime);
