@@ -6,7 +6,7 @@
  * Por padrão, testam apenas o comportamento offline.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "test";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
@@ -59,7 +59,7 @@ describe("Google Drive Backup - Integração", () => {
 
       const result = db.prepare("SELECT * FROM test").all();
       expect(result).toHaveLength(1);
-      expect((result[0] as any).valor).toBe("test-value");
+      expect((result[0] as unknown).valor).toBe("test-value");
 
       db.close();
     });
@@ -122,12 +122,12 @@ describe("Google Drive Backup - Integração", () => {
     });
 
     it("deve aceitar GOOGLE_CREDENTIALS_JSON como JSON válido se definida", () => {
-      const json = '{"type":"service_account"}';
+      const json = '{"type":"serce_account"}';
       process.env.GOOGLE_CREDENTIALS_JSON = json;
 
       try {
         const parsed = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
-        expect(parsed.type).toBe("service_account");
+        expect(parsed.type).toBe("serce_account");
       } catch {
         expect.fail("JSON inválido em GOOGLE_CREDENTIALS_JSON");
       }

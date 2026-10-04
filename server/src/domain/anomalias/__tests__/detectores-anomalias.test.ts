@@ -3,7 +3,7 @@
  * 18 testes cobrindo os 3 métodos + agregação + persistência
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach} from "test";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
@@ -14,13 +14,12 @@ import {
   avaliarAnomaliaAgregada,
   registrarAlertaAnomalia,
   listarAlertas,
-  marcarAnomaliaRevisada,
+  marcarAnomaliaResada,
   obterAlerta,
   obterEstatisticasAnomalias,
   invalidarCacheTransacoes,
-  invalidarCacheAnomalias,
-} from "../detectores-anomalias.js";
-import { getCacheService, resetCacheService } from "../../../services/cache-service.js";
+  invalidarCacheAnomalias} from "../detectores-anomalias.js";
+import { getCacheSerce, resetCacheSerce } from "../../../serces/cache-serce.js";
 
 describe("Sistema de Detecção de Anomalias", () => {
   let db: Database.Database;
@@ -28,7 +27,7 @@ describe("Sistema de Detecção de Anomalias", () => {
 
   beforeEach(() => {
     // Reset cache before each test
-    resetCacheService();
+    resetCacheSerce();
 
     // Cria banco de teste em memória
     dbPath = path.join(process.cwd(), "test-anomalias.db");
@@ -60,7 +59,7 @@ describe("Sistema de Detecção de Anomalias", () => {
         tipo_metrica TEXT NOT NULL,
         periodo_dias INTEGER NOT NULL DEFAULT 90,
         media REAL,
-        desvio_padrao REAL,
+        deso_padrao REAL,
         q1 REAL,
         q2 REAL,
         q3 REAL,
@@ -87,14 +86,14 @@ describe("Sistema de Detecção de Anomalias", () => {
         percentil_valor REAL,
         percentil_95 REAL,
         descricao TEXT,
-        revisado INTEGER NOT NULL DEFAULT 0,
-        revisado_por TEXT,
-        revisado_em DATETIME,
-        motivo_revisao TEXT,
+        resado INTEGER NOT NULL DEFAULT 0,
+        resado_por TEXT,
+        resado_em DATETIME,
+        motivo_resao TEXT,
         criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         atualizado_em DATETIME,
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id),
-        FOREIGN KEY(revisado_por) REFERENCES usuarios(id)
+        FOREIGN KEY(resado_por) REFERENCES usuarios(id)
       );
 
       CREATE INDEX IF NOT EXISTS idx_alertas_anomalias_transacao
@@ -113,7 +112,7 @@ describe("Sistema de Detecção de Anomalias", () => {
   // TESTES 2-SIGMA (4 testes)
   // ============================================================
 
-  describe("Método A: 2-Sigma (Desvio Padrão)", () => {
+  describe("Método A: 2-Sigma (Deso Padrão)", () => {
     it("Teste 1: Transação normal não dispara alerta", () => {
       // Setup: gera 90 transações normais (média ~100, σ~10)
       for (let i = 0; i < 90; i++) {
@@ -352,7 +351,7 @@ describe("Sistema de Detecção de Anomalias", () => {
       expect(resultado.severidade).toBe("critica");
     });
 
-    it("Teste 15: Confiança agregada é a média das confianzas individuais", () => {
+    it("Teste 15: Confiança agregada é a média das confianzas indiduais", () => {
       // Setup
       for (let i = 0; i < 50; i++) {
         db.exec(
@@ -425,34 +424,34 @@ describe("Sistema de Detecção de Anomalias", () => {
       expect(limitada.length).toBeLessThanOrEqual(1);
     });
 
-    it("Teste 18: Marcar alerta como revisado + estatísticas", () => {
+    it("Teste 18: Marcar alerta como resado + estatísticas", () => {
       const resultado = avaliarAnomaliaAgregada(db, 500);
-      const alerta = registrarAlertaAnomalia(db, "tx_review", resultado, "user1");
+      const alerta = registrarAlertaAnomalia(db, "tx_reew", resultado, "user1");
 
-      // Marca como revisado
-      marcarAnomaliaRevisada(db, alerta.id, "user1", "falso positivo");
+      // Marca como resado
+      marcarAnomaliaResada(db, alerta.id, "user1", "falso positivo");
 
-      // Recupera diretamente via SQL para verificar UPDATE funcionou
-      const revisadoRow = db.prepare(`
-        SELECT revisado, motivo_revisao FROM alertas_anomalias_registrados WHERE id = ?
+      // Recupera diretamentea SQL para verificar UPDATE funcionou
+      const resadoRow = db.prepare(`
+        SELECT resado, motivo_resao FROM alertas_anomalias_registrados WHERE id = ?
       `).get(alerta.id) as unknown;
 
-      expect(revisadoRow?.revisado).toBe(1);
-      expect(revisadoRow?.motivo_revisao).toBe("falso positivo");
+      expect(resadoRow?.resado).toBe(1);
+      expect(resadoRow?.motivo_resao).toBe("falso positivo");
 
-      // Também verifica via função
-      const revisado = obterAlerta(db, alerta.id);
-      expect(revisado?.revisado).toBe(1);
+      // Também verificaa função
+      const resado = obterAlerta(db, alerta.id);
+      expect(resado?.resado).toBe(1);
 
       // Estatísticas
       const stats = obterEstatisticasAnomalias(db, 30);
       expect(stats.total).toBeGreaterThan(0);
-      expect(stats.revisadas).toBeGreaterThan(0);
-      expect(stats.taxa_revisao).toBeGreaterThan(0);
+      expect(stats.resadas).toBeGreaterThan(0);
+      expect(stats.taxa_resao).toBeGreaterThan(0);
     });
 
     it("Teste 19: Cache de transações - hit em chamadas repetidas", () => {
-      const cache = getCacheService();
+      const cache = getCacheSerce();
       const initialSize = cache.size();
 
       // Primeira chamada (sem cache)
@@ -468,7 +467,7 @@ describe("Sistema de Detecção de Anomalias", () => {
     });
 
     it("Teste 20: Cache de transações - hit rate em fluxo de anomalias", () => {
-      const cache = getCacheService();
+      const cache = getCacheSerce();
 
       // Simula o fluxo de anomalias que chama 3 métodos
       const valor = 450;
@@ -491,7 +490,7 @@ describe("Sistema de Detecção de Anomalias", () => {
     });
 
     it("Teste 21: Invalidação de cache de transações", () => {
-      const cache = getCacheService();
+      const cache = getCacheSerce();
 
       // Primeira chamada
       detectarAnomalia2Sigma(db, 300, 90);
@@ -506,7 +505,7 @@ describe("Sistema de Detecção de Anomalias", () => {
     });
 
     it("Teste 22: Invalidação completa de cache de anomalias", () => {
-      const cache = getCacheService();
+      const cache = getCacheSerce();
 
       // Popula cache com múltiplas chamadas
       detectarAnomalia2Sigma(db, 300, 90);

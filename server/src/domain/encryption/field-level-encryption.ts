@@ -168,10 +168,10 @@ export function descriptografar(
  * Criptografa um objeto, encriptando apenas campos sensíveis
  */
 export function criptografarObjeto(
-  objeto: Record<string, any>,
+  objeto: Record<string, unknown>,
   chaveSecreta: Buffer | string,
   camposAcriptografar?: string[]
-): Record<string, any> {
+): Record<string, unknown> {
   const criptografado = { ...objeto };
 
   // Usar campos marcados com @Encrypted ou lista fornecida
@@ -198,10 +198,10 @@ export function criptografarObjeto(
  * Descriptografa um objeto, descriptografando campos sensíveis
  */
 export function descriptografarObjeto(
-  objeto: Record<string, any>,
+  objeto: Record<string, unknown>,
   chaveSecreta: Buffer | string,
   camposDesencriptar?: string[]
-): Record<string, any> {
+): Record<string, unknown> {
   const descriptografado = { ...objeto };
 
   const campos = camposDesencriptar ||
@@ -230,7 +230,7 @@ export function descriptografarObjeto(
  * Serializa um objeto com campos criptografados para JSON
  */
 export function serializarComEncriptacao(
-  objeto: Record<string, any>,
+  objeto: Record<string, unknown>,
   chaveSecreta: Buffer | string
 ): string {
   const criptografado = criptografarObjeto(objeto, chaveSecreta);
@@ -243,7 +243,7 @@ export function serializarComEncriptacao(
 export function desserializarComDescriptografia(
   json: string,
   chaveSecreta: Buffer | string
-): Record<string, any> {
+): Record<string, unknown> {
   const objeto = JSON.parse(json);
   return descriptografarObjeto(objeto, chaveSecreta);
 }
@@ -279,10 +279,11 @@ export function mascararCampoSensivel(
       // Cartão: mostra apenas últimos 4: ****-****-****-1234
       return '****-****-****-' + valor.slice(-4);
 
-    case 'email':
+    case 'email': {
       // Email: u***@example.com
       const [user, domain] = valor.split('@');
       return user.charAt(0) + '***@' + domain;
+    }
 
     case 'telefone':
       // Telefone: ***-****-*890

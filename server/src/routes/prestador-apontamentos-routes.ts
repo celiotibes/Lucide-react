@@ -244,7 +244,7 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
       res.status(resultado.codigo).json(resultado.corpo);
     } catch (erro) {
       logger.error("Erro ao registrar apontamento:", {
-        requestId: (req as any).id || "unknown",
+        requestId: (req as unknown).id || "unknown",
         userId: usuarioId,
         endpoint: req.path,
         uuid: p.uuid,
@@ -294,7 +294,7 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
       res.json({ itens, total, limite: pg.limite, offset: pg.offset });
     } catch (erro) {
       logger.error("Erro ao consultar apontamentos:", {
-        requestId: (req as any).id || "unknown",
+        requestId: (req as unknown).id || "unknown",
         userId: uid,
         endpoint: req.path,
         error: erro instanceof Error ? erro.message : String(erro),
@@ -351,7 +351,7 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
       res.status(resultado.codigo).json(resultado.corpo);
     } catch (erro) {
       logger.error("Erro ao conferir apontamento:", {
-        requestId: (req as any).id || "unknown",
+        requestId: (req as unknown).id || "unknown",
         userId: contexto.usuario?.id,
         endpoint: req.path,
         apontamentoId: id,

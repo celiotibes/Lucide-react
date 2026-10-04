@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "test";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { AuditTrailServiceDB } from "../audit-trail-db";
-import { ContextoAutenticacao, Usuario } from "../auth-service";
+import { AuditTrailSerceDB } from "../audit-trail-db";
+import { ContextoAutenticacao, Usuario } from "../auth-serce";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,7 +45,7 @@ function createTestDatabase(): Database.Database {
 
   // Executa o schema inteiro numa única chamada. better-sqlite3 já roda
   // múltiplas statements separadas por ';' e entende comentários SQL
-  // (-- e /* */) nativamente — não precisamos (e não devemos) dividir o
+  // (-- e /* */) nativamente — não precisamos (e não devemos) didir o
   // arquivo manualmente por ';' aqui: um split ingênuo agrupa cada bloco de
   // comentário "-- ===..." com a statement seguinte (não há ';' entre eles),
   // e um filtro que descarta blocos começados por "--" acaba descartando
@@ -71,8 +71,7 @@ const adminUser: Usuario = {
   email: "admin@example.com",
   role: "titular",
   ativo: true,
-  data_criacao: "2026-01-01",
-};
+  data_criacao: "2026-01-01"};
 
 const adminContexto: ContextoAutenticacao = {
   usuario: adminUser,
@@ -80,13 +79,13 @@ const adminContexto: ContextoAutenticacao = {
   role: "titular",
 };
 
-describe("AuditTrailServiceDB (Phase 2)", () => {
+describe("AuditTrailSerceDB (Phase 2)", () => {
   let db: Database.Database;
-  let auditService: AuditTrailServiceDB;
+  let auditSerce: AuditTrailSerceDB;
 
   beforeEach(() => {
     db = createTestDatabase();
-    auditService = new AuditTrailServiceDB(db);
+    auditSerce = new AuditTrailSerceDB(db);
   });
 
   afterEach(() => {
@@ -98,7 +97,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
 
   describe("Action Registration", () => {
     it("registers simple action", () => {
-      const registro = auditService.registrarAcao(
+      const registro = auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",
@@ -113,7 +112,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("registers action with old and new values", () => {
-      const registro = auditService.registrarAcao(
+      const registro = auditSerce.registrarAcao(
         adminContexto,
         "atualizar_apontamento",
         "apontamento",
@@ -130,7 +129,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("registers denied access action", () => {
-      const registro = auditService.registrarAcessoNegado(
+      const registro = auditSerce.registrarAcessoNegado(
         adminContexto,
         "prestador_pagamento",
         "aprovar",
@@ -143,7 +142,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("persists audit record to database", () => {
-      const registro = auditService.registrarAcao(
+      const registro = auditSerce.registrarAcao(
         adminContexto,
         "criar_apontamento",
         "apontamento",
@@ -162,25 +161,25 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
   describe("History Retrieval", () => {
     beforeEach(() => {
       // Register multiple actions
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",
         "user_admin_1"
       );
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "criar_apontamento",
         "apontamento",
         "apt_1"
       );
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "atualizar_apontamento",
         "apontamento",
         "apt_1"
       );
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "aprovar_pagamento",
         "pagamento",
@@ -189,27 +188,27 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("retrieves user history", () => {
-      const historico = auditService.obterHistoricoUsuario("user_admin_1");
+      const historico = auditSerce.obterHistoricoUsuario("user_admin_1");
 
       expect(historico.length).toBe(4);
       expect(historico.every((r) => r.usuario_id === "user_admin_1")).toBe(true);
     });
 
     it("respects history limit", () => {
-      const historico = auditService.obterHistoricoUsuario("user_admin_1", 2);
+      const historico = auditSerce.obterHistoricoUsuario("user_admin_1", 2);
 
       expect(historico.length).toBe(2);
     });
 
     it("retrieves resource history", () => {
-      const historico = auditService.obterHistoricoRecurso("apontamento");
+      const historico = auditSerce.obterHistoricoRecurso("apontamento");
 
       expect(historico.length).toBe(2);
       expect(historico.every((r) => r.recurso === "apontamento")).toBe(true);
     });
 
     it("orders history by most recent first", () => {
-      const historico = auditService.obterHistoricoUsuario("user_admin_1");
+      const historico = auditSerce.obterHistoricoUsuario("user_admin_1");
 
       // Most recent should be first
       expect(historico[0].tipo_acao).toBe("aprovar_pagamento");
@@ -218,13 +217,13 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
 
   describe("Filtered Retrieval", () => {
     beforeEach(() => {
-      auditService.registrarAcao(adminContexto, "login", "usuario", "user_1", {
+      auditSerce.registrarAcao(adminContexto, "login", "usuario", "user_1", {
         resultado: "sucesso",
       });
-      auditService.registrarAcao(adminContexto, "login", "usuario", "user_2", {
+      auditSerce.registrarAcao(adminContexto, "login", "usuario", "user_2", {
         resultado: "sucesso",
       });
-      auditService.registrarAcessoNegado(
+      auditSerce.registrarAcessoNegado(
         adminContexto,
         "prestador_pagamento",
         "aprovar",
@@ -233,7 +232,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("filters by action type", () => {
-      const registros = auditService.obterTodos({
+      const registros = auditSerce.obterTodos({
         tipo_acao: "login",
       });
 
@@ -242,7 +241,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("filters by result", () => {
-      const registros = auditService.obterTodos({
+      const registros = auditSerce.obterTodos({
         resultado: "negado",
       });
 
@@ -251,7 +250,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("filters by user", () => {
-      const registros = auditService.obterTodos({
+      const registros = auditSerce.obterTodos({
         usuario_id: "user_admin_1",
       });
 
@@ -262,19 +261,19 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
   describe("Statistics", () => {
     beforeEach(() => {
       // Register successful actions
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",
         "user_1"
       );
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "criar_apontamento",
         "apontamento",
         "apt_1"
       );
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",
@@ -282,7 +281,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
       );
 
       // Register denied access
-      auditService.registrarAcessoNegado(
+      auditSerce.registrarAcessoNegado(
         adminContexto,
         "prestador_pagamento",
         "deletar",
@@ -291,7 +290,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("calculates statistics", () => {
-      const stats = auditService.obterEstatisticas(24);
+      const stats = auditSerce.obterEstatisticas(24);
 
       expect(stats.total_registros).toBe(4);
       expect(stats.total_acessos_negados).toBe(1);
@@ -301,11 +300,11 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
 
     it("filters statistics by period", () => {
       // Wait a bit and create new records
-      const stats24h = auditService.obterEstatisticas(24);
+      const stats24h = auditSerce.obterEstatisticas(24);
       expect(stats24h.total_registros).toBeGreaterThan(0);
 
       // Very short period should exclude old records
-      const stats1h = auditService.obterEstatisticas(1);
+      const stats1h = auditSerce.obterEstatisticas(1);
       // Might be 0 or more depending on timing, just check it doesn't error
       expect(stats1h.total_registros).toBeGreaterThanOrEqual(0);
     });
@@ -318,19 +317,19 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
       const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
       // Register actions at different times
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",
         "user_1"
       );
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "criar_apontamento",
         "apontamento",
         "apt_1"
       );
-      auditService.registrarAcessoNegado(
+      auditSerce.registrarAcessoNegado(
         adminContexto,
         "prestador_pagamento",
         "aprovar",
@@ -342,7 +341,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
       const inicio = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const fim = new Date();
 
-      const relatorio = auditService.gerarRelatorioPeriodo(inicio, fim);
+      const relatorio = auditSerce.gerarRelatorioPeriodo(inicio, fim);
 
       expect(relatorio.total_eventos).toBeGreaterThan(0);
       expect(relatorio.usuarios_ativos).toBeGreaterThan(0);
@@ -354,7 +353,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
       const inicio = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const fim = new Date();
 
-      const relatorio = auditService.gerarRelatorioPeriodo(inicio, fim);
+      const relatorio = auditSerce.gerarRelatorioPeriodo(inicio, fim);
 
       expect(relatorio.acessos_negados_detalhes.length).toBeGreaterThan(0);
       expect(relatorio.acessos_negados_detalhes[0].usuario).toBeDefined();
@@ -363,27 +362,27 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
   });
 
   describe("Data Persistence", () => {
-    it("persists audit records across service instances", () => {
+    it("persists audit records across serce instances", () => {
       // Register action with first instance
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",
         "user_admin_1"
       );
 
-      // Create new service instance with same database
-      const auditService2 = new AuditTrailServiceDB(db);
+      // Create new serce instance with same database
+      const auditSerce2 = new AuditTrailSerceDB(db);
 
       // Retrieve with new instance
-      const historico = auditService2.obterHistoricoUsuario("user_admin_1");
+      const historico = auditSerce2.obterHistoricoUsuario("user_admin_1");
 
       expect(historico.length).toBe(1);
     });
 
-    it("survives service restart", () => {
+    it("surves serce restart", () => {
       // Register action
-      auditService.registrarAcao(
+      auditSerce.registrarAcao(
         adminContexto,
         "criar_apontamento",
         "apontamento",
@@ -395,11 +394,11 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
       const db2 = new Database(TEST_DB_PATH);
       db2.pragma("foreign_keys = ON");
 
-      // Create new service with reopened database
-      const auditService2 = new AuditTrailServiceDB(db2);
+      // Create new serce with reopened database
+      const auditSerce2 = new AuditTrailSerceDB(db2);
 
       // Verify record still exists
-      const historico = auditService2.obterHistoricoRecurso("apontamento");
+      const historico = auditSerce2.obterHistoricoRecurso("apontamento");
 
       expect(historico.length).toBe(1);
 
@@ -407,17 +406,17 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
     });
 
     it("is append-only (no UPDATE or DELETE)", () => {
-      const registro = auditService.registrarAcao(
+      const registro = auditSerce.registrarAcao(
         adminContexto,
         "login",
         "usuario",
         "user_1"
       );
 
-      // Try to manually update (this shouldn't be allowed by the service)
-      // The database doesn't prevent UPDATE, but the service doesn't expose it
+      // Try to manually update (this shouldn't be allowed by the serce)
+      // The database doesn't prevent UPDATE, but the serce doesn't expose it
       expect(() => {
-        auditService.registrarAcao(
+        auditSerce.registrarAcao(
           adminContexto,
           "login",
           "usuario",
@@ -426,7 +425,7 @@ describe("AuditTrailServiceDB (Phase 2)", () => {
       }).not.toThrow();
 
       // Verify both records exist
-      const todos = auditService.obterTodos();
+      const todos = auditSerce.obterTodos();
       expect(todos.length).toBe(2);
     });
   });
