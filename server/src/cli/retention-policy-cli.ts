@@ -14,14 +14,12 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { RetentionPolicyExecutor } from '../services/retention-policy-executor';
-import { LoggerService } from '../services/logger-service';
 
 const args = process.argv.slice(2);
 const command = args[0] || 'help';
 
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../data/crmt.db');
 const db = new Database(dbPath);
-const logger = new LoggerService('retention-policy-cli');
 const executor = new RetentionPolicyExecutor(db);
 
 function printHelp(): void {
