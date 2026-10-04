@@ -6,6 +6,18 @@
 import type Database from 'better-sqlite3';
 import type { DomainEvent } from './DomainEvent.js';
 
+interface EventStoreRow {
+  event_id: string;
+  event_type: string;
+  agregado_id: string;
+  agregado_tipo: string;
+  payload: string;
+  timestamp: string;
+  versao: number;
+  metadados: string | null;
+  correlacao_id: string | null;
+}
+
 export interface IEventStore {
   /**
    * Registra um evento
@@ -63,8 +75,8 @@ export class EventStore implements IEventStore {
       ORDER BY timestamp ASC
     `);
 
-    const rows = stmt.all(agregadoId) as any[];
-    return rows.map(this.rowToDomainEvent);
+    const rows = stmt.all(agregadoId) as unknown as EventStoreRow[];
+    return rows.map((row) => this.rowToDomainEvent(row));
   }
 
   async getEventsByType(type: string): Promise<DomainEvent[]> {
@@ -74,8 +86,8 @@ export class EventStore implements IEventStore {
       ORDER BY timestamp DESC
     `);
 
-    const rows = stmt.all(type) as any[];
-    return rows.map(this.rowToDomainEvent);
+    const rows = stmt.all(type) as unknown as EventStoreRow[];
+    return rows.map((row) => this.rowToDomainEvent(row));
   }
 
   async getEventsByDateRange(inicio: string, fim: string): Promise<DomainEvent[]> {
@@ -85,8 +97,8 @@ export class EventStore implements IEventStore {
       ORDER BY timestamp DESC
     `);
 
-    const rows = stmt.all(inicio, fim) as any[];
-    return rows.map(this.rowToDomainEvent);
+    const rows = stmt.all(inicio, fim) as unknown as EventStoreRow[];
+    return rows.map((row) => this.rowToDomainEvent(row));
   }
 
   async getEventCount(): Promise<number> {
@@ -95,7 +107,7 @@ export class EventStore implements IEventStore {
     return result.count;
   }
 
-  private rowToDomainEvent(row: any): DomainEvent {
+  private rowToDomainEvent(row: EventStoreRow): DomainEvent {
     return {
       id: row.event_id,
       type: row.event_type,
