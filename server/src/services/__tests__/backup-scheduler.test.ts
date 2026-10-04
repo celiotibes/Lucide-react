@@ -6,8 +6,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import BackupScheduler from '../backup-scheduler.js';
 
+interface MockBackupService {
+  criarBackup: ReturnType<typeof vi.fn>;
+  testarRestauracao: ReturnType<typeof vi.fn>;
+  verificarBackup: ReturnType<typeof vi.fn>;
+  listarBackups: ReturnType<typeof vi.fn>;
+}
+
 // Mock BackupService
-const mockBackupService = {
+const mockBackupService: MockBackupService = {
   criarBackup: vi.fn(),
   testarRestauracao: vi.fn(),
   verificarBackup: vi.fn(),
@@ -23,7 +30,7 @@ describe('BackupScheduler', () => {
     vi.useFakeTimers();
 
     // Create scheduler instance
-    scheduler = new BackupScheduler(mockBackupService as any, {
+    scheduler = new BackupScheduler(mockBackupService as MockBackupService, {
       backupSchedule: '1440', // 24 hours em minutos
       verifySchedule: '10080', // 7 dias
       retentionDays: 7,
@@ -39,7 +46,7 @@ describe('BackupScheduler', () => {
   });
 
   it('should parse cron-like schedule correctly', () => {
-    const scheduler1 = new BackupScheduler(mockBackupService as any, {
+    const scheduler1 = new BackupScheduler(mockBackupService as MockBackupService, {
       backupSchedule: '0 2 * * *', // 2 AM
       verifySchedule: '1440',
       retentionDays: 7,
@@ -51,7 +58,7 @@ describe('BackupScheduler', () => {
   });
 
   it('should parse minute-based schedule correctly', () => {
-    const scheduler2 = new BackupScheduler(mockBackupService as any, {
+    const scheduler2 = new BackupScheduler(mockBackupService as MockBackupService, {
       backupSchedule: '1440', // 24 horas
       verifySchedule: '10080', // 7 dias
       retentionDays: 7,
@@ -93,7 +100,7 @@ describe('BackupScheduler', () => {
   });
 
   it('should disable NAS copy if path not configured', () => {
-    const schedulerNoNAS = new BackupScheduler(mockBackupService as any, {
+    const schedulerNoNAS = new BackupScheduler(mockBackupService as MockBackupService, {
       backupSchedule: '1440',
       verifySchedule: '10080',
       retentionDays: 7,
@@ -110,7 +117,7 @@ describe('BackupScheduler', () => {
 
   it('should initialize successfully without backup config', () => {
     // Deve não falhar se backup não estiver configurado
-    const scheduler3 = new BackupScheduler(mockBackupService as any, {
+    const scheduler3 = new BackupScheduler(mockBackupService as MockBackupService, {
       backupSchedule: '1440',
       verifySchedule: '10080',
       retentionDays: 7,
