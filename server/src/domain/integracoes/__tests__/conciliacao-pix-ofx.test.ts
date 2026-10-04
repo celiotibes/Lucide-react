@@ -137,7 +137,7 @@ describe("Reconciliação PIX↔OFX", () => {
 
     // Verifica se foi criado registro de conciliação
     const stmt = db.prepare("SELECT * FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
-    const conc = stmt.get("charge-1") as any;
+    const conc = stmt.get("charge-1") as unknown as { status: string };
     expect(conc).toBeDefined();
     expect(conc.status).toBe("pendente");
   });
@@ -161,7 +161,7 @@ describe("Reconciliação PIX↔OFX", () => {
     expect(resultado.pendentes).toBe(0);
 
     const stmt = db.prepare("SELECT * FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
-    const conc = stmt.get("charge-2") as any;
+    const conc = stmt.get("charge-2") as unknown as { status: string; pluggy_ofx_id: string };
     expect(conc.status).toBe("reconciliado");
     expect(conc.pluggy_ofx_id).toBe("ofx-2");
   });
@@ -177,7 +177,7 @@ describe("Reconciliação PIX↔OFX", () => {
     expect(resultado.conciliadas).toBe(0);
 
     const stmt = db.prepare("SELECT * FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
-    const conc = stmt.get("charge-3") as any;
+    const conc = stmt.get("charge-3") as unknown as { status: string; discrepancia_flag: number };
     expect(conc.status).toBe("discrepancia");
     expect(conc.discrepancia_flag).toBe(1);
   });
@@ -274,7 +274,7 @@ describe("Reconciliação PIX↔OFX", () => {
 
     expect(lancamentoId).toBeDefined();
     const stmt = db.prepare("SELECT * FROM razao WHERE id = ?");
-    const lancamento = stmt.get(lancamentoId) as any;
+    const lancamento = stmt.get(lancamentoId) as unknown as { valor: number; tipo: string; status: string };
     expect(lancamento).toBeDefined();
     expect(lancamento.valor).toBe(450);
     expect(lancamento.tipo).toBe("entrada_pix");
@@ -338,7 +338,7 @@ describe("Reconciliação PIX↔OFX", () => {
     const lancamentoId = gerarLancamentoContabil(db, conciliacao);
 
     const stmt = db.prepare("SELECT conciliacao_pix_ofx_id FROM razao WHERE id = ?");
-    const lancamento = stmt.get(lancamentoId) as any;
+    const lancamento = stmt.get(lancamentoId) as unknown as { conciliacao_pix_ofx_id: string };
     expect(lancamento.conciliacao_pix_ofx_id).toBe("conc-10");
   });
 
@@ -419,7 +419,7 @@ describe("Reconciliação PIX↔OFX", () => {
     conciliarPixOFX(db);
 
     const stmt = db.prepare("SELECT status FROM conciliacoes_pix_ofx WHERE id = ?");
-    const conc = stmt.get("conc-old") as any;
+    const conc = stmt.get("conc-old") as unknown as { status: string };
     expect(conc.status).toBe("expirado");
   });
 
@@ -432,7 +432,7 @@ describe("Reconciliação PIX↔OFX", () => {
     conciliarPixOFX(db); // segunda rodada
 
     const stmt = db.prepare("SELECT COUNT(*) as cnt FROM conciliacoes_pix_ofx WHERE asaas_charge_id = ?");
-    const result = stmt.get("charge-16") as any;
+    const result = stmt.get("charge-16") as unknown as { cnt: number };
     expect(result.cnt).toBe(1); // Apenas uma
   });
 
@@ -493,7 +493,7 @@ describe("Reconciliação PIX↔OFX", () => {
     expect(lancamentoId).toBeDefined();
 
     const stmt = db.prepare("SELECT conta_debito, conta_credito, valor FROM razao WHERE id = ?");
-    const lancamento = stmt.get(lancamentoId) as any;
+    const lancamento = stmt.get(lancamentoId) as unknown as { conta_debito: string; conta_credito: string; valor: number };
 
     // PARTE C (1): Direção CORRIGIDA — recebimento PIX debita Caixa, credita Receita
     expect(lancamento.conta_debito).toBe("1120"); // Caixa PIX
@@ -526,7 +526,7 @@ describe("Reconciliação PIX↔OFX", () => {
     const lancamentoId = gerarLancamentoContabil(db, conciliacao);
 
     const stmt = db.prepare("SELECT status FROM razao WHERE id = ?");
-    const lancamento = stmt.get(lancamentoId) as any;
+    const lancamento = stmt.get(lancamentoId) as unknown as { status: string };
 
     // PARTE C (2): Status CORRIGIDO — razao é FILA DE PROPOSTAS
     expect(lancamento.status).toBe("proposta");
