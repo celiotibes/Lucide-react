@@ -116,13 +116,6 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
       userAgent: req.get('user-agent'),
       sampled: true,
     });
-  } else if (process.env.DEBUG_SAMPLING === 'true') {
-    // Debug mode: log that request was skipped
-    req.logger.debug('HTTP Request (skipped by sampling)', {
-      method: req.method,
-      path: req.path,
-      sampleRate: sampleRate,
-    });
   }
 
   // Log response when finished
@@ -137,15 +130,6 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
         contentLength: res.get('content-length'),
         durationMs: totalDuration,
         sampled: true,
-      });
-    } else if (process.env.DEBUG_SAMPLING === 'true') {
-      // Debug mode: log total duration even for skipped requests
-      req.logger.debug('HTTP Response (skipped by sampling)', {
-        method: req.method,
-        path: req.path,
-        statusCode: res.statusCode,
-        durationMs: totalDuration,
-        sampleRate: sampleRate,
       });
     }
   });

@@ -187,7 +187,7 @@ function generateRateLimitKey(
   includeUserId: boolean = false,
 ): string {
   const ip = req.ip || "unknown";
-  const userId = includeUserId && (req.auth as any)?.usuario?.id ? (req.auth as any).usuario.id : null;
+  const userId = includeUserId && req.auth?.usuario?.id ? req.auth.usuario.id : null;
 
   return userId ? `${userId}:${ip}` : ip;
 }
@@ -249,7 +249,7 @@ export function createRateLimitMiddleware(customConfig?: Partial<RateLimitConfig
     const storeInstance = store || rateLimitStore;
 
     // Generate rate limit key (includeUserId for authenticated requests)
-    const isAuthenticated = !!(req.auth as any)?.usuario;
+    const isAuthenticated = !!req.auth?.usuario;
     const key = generateRateLimitKey(req, isAuthenticated);
 
     // Check rate limit

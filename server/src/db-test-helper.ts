@@ -9,8 +9,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load only essential migrations for testing to avoid SQL parsing issues with complex triggers
-// Phase 2 contains the usuarios table which is needed for backup/restore tests
+// Load only Phase 2 for basic test database
+// Other phases have complex triggers that require more sophisticated parsing
+// For comprehensive Phase 2-16 testing, use database-init.ts via integration tests
 const SCHEMA_PATHS = [
   path.join(__dirname, "migrations-phase2-auth.sql"),
 ];
@@ -58,7 +59,8 @@ export function createTestDatabase(dbPath: string): Database.Database {
 }
 
 /**
- * Parse SQL statements from schema text, properly handling comments
+ * Parse SQL statements from schema text, properly handling comments and quoted strings
+ * This handles multi-line statements including CREATE TRIGGER with BEGIN...END blocks
  */
 function parseSQLStatements(schema: string): string[] {
   // Remove SQL comments (both -- line comments and /* */ block comments)
@@ -73,11 +75,40 @@ function parseSQLStatements(schema: string): string[] {
     })
     .join("\n");
 
-  // Split by semicolon and filter empty statements
-  const statements = cleaned
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  // Smart split: track whether we're inside a string literal to avoid splitting on semicolons in strings
+  const statements: string[] = [];
+  let current = "";
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+
+  for (let i = 0; i < cleaned.length; i++) {
+    const char = cleaned[i];
+    const prevChar = i > 0 ? cleaned[i - 1] : "";
+
+    // Toggle quote tracking (handle escaped quotes with two consecutive quotes)
+    if (char === "'" && prevChar !== "'") {
+      inSingleQuote = !inSingleQuote;
+    } else if (char === '"' && prevChar !== '"') {
+      inDoubleQuote = !inDoubleQuote;
+    }
+
+    // Check for statement separator (semicolon not in a string)
+    if (char === ";" && !inSingleQuote && !inDoubleQuote) {
+      const statement = current.trim();
+      if (statement.length > 0) {
+        statements.push(statement);
+      }
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  // Add any remaining statement
+  const finalStatement = current.trim();
+  if (finalStatement.length > 0) {
+    statements.push(finalStatement);
+  }
 
   return statements;
 }

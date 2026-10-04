@@ -347,42 +347,29 @@ initWinston();
 // Fallback mock logger if Winston is not available
 const mockLogger = {
   debug: (message: string, meta?: Record<string, unknown>) => {
-    const { mensagem, meta: metaRedatada } = aplicarRedacao(message, meta);
-    console.log(`[DEBUG] ${mensagem}`, metaRedatada);
+    // Silent in test/fallback mode - real logging via Winston
   },
   info: (message: string, meta?: Record<string, unknown>) => {
-    const { mensagem, meta: metaRedatada } = aplicarRedacao(message, meta);
-    console.log(`[INFO] ${mensagem}`, metaRedatada);
+    // Silent in test/fallback mode - real logging via Winston
   },
   warn: (message: string, meta?: Record<string, unknown>) => {
-    const { mensagem, meta: metaRedatada } = aplicarRedacao(message, meta);
-    console.warn(`[WARN] ${mensagem}`, metaRedatada);
+    // Silent in test/fallback mode - real logging via Winston
   },
   error: (message: string, error?: Error | Record<string, unknown>) => {
-    const { mensagem, meta: metaRedatada } = aplicarRedacao(message, error as any);
-    if (error instanceof Error) {
-      const redatado = redactarObjeto({ message: error.message, stack: error.stack });
-      console.error(`[ERROR] ${mensagem}`, redatado);
-    } else {
-      console.error(`[ERROR] ${mensagem}`, metaRedatada);
-    }
+    // Silent in test/fallback mode - real logging via Winston
   },
   child: (meta: any) => ({
     debug: (msg: string, data?: any) => {
-      const { mensagem, meta: metaRedatada } = aplicarRedacao(msg, data);
-      console.log(`[DEBUG] [${meta.requestId}] ${mensagem}`, metaRedatada);
+      // Silent in test/fallback mode - real logging via Winston
     },
     info: (msg: string, data?: any) => {
-      const { mensagem, meta: metaRedatada } = aplicarRedacao(msg, data);
-      console.log(`[INFO] [${meta.requestId}] ${mensagem}`, metaRedatada);
+      // Silent in test/fallback mode - real logging via Winston
     },
     warn: (msg: string, data?: any) => {
-      const { mensagem, meta: metaRedatada } = aplicarRedacao(msg, data);
-      console.warn(`[WARN] [${meta.requestId}] ${mensagem}`, metaRedatada);
+      // Silent in test/fallback mode - real logging via Winston
     },
     error: (msg: string, error?: any) => {
-      const { mensagem, meta: metaRedatada } = aplicarRedacao(msg, error);
-      console.error(`[ERROR] [${meta.requestId}] ${mensagem}`, metaRedatada);
+      // Silent in test/fallback mode - real logging via Winston
     },
   }),
 };

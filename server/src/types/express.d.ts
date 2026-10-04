@@ -33,6 +33,12 @@ declare global {
        * For protected routes, use AuthenticatedRequest interface instead.
        */
       auth?: ContextoAutenticacao;
+
+      /**
+       * CSRF token function added by csurf middleware.
+       * Call this method to get the current CSRF token for the session.
+       */
+      csrfToken?: () => string;
     }
   }
 }
