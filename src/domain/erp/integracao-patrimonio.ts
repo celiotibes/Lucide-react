@@ -53,6 +53,7 @@
 import type { Database } from "sql.js";
 import { consultar } from "../../db/connection";
 import { registrarLancamentoContabil } from "./ledger";
+import { arredondarCentavos } from "./centavos";
 
 /** Contas reais de planoDeContasErp.ts — nunca os ids fictícios (10-17) do módulo original. */
 const CONTA_IMOVEIS_ERP = 1205; // Imóveis (ativo imobilizado)
@@ -206,7 +207,7 @@ export function contabilizarDepreciacaoImovel(
   );
   if (jaLancado) return false; // já depreciado neste período — chamada repetida não duplica
 
-  const valor_mensal = (imovel.valor_aquisicao * taxa_anual) / 12;
+  const valor_mensal = arredondarCentavos((imovel.valor_aquisicao * taxa_anual) / 12);
   if (valor_mensal <= 0) return false;
 
   const data_lancamento = new Date().toISOString().slice(0, 10);

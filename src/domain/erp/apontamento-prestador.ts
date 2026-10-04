@@ -1,3 +1,4 @@
+import { ratearEmCentavos } from "./centavos";
 /**
  * Módulo de Apontamento do Prestador
  * Gerencia urgências, Airbnb, combustível, horas, empréstimos e reajustes IPCA
@@ -369,7 +370,8 @@ export function calcularEmprestimo(
 ): EmprestimoApontamento {
   const parcelas: ParcelaEmprestimo[] = [];
   let saldo_devedor = valor_contratado;
-  const valor_principal = valor_contratado / numero_parcelas;
+  // Principal por parcela em centavos exatos (maior resto): a soma das parcelas é igual ao valor contratado.
+  const principais = ratearEmCentavos(valor_contratado, Array(numero_parcelas).fill(1));
 
   for (let i = 1; i <= numero_parcelas; i++) {
     let juros = 0;
@@ -382,6 +384,7 @@ export function calcularEmprestimo(
       juros = parcela_anterior * (taxa_juros_mensal / 100);
     }
 
+    const valor_principal = principais[i - 1];
     const valor_parcela = valor_principal + juros;
     saldo_devedor -= valor_principal;
 

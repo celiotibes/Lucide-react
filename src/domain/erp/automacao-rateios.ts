@@ -7,6 +7,7 @@
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import { registrarLancamentoContabil } from "./ledger";
+import { ratearEmCentavos } from "./centavos";
 
 /**
  * ACHADO (gravidade GRAVE, corrigido) — conta_id fictícios contra o schema real.
@@ -152,11 +153,17 @@ export function processarDocumentoRateio(
   const imoveis = obterImoveisParaRateio(db, true);
   const rateio_percentuais = calcularRateioPorImovel(imoveis);
 
-  const rateios_por_imovel = rateio_percentuais.map((r) => ({
+  // Em centavos exatos (maior resto): a soma dos rateios é igual ao valor do documento e o razão
+  // não aceita fração de centavo.
+  const valores_rateados = ratearEmCentavos(
+    documento.valor,
+    rateio_percentuais.map((r) => r.percentual),
+  );
+  const rateios_por_imovel = rateio_percentuais.map((r, i) => ({
     imovel_id: r.imovel_id,
     criterio: (r.criterio === "igual" ? "fracao_ideal" : r.criterio) as "fracao_ideal" | "area_m2",
     percentual: r.percentual,
-    valor_rateado: (documento.valor * r.percentual) / 100,
+    valor_rateado: valores_rateados[i],
   }));
 
   // 4. Registrar despesa total no ledger

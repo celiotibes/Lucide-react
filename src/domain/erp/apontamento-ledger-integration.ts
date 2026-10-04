@@ -12,6 +12,7 @@
 import type { Database } from "sql.js";
 import { consultar, executar } from "../../db/connection";
 import { registrarLancamentoContabil, LancamentoContabil } from "./ledger";
+import { arredondarCentavos } from "./centavos";
 
 /**
  * Rastreamento bidirecional: apontamento ↔ ledger
@@ -434,7 +435,7 @@ export function registrarApontamentoEmprestimoNoLedger(
 
   const lançamentos: ApontamentoLedgerEntry[] = [];
   const valor_principal = resultado_emprestimo.valor_original;
-  const total_juros = resultado_emprestimo.valor_total_com_juros - resultado_emprestimo.valor_original;
+  const total_juros = arredondarCentavos(resultado_emprestimo.valor_total_com_juros - resultado_emprestimo.valor_original);
 
   // === LANÇAMENTO 1: Principal ===
   const descricao_principal = `Empréstimo Principal - ${resultado_emprestimo.memoria_calculo?.metodo || 'N/A'}`;

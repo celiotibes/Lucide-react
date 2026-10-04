@@ -2283,6 +2283,16 @@ BEGIN
     INSERT INTO ledger_centro_custo_historico (ledger_entry_id, centro_custo_anterior_id, centro_custo_novo_id)
     VALUES (OLD.id, OLD.centro_custo_id, NEW.centro_custo_id);
 END;
+-- Trava de centavos: rede de segurança do banco. O código (normalizarCentavos em ledger.ts) já recusa
+-- valores com mais de 2 casas; isto impede que outro escritor grave fração de centavo no razão.
+CREATE TRIGGER IF NOT EXISTS tg_ledger_entries_centavos
+BEFORE INSERT ON ledger_entries
+FOR EACH ROW
+WHEN (NEW.valor_debito IS NOT NULL AND ABS(NEW.valor_debito * 100 - ROUND(NEW.valor_debito * 100)) > 0.000001)
+  OR (NEW.valor_credito IS NOT NULL AND ABS(NEW.valor_credito * 100 - ROUND(NEW.valor_credito * 100)) > 0.000001)
+BEGIN
+    SELECT RAISE(ABORT, 'Valor do lançamento deve ter no máximo 2 casas decimais (centavos).');
+END;
 -- END IMUTABILIDADE LEDGER
 
 -- BEGIN IMUTABILIDADE PERIODOS

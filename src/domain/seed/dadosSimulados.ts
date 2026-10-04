@@ -286,7 +286,8 @@ export function gerarDadosSimulados(db: Database, hoje: string = "2026-07-06"): 
       `INSERT INTO transacoes
        (id, conta_id, data, valor, descricao_original, fitid, plano_conta_codigo, imovel_id, contrato_id, prestador_id, categorizado_por, revisado)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-      [proximaTransacaoId, contaId, data, valor, descricao, `seed-${proximaTransacaoId}`, planoConta, imovelId, contratoId, prestadorId, planoConta ? "regra" : null],
+      // Extrato bancário real tem centavos exatos; o razão recusa fração de centavo.
+      [proximaTransacaoId, contaId, data, Math.round(valor * 100) / 100, descricao, `seed-${proximaTransacaoId}`, planoConta, imovelId, contratoId, prestadorId, planoConta ? "regra" : null],
     );
     proximaTransacaoId++;
     totalTransacoes++;

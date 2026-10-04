@@ -67,6 +67,7 @@ import { consultar, executar } from "../../db/connection";
 import { registrarLancamentoContabil } from "./ledger";
 import { CONTA_CAIXA_ERP, contaContrapartida } from "./mapeamentoPlanoApp";
 import { calcularCaucao } from "../caucao/calculoCaucao";
+import { arredondarCentavos } from "./centavos";
 
 /** Código do plano do app para depósito/devolução de caução — ver mapeamentoPlanoApp.ts
  * ("9.0.02" → 3301, Depósitos caução recebidos). Mesma tradução que uma transação bancária
@@ -181,7 +182,7 @@ export function contabilizarDevolucaoCaucao(
     };
   }
 
-  const valor_devolvido = calculo.valorADevolver;
+  const valor_devolvido = arredondarCentavos(calculo.valorADevolver);
   const descricao = `Devolução de caução — ${contrato?.locatario ?? `Contrato ${caucao.contrato_id}`} (Caução ${caucao_id})`;
 
   if (valor_devolvido === 0) {

@@ -70,6 +70,23 @@ export interface BalancetePeriodo {
   balanceado: boolean;
 }
 
+/** Valor monetário do razão em centavos exatos. Recusa (em vez de arredondar em silêncio) qualquer
+ * valor com mais de 2 casas: arredondar escondido esconde rateios e juros que não fecham. Quem divide
+ * valor (rateio, juros, multa) deve arredondar/ratear em centavos ANTES de lançar. A tolerância só
+ * absorve ruído de ponto flutuante (0.1 + 0.2). Devolve o valor normalizado a 2 casas. */
+export function normalizarCentavos(valor: number, campo: string): number {
+  if (!Number.isFinite(valor) || valor < 0) {
+    throw new Error(`${campo} inválido (${valor}): precisa ser um número finito e não negativo.`);
+  }
+  const centavos = valor * 100;
+  if (Math.abs(centavos - Math.round(centavos)) > 1e-6) {
+    throw new Error(
+      `${campo} com mais de 2 casas decimais (${valor}) — arredonde ou rateie em centavos antes de lançar no razão.`,
+    );
+  }
+  return Math.round(centavos) / 100;
+}
+
 /** Registrar lançamento no ledger integrado */
 export function registrarLancamentoContabil(
   db: Database,
@@ -87,6 +104,9 @@ export function registrarLancamentoContabil(
     throw new Error("Lançamento não pode ter débito E crédito simultaneamente");
   }
 
+  const valor_debito = lancamento.valor_debito ? normalizarCentavos(lancamento.valor_debito, "valor_debito") : null;
+  const valor_credito = lancamento.valor_credito ? normalizarCentavos(lancamento.valor_credito, "valor_credito") : null;
+
   executar(
     db,
     `INSERT INTO ledger_entries (
@@ -101,8 +121,8 @@ export function registrarLancamentoContabil(
       lancamento.centro_custo_id || null,
       lancamento.conta_id,
       lancamento.data_lancamento,
-      lancamento.valor_debito || null,
-      lancamento.valor_credito || null,
+      valor_debito,
+      valor_credito,
       lancamento.descricao,
       lancamento.origem_modulo,
       lancamento.origem_id,
@@ -229,23 +249,23 @@ export function validarBalanceamento(
   db: Database,
   periodo_id: number,
 ): { balanceado: boolean; diferenca: number } {
-  const [totais] = consultar<{ total_debito: number; total_credito: number }>(
+  // Soma em CENTAVOS INTEIROS: somar REAL acumula erro de ponto flutuante e a antiga tolerância de
+  // R$ 0,01 deixava um período com um centavo de diferença passar por "balanceado".
+  const [totais] = consultar<{ debito_centavos: number; credito_centavos: number }>(
     db,
     `SELECT
-      COALESCE(SUM(valor_debito), 0) as total_debito,
-      COALESCE(SUM(valor_credito), 0) as total_credito
+      COALESCE(SUM(CAST(ROUND(valor_debito * 100) AS INTEGER)), 0) as debito_centavos,
+      COALESCE(SUM(CAST(ROUND(valor_credito * 100) AS INTEGER)), 0) as credito_centavos
      FROM ledger_entries
      WHERE periodo_id = ?`,
     [periodo_id],
   );
 
-  const diferenca = Math.abs(
-    (totais?.total_debito || 0) - (totais?.total_credito || 0),
-  );
+  const diferencaCentavos = Math.abs((totais?.debito_centavos || 0) - (totais?.credito_centavos || 0));
 
   return {
-    balanceado: diferenca < 0.01,
-    diferenca,
+    balanceado: diferencaCentavos === 0,
+    diferenca: diferencaCentavos / 100,
   };
 }
 
