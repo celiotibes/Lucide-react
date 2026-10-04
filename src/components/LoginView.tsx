@@ -34,7 +34,7 @@ export function LoginView({ aoEntrar }: { aoEntrar?: () => void }) {
       if (resultado.ok) {
         aoEntrar?.();
       } else {
-        setErro(resultado.mensagem);
+        setErro(resultado.mensagem ?? null);
         campoSenha.current?.focus();
       }
     } finally {

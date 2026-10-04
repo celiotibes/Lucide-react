@@ -40,7 +40,7 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
   const entrar = useCallback<SessaoContextoValor["entrar"]>(async (email, senha) => {
     const resultado = await entrarApi(email, senha);
     if (resultado.ok) {
-      setUsuario(resultado.usuario);
+      setUsuario(resultado.usuario ?? null);
       setMotivoIndisponivel(null);
       setStatus("autenticado");
     }
