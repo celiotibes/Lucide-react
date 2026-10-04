@@ -63,9 +63,18 @@ export function DocumentosView() {
   const [documentoExpandidoId, setDocumentoExpandidoId] = useState<number | null>(null);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
-  const planoContas = useMemo<PlanoConta[]>(() => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []), [db, versao]);
-  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade,'zzz'), apelido") : []), [db, versao]);
-  const documentos = useMemo<Documento[]>(() => (db ? listarDocumentos(db) : []), [db, versao]);
+  const planoContas = useMemo<PlanoConta[]>(() => {
+    void versao;
+    return db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : [];
+  }, [db, versao]);
+  const imoveis = useMemo<Imovel[]>(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY COALESCE(cidade,'zzz'), apelido") : [];
+  }, [db, versao]);
+  const documentos = useMemo<Documento[]>(() => {
+    void versao;
+    return db ? listarDocumentos(db) : [];
+  }, [db, versao]);
 
   async function tratarArquivos(arquivos: File[]) {
     setProcessando(true);
@@ -407,11 +416,20 @@ function DocumentoLinha({
   const { db, versao } = useDb();
   const [editando, setEditando] = useState<FormularioEdicao | null>(null);
 
-  const imoveisDoDocumento = useMemo(() => (db && expandido ? listarImoveisDoDocumento(db, documento.id) : []), [db, versao, expandido, documento.id]);
-  const vinculos = useMemo(() => (db && expandido ? listarTransacoesVinculadas(db, documento.id) : []), [db, versao, expandido, documento.id]);
+  const imoveisDoDocumento = useMemo(() => {
+    void versao;
+    return db && expandido ? listarImoveisDoDocumento(db, documento.id) : [];
+  }, [db, versao, expandido, documento.id]);
+  const vinculos = useMemo(() => {
+    void versao;
+    return db && expandido ? listarTransacoesVinculadas(db, documento.id) : [];
+  }, [db, versao, expandido, documento.id]);
   const confirmados = vinculos.filter((v) => v.status === "confirmado");
   const sugestoes = useMemo<SugestaoTransacao[]>(
-    () => (db && expandido && !editando && confirmados.length === 0 ? sugerirTransacoesParaDocumento(db, documento) : []),
+    () => {
+      void versao;
+      return db && expandido && !editando && confirmados.length === 0 ? sugerirTransacoesParaDocumento(db, documento) : [];
+    },
     [db, versao, expandido, editando, documento, confirmados.length],
   );
 
