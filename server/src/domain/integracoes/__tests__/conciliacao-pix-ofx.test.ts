@@ -9,12 +9,10 @@ import {
   buscarMatchPixOfx,
   gerarLancamentoContabil,
   buscarStatusConciliacao,
-  type ResultadoConciliacao,
   type ConciliacaoPix,
 } from "../conciliacao-pix-ofx.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEST_DB_PATH = path.join(__dirname, `test-conciliacao-pix-ofx-${process.pid}-${Date.now()}.db`);
 

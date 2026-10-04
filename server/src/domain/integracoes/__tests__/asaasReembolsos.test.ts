@@ -7,10 +7,8 @@ import {
   listarReembolsos,
   atualizarStatusReembolso,
   processarWebhookReembolso,
-  syncronizarReembolsosPendentes,
   ErroValidacaoReembolso,
   type DadosNovoReembolso,
-  type Reembolso,
 } from "../asaasReembolsos";
 
 let db: Database.Database;

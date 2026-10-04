@@ -13,7 +13,6 @@ import {
   atualizarCobrancasVencidas,
   ErroValidacaoCobranca,
   type DadosNovaCobranca,
-  type Cobranca,
 } from "../asaasCobranca";
 
 let db: Database.Database;

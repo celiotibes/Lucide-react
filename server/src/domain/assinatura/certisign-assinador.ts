@@ -215,11 +215,11 @@ export class CertisignAssinador {
    */
   private async chamarApiCertisign(
     payload: Record<string, unknown>,
-    _metodo: string = "POST"
+    metodo: string = "POST"
   ): Promise<Record<string, unknown>> {
     // Simulação: Em produção, faria:
     // const response = await fetch(`${this.config.apiUrl}/api/v1/...`, {
-    //   method: _metodo,
+    //   method: metodo,
     //   headers: {
     //     'Authorization': `Bearer ${this.config.apiKey}`,
     //     'Content-Type': 'application/json'
