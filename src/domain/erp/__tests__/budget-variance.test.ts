@@ -1,9 +1,10 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { calcularBudgetVariance } from "../budget-variance";
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Budget vs Realizado (Variance Analysis)", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 

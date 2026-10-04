@@ -575,7 +575,7 @@ export function registrarErro(
  * Exporta log de auditoria para arquivo
  */
 export function exportarLogAuditoria(
-  db: any,
+  db: Database,
   dataInicio: string,
   dataFim: string,
   formato: 'json' | 'csv' = 'json'
@@ -609,7 +609,7 @@ export function exportarLogAuditoria(
  * Lista todos os acessos de um usuário
  */
 export function listarAcessosUsuario(
-  db: any,
+  db: Database,
   usuario_id: number,
   limite: number = 100
 ): RegistroAuditoria[] {

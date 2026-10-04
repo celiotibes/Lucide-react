@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   registrarLancamentoContabil,
@@ -14,7 +15,7 @@ import {
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Validação de Período Fechado", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 
@@ -149,7 +150,7 @@ describe("Validação de Período Fechado", () => {
 });
 
 describe("Retificação com Mecanismo de Reversão", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
   let conta_id: number;

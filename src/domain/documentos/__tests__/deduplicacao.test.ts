@@ -318,10 +318,11 @@ describe("DocumentoDuplicadoError e imutabilidade da revisão", () => {
     try {
       inserirDocumento(db, { tipo: "nota_fiscal", arquivo_nome: "b.xml", arquivo_hash_sha256: "e".repeat(64), chave_nfe: chave });
       throw new Error("deveria ter lançado");
-    } catch (erro: any) {
-      expect(erro.name).toBe("DocumentoDuplicadoError");
-      expect(erro.documentoExistenteId).toBe(id);
-      expect(erro.motivo).toBe("chave_nfe"); // o hash era novo: a causa é a chave, não o hash
+    } catch (erro: unknown) {
+      const error = erro as Record<string, unknown>;
+      expect(error.name).toBe("DocumentoDuplicadoError");
+      expect(error.documentoExistenteId).toBe(id);
+      expect(error.motivo).toBe("chave_nfe"); // o hash era novo: a causa é a chave, não o hash
     }
   });
 

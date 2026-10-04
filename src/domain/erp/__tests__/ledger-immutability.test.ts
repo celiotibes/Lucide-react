@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import type { Database } from "sql.js";
 import { prepararBancoTeste } from "./test-setup";
@@ -9,7 +10,7 @@ import { registrarLancamentoContabil, obterSaldoConta, estornarLancamento } from
  * bloqueiam novos lançamentos.
  */
 describe("Imutabilidade do Razão (Ledger)", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
   let conta_id: number;

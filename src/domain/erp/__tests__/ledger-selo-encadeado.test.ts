@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { Database } from "sql.js";
 import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { criarEntidadeLegal } from "../entidadeLegal";
 import { registrarLancamentoContabil, encerrarPeriodo, verificarSelosLedger } from "../ledger";
@@ -7,7 +8,7 @@ import { CONTA_CAIXA_ERP } from "../mapeamentoPlanoApp";
 const CONTA_RECEITA = 4101;
 
 describe("Selo encadeado dos encerramentos", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
 
   const abrirPeriodo = (ano: number, mes: number): number => {

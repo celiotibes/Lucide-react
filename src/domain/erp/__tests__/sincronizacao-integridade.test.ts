@@ -1,9 +1,10 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { verificarIntegridade, reconciliarAlugueis } from "../sincronizacao-integridade";
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Sincronização e Integridade", () => {
-  let db: any;
+  let db: Database;
 
   beforeEach(async () => {
     const setup = await prepararBancoTeste();

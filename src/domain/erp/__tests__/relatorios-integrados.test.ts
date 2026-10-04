@@ -1,9 +1,10 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { gerarDRE, gerarBalanco, gerarFluxoCaixa, gerarRelatorioIntegrado } from "../relatorios-integrados";
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Relatórios Integrados", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 

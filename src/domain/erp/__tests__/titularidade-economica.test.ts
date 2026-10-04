@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { criarEntidadeLegal } from "../entidadeLegal";
@@ -8,7 +9,7 @@ import { atribuirTitularidade, atribuirPorRegra, historicoTitularidade, resumoPo
 const CONTA_RECEITA = 4101;
 
 describe("Titularidade econômica (separação retroativa PF x empresa)", () => {
-  let db: any;
+  let db: Database;
   let pf: number;
   let pj: number;
   let periodo: number;

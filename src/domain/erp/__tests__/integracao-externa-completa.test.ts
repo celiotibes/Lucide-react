@@ -4,13 +4,14 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import type { Database } from 'sql.js';
 import { prepararBancoTeste } from './test-setup';
 
 // Import all modules
 import * as fisco from '../integracao-fisco';
 
 describe('PHASE 4: External Systems Integration', () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 

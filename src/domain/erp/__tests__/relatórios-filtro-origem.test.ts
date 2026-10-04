@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
+import type { Database } from "sql.js";
 import {
   gerarDREComFiltro,
   gerarBalancoComFiltro,
@@ -26,7 +27,7 @@ import { prepararBancoTeste } from "./test-setup";
 import { consultar, executar } from "../../../db/connection";
 
 describe("Relatórios com Filtro de Origem de Módulo", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
   let conta_receita_id: number;

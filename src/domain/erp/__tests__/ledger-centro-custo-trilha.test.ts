@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { criarEntidadeLegal } from "../entidadeLegal";
@@ -6,7 +7,7 @@ import { registrarLancamentoContabil } from "../ledger";
 import { alocarLancamentoACentro } from "../alocacao-centros-custo";
 
 describe("Trilha de centro de custo no razão", () => {
-  let db: any;
+  let db: Database;
   let lancamento_id: number;
   let centros: number[];
 

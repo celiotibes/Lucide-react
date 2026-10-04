@@ -225,7 +225,7 @@ export function gerarExportacaoECD(
   };
 }
 
-function gerarHashArquivo(registros: any[]): string {
+function gerarHashArquivo(registros: unknown[]): string {
   // Simular hash SHA-256 (em produção, usar biblioteca crypto)
   // Para ECD, usamos um hash simplificado baseado no conteúdo
   let hash = 0;

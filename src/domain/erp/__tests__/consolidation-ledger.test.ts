@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   registrarLancamentoContabil,
@@ -19,7 +20,7 @@ import { prepararBancoTeste } from "./test-setup";
  * See: server/migrations/002_consolidate_ledger_entries.sql
  */
 describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 

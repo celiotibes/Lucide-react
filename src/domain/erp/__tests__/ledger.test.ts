@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { Database } from "sql.js";
 import {
   registrarLancamentoContabil,
   obterSaldoConta,
@@ -8,7 +9,7 @@ import {
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Ledger (Razão Contábil)", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 

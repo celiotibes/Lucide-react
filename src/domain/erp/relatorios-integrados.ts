@@ -149,7 +149,13 @@ export function gerarRelatorioAuditoriaParModulo(
     ORDER BY le.origem_modulo
   `;
 
-  const results = consultar<any>(db, query, [entidade_id, periodo_id]);
+  const results = consultar<{
+    origem_modulo: string;
+    total_lancamentos: number;
+    total_debito: number;
+    total_credito: number;
+    saldo_liquido: number;
+  }>(db, query, [entidade_id, periodo_id]);
 
   return results.map((row) => ({
     origem_modulo: row.origem_modulo as OrigemModulo,
