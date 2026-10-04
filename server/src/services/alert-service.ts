@@ -21,7 +21,7 @@
 
 import { logger } from './logger-service.js';
 import nodemailer from 'nodemailer';
-import https from 'https';
+import * as https from 'https';
 
 interface AlertState {
   backupId: string;
