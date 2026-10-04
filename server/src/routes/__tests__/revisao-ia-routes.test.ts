@@ -65,6 +65,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve aceitar parametros validos", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ status: "pendente", limit: 50, offset: 0 });
 
       expect([200, 400, 500]).toContain(res.status);
@@ -73,15 +74,17 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar status invalido", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ status: "invalido" });
 
       expect(res.status).toBe(400);
-      expect(res.body.erro).toContain("Parâmetros");
+      expect(res.body.erro).toContain("status");
     });
 
     it("deve rejeitar limit acima do maximo (100)", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: 101 });
 
       expect(res.status).toBe(400);
@@ -90,6 +93,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar limit negativo", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: -1 });
 
       expect(res.status).toBe(400);
@@ -98,6 +102,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar offset negativo", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ offset: -1 });
 
       expect(res.status).toBe(400);
@@ -106,6 +111,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve coercionar strings para numeros", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: "50", offset: "0" });
 
       expect([200, 400, 500]).toContain(res.status);
@@ -114,6 +120,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar limit nao numerico", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: "abc" });
 
       expect(res.status).toBe(400);
@@ -121,7 +128,8 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
 
     it("deve usar valores padrao quando nao informados", async () => {
       const res = await request(app)
-        .get("/api/revisao-ia/fila");
+        .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token");
 
       expect([200, 400, 500]).toContain(res.status);
     });
@@ -139,6 +147,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve aceitar status valido", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-1/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({ status: "revisado" });
 
       expect([200, 400, 401, 403, 404, 500]).toContain(res.status);
@@ -147,6 +156,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar status invalido", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-1/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({ status: "invalido" });
 
       expect(res.status).toBe(400);
@@ -156,6 +166,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar campos extras (strict mode)", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-1/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({ status: "revisado", extra_campo: "nao permitido" });
 
       expect(res.status).toBe(400);
@@ -164,6 +175,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve usar valor padrao quando status nao informado", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-1/revisar")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect([200, 401, 403, 500]).toContain(res.status);
@@ -181,6 +193,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve aceitar motivo valido", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-2/rejeitar")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "Dados incompletos" });
 
       expect([200, 400, 401, 403, 404, 500]).toContain(res.status);
@@ -189,6 +202,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar motivo vazio", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-2/rejeitar")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "" });
 
       expect(res.status).toBe(400);
@@ -199,6 +213,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
       const motivoLongo = "a".repeat(501);
       const res = await request(app)
         .post("/api/revisao-ia/item-2/rejeitar")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: motivoLongo });
 
       expect(res.status).toBe(400);
@@ -208,6 +223,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
       const motivoMaximo = "a".repeat(500);
       const res = await request(app)
         .post("/api/revisao-ia/item-2/rejeitar")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: motivoMaximo });
 
       expect([200, 401, 403, 404, 500]).toContain(res.status);
@@ -216,6 +232,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve trimmar espacos em branco", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-2/rejeitar")
+        .set("Authorization", "Bearer test-token")
         .send({ motivo: "  Motivo com espacos  " });
 
       expect([200, 401, 403, 404, 500]).toContain(res.status);
@@ -224,6 +241,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar motivo ausente", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/item-2/rejeitar")
+        .set("Authorization", "Bearer test-token")
         .send({});
 
       expect(res.status).toBe(400);
@@ -234,6 +252,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve aceitar item valido", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           documentoId: "doc-novo",
           tipo: "revisao",
@@ -247,6 +266,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar documentoId vazio", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           documentoId: "",
           tipo: "revisao",
@@ -260,6 +280,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar tipo invalido", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           documentoId: "doc-novo",
           tipo: "invalido",
@@ -276,6 +297,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
       for (const tipo of tipos) {
         const res = await request(app)
           .post("/api/revisao-ia/criar")
+          .set("Authorization", "Bearer test-token")
           .send({
             documentoId: `doc-${tipo}`,
             tipo,
@@ -290,6 +312,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar motivo vazio", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           documentoId: "doc",
           tipo: "revisao",
@@ -303,6 +326,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar solicitanteId vazio", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           documentoId: "doc",
           tipo: "revisao",
@@ -316,6 +340,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar campos extras (strict mode)", async () => {
       const res = await request(app)
         .post("/api/revisao-ia/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           documentoId: "doc",
           tipo: "revisao",
@@ -331,6 +356,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
       const docIdLongo = "a".repeat(101);
       const res = await request(app)
         .post("/api/revisao-ia/criar")
+        .set("Authorization", "Bearer test-token")
         .send({
           documentoId: docIdLongo,
           tipo: "revisao",
@@ -346,6 +372,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve aceitar limit minimo (1)", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: 1 });
 
       expect([200, 400, 500]).toContain(res.status);
@@ -354,6 +381,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve aceitar limit maximo (100)", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: 100 });
 
       expect([200, 400, 500]).toContain(res.status);
@@ -362,6 +390,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve aceitar offset zero", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ offset: 0 });
 
       expect([200, 400, 500]).toContain(res.status);
@@ -373,6 +402,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
       for (const status of validos) {
         const res = await request(app)
           .get("/api/revisao-ia/fila")
+          .set("Authorization", "Bearer test-token")
           .query({ status });
 
         expect([200, 400, 500]).toContain(res.status);
@@ -384,6 +414,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve coercionar limit de string para number", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: "50" });
 
       expect([200, 400, 500]).toContain(res.status);
@@ -392,6 +423,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar limit que nao pode ser coercido", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: "nao-numero" });
 
       expect(res.status).toBe(400);
@@ -400,6 +432,7 @@ describe("Rotas HTTP de Revisão IA com Validação Zod", () => {
     it("deve rejeitar float para limit", async () => {
       const res = await request(app)
         .get("/api/revisao-ia/fila")
+        .set("Authorization", "Bearer test-token")
         .query({ limit: 50.5 });
 
       expect(res.status).toBe(400);
