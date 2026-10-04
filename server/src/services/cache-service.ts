@@ -102,8 +102,9 @@ export class CacheService {
     if (entry) {
       this.totalMemoryUsage -= entry.size;
       this.cache.delete(key);
-      this.accessOrder = this.accessOrder.filter(k => k !== key);
     }
+    // Sempre limpa a ordem de acesso: uma chave órfã aqui travava o laço de eviction por memória.
+    this.accessOrder = this.accessOrder.filter(k => k !== key);
   }
 
   /**
@@ -246,9 +247,8 @@ export class CacheService {
    * @returns Regex compilada
    */
   private patternToRegex(pattern: string): RegExp {
-    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-    const withWildcard = escaped.replace(/\\\*/g, '.*');
-    return new RegExp(`^${withWildcard}$`);
+    const partes = pattern.split('*').map(p => p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(`^${partes.join('.*')}$`);
   }
 
   /**
@@ -313,7 +313,7 @@ export class CacheService {
       totalEntries: this.cache.size,
       expiredEntries: expiredCount,
       validEntries: validCount,
-      memoryUsageMB: Math.round(memoryUsageMB * 100) / 100,
+      memoryUsageMB: Math.round(memoryUsageMB * 10000) / 10000,
       memoryLimitMB: Math.round(memoryLimitMB * 100) / 100,
       memoryPercentage: Math.round(memoryPercentage * 100) / 100,
       maxKeysPerNamespace: this.MAX_KEYS_PER_NAMESPACE,

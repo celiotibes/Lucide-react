@@ -54,12 +54,12 @@ describe('CacheService - LRU Eviction', () => {
   });
 
   it('deve monitorar tamanho em bytes e evictar quando > 50MB', () => {
-    const largeObject = { data: 'x'.repeat(1000) }; // ~1000 bytes
+    const largeObject = { data: 'x'.repeat(100_000) }; // ~100KB
 
     // Insere muitos objetos até exceder limite
     let inserted = 0;
     while (cache.getStats().memoryUsageMB < 48) { // Deixa margem
-      cache.set(`item:${inserted}`, largeObject);
+      cache.set(`ns${inserted}:item`, largeObject); // namespaces distintos: o limite de 1000 chaves é por namespace
       inserted++;
     }
 
@@ -99,7 +99,7 @@ describe('CacheService - LRU Eviction', () => {
   });
 
   it('getStats deve retornar informações corretas de memória e LRU', () => {
-    cache.set('test:1', { data: 'value1' });
+    cache.set('test:1', { data: 'v'.repeat(5000) });
     cache.set('test:2', { data: 'value2' });
 
     const stats = cache.getStats();

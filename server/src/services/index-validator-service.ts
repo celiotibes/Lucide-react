@@ -57,27 +57,26 @@ export class IndexValidatorService {
     isUnique: boolean;
     sql: string | null;
   }> {
-    const stmt = this.db.prepare(`
-      SELECT
-        name,
-        tbl_name as 'table',
-        GROUP_CONCAT(name, ',') as columns,
-        unique as isUnique,
-        sql
+    const indices = this.db.prepare(`
+      SELECT name, tbl_name AS "table", sql
       FROM sqlite_master
       WHERE type = 'index'
         AND tbl_name NOT LIKE 'sqlite_%'
-      GROUP BY name
       ORDER BY tbl_name, name
-    `);
+    `).all() as Array<{ name: string; table: string; sql: string | null }>;
 
-    return stmt.all() as Array<{
-      name: string;
-      table: string;
-      columns: string;
-      isUnique: boolean;
-      sql: string | null;
-    }>;
+    // sqlite_master não tem colunas nem flag de unicidade: vêm dos PRAGMAs.
+    return indices.map(idx => {
+      const unicos = new Set(
+        (this.db.prepare(`PRAGMA index_list("${idx.table}")`).all() as Array<{ name: string; unique: number }>)
+          .filter(i => i.unique === 1)
+          .map(i => i.name)
+      );
+      const colunas = (this.db.prepare(`PRAGMA index_info("${idx.name}")`).all() as Array<{ name: string | null }>)
+        .map(c => c.name)
+        .filter((n): n is string => !!n);
+      return { name: idx.name, table: idx.table, columns: colunas.join(','), isUnique: unicos.has(idx.name), sql: idx.sql };
+    });
   }
 
   /**
