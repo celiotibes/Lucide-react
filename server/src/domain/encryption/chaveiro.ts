@@ -196,7 +196,7 @@ export function criptografarParaColuna(texto: string, chaveiro: Chaveiro = carre
  * "fle:kid:iv:tag:conteudo". Retorna null se não for um envelope (ex.: texto puro).
  */
 export function lerEnvelope(valor: unknown): DadosCriptografados | null {
-  let o: any = valor;
+  let o: unknown = valor;
   if (typeof valor === 'string') {
     if (valor.startsWith(PREFIXO_ENVELOPE)) {
       const partes = valor.slice(PREFIXO_ENVELOPE.length).split(':');
