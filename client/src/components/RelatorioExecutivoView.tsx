@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import type { RelatorioExecutivo } from "../types/relatorio.js";
+import type { RelatorioExecutivo, RelatorioExecutivoResposta, SecaoIndisponivel } from "../types/relatorio.js";
 
 interface RelatorioExecutivoViewProps {
   mes: number;
@@ -18,7 +18,7 @@ interface RelatorioExecutivoViewProps {
 }
 
 export function RelatorioExecutivoView({ mes, ano }: RelatorioExecutivoViewProps) {
-  const [relatorio, setRelatorio] = useState<RelatorioExecutivo | null>(null);
+  const [resposta, setResposta] = useState<RelatorioExecutivoResposta | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [tab, setTab] = useState<"resumo" | "dre" | "fluxo" | "margens" | "contas">("resumo");
@@ -48,8 +48,8 @@ export function RelatorioExecutivoView({ mes, ano }: RelatorioExecutivoViewProps
         throw new Error(`Erro ao carregar relatório: ${response.statusText}`);
       }
 
-      const data = (await response.json()) as RelatorioExecutivo;
-      setRelatorio(data);
+      const data = (await response.json()) as RelatorioExecutivoResposta;
+      setResposta(data);
     } catch (err) {
       setErro(err instanceof Error ? err.message : String(err));
     } finally {
@@ -114,9 +114,54 @@ export function RelatorioExecutivoView({ mes, ano }: RelatorioExecutivoViewProps
     );
   }
 
-  if (!relatorio) {
+  if (!resposta) {
     return <div className="p-8 text-center">Nenhum relatório disponível</div>;
   }
+
+  // O servidor só calcula o que existe no banco dele; seções sem base real vêm como
+  // "indisponivel" (com motivo) em vez de números inventados. Enquanto houver alguma,
+  // mostramos o que há e explicamos o resto.
+  if (!resposta.completo) {
+    const secoes: Array<[string, unknown]> = [
+      ["DRE", resposta.dre],
+      ["Fluxo de Caixa", resposta.fluxo],
+      ["Margens por Propriedade", resposta.margens],
+      ["Contas a Receber / Pagar", resposta.contas],
+      ["Sumário", resposta.sumario],
+    ];
+    const indisponiveis = secoes.filter(
+      (par): par is [string, SecaoIndisponivel] => (par[1] as SecaoIndisponivel).indisponivel === true,
+    );
+    const razao = resposta.razaoServidor;
+    return (
+      <div className="p-8 bg-gray-50 min-h-screen">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Relatório Executivo (parcial)</h1>
+          <p className="text-gray-600 mb-6">
+            Período: {String(mes).padStart(2, "0")}/{ano}. Valores não calculáveis pelo servidor não são estimados.
+          </p>
+          {indisponiveis.map(([nome, secao]) => (
+            <div key={nome} className="mb-3 p-4 bg-yellow-50 border border-yellow-300 rounded text-yellow-900">
+              <strong>{nome}: indisponível.</strong> {secao.motivo}
+              <div className="text-xs mt-1">Fonte esperada: {secao.fonteEsperada}</div>
+            </div>
+          ))}
+          {"indisponivel" in razao ? null : (
+            <div className="mt-6 p-4 bg-white border rounded">
+              <h2 className="font-bold mb-2">Razão do servidor (conciliação PIX/OFX)</h2>
+              <p>
+                {razao.totalLancamentos} lançamento(s) no mês; soma{" "}
+                {razao.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-gray-600 mt-1">{razao.aviso}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const relatorio = resposta as unknown as RelatorioExecutivo;
 
   const formatarMoeda = (valor: number) => {
     return `R$ ${(valor / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;

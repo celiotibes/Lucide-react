@@ -19,6 +19,7 @@ import {
   gerarRelatorioExecutivo,
   gerarPDFRelatorioExecutivo,
   enviarRelatorioEmailMensal,
+  secaoIndisponivel,
   type RelatorioExecutivo,
 } from "../relatorio-executivo.js";
 
@@ -118,8 +119,9 @@ describe("Relatório Executivo - Testes", () => {
       expect(() => gerarRelatorioExecutivo(db, mes, ano)).not.toThrow();
 
       const relatorio = gerarRelatorioExecutivo(db, mes, ano);
-      expect(relatorio.dre.receitaTotal).toBe(0);
-      expect(relatorio.dre.despesaTotal).toBe(0);
+      // Sem razão canônico no servidor: DRE é marcada indisponível, nunca zero inventado.
+      expect(secaoIndisponivel(relatorio.dre)).toBe(true);
+      expect(relatorio.dre).not.toHaveProperty("receitaTotal");
     });
 
     it("Teste 3: Deve validar mês inválido e retornar estrutura válida", () => {
@@ -368,22 +370,16 @@ describe("Relatório Executivo - Testes", () => {
     it("Teste 15: Deve retornar estrutura completa de DRE", () => {
       const relatorio = gerarRelatorioExecutivo(db, 10, 2026);
 
-      expect(relatorio.dre).toHaveProperty("receitaTotal");
-      expect(relatorio.dre).toHaveProperty("despesaTotal");
-      expect(relatorio.dre).toHaveProperty("lucroLiquido");
-      expect(relatorio.dre).toHaveProperty("variacao");
-      expect(relatorio.dre).toHaveProperty("historico");
+      expect(relatorio.dre).toHaveProperty("indisponivel", true);
+      expect(relatorio.dre).toHaveProperty("motivo");
+      expect(relatorio.dre).toHaveProperty("fonteEsperada");
     });
 
     it("Teste 16: Deve retornar estrutura completa de Sumário Executivo", () => {
       const relatorio = gerarRelatorioExecutivo(db, 10, 2026);
 
-      expect(relatorio.sumario).toHaveProperty("taxaOcupacao");
-      expect(relatorio.sumario).toHaveProperty("inadimplencia");
-      expect(relatorio.sumario).toHaveProperty("diasDeCaixaDisponivel");
-      expect(relatorio.sumario).toHaveProperty("statusGeral");
-      expect(relatorio.sumario).toHaveProperty("alertasTopCinco");
-      expect(Array.isArray(relatorio.sumario.alertasTopCinco)).toBe(true);
+      expect(relatorio.sumario).toHaveProperty("indisponivel", true);
+      expect(relatorio.sumario).toHaveProperty("motivo");
     });
   });
 });

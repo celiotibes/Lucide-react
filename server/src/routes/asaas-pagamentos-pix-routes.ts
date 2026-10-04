@@ -17,6 +17,7 @@ import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type Database from "better-sqlite3";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
+import { criarExigirPosse } from "../middleware/posse-recurso.js";
 import {
   criarPagamentoPix,
   buscarPagamentoPix,
@@ -39,8 +40,12 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
   const router = express.Router();
   const { authService, db } = deps;
 
-  // Middleware: autenticação Bearer
-  router.use(criarMiddlewareAutenticacao(authService));
+  // Autenticação POR ROTA (não mais router.use): papéis externos são negados por padrão em
+  // todas as rotas; a única exceção é GET /pagamentos-pix/:id, que um prestador pode
+  // consultar para um pagamento que lhe foi concedido via ACL (tipo "pagamento_pix").
+  const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
+  const exigirAutenticacaoComExternos = criarMiddlewareAutenticacao(authService, { permitirPapeisExternos: true });
+  const exigirPosse = db ? criarExigirPosse(db) : undefined;
 
   /**
    * POST /api/asaas/pagamentos-pix/criar
@@ -73,7 +78,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
    *   - 500: erro na API Asaas ou banco
    *   - 503: Asaas indisponível
    */
-  router.post("/pagamentos-pix/criar", async (req, res) => {
+  router.post("/pagamentos-pix/criar", exigirAutenticacao, async (req, res) => {
     try {
       if (!db) {
         return res.status(500).json({ erro: "Database não disponível" });
@@ -187,20 +192,29 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
    *   - 404: pagamento não encontrado
    *   - 500: erro ao sincronizar com Asaas
    */
-  router.get("/pagamentos-pix/:id", async (req, res) => {
+  router.get(
+    "/pagamentos-pix/:id",
+    exigirAutenticacaoComExternos,
+    exigirPosse ? exigirPosse("pagamento_pix", "id") : (_req, res) => { res.status(500).json({ erro: "Database não disponível" }); },
+    async (req, res) => {
     try {
       if (!db) {
         return res.status(500).json({ erro: "Database não disponível" });
       }
 
       const { id } = req.params;
+      const papel = req.auth?.usuario?.role;
+      const externo = papel === "inquilino" || papel === "prestador";
 
-      // Tenta sincronizar com Asaas (atualiza status)
-      try {
-        await buscarStatusPagamentoPix(db, id);
-      } catch (e) {
-        logger.warn(`[AsaasPix] Erro ao sincronizar pagamento ${id}:`, e instanceof Error ? e.message : e);
-        // Continua mesmo com erro (retorna o que temos localmente)
+      // Tenta sincronizar com Asaas (atualiza status). Papéis externos NÃO disparam sincronização
+      // (evita que um acesso externo gere chamadas à Asaas); veem o último estado conhecido.
+      if (!externo) {
+        try {
+          await buscarStatusPagamentoPix(db, id);
+        } catch (e) {
+          logger.warn(`[AsaasPix] Erro ao sincronizar pagamento ${id}:`, e instanceof Error ? e.message : e);
+          // Continua mesmo com erro (retorna o que temos localmente)
+        }
       }
 
       // Busca o pagamento
@@ -220,8 +234,20 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
       `);
       const historico = histStmt.all(id) as any[];
 
+      // Projeção mínima para papéis externos: sem chave PIX, CPF/CNPJ, QR code nem ids da Asaas.
+      const pagamentoVisivel = externo
+        ? {
+            id: pagamento.id,
+            valor: pagamento.valor,
+            descricao: pagamento.descricao,
+            status: pagamento.status,
+            criadoEm: pagamento.criadoEm,
+            atualizadoEm: pagamento.atualizadoEm,
+          }
+        : pagamento;
+
       res.json({
-        pagamento,
+        pagamento: pagamentoVisivel,
         historico: historico.map((h) => ({
           statusAnterior: h.status_anterior,
           statusNovo: h.status_novo,
@@ -264,7 +290,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
    *   - beneficiarioId: string (filtra por beneficiário específico)
    *   - diasAtras: number (filtrar últimos N dias; default: sem limite)
    */
-  router.get("/pagamentos-pix", (req, res) => {
+  router.get("/pagamentos-pix", exigirAutenticacao, (req, res) => {
     try {
       if (!db) {
         return res.status(500).json({ erro: "Database não disponível" });
@@ -323,7 +349,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
    *   - 404: pagamento não encontrado
    *   - 500: erro ao sincronizar
    */
-  router.post("/pagamentos-pix/:id/sincronizar", async (req, res) => {
+  router.post("/pagamentos-pix/:id/sincronizar", exigirAutenticacao, async (req, res) => {
     try {
       if (!db) {
         return res.status(500).json({ erro: "Database não disponível" });
@@ -376,7 +402,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
    *   - 404: pagamento não encontrado
    *   - 500: erro ao atualizar
    */
-  router.put("/pagamentos-pix/:id", async (req, res) => {
+  router.put("/pagamentos-pix/:id", exigirAutenticacao, async (req, res) => {
     try {
       if (!db) {
         return res.status(500).json({ erro: "Database não disponível" });
@@ -450,7 +476,7 @@ export function criarRotasAsaasPixProativo(deps: AsaasPixRoutesDeps): express.Ro
    *   - 404: pagamento não encontrado
    *   - 500: erro ao deletar
    */
-  router.delete("/pagamentos-pix/:id", async (req, res) => {
+  router.delete("/pagamentos-pix/:id", exigirAutenticacao, async (req, res) => {
     try {
       if (!db) {
         return res.status(500).json({ erro: "Database não disponível" });

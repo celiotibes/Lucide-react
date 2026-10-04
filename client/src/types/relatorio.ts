@@ -107,3 +107,40 @@ export interface RelatorioExecutivo {
   sumario: SumarioExecutivo;
   criadoEm: string;
 }
+
+/** Seção que o servidor não consegue calcular (não há dado real; nada é estimado). */
+export interface SecaoIndisponivel {
+  indisponivel: true;
+  motivo: string;
+  fonteEsperada: string;
+  tabelasAusentes?: string[];
+}
+
+export interface RazaoServidorResumo {
+  fonte: "razao";
+  totalLancamentos: number;
+  valorTotal: number;
+  porTipoStatus: Array<{ tipo: string | null; status: string | null; quantidade: number; valorTotal: number }>;
+  aviso: string;
+}
+
+/**
+ * Resposta real de GET /api/relatorios/executivo/dashboard: cada seção pode vir como
+ * SecaoIndisponivel. `completo === true` só quando nenhuma está indisponível (aí o formato
+ * é o de RelatorioExecutivo).
+ */
+export interface RelatorioExecutivoResposta {
+  periodo: string;
+  mes: number;
+  ano: number;
+  dre: DREResumo | SecaoIndisponivel;
+  fluxo: FluxoResumo | SecaoIndisponivel;
+  margens: MargensPorPropriedadeResumo | SecaoIndisponivel;
+  alertas: AlertaExecutivo[];
+  contas: ContasResumo | SecaoIndisponivel;
+  razaoServidor: RazaoServidorResumo | SecaoIndisponivel;
+  sumario: SumarioExecutivo | SecaoIndisponivel;
+  secoesIndisponiveis: string[];
+  completo: boolean;
+  criadoEm: string;
+}

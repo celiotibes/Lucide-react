@@ -300,7 +300,7 @@ app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
  * GET  /api/relatorios/executivo/download/:mes/:ano — HTML/PDF para download
  * POST /api/relatorios/executivo/gerar?mes=10&ano=2026 — trigger manual
  * POST /api/relatorios/executivo/enviar-email?mes=10&ano=2026&email=user@example.com — enviar por email */
-app.use("/api/relatorios", criarRotasRelatorioExecutivo({ authService, db }));
+app.use("/api/relatorios/executivo", criarRotasRelatorioExecutivo({ authService, db }));
 
 /** Sugestão inteligente de categorias para transações (fase 2.3) — baseada em
  * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria
