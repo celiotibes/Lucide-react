@@ -12,6 +12,8 @@ import {
   exigeRevisaoHumana,
   documentoPodeSerLancado,
   acuraciaIA,
+  type RegistroSugestao,
+  type RevisaoSugestao,
 } from "../revisaoIA";
 import { migrarBancoExistente } from "../../../db/connection";
 import type { Database } from "sql.js";
@@ -328,8 +330,8 @@ describe("DocumentoDuplicadoError e imutabilidade da revisão", () => {
 
   it("sugestão revisada é imutável no banco (não só por convenção do código)", async () => {
     const db = await criarBancoDeTeste();
-    const sid = registrarSugestao(db, { campo: "tipo", valor_sugerido: "fatura", confianca: 0.9 } as any);
-    revisarSugestao(db, sid, { status: "aceita", revisado_por: "celio" } as any);
+    const sid = registrarSugestao(db, { campo: "tipo", valor_sugerido: "fatura", confianca: 0.9 } as Partial<RegistroSugestao>);
+    revisarSugestao(db, sid, { status: "aceita", revisado_por: "celio" } as Partial<RevisaoSugestao>);
     expect(() => db.run("UPDATE sugestoes_ia_documentos SET status = 'rejeitada' WHERE id = ?", [sid])).toThrow(/já revisada/);
     expect(() => db.run("DELETE FROM sugestoes_ia_documentos WHERE id = ?", [sid])).toThrow(/já revisada/);
   });

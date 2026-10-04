@@ -17,8 +17,9 @@ describe("Titularidade econômica (separação retroativa PF x empresa)", () => 
 
   const lancar = (origem_modulo: string, data: string, valor: number, ref: string): number => {
     const origem_id = ++seq;
-    registrarLancamentoContabil(db, { entidade_id: pf, periodo_id: periodo, conta_id: CONTA_CAIXA_ERP, data_lancamento: data, valor_debito: valor, descricao: ref, origem_modulo: origem_modulo as any, origem_id, referencia_documento: ref });
-    return registrarLancamentoContabil(db, { entidade_id: pf, periodo_id: periodo, conta_id: CONTA_RECEITA, data_lancamento: data, valor_credito: valor, descricao: ref, origem_modulo: origem_modulo as any, origem_id, referencia_documento: ref });
+    const modulo = origem_modulo as 'transacoes' | 'contratos' | 'patrimonio' | 'caucao' | 'financiamento' | 'rateios' | 'vistorias' | 'advocacia' | 'contas-pessoais' | 'imovel-gestao' | 'apontamento-prestador' | 'pagamentos-integracao' | 'skillos' | 'inadimplencia_juros' | 'manual';
+    registrarLancamentoContabil(db, { entidade_id: pf, periodo_id: periodo, conta_id: CONTA_CAIXA_ERP, data_lancamento: data, valor_debito: valor, descricao: ref, origem_modulo: modulo, origem_id, referencia_documento: ref });
+    return registrarLancamentoContabil(db, { entidade_id: pf, periodo_id: periodo, conta_id: CONTA_RECEITA, data_lancamento: data, valor_credito: valor, descricao: ref, origem_modulo: modulo, origem_id, referencia_documento: ref });
   };
   const titularAtual = (id: number): number =>
     db.exec("SELECT titular_economico_id FROM v_ledger_titular_atual WHERE id = ?", [id])[0].values[0][0];
