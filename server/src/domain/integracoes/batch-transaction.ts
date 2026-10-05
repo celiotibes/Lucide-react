@@ -184,7 +184,6 @@ export class BatchTransactionManager {
         }
       }
     } catch {
-      const _errorMsg = error instanceof Error ? error.message : String(error);
       captureException(error, {
         tags: {
           operation: "batch_transaction_fatal",
@@ -248,7 +247,7 @@ export async function batchUpdate(
 
   return manager.processBatch(
     items,
-    (chunk: typeof items, chunkIndex: number) => {
+    (chunk: typeof items, _chunkIndex: number) => {
       let updateCount = 0;
 
       for (const item of chunk) {
