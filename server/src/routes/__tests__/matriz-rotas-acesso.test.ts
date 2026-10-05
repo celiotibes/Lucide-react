@@ -14,7 +14,7 @@
  * FALHAR. A classificação é documentada em docs/MATRIZ-ROTAS-ACESSO.md.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import fs from "fs";

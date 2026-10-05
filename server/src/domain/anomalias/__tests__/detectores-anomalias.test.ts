@@ -19,7 +19,7 @@ import {
   obterEstatisticasAnomalias,
   invalidarCacheTransacoes,
   invalidarCacheAnomalias} from "../detectores-anomalias.js";
-import { getCacheSerce, resetCacheSerce } from "../../../serces/cache-serce.js";
+import { getCacheService, resetCacheService } from "../../../services/cache-service.js";
 
 describe("Sistema de Detecção de Anomalias", () => {
   let db: Database.Database;
@@ -27,7 +27,7 @@ describe("Sistema de Detecção de Anomalias", () => {
 
   beforeEach(() => {
     // Reset cache before each test
-    resetCacheSerce();
+    resetCacheService();
 
     // Cria banco de teste em memória
     dbPath = path.join(process.cwd(), "test-anomalias.db");
@@ -451,7 +451,7 @@ describe("Sistema de Detecção de Anomalias", () => {
     });
 
     it("Teste 19: Cache de transações - hit em chamadas repetidas", () => {
-      const cache = getCacheSerce();
+      const cache = getCacheService();
       const initialSize = cache.size();
 
       // Primeira chamada (sem cache)
@@ -467,7 +467,7 @@ describe("Sistema de Detecção de Anomalias", () => {
     });
 
     it("Teste 20: Cache de transações - hit rate em fluxo de anomalias", () => {
-      const cache = getCacheSerce();
+      const cache = getCacheService();
 
       // Simula o fluxo de anomalias que chama 3 métodos
       const valor = 450;
@@ -489,7 +489,7 @@ describe("Sistema de Detecção de Anomalias", () => {
     });
 
     it("Teste 21: Invalidação de cache de transações", () => {
-      const cache = getCacheSerce();
+      const cache = getCacheService();
 
       // Primeira chamada
       detectarAnomalia2Sigma(db, 300, 90);
@@ -504,7 +504,7 @@ describe("Sistema de Detecção de Anomalias", () => {
     });
 
     it("Teste 22: Invalidação completa de cache de anomalias", () => {
-      const cache = getCacheSerce();
+      const cache = getCacheService();
 
       // Popula cache com múltiplas chamadas
       detectarAnomalia2Sigma(db, 300, 90);
