@@ -14,7 +14,7 @@ import {
   avaliarAnomaliaAgregada,
   registrarAlertaAnomalia,
   listarAlertas,
-  marcarAnomaliaResada,
+  marcarAnomaliaRevisada,
   obterAlerta,
   obterEstatisticasAnomalias,
   invalidarCacheTransacoes,
@@ -59,7 +59,7 @@ describe("Sistema de Detecção de Anomalias", () => {
         tipo_metrica TEXT NOT NULL,
         periodo_dias INTEGER NOT NULL DEFAULT 90,
         media REAL,
-        deso_padrao REAL,
+        desvio_padrao REAL,
         q1 REAL,
         q2 REAL,
         q3 REAL,
@@ -86,14 +86,14 @@ describe("Sistema de Detecção de Anomalias", () => {
         percentil_valor REAL,
         percentil_95 REAL,
         descricao TEXT,
-        resado INTEGER NOT NULL DEFAULT 0,
-        resado_por TEXT,
-        resado_em DATETIME,
-        motivo_resao TEXT,
+        revisado INTEGER NOT NULL DEFAULT 0,
+        revisado_por TEXT,
+        revisado_em DATETIME,
+        motivo_revisao TEXT,
         criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         atualizado_em DATETIME,
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id),
-        FOREIGN KEY(resado_por) REFERENCES usuarios(id)
+        FOREIGN KEY(revisado_por) REFERENCES usuarios(id)
       );
 
       CREATE INDEX IF NOT EXISTS idx_alertas_anomalias_transacao
@@ -428,26 +428,26 @@ describe("Sistema de Detecção de Anomalias", () => {
       const resultado = avaliarAnomaliaAgregada(db, 500);
       const alerta = registrarAlertaAnomalia(db, "tx_reew", resultado, "user1");
 
-      // Marca como resado
-      marcarAnomaliaResada(db, alerta.id, "user1", "falso positivo");
+      // Marca como revisado
+      marcarAnomaliaRevisada(db, alerta.id, "user1", "falso positivo");
 
       // Recupera diretamentea SQL para verificar UPDATE funcionou
-      const resadoRow = db.prepare(`
-        SELECT resado, motivo_resao FROM alertas_anomalias_registrados WHERE id = ?
+      const revisadoRow = db.prepare(`
+        SELECT revisado, motivo_revisao FROM alertas_anomalias_registrados WHERE id = ?
       `).get(alerta.id) as unknown;
 
-      expect(resadoRow?.resado).toBe(1);
-      expect(resadoRow?.motivo_resao).toBe("falso positivo");
+      expect(revisadoRow?.revisado).toBe(1);
+      expect(revisadoRow?.motivo_revisao).toBe("falso positivo");
 
       // Também verificaa função
-      const resado = obterAlerta(db, alerta.id);
-      expect(resado?.resado).toBe(1);
+      const revisado = obterAlerta(db, alerta.id);
+      expect(revisado?.revisado).toBe(1);
 
       // Estatísticas
       const stats = obterEstatisticasAnomalias(db, 30);
       expect(stats.total).toBeGreaterThan(0);
-      expect(stats.resadas).toBeGreaterThan(0);
-      expect(stats.taxa_resao).toBeGreaterThan(0);
+      expect(stats.revisadas).toBeGreaterThan(0);
+      expect(stats.taxa_revisao).toBeGreaterThan(0);
     });
 
     it("Teste 19: Cache de transações - hit em chamadas repetidas", () => {

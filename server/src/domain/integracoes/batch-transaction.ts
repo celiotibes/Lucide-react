@@ -99,7 +99,7 @@ export class BatchTransactionManager {
         });
 
         resolve(result);
-      } catch {
+      } catch (error) {
         completed = true;
         clearTimeout(timeoutHandle);
         reject(error);
@@ -156,7 +156,7 @@ export class BatchTransactionManager {
               itemsInChunk: chunk.length,
             },
           });
-        } catch {
+        } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
           errors.push({
             chunkIndex,
@@ -183,8 +183,8 @@ export class BatchTransactionManager {
           );
         }
       }
-    } catch (error) {
-      captureException(error, {
+    } catch (fatalError) {
+      captureException(fatalError, {
         tags: {
           operation: "batch_transaction_fatal",
           label,

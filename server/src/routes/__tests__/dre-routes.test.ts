@@ -65,7 +65,6 @@ describe("Rotas HTTP de DRE (/api/relatorios/dre)", () => {
   let db: Database.Database;
   let app: express.Express;
   let token: string;
-  let authService: unknown;
 
   beforeEach(async () => {
     db = createTestDatabase();
@@ -79,7 +78,6 @@ describe("Rotas HTTP de DRE (/api/relatorios/dre)", () => {
 
     const resultado = await criarAppDeTeste(db);
     app = resultado.app;
-    authService = resultado.authService;
 
     token = await login(app, "testuser@example.com");
   });

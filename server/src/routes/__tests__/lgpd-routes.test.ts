@@ -76,8 +76,6 @@ async function login(app: express.Express, email: string): Promise<string> {
 describe('Rotas LGPD (/api/lgpd)', () => {
   let db: Database.Database;
   let app: express.Express;
-  let authService: unknown;
-  let auditService: unknown;
 
   beforeEach(async () => {
     db = createTestDatabase();
@@ -92,7 +90,7 @@ describe('Rotas LGPD (/api/lgpd)', () => {
     stmt.run('user_titular_2', 'Titular Dois', 'titular2@example.com', hash, 'titular');
     stmt.run('user_inquilino', 'Inquilino Teste', 'inquilino@example.com', hash, 'inquilino');
 
-    ({ app, authService, auditService } = await criarAppDeTeste(db));
+    ({ app } = await criarAppDeTeste(db));
   });
 
   afterEach(() => {
