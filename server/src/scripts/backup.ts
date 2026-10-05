@@ -13,7 +13,6 @@
 import BackupService from "../services/backup-service.js";
 import fs from "fs";
 import path from "path";
-import { logger } from "../services/logger-service.js";
 
 const args = process.argv.slice(2);
 const command = args[0] || "help";

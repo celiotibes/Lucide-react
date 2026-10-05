@@ -205,7 +205,6 @@ export function criarRotasAssinaturasLGPD({
           nonce_2fa,
           usuario_id,
           usuario_nome,
-          usuario_cpf,
           relatorio_tipo,
           relatorio_periodo,
           pdf_url,
