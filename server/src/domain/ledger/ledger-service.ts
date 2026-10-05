@@ -268,7 +268,7 @@ export function registrarDoubleEntry(
       return { debito: resultadoDebito.lancamento_id, credito: resultadoCredito.lancamento_id };
     });
 
-    const resultado = inserir();
+    inserir();
 
     logger.info(`[Ledger] Double-entry registrado: ${idTransacao}`);
     logger.info(`  Débito: ${lancamento.conta_debito} | Crédito: ${lancamento.conta_credito} | Valor: ${lancamento.valor}`);
