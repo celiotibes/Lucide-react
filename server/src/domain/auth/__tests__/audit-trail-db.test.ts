@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { AuditTrailSerceDB } from "../audit-trail-db";
+import { AuditTrailServiceDB } from "../audit-trail-db";
 import { ContextoAutenticacao, Usuario } from "../auth-serce";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -79,13 +79,13 @@ const adminContexto: ContextoAutenticacao = {
   role: "titular",
 };
 
-describe("AuditTrailSerceDB (Phase 2)", () => {
+describe("AuditTrailServiceDB (Phase 2)", () => {
   let db: Database.Database;
-  let auditSerce: AuditTrailSerceDB;
+  let auditSerce: AuditTrailServiceDB;
 
   beforeEach(() => {
     db = createTestDatabase();
-    auditSerce = new AuditTrailSerceDB(db);
+    auditSerce = new AuditTrailServiceDB(db);
   });
 
   afterEach(() => {
@@ -368,7 +368,7 @@ describe("AuditTrailSerceDB (Phase 2)", () => {
       );
 
       // Create new serce instance with same database
-      const auditSerce2 = new AuditTrailSerceDB(db);
+      const auditSerce2 = new AuditTrailServiceDB(db);
 
       // Retrieve with new instance
       const historico = auditSerce2.obterHistoricoUsuario("user_admin_1");
@@ -391,7 +391,7 @@ describe("AuditTrailSerceDB (Phase 2)", () => {
       db2.pragma("foreign_keys = ON");
 
       // Create new serce with reopened database
-      const auditSerce2 = new AuditTrailSerceDB(db2);
+      const auditSerce2 = new AuditTrailServiceDB(db2);
 
       // Verify record still exists
       const historico = auditSerce2.obterHistoricoRecurso("apontamento");

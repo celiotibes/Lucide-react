@@ -183,7 +183,7 @@ export class BatchTransactionManager {
           );
         }
       }
-    } catch {
+    } catch (error) {
       captureException(error, {
         tags: {
           operation: "batch_transaction_fatal",

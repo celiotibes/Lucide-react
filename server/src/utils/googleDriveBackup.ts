@@ -344,7 +344,7 @@ export async function listarBackupsNoGoogleDrive(): Promise<
       nome: file.name || "",
       criadoEm: file.createdTime || "",
     }));
-  } catch {
+  } catch (erro) {
     logger.error(
       "[GoogleDriveBackup] Erro ao listar backups:",
       erro instanceof Error ? erro.message : erro
