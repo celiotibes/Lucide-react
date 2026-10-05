@@ -9,7 +9,7 @@
  * - Auditoria completa
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';

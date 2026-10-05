@@ -6,7 +6,7 @@
  * Por padrão, testam apenas o comportamento offline.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "test";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
