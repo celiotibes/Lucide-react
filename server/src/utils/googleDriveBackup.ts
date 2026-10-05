@@ -16,7 +16,7 @@ import { google, drive_v3 } from "googleapis";
 import { createReadStream, createWriteStream } from "fs";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
+const _filename = fileURLToPath(import.meta.url);
 
 // Caminho do banco de dados
 const DB_PATH = path.join(process.cwd(), "data", "app.db");

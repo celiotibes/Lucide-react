@@ -281,7 +281,7 @@ describe("Batch Transaction Manager", () => {
       id: `user-${i}`,
     }));
 
-    const _startTime = Date.now();
+    const __startTime = Date.now();
 
     const result = await manager.processBatch(
       items,

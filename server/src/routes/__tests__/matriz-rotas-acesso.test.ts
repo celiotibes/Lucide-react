@@ -319,10 +319,8 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
     it(`rotas internas: ${token} recebe 401/403/404 (nunca 2xx/5xx)`, async () => {
       for (const k of internas()) {
         const [metodo, caminho] = k.split(" ");
-        const res = await (request(app) as unknown)
-          [metodo.toLowerCase()](comParametrosPreenchidos(caminho))
-          .set("Authorization", `Bearer ${token}`)
-          .send({});
+        const req = (request(app) as unknown)[metodo.toLowerCase()](comParametrosPreenchidos(caminho));
+        const res = await req.set("Authorization", `Bearer ${token}`).send({});
         expect([401, 403, 404], `${k} com ${token} respondeu ${res.status}`).toContain(res.status);
       }
     });
@@ -334,9 +332,8 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
     for (const token of ["tok-inquilino", "tok-prestador"]) {
       for (const k of posse) {
         const [metodo, caminho] = k.split(" ");
-        const res = await (request(app) as unknown)
-          [metodo.toLowerCase()](comParametrosPreenchidos(caminho))
-          .set("Authorization", `Bearer ${token}`);
+        const req = (request(app) as unknown)[metodo.toLowerCase()](comParametrosPreenchidos(caminho));
+        const res = await req.set("Authorization", `Bearer ${token}`);
         expect(res.status, `${k} com ${token}`).toBe(404);
       }
     }

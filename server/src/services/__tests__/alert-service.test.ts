@@ -120,6 +120,7 @@ describe('AlertService', () => {
 
   describe('Estado de Alertas', () => {
     it('deve rastrear estado de alertas', async () => {
+      const payload = {
         backupName: 'backup-003',
         errorMessage: 'Erro de teste',
         timestamp: new Date(),
