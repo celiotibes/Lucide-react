@@ -682,7 +682,7 @@ function executarSeguro(db: DatabasePolymorphic, sql: string, params: unknown[])
  * Detecta tipo e escapa apropriadamente.
  * @internal
  */
-function escapeParamSeguro(param: any): string {
+function escapeParamSeguro(param: Record<string, unknown>): string {
   if (param === null || param === undefined) {
     return "NULL";
   }
@@ -825,7 +825,7 @@ export async function processarReembolsoAsaas(
  * Detecta se é reembolso tipo "reversao" (< 24h) ou "devolucao" (≥ 24h)
  * quando a cobrança foi criada.
  */
-function detectarTipoReembolsoAoAgora(agora: string, cobranca: any): boolean {
+function detectarTipoReembolsoAoAgora(agora: string, cobranca: Record<string, unknown>): boolean {
   // Se cobrança não tem data de criação, assume > 24h (devolucao)
   if (!cobranca.criado_em) return false;
 

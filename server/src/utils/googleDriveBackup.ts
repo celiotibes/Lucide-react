@@ -14,7 +14,6 @@ import path from "path";
 import * as archiverModule from "archiver";
 import { google, drive_v3 } from "googleapis";
 import { createReadStream, createWriteStream } from "fs";
-import from "better-sqlite3";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);

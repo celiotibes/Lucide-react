@@ -73,6 +73,7 @@ describe('AlertService', () => {
     });
 
     it('deve bloquear alertas duplicados dentro do período de cooldown', async () => {
+      const payload = {
         backupName: 'backup-001',
         errorMessage: 'Erro de teste',
         timestamp: new Date(),
@@ -91,6 +92,7 @@ describe('AlertService', () => {
     });
 
     it('deve permitir alertas após período de cooldown', async () => {
+      const payload = {
         backupName: 'backup-002',
         errorMessage: 'Erro de teste',
         timestamp: new Date(),

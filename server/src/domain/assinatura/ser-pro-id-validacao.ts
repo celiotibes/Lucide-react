@@ -285,7 +285,7 @@ export class SerProIdValidacao {
    */
   private async chamarApiSerProId(
     payload: Record<string, unknown>,
-    metodo: string = "POST"
+    _metodo: string = "POST"
   ): Promise<Record<string, unknown>> {
     // Simulação: Em produção, faria:
     // const response = await fetch(`${this.config.apiUrl}/api/v1/...`, {

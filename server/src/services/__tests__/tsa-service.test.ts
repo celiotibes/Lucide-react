@@ -19,7 +19,7 @@ describe("tsa-service", () => {
     let texto: string;
     try {
       texto = execFileSync("openssl", ["ts", "-query", "-in", arq, "-text"], { encoding: "utf-8" });
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       if (e.code === "ENOENT") return; // openssl indisponível
       throw e;
     }

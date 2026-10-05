@@ -146,7 +146,7 @@ describe('Rotas LGPD (/api/lgpd)', () => {
       expect(resp.body).toHaveProperty('sessoes_ativas');
       expect(Array.isArray(resp.body.sessoes_ativas)).toBe(true);
       // Não deve ter campo 'token' nas sessões
-      resp.body.sessoes_ativas.forEach((s: any) => {
+      resp.body.sessoes_ativas.forEach((s: Record<string, unknown>) => {
         expect(s).not.toHaveProperty('token');
       });
     });

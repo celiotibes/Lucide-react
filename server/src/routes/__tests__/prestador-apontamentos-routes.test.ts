@@ -153,8 +153,8 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
     const l1 = await request(app).get(URL_BASE).set(auth(t1));
     const l2 = await request(app).get(URL_BASE).set(auth(t2));
     expect(l1.body.total).toBe(1);
-    expect(l1.body.itens.map((i: any) => i.id)).toEqual([a.body.id]);
-    expect(l2.body.itens.map((i: any) => i.servico)).toEqual(["Serviço do segundo"]);
+    expect(l1.body.itens.map((i: Record<string, unknown>) => i.id)).toEqual([a.body.id]);
+    expect(l2.body.itens.map((i: Record<string, unknown>) => i.servico)).toEqual(["Serviço do segundo"]);
     // Não vaza conteúdo/identidade.
     expect(JSON.stringify(l1.body)).not.toMatch(/conteudo|usuario_id|u_prest/);
   });

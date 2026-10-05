@@ -76,7 +76,7 @@ export class CacheService {
    * @param obj Objeto a ser medido
    * @returns Tamanho aproximado em bytes
    */
-  private estimateSize(obj: any): number {
+  private estimateSize(obj: Record<string, unknown>): number {
     const jsonStr = JSON.stringify(obj);
     return Buffer.byteLength(jsonStr, 'utf-8');
   }

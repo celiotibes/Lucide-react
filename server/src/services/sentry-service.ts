@@ -210,7 +210,7 @@ export function initializeSentry(): void {
 /**
  * Attach Sentry handlers to Express app
  */
-export function attachSentryHandlers(app: any): void {
+export function attachSentryHandlers(app: Record<string, unknown>): void {
   try {
     // Request handler — must be first
     app.use(Sentry.Handlers.requestHandler());

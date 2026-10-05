@@ -105,7 +105,7 @@ export class FilaRevisaoService {
       LIMIT ? OFFSET ?
     `);
 
-    return stmt.all(limit, offset).map((row: any) => ({
+    return stmt.all(limit, offset).map((row: Record<string, unknown>) => ({
       id: row.id,
       documentoId: row.documentoId,
       tipo: row.tipo,
@@ -253,7 +253,7 @@ export class FilaRevisaoService {
       ORDER BY data_criacao DESC
     `);
 
-    return stmt.all(documentoId).map((row: any) => ({
+    return stmt.all(documentoId).map((row: Record<string, unknown>) => ({
       id: row.id,
       documentoId: row.documentoId,
       tipo: row.tipo,

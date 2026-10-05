@@ -176,7 +176,7 @@ export function criarRotasAcl({ authService, auditService, db }: AclRoutesDeps):
       }
 
       res.status(201).json({ ok: true, id: resultado.id, mensagem: "Acesso concedido com sucesso" });
-    } catch (erro: any) {
+    } catch (erro: Record<string, unknown>) {
       if (erro.message?.includes("UNIQUE constraint failed")) {
         // Já existe na mesma transação — retorna 201
         res.status(201).json({ ok: true, mensagem: "Acesso já estava concedido" });
