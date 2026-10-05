@@ -92,7 +92,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         telefone: typeof telefone === "string" ? telefone : undefined,
       });
       res.status(201).json({ asaasCustomerId: cliente.id });
-    } catch {
+    } catch (erro) {
       tratarErroAsaas(erro, res);
     }
   });
@@ -139,7 +139,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         linhaDigitavel: cobranca.identificationField ?? null,
         pixQrCode: cobranca.pixQrCodeId ?? null,
       });
-    } catch {
+    } catch (erro) {
       tratarErroAsaas(erro, res);
     }
   });
@@ -361,7 +361,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         origemTipo: reembolso.origemTipo,
         origemId: reembolso.origemId,
       });
-    } catch {
+    } catch (erro) {
       if (erro instanceof Error && erro.message.includes("não encontrada")) {
         res.status(404).json({ erro: erro.message });
         return;

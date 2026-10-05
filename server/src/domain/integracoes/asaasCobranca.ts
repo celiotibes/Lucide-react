@@ -369,7 +369,7 @@ export function emitirCobranca(db: Database.Database, dados: DadosNovaCobranca):
     cache.invalidateByPattern('cobrancas:list:*');
 
     return obterCobranca(db, id) as Cobranca;
-  } catch {
+  } catch (error) {
     // SEC-012: Capture charge creation errors
     captureException(error, {
       tags: {
@@ -715,7 +715,7 @@ export function registrarPagamento(
     cache.invalidateByPattern('cobrancas:list:*');
 
     return obterCobranca(db, cobranca_id) as Cobranca;
-  } catch {
+  } catch (error) {
     // SEC-012: Capture payment registration errors
     captureException(error, {
       tags: {
