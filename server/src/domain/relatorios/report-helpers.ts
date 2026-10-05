@@ -11,7 +11,7 @@
  * - Paginação
  */
 
-import type Database from "better-sqlite3";
+
 
 /**
  * Período de datas

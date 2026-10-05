@@ -10,7 +10,7 @@
  * - Gerar sumário executivo
  */
 
-import type Database from "better-sqlite3";
+
 import { logger } from "../../services/logger-service.js";
 import type { DREResumo } from "./dre-calculator-service.js";
 import type { FluxoResumo } from "./cash-flow-service.js";

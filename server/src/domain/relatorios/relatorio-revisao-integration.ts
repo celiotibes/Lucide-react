@@ -27,7 +27,6 @@ import type Database from 'better-sqlite3';
 import type { FilaRevisaoService } from './fila-revisao-service.js';
 import {
   relatarioNecessitaRevisao,
-  campoNecessitaRevisao,
   verificarMudancaThreshold,
   CAMPOS_CRITICOS_REVISAO
 } from './politicaRevisaoIA.js';

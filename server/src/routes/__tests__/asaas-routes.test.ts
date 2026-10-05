@@ -1,4 +1,4 @@
-import { logger } from "../../services/logger-service.js";
+
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import express from "express";
 import request from "supertest";
