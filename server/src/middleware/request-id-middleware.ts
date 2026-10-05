@@ -12,6 +12,7 @@ import { createRequestLogger } from '../services/logger-service.js';
  */
 
 // Extend Express Request type to include requestId and logger
+ 
 declare global {
   namespace Express {
     interface Request {

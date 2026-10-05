@@ -464,13 +464,6 @@ describe("asaasCobranca", () => {
 
   describe("listarCobrancasVencidas", () => {
     it("deve listar cobrancas vencidas", () => {
-      const dados: DadosNovaCobranca = {
-        aluguel_id: "aluguel-123",
-        imovel_id: "imovel-456",
-        valor: 1500.0,
-        data_vencimento: "2020-01-01",
-      };
-
       // Inserir manualmente uma cobrança com data no passado
       const stmt = db.prepare(`
         INSERT INTO asaas_cobrancas (

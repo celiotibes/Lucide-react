@@ -306,6 +306,7 @@ export function varrerAnomaliastransacoes(db: Database.Database): void {
     }
 
     // Importa dinâmico para evitar ciclo
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { avaliarAnomaliaAgregada, registrarAlertaAnomalia } = require("./domain/anomalias/detectores-anomalias.js");
 
     // Busca transações do último dia sem análise

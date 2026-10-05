@@ -90,7 +90,7 @@ export class QueryCacheService {
   /**
    * Get user data with TTL cache
    */
-  async cacheUserData(userId: number): Promise<any | null> {
+  async cacheUserData(userId: number): Promise<unknown | null> {
     return this.get(
       `user_${userId}`,
       () => {

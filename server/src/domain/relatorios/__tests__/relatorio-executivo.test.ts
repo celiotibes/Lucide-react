@@ -10,7 +10,7 @@
  * 6. Scheduler (2 testes)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
@@ -20,25 +20,12 @@ import {
   gerarPDFRelatorioExecutivo,
   enviarRelatorioEmailMensal,
   secaoIndisponivel,
-  type RelatorioExecutivo,
 } from "../relatorio-executivo.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const TEST_DB_PATH = path.join(__dirname, `test-relatorio-${process.pid}.db`);
-
-function resolverSchema(nomeArquivo: string): string {
-  const candidatos = [
-    path.join(__dirname, `../../../../${nomeArquivo}`),
-    path.join(process.cwd(), `server/src/${nomeArquivo}`),
-    path.join(process.cwd(), `src/${nomeArquivo}`),
-  ];
-  const encontrado = candidatos.find((p) => fs.existsSync(p));
-  if (!encontrado)
-    throw new Error(`Schema não encontrado: ${nomeArquivo} (tentei ${candidatos.join(", ")})`);
-  return fs.readFileSync(encontrado, "utf-8");
-}
 
 function criarTestDatabase(): Database.Database {
   if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);

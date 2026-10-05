@@ -200,6 +200,7 @@ describe('AlertService', () => {
     });
 
     it('deve escapar caracteres HTML perigosos na mensagem de erro', async () => {
+      const payload = {
         backupName: 'backup-xss',
         errorMessage: '<script>alert("XSS")</script>',
         timestamp: new Date(),
@@ -211,6 +212,7 @@ describe('AlertService', () => {
     });
 
     it('deve escapar caracteres HTML nos detalhes', async () => {
+      const payload = {
         backupName: 'backup-details',
         errorMessage: 'Erro com detalhes',
         timestamp: new Date(),
