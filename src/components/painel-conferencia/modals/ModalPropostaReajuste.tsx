@@ -49,7 +49,7 @@ const ModalPropostaReajuste: React.FC<ModalPropostaReajusteProps> = ({
       await persistir();
       onConfirm();
       onClose();
-    } catch {
+    } catch (error) {
       console.error("Erro ao aprovar:", error);
       setErro(error instanceof Error ? error.message : "Erro ao aprovar reajuste");
     } finally {
@@ -66,7 +66,7 @@ const ModalPropostaReajuste: React.FC<ModalPropostaReajusteProps> = ({
       await persistir();
       onConfirm();
       onClose();
-    } catch {
+    } catch (error) {
       console.error("Erro ao rejeitar:", error);
       setErro(error instanceof Error ? error.message : "Erro ao rejeitar reajuste");
     } finally {

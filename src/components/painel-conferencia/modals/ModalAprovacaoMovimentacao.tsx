@@ -59,7 +59,7 @@ const ModalAprovacaoMovimentacao: React.FC<ModalAprovacaoMovimentacaoProps> = ({
       await persistir();
       onConfirm();
       onClose();
-    } catch {
+    } catch (error) {
       console.error("Erro ao aprovar:", error);
       setErro(error instanceof Error ? error.message : "Erro ao aprovar movimentação");
     } finally {

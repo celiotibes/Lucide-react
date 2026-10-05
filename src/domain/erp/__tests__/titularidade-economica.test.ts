@@ -22,14 +22,14 @@ describe("Titularidade econômica (separação retroativa PF x empresa)", () => 
     return registrarLancamentoContabil(db, { entidade_id: pf, periodo_id: periodo, conta_id: CONTA_RECEITA, data_lancamento: data, valor_credito: valor, descricao: ref, origem_modulo: modulo, origem_id, referencia_documento: ref });
   };
   const titularAtual = (id: number): number =>
-    db.exec("SELECT titular_economico_id FROM v_ledger_titular_atual WHERE id = ?", [id])[0].values[0][0];
+    Number(db.exec("SELECT titular_economico_id FROM v_ledger_titular_atual WHERE id = ?", [id])[0].values[0][0]);
 
   beforeEach(async () => {
     db = await criarBancoDeTeste();
     pf = criarEntidadeLegal(db, { nome: "Célio PF", cpf_cnpj: "52998224725" }).entidade_id!;
     pj = criarEntidadeLegal(db, { nome: "Locadora PJ", cpf_cnpj: "11222333000181" }).entidade_id!;
     db.run("INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2026, 1, 'aberto')", [pf]);
-    periodo = db.exec("SELECT last_insert_rowid()")[0].values[0][0];
+    periodo = Number(db.exec("SELECT last_insert_rowid()")[0].values[0][0]);
   });
 
   it("sem atribuição o titular é quem registrou; o razão original nunca é alterado", () => {

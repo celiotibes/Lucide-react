@@ -23,7 +23,7 @@ describe("Imutabilidade do Razão (Ledger)", () => {
     const contas = db.exec(
       "SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1"
     );
-    conta_id = contas[0]?.values[0]?.[0];
+    conta_id = Number(contas[0]?.values[0]?.[0]);
   });
 
   describe("ledger_entries: bloqueio de UPDATE de dados contábeis", () => {

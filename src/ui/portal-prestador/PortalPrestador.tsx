@@ -14,6 +14,7 @@ export function PortalPrestador() {
   const [abaAtiva, setAbaAtiva] = useState<Tab>("agenda");
   const [prestadorSelecionado, setPrestadorSelecionado] = useState<number | null>(null);
   const [dataSelecionada, setDataSelecionada] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [apontamentoEmEdicao, setApontamentoEmEdicao] = useState<number | null>(null);
 
   const prestadores = useMemo<Prestador[]>(
     () => (db ? consultar<Prestador>(db, "SELECT id, nome, cpf_cnpj, servico FROM prestadores ORDER BY nome") : []),
@@ -225,7 +226,7 @@ export function PortalPrestador() {
           dataSelecionada={dataSelecionada}
           apontamentoHoje={apontamentoHoje}
           onSelecionarApontamento={(apt) => {
-            setApontamentoEmEdicao(apt);
+            setApontamentoEmEdicao(apt.id ?? null);
             setAbaAtiva("apontamentos");
           }}
         />

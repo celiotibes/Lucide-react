@@ -132,7 +132,7 @@ export async function registrarChamadaAPI(
       `SELECT hash_sha256 FROM auditoria_log ORDER BY id DESC LIMIT 1`
     );
 
-    const hashAnterior = resultAnterior[0]?.values[0]?.[0] || '';
+    const hashAnterior = String(resultAnterior[0]?.values[0]?.[0] || '');
     registroComHash.hash_anterior = hashAnterior;
 
     // Calcular hash SHA-256 deste registro
@@ -181,7 +181,7 @@ export async function registrarChamadaAPI(
     );
 
     const resultId = db.exec('SELECT last_insert_rowid() as id');
-    registroComHash.id = resultId[0]?.values[0]?.[0];
+    registroComHash.id = Number(resultId[0]?.values[0]?.[0]);
   } catch (erro) {
     console.error('Erro ao registrar chamada API:', erro);
   }
@@ -264,7 +264,7 @@ export async function verificarIntegridade(
         }
       }
 
-      hashAnterior = hashRegistro;
+      hashAnterior = String(hashRegistro);
     }
 
     return {
@@ -306,7 +306,7 @@ export function gerarRelatorioAuditoria(
       `SELECT COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
-    const total_registros = resultTotal[0]?.values[0]?.[0] || 0;
+    const total_registros = (resultTotal[0]?.values[0]?.[0] as number) || 0;
 
     // Por tipo de operação
     const resultPorTipo = db.exec(
@@ -316,7 +316,7 @@ export function gerarRelatorioAuditoria(
     const operacoes_por_tipo: Record<string, number> = {};
     if (resultPorTipo[0]?.values) {
       for (const [tipo, count] of resultPorTipo[0].values) {
-        operacoes_por_tipo[tipo] = count;
+        operacoes_por_tipo[String(tipo)] = Number(count);
       }
     }
 
@@ -328,7 +328,7 @@ export function gerarRelatorioAuditoria(
     const operacoes_por_modulo: Record<string, number> = {};
     if (resultPorModulo[0]?.values) {
       for (const [modulo, count] of resultPorModulo[0].values) {
-        operacoes_por_modulo[modulo] = count;
+        operacoes_por_modulo[String(modulo)] = Number(count);
       }
     }
 
@@ -337,21 +337,21 @@ export function gerarRelatorioAuditoria(
       `SELECT COUNT(DISTINCT usuario_id) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim} AND usuario_id IS NOT NULL`
     );
 
-    const usuarios_ativos = resultUsuarios[0]?.values[0]?.[0] || 0;
+    const usuarios_ativos = (resultUsuarios[0]?.values[0]?.[0] as number) || 0;
 
     // IPs diferentes
     const resultIPs = db.exec(
       `SELECT COUNT(DISTINCT ip_origem) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
-    const ips_diferentes = resultIPs[0]?.values[0]?.[0] || 0;
+    const ips_diferentes = (resultIPs[0]?.values[0]?.[0] as number) || 0;
 
     // Erros
     const resultErros = db.exec(
       `SELECT COUNT(*) FROM auditoria_log WHERE status = 'erro' AND timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
-    const erros_registrados = resultErros[0]?.values[0]?.[0] || 0;
+    const erros_registrados = (resultErros[0]?.values[0]?.[0] as number) || 0;
 
     // Últimas alterações
     const resultUltimas = db.exec(
@@ -362,27 +362,27 @@ export function gerarRelatorioAuditoria(
     if (resultUltimas[0]?.values) {
       for (const row of resultUltimas[0].values) {
         ultimas_alteracoes.push({
-          id: row[0],
-          timestamp: row[1],
-          usuario_id: row[2],
-          usuario_nome: row[3],
-          ip_origem: row[4],
-          modulo_chamador: row[5],
-          tipo_operacao: row[6] as 'leitura' | 'escrita' | 'delecao' | 'alteracao' | 'autenticacao' | 'configuracao',
-          entidade_afetada: row[7],
-          id_entidade: row[8],
-          descricao_alteracao: row[9],
-          valor_anterior: row[10] ? JSON.parse(row[10]) : undefined,
-          valor_novo: row[11] ? JSON.parse(row[11]) : undefined,
-          hash_sha256: row[12],
-          hash_anterior: row[13],
-          status: row[14] as 'sucesso' | 'erro' | 'pendente',
-          mensagem_erro: row[15],
-          tempo_processamento_ms: row[16],
-          retencao_ate: row[17],
+          id: row[0] as number,
+          timestamp: String(row[1]),
+          usuario_id: row[2] ? Number(row[2]) : undefined,
+          usuario_nome: row[3] ? String(row[3]) : undefined,
+          ip_origem: String(row[4]),
+          modulo_chamador: String(row[5]),
+          tipo_operacao: String(row[6]) as 'leitura' | 'escrita' | 'delecao' | 'alteracao' | 'autenticacao' | 'configuracao',
+          entidade_afetada: String(row[7]),
+          id_entidade: Number(row[8]),
+          descricao_alteracao: String(row[9]),
+          valor_anterior: row[10] ? JSON.parse(String(row[10])) : undefined,
+          valor_novo: row[11] ? JSON.parse(String(row[11])) : undefined,
+          hash_sha256: String(row[12]),
+          hash_anterior: String(row[13]),
+          status: String(row[14]) as 'sucesso' | 'erro' | 'pendente',
+          mensagem_erro: row[15] ? String(row[15]) : undefined,
+          tempo_processamento_ms: Number(row[16]),
+          retencao_ate: String(row[17]),
           assinado: row[18] === 1,
-          assinatura_digital: row[19],
-          criado_em: row[20],
+          assinatura_digital: row[19] ? String(row[19]) : undefined,
+          criado_em: String(row[20]),
         });
       }
     }
@@ -630,26 +630,25 @@ export function listarAcessosUsuario(
     if (result[0]?.values) {
       for (const row of result[0].values) {
         registros.push({
-          id: row[0],
-          timestamp: row[1],
-          usuario_id: row[2],
-          usuario_nome: row[3],
-          ip_origem: row[4],
-          modulo_chamador: row[5],
-          tipo_operacao: row[6] as RegistroAuditoria['tipo_operacao'],
-          entidade_afetada: row[7],
-          id_entidade: row[8],
-          descricao_alteracao: row[9],
-          hash_sha256: row[10],
-          hash_anterior: row[11],
-          status: row[12] as RegistroAuditoria['status'],
-          mensagem_erro: row[13],
-          tempo_processamento_ms: row[14],
-          // Faltava: `retencao_ate` é obrigatório no tipo e não era preenchido aqui.
-          retencao_ate: row[15],
+          id: Number(row[0]),
+          timestamp: String(row[1]),
+          usuario_id: row[2] ? Number(row[2]) : undefined,
+          usuario_nome: row[3] ? String(row[3]) : undefined,
+          ip_origem: String(row[4]),
+          modulo_chamador: String(row[5]),
+          tipo_operacao: String(row[6]) as RegistroAuditoria['tipo_operacao'],
+          entidade_afetada: String(row[7]),
+          id_entidade: Number(row[8]),
+          descricao_alteracao: String(row[9]),
+          hash_sha256: String(row[10]),
+          hash_anterior: String(row[11]),
+          status: String(row[12]) as RegistroAuditoria['status'],
+          mensagem_erro: row[13] ? String(row[13]) : undefined,
+          tempo_processamento_ms: Number(row[14]),
+          retencao_ate: String(row[15]),
           assinado: row[16] === 1,
-          assinatura_digital: row[17],
-          criado_em: row[18],
+          assinatura_digital: row[17] ? String(row[17]) : undefined,
+          criado_em: String(row[18]),
         });
       }
     }

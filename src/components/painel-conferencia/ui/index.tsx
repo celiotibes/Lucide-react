@@ -165,10 +165,10 @@ export function Select({
 }
 // SelectTrigger/SelectValue existem só para compatibilidade de API com o código das telas —
 // o <select> nativo acima já é o próprio "trigger" e já mostra o valor selecionado sozinho.
-export function SelectTrigger() {
-  return null;
+export function SelectTrigger({ children, className }: { children?: ReactNode; className?: string }) {
+  return <>{children}</>;
 }
-export function SelectValue() {
+export function SelectValue({ placeholder }: { placeholder?: string }) {
   return null;
 }
 export function SelectContent({ children }: { children?: ReactNode }) {

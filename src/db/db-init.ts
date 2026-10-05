@@ -55,7 +55,7 @@ export async function initializeDatabase(db: Database): Promise<void> {
     for (const statement of statements) {
       try {
         db.exec(statement + ";");
-      } catch {
+      } catch (error) {
         // CREATE TABLE IF NOT EXISTS should not fail
         // But log warnings for other errors
         console.warn(`[DB] Statement warning: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -67,7 +67,7 @@ export async function initializeDatabase(db: Database): Promise<void> {
     // 3. Verify all required tables exist
     verifyTablesExist(db);
 
-  } catch {
+  } catch (error) {
     console.error("[DB] Database initialization failed:", error);
     throw error;
   }
@@ -105,7 +105,7 @@ function verifyTablesExist(db: Database): void {
       } else {
         console.log(`[DB] ✓ Table "${table}" exists`);
       }
-    } catch {
+    } catch (error) {
       console.warn(`[DB] ✗ Error checking table "${table}": ${error instanceof Error ? error.message : "Unknown error"}`);
       missing.push(table);
     }
@@ -161,7 +161,7 @@ export function verifyTestDataLoaded(db: Database): boolean {
 
     console.log("[DB] ✓ Test data verified");
     return true;
-  } catch {
+  } catch (error) {
     console.warn("[DB] Error verifying test data:", error);
     return false;
   }

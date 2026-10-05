@@ -100,7 +100,7 @@ describe("Validação de Período Fechado", () => {
   describe("registrarLancamentoContabil com validação de período", () => {
     it("deve permitir registro em período aberto", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const resultado = registrarLancamentoContabil(db, {
@@ -121,7 +121,7 @@ describe("Validação de Período Fechado", () => {
 
     it("deve bloquear registro em período fechado", async () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         // Fechar período
@@ -166,12 +166,12 @@ describe("Retificação com Mecanismo de Reversão", () => {
     const contas = db.exec(
       `SELECT id FROM contas_plano_contas WHERE codigo = '5.1.01' LIMIT 1`
     );
-    conta_id = contas[0]?.values[0]?.[0];
+    conta_id = Number(contas[0]?.values[0]?.[0]);
     // Contrapartida para os lançamentos deste bloco ficarem em partida dobrada.
     const caixa = db.exec(
       `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
     );
-    contaCaixaId = caixa[0]?.values[0]?.[0];
+    contaCaixaId = Number(caixa[0]?.values[0]?.[0]);
   });
 
   it("deve registrar retificação com reversão do valor anterior", () => {

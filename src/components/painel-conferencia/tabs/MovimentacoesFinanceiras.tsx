@@ -60,7 +60,7 @@ const MovimentacoesFinanceiras: React.FC<MovimentacoesFinanceirasProps> = ({
       rejeitarMovimentacao(db, id, motivo);
       await persistir();
       onRefresh();
-    } catch {
+    } catch (error) {
       console.error("Erro ao rejeitar:", error);
       alert(error instanceof Error ? error.message : "Erro ao rejeitar movimentação");
     } finally {
