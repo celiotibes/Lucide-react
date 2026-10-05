@@ -9,7 +9,6 @@ import { AuthServiceDB } from "../../domain/auth/auth-service-db";
 import { gerarHashSenha } from "../../domain/auth/password";
 import { criarRotasAuth } from "../auth-routes";
 import { criarRotasRelatorios } from "../dre-routes";
-import { calcularDREPeriodo } from "../../domain/relatorios/dre";
 import { tokenDoCookie } from "./token-cookie.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -62,7 +61,6 @@ async function login(app: express.Express, email: string): Promise<string> {
 describe("Rotas HTTP de DRE (/api/relatorios/dre)", () => {
   let db: Database.Database;
   let app: express.Express;
-  let authService: AuthServiceDB;
   let token: string;
 
   beforeEach(async () => {
