@@ -178,7 +178,7 @@ export function tabelaExiste(db: Database.Database, nome: string): boolean {
 function converterDREParaResumo(db: Database.Database, dre: ResultadoDRE, mes: number, ano: number): DREResumo {
   // Calcula variação e histórico
   const variacaoMesAnterior = calcularVariacaoMesAnterior(db, mes, ano);
-  const { ytd: ytdCentavos, ytdPercentual } = calcularYTD(db, mes, ano);
+  const { ytdPercentual } = calcularYTD(db, mes, ano);
   const historico12Meses = obterHistorico12Meses(db, mes, ano);
 
   // Converte centavos para reais (÷100)

@@ -182,8 +182,8 @@ export function calcularDREPeriodo(
   dataInicio: string, // YYYY-MM-DD
   dataFim: string,   // YYYY-MM-DD
 ): ResultadoDRE {
-  const [anoIni, mesIni, diaIni] = dataInicio.split("-").map(Number);
-  const [anoFim, mesFim, diaFim] = dataFim.split("-").map(Number);
+  const [anoIni, mesIni] = dataInicio.split("-").map(Number);
+  const [anoFim, mesFim] = dataFim.split("-").map(Number);
 
   // Valida período
   if (anoIni > anoFim || (anoIni === anoFim && mesIni > mesFim)) {
