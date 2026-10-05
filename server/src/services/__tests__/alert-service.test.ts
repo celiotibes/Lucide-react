@@ -310,6 +310,7 @@ describe('AlertService', () => {
       // Não configurar emails
       delete process.env.BACKUP_ALERT_EMAILS;
 
+      const payload = {
         backupName: 'backup-no-email',
         errorMessage: 'Erro teste',
         timestamp: new Date(),
@@ -326,6 +327,7 @@ describe('AlertService', () => {
       // Não configurar Slack
       delete process.env.SLACK_WEBHOOK_URL;
 
+      const payload = {
         backupName: 'backup-no-slack',
         errorMessage: 'Erro teste',
         timestamp: new Date(),
