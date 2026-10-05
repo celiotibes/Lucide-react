@@ -54,7 +54,7 @@ export class AuditoriaQuerySelectMiddleware {
   async executarComAuditoria(
     query: string,
     contexto: ContextoRequisicao,
-    executor: (q: string) => any
+    executor: (q: string) => Record<string, unknown>
   ): Promise<unknown> {
     const inicio = Date.now();
 
