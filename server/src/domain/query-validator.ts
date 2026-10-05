@@ -189,7 +189,7 @@ export class QueryValidator {
    */
   validateQuery(query: string): QueryValidationResult {
     const queryPlan = this.getQueryPlan(query);
-    const { usesIndex, fullScan, details: planDetails } = this.validateIndexUsage(queryPlan);
+    const { usesIndex, fullScan } = this.validateIndexUsage(queryPlan);
 
     const issues: string[] = [];
 
