@@ -65,6 +65,7 @@ describe("Rotas HTTP de DRE (/api/relatorios/dre)", () => {
   let db: Database.Database;
   let app: express.Express;
   let token: string;
+  let authService: unknown;
 
   beforeEach(async () => {
     db = createTestDatabase();

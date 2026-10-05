@@ -76,6 +76,8 @@ async function login(app: express.Express, email: string): Promise<string> {
 describe('Rotas LGPD (/api/lgpd)', () => {
   let db: Database.Database;
   let app: express.Express;
+  let authService: unknown;
+  let auditService: unknown;
 
   beforeEach(async () => {
     db = createTestDatabase();
