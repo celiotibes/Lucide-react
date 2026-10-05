@@ -35,9 +35,10 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
   let mockAuthService: unknown;
   let mockEventosService: unknown;
 
-  // Unused
-    criarCliente: async () => ({ asaasCustomerId: `cust_${Date.now()}` }),
-    criarCobranca: async () => ({
+  beforeEach(() => {
+    const mockApiClient = {
+      criarCliente: async () => ({ asaasCustomerId: `cust_${Date.now()}` }),
+      criarCobranca: async () => ({
       asaasChargeId: `charge_${Date.now()}`,
       status: "PENDING",
       boletoUrl: "https://example.com/boleto",
