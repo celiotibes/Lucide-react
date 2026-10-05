@@ -73,7 +73,7 @@ beforeEach(() => {
       papel: "titular",
       usuario: { id: 1, email: "test@example.com", role: "titular" },
     }),
-  } as any;
+  } as unknown;
 
   // Setup Express
   app = express();

@@ -339,7 +339,7 @@ describe("asaasReembolsos", () => {
       const reembolso = criarReembolso(db, dados);
 
       expect(() => {
-        atualizarStatusReembolso(db, reembolso.id, "invalido" as any);
+        atualizarStatusReembolso(db, reembolso.id, "invalido" as unknown);
       }).toThrow();
     });
 

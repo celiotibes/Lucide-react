@@ -172,7 +172,7 @@ async function sincronizarCobranca(
 
     // Extrai taxa_asaas do response. Por enquanto, usa 0 se não vier no payload
     // (será atualizado quando a Asaas enviar o campo 'fee' ou equivalente).
-    const taxaNova = (cobrancaAsaas as any).fee ?? 0;
+    const taxaNova = (cobrancaAsaas as unknown).fee ?? 0;
 
     const houveMudanca = atualizarCobranca(db, cobracaId, cobrancaAsaas.status, taxaNova, cobrancaAnterior);
 

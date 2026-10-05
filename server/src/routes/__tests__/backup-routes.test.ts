@@ -29,7 +29,7 @@ describe("Rotas HTTP de Backup", () => {
 
     // Mock auth middleware - simula autenticação bem-sucedida
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,

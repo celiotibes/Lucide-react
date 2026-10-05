@@ -53,7 +53,7 @@ describe("Concurrent Operations", () => {
     app.use(express.json());
 
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,

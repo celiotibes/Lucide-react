@@ -149,7 +149,7 @@ describe('Ledger Service', () => {
         usuario_id: 'user-789',
       };
 
-      const resultado = registrarLancamento(db, lancamento as any);
+      const resultado = registrarLancamento(db, lancamento as unknown);
 
       expect(resultado.sucesso).toBe(true);
       expect(resultado.lancamento_id).toBeDefined();
@@ -197,7 +197,7 @@ describe('Ledger Service', () => {
         usuario_id: 'user-123',
       };
 
-      const resultado = registrarLancamento(db, lancamento as any);
+      const resultado = registrarLancamento(db, lancamento as unknown);
 
       expect(resultado.sucesso).toBe(false);
       expect(resultado.erro).toContain('Data');
@@ -306,7 +306,7 @@ describe('Ledger Service', () => {
         usuario_id: 'user-123',
       };
 
-      const resultado = registrarDoubleEntry(db, lancamento as any);
+      const resultado = registrarDoubleEntry(db, lancamento as unknown);
 
       expect(resultado.sucesso).toBe(false);
     });

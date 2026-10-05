@@ -76,7 +76,7 @@ describe("SEC-011B: Security Helpers - Timing Attack Protection", () => {
 
     it("should return false for non-string inputs", () => {
       expect(validateTokenSafely(null as unknown, "token")).toBe(false);
-      expect(validateTokenSafely("token", undefined as any)).toBe(false);
+      expect(validateTokenSafely("token", undefined as unknown)).toBe(false);
     });
   });
 

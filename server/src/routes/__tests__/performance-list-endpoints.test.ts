@@ -79,7 +79,7 @@ describe("Performance Tests - List Endpoints", () => {
 
     // Mock auth middleware
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
@@ -160,7 +160,7 @@ describe("Performance Tests - List Endpoints", () => {
       const emptyApp = express();
       emptyApp.use(express.json());
       emptyApp.use((req, res, next) => {
-        (req as any).auth = {
+        (req as unknown).auth = {
           usuarioId: "user1",
           token: "test-token",
           autenticado: true,

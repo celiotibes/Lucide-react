@@ -19,11 +19,11 @@ function criarApp(db: Database.Database) {
       autenticado: true,
       usuario: { id: "u1", email: "a@b.c", role: "administrador" },
     }),
-  } as any;
+  } as unknown;
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as any).auth = {
+    (req as unknown).auth = {
       usuarioId: "u1",
       token: "t",
       autenticado: true,

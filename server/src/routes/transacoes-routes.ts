@@ -55,7 +55,7 @@ export function criarRotasTransacoes({ db, authService }: TransacoesRoutesDeps):
     } catch (erro) {
       logger.error("Erro ao sugerir categoria:", {
         requestId: req.id,
-        userId: (req.auth as any)?.usuario?.id,
+        userId: (req.auth as unknown)?.usuario?.id,
         endpoint: req.path,
         error: erro instanceof Error ? erro.message : String(erro),
       });

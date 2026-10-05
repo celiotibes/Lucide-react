@@ -121,13 +121,13 @@ describe("Rotas HTTP de Anomalias", () => {
 
     // Middleware que injeta db
     app.use((req, res, next) => {
-      (req as any).db = db;
+      (req as unknown).db = db;
       next();
     });
 
     // Mock auth middleware - simula autenticação bem-sucedida
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,

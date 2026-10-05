@@ -75,7 +75,7 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
     const authService = new AuthServiceDB(db);
     const auditService = new AuditTrailServiceDB(db);
     app = express();
-    app.use("/api/auth", express.json(), criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as any }));
+    app.use("/api/auth", express.json(), criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as unknown }));
     // Como no index.ts: o parser JSON global não cobre o POST de criação (a rota tem parser próprio).
     const jsonPadrao = express.json();
     app.use((req, res, next) => (req.method === "POST" && req.path === URL_BASE ? next() : jsonPadrao(req, res, next)));

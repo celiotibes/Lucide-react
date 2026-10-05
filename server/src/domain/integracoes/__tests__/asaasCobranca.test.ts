@@ -391,7 +391,7 @@ describe("asaasCobranca", () => {
       const cobranca = emitirCobranca(db, dados);
 
       expect(() => {
-        atualizarStatusCobranca(db, cobranca.id, "invalido" as any);
+        atualizarStatusCobranca(db, cobranca.id, "invalido" as unknown);
       }).toThrow();
     });
   });

@@ -404,7 +404,7 @@ export function criarRotasAssinaturasLGPD({
   router.post("/anonimizar-pessoa", exigirAutenticacao, async (req, res) => {
     try {
       const { pessoa_tipo, pessoa_id } = req.body ?? {};
-      const usuario_id = (req as any).usuario?.id;
+      const usuario_id = (req as unknown).usuario?.id;
 
       if (!pessoa_tipo || !pessoa_id) {
         res.status(400).json({
@@ -463,7 +463,7 @@ export function criarRotasAssinaturasLGPD({
   router.get("/exportar-dados", exigirAutenticacao, async (req, res) => {
     try {
       const { pessoa_tipo, pessoa_id } = req.query;
-      const usuario_id = (req as any).usuario?.id;
+      const usuario_id = (req as unknown).usuario?.id;
 
       if (!pessoa_tipo || !pessoa_id) {
         res.status(400).json({
