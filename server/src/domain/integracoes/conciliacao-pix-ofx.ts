@@ -71,7 +71,7 @@ function listarChargesPagas(db: Database.Database): ChargeAsaas[] {
       ORDER BY criado_em DESC
     `);
     return (stmt.all() as unknown as ChargeAsaas[]) ?? [];
-  } catch (_erro) {
+  } catch {
     // Tabela pode não existir — retorna vazio
     return [];
   }

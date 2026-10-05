@@ -10,7 +10,7 @@ import { criarRotasTransacoes } from "../transacoes-routes";
 
 // Mock do módulo de domínio
 vi.mock("../domain/transacoes/categorizacaoInteligente", () => ({
-  sugerirCategoria: vi.fn((_db, _id) => ({
+  sugerirCategoria: vi.fn(() => ({
     categoria: "1.1.1.01",
     confianca: 85,
     motivo: "Correspondência com histórico (100% match)",

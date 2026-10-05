@@ -39,7 +39,7 @@ describe("Batch Transaction Manager", () => {
       VALUES (?, ?, ?, ?, ?)
     `);
 
-    const result = await manager.simple((txDb) => {
+    const result = await manager.simple(() => {
       stmt.run("user-1", "test@example.com", "hash", "Test User", "titular");
       return "success";
     });

@@ -141,13 +141,6 @@ describe('AlertService', () => {
 
       vi.spyOn(Date, 'now').mockImplementation(() => currentTime);
 
-      const payload = {
-        backupName: 'backup-old',
-        errorMessage: 'Erro antigo',
-        timestamp: new Date(),
-        severity: 'critical' as const,
-      };
-
       // Não enviando alerta real, apenas testando cleanup
       alertService.cleanupOldAlerts();
 

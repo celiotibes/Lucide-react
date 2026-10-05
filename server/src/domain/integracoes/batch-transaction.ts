@@ -247,7 +247,7 @@ export async function batchUpdate(
 
   return manager.processBatch(
     items,
-    (chunk: typeof items, _chunkIndex: number) => {
+    (chunk: typeof items) => {
       let updateCount = 0;
 
       for (const item of chunk) {

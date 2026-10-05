@@ -14,9 +14,6 @@ import path from "path";
 import * as archiverModule from "archiver";
 import { google, drive_v3 } from "googleapis";
 import { createReadStream, createWriteStream } from "fs";
-import { fileURLToPath } from "url";
-
-// Unused _filename fileURLToPath(import.meta.url);
 
 // Caminho do banco de dados
 const DB_PATH = path.join(process.cwd(), "data", "app.db");

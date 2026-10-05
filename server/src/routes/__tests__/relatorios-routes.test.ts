@@ -66,7 +66,7 @@ beforeEach(() => {
 
   // Mock auth service
   mockAuthService = {
-    validarToken: (_token: string) => ({
+    validarToken: () => ({
       autenticado: true,
       usuarioId: 1,
       email: "test@example.com",

@@ -42,10 +42,6 @@ test.describe('Happy Path Tests', () => {
         // Wait for navigation to dashboard
         await page.waitForLoadState('networkidle');
 
-        // Check for successful login (presence of dashboard element)
-        const dashboard = page.locator('[data-testid="dashboard"]');
-        // Unused _isLoggedIn await dashboard.isVisible().catch(() => false);
-
         // Either dashboard loaded or still on some page (no errors)
         expect(consoleErrors.length).toBe(0);
         expect(responseErrors.filter(code => code >= 500).length).toBe(0);
@@ -148,10 +144,8 @@ test.describe('Happy Path Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Track download
-    let downloadPath: string | null = null;
     page.on('popup', async popup => {
       await popup.waitForLoadState();
-      downloadPath = popup.url();
     });
 
     // Try to navigate to reports section

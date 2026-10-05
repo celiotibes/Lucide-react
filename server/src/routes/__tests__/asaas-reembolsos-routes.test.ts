@@ -35,25 +35,6 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
   let mockAuthService: unknown;
   let mockEventosService: unknown;
 
-  beforeEach(() => {
-    const mockApiClient = {
-      criarCliente: async () => ({ asaasCustomerId: `cust_${Date.now()}` }),
-      criarCobranca: async () => ({
-      asaasChargeId: `charge_${Date.now()}`,
-      status: "PENDING",
-      boletoUrl: "https://example.com/boleto",
-      linhaDigitavel: "12345.67890",
-      pixQrCode: "qrcode",
-    }),
-    consultarCobranca: async (id: string) => ({
-      id,
-      status: "RECEIVED",
-      boletoUrl: "https://example.com/boleto",
-      linhaDigitavel: "12345.67890",
-      pixQrCode: "qrcode",
-    }),
-  };
-
   beforeEach(async () => {
     const SQL = await initSqlJs();
     db = new SQL.Database();

@@ -9,8 +9,6 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { AuthServiceDB } from '../../domain/auth/auth-service-db';
-import { AuditTrailServiceDB } from '../../domain/auth/audit-trail-db';
 import { gerarHashSenha } from '../../domain/auth/password';
 import { criarRotasAuth } from '../auth-routes';
 import { criarRotasLgpd } from '../lgpd-routes';

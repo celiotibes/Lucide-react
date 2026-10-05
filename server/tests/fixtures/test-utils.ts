@@ -80,7 +80,8 @@ export async function mockApiResponse(
 
   await page.route(urlPattern, (route) => {
     route.continue();
-    route.fetch().then((response) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    route.fetch().then((_response) => {
       route.fulfill({
         status: statusCode,
         contentType: 'application/json',

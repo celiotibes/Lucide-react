@@ -74,7 +74,6 @@ afterEach(() => {
 describe("calcularMargensImovel", () => {
   it("deve calcular margem com receita e despesa normais", () => {
     const dataInicio = new Date(2026, 9, 1); // 1º de outubro 2026
-    const dataFim = new Date(2026, 9, 31, 23, 59, 59);
 
     // Receita: 1000 (aluguel)
     db.prepare("INSERT INTO transacoes (imovel_id, tipo, descricao, categoria, valor, data) VALUES (?, ?, ?, ?, ?, ?)")
