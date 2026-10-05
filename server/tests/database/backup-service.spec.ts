@@ -110,7 +110,7 @@ describe("BackupService", () => {
       const newDir = path.join(os.tmpdir(), `backup-new-${Date.now()}`);
       process.env.BACKUP_LOCAL_DIR = newDir;
 
-      const __service = new BackupService(TEST_DB_PATH);
+      // Unused __service new BackupService(TEST_DB_PATH);
       expect(fs.existsSync(newDir)).toBe(true);
 
       fs.rmSync(newDir, { recursive: true, force: true });

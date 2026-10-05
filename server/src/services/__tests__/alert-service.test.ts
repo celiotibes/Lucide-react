@@ -233,13 +233,20 @@ describe('AlertService', () => {
     });
 
     it('deve aceitar severidade crítica', async () => {
-        backupName: 'backup-critical',
-        errorMessage: 'Falha crítica',
-        timestamp: new Date(),
-        severity: 'critical' as const,
+      const payload = {
+          backupName: 'backup-critical',
+      const payload = {
+          errorMessage: 'Falha crítica',
+      const payload = {
       };
+          timestamp: new Date(),
+      const payload = {
+          severity: 'critical' as const,
+      const payload = {
+        };
 
-      await alertService.enviarAlertaFalhaBackup(payload);
+      const payload = {
+        await alertService.enviarAlertaFalhaBackup(payload);
     });
 
     it('deve aceitar severidade warning', async () => {

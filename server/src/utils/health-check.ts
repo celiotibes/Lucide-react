@@ -28,7 +28,7 @@
  */
 
 import type { Database } from "better-sqlite3";
-import _os from "os";
+// import _os from "os";
 
 export type StatusSaude = "ok" | "degraded" | "error";
 
