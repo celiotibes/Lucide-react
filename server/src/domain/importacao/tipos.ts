@@ -1,14 +1,15 @@
 /**
- * Tipos e enums para o domínio de importação de documentos
+ * Tipos e schemas para o sistema de importação de documentos
  *
- * Fase 1 (UPLOAD):
- * - Validação de arquivo (extensão, tamanho, MIME type)
- * - Cálculo de SHA-256
- * - Detecção de tipo de arquivo
- * - Armazenamento no banco de dados
- *
- * Fases posteriores (parsing, reconhecimento, etc.) virão depois.
+ * Fase 1 (UPLOAD): Validação e armazenamento de arquivos
+ * Fase 3: Validação e Deduplicação
  */
+
+import { z } from "zod";
+
+// =====================================================================
+// FASE 1: UPLOAD - Tipos e constantes para validação de arquivo
+// =====================================================================
 
 /**
  * Tipos de arquivo suportados na importação
@@ -42,39 +43,6 @@ export enum LinhaStatus {
   PROCESSADA = "PROCESSADA",     // Processamento bem-sucedido
   ERRO = "ERRO",                 // Erro durante validação/processamento
   IGNORADA = "IGNORADA",         // Linha ignorada (não se aplica, etc.)
-}
-
-/**
- * Tipo de lote de importação
- *
- * Armazena metadados sobre um arquivo enviado para importação
- */
-export interface LoteImportacao {
-  id: string;                    // UUID
-  usuario_id: string;            // FK para usuarios.id
-  arquivo_nome: string;          // Nome original do arquivo
-  arquivo_hash: string;          // SHA-256 do conteúdo do arquivo
-  tipo: FileType;                // Tipo detectado (OFX, CSV, PDF, JPEG, PNG)
-  tamanho_bytes: number;         // Tamanho em bytes
-  status: LoteStatus;            // Status do processamento
-  erro_mensagem?: string;        // Mensagem de erro, se houver
-  criado_em: string;             // ISO 8601 timestamp
-  atualizado_em: string;         // ISO 8601 timestamp
-}
-
-/**
- * Tipo de linha importada
- *
- * Armazena dados brutos de cada linha do arquivo
- */
-export interface LinhaImportacao {
-  id: string;                    // UUID
-  lote_id: string;               // FK para importacao_lotes.id
-  numero_linha: number;          // Número da linha no arquivo (1-indexed)
-  dados_brutos: string;          // Dados brutos da linha (CSV, OFX, etc.)
-  status: LinhaStatus;           // Status de processamento
-  erro_mensagem?: string;        // Mensagem de erro, se houver
-  criado_em: string;             // ISO 8601 timestamp
 }
 
 /**
@@ -119,3 +87,152 @@ export const VALIDACAO_CONSTANTES = {
     "image/png",
   ],
 } as const;
+
+/**
+ * Resultado da validação de uma linha
+ */
+export interface ValidacaoLinha {
+  valido: boolean;
+  erros: string[];
+  duplicata?: DuplicataResult;
+  avisos?: string[];
+}
+
+/**
+ * Componentes do score de duplicata (0-100)
+ * - Data: ±1 dia = até 30 pontos
+ * - Valor: ±5% = até 40 pontos
+ * - Descrição (Levenshtein): até 30 pontos
+ * Total: >= 80 = suspeita de duplicata
+ */
+export interface DuplicataResult {
+  score: number; // 0-100
+  motivo: string;
+  linhaExistenteId?: string;
+  componentes: {
+    dataScore: number;
+    valorScore: number;
+    descricaoScore: number;
+  };
+  detalhes?: {
+    diferenca_dias: number;
+    diferenca_percentual_valor: number;
+    similarity_descricao: number;
+  };
+}
+
+/**
+ * Linha de importação no banco
+ */
+export interface LinhaImportacao {
+  id: string;
+  lote_id: string;
+  usuario_id: string;
+  numero_linha: number;
+  
+  data_transacao: string; // YYYY-MM-DD
+  valor: number;
+  descricao: string;
+  tipo_operacao?: string;
+  categoria?: string;
+  conta_bancaria?: string;
+  
+  status: "pendente" | "validado" | "aprovado" | "rejeitado";
+  
+  validacoes_executadas?: string; // JSON stringified array
+  erros_validacao?: string; // JSON stringified array
+  
+  score_duplicata: number;
+  suspeita_duplicata: number; // 0 or 1
+  linha_duplicada_id?: string;
+  motivo_duplicata?: string;
+  
+  aprovado_por?: string;
+  aprovado_em?: string;
+  rejeitado_por?: string;
+  rejeitado_em?: string;
+  motivo_rejeicao?: string;
+  
+  criado_em: string;
+  atualizado_em?: string;
+}
+
+/**
+ * Lote de importação
+ */
+export interface LoteImportacao {
+  id: string;
+  usuario_id: string;
+  nome_arquivo: string;
+  formato: "csv" | "json" | "xlsx" | "ofx";
+  total_linhas: number;
+  linhas_processadas: number;
+  linhas_aprovadas: number;
+  linhas_rejeitadas: number;
+  status: "processando" | "validado" | "importado" | "erro";
+  resumo_erro?: string;
+  criado_em: string;
+  atualizado_em?: string;
+}
+
+/**
+ * Request/Response schemas com Zod
+ */
+
+export const AprovarLinhaSchema = z.object({
+  usuarioId: z.string().min(1, "Usuario ID obrigatório"),
+  motivo: z.string().optional(),
+});
+
+export const RejeitarLinhaSchema = z.object({
+  usuarioId: z.string().min(1, "Usuario ID obrigatório"),
+  motivo: z.string().min(1, "Motivo de rejeição obrigatório"),
+});
+
+export const ListarLinhasQuerySchema = z.object({
+  status: z.enum(["pendente", "validado", "aprovado", "rejeitado"]).optional(),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  limit: z.coerce.number().int().min(1).max(1000).optional().default(100),
+  apenas_suspeitadas: z.enum(["true", "false"]).transform(v => v === "true").optional().default("false"),
+});
+
+export const CriarLinhaImportacaoSchema = z.object({
+  loteId: z.string().min(1, "Lote ID obrigatório"),
+  numeroLinha: z.number().int().min(1),
+  dataTransacao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
+  valor: z.number().positive("Valor deve ser positivo"),
+  descricao: z.string().min(1, "Descrição obrigatória").max(500),
+  tipoOperacao: z.string().optional(),
+  categoria: z.string().optional(),
+  contaBancaria: z.string().optional(),
+  usuarioId: z.string().min(1, "Usuario ID obrigatório"),
+});
+
+/**
+ * Response types
+ */
+export interface RespostaValidacao {
+  linhaId: string;
+  valida: boolean;
+  erros: string[];
+  duplicataSuspeita: boolean;
+  score: number;
+}
+
+export interface RespostaAprovacao {
+  linhaId: string;
+  status: "aprovado" | "rejeitado";
+  aprovadoEm: string;
+  aprovadoPor: string;
+}
+
+export interface RespostaListaLinhas {
+  total: number;
+  linhas: (LinhaImportacao & {
+    errosFormatados: string[];
+    duplicataFormatada?: {
+      score: number;
+      motivo: string;
+    };
+  })[];
+}
