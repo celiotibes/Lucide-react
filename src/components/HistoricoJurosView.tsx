@@ -283,7 +283,7 @@ export function HistoricoJurosView() {
               <XAxis dataKey="ano" tick={{ fontSize: 11.5, fill: "var(--viz-muted)" }} axisLine={{ stroke: "var(--viz-baseline)" }} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "var(--viz-muted)" }} axisLine={false} tickLine={false} width={70} tickFormatter={(v) => formatarMoeda(v)} />
               { }
-              <Tooltip formatter={((valor) => formatarMoeda(valor)) as unknown} />
+              <Tooltip formatter={(valor: any) => formatarMoeda(valor)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {destinosOrdenados.map((destino, indice) => (
                 <Bar key={destino} dataKey={destino} name={destino} stackId="destino" fill={corDestino(destino, indice)} />

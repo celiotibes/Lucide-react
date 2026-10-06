@@ -25,7 +25,7 @@ export function TabApontamentos({
 }: Props) {
   const [, setSecaoAtiva] = useState<SecaoAtiva>("entrada");
   const [horarioCapturado, setHorarioCapturado] = useState<{ tipo: string; horario: string } | null>(null);
-  const [novaAtividade, setNovaAtividade] = useState({ rubrica: "", tipo: "diaria" as const, valor: 0 });
+  const [novaAtividade, setNovaAtividade] = useState({ rubrica: "", tipo: "diaria" as "diaria" | "airbnb" | "urgencia" | "deslocamento" | "materiais" | "extra", valor: 0 });
   const [observacoes, setObservacoes] = useState("");
 
   const atividades = useMemo<ItemRemunerable[]>(

@@ -166,7 +166,7 @@ export function ContratosForm() {
                 aria-selected={tabAtiva === tab}
                 aria-controls={`tab-${tab}`}
                 onClick={() => setTabAtiva(tab)}
-                onKeyDown={(e) => handleTabKeyDown(e, tab)}
+                onKeyDown={(e) => handleTabKeyDown(e)}
                 style={{
                   padding: "12px 16px",
                   fontSize: 13,

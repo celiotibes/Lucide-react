@@ -92,7 +92,7 @@ describe("despachoCliente", () => {
 
       // apiClient só recebeu os 2 canais com destinatário — nunca telegram vazio.
       expect(apiClient.chamadas).toHaveLength(1);
-      expect(apiClient.chamadas[0].destinatarios.telegramChatId).toBeUndefined();
+      expect((apiClient.chamadas[0] as any).destinatarios.telegramChatId).toBeUndefined();
 
       const historico = listarPorOrigem(db, "comunicado_generico", null);
       expect(historico).toHaveLength(2); // só email+whatsapp foram registrados — telegram pulado não gera tentativa

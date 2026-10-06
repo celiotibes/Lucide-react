@@ -51,11 +51,11 @@ describe("montarPayloadPortal", () => {
   });
 
   it("não vaza campos além do necessário (minimização)", () => {
-    const suja = entrada() as Record<string, unknown>;
-    (suja.contrato as Record<string, unknown>).locatario = "Fulano";
-    (suja.contrato as Record<string, unknown>).cpf = "999.888";
-    (suja.imovel as Record<string, unknown>).endereco = "Rua X";
-    const json = JSON.stringify(montarPayloadPortal(suja as Parameters<typeof montarPayloadPortal>[0]));
+    const suja = entrada() as any;
+    (suja.contrato as any).locatario = "Fulano";
+    (suja.contrato as any).cpf = "999.888";
+    (suja.imovel as any).endereco = "Rua X";
+    const json = JSON.stringify(montarPayloadPortal(suja));
     expect(json).not.toMatch(/Fulano|999\.888|Rua X|locatario|cpf|endereco/);
   });
 

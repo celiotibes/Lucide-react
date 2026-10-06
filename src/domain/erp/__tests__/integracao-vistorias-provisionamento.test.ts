@@ -228,7 +228,7 @@ describe("integracao-vistorias-provisionamento — casos de borda e erro", () =>
 
   describe("gerarRelatorioProvisionoesPendentes", () => {
     it("banco totalmente vazio: todos os contadores zerados e vistorias_criticas é um array vazio", () => {
-      const relatorio = gerarRelatorioProvisionoesPendentes(db, entidade_id);
+      const relatorio = gerarRelatorioProvisionoesPendentes(db);
       expect(relatorio).toEqual({
         total_vistorias: 0,
         provisionadas: 0,
@@ -268,7 +268,7 @@ describe("integracao-vistorias-provisionamento — casos de borda e erro", () =>
       );
       executar(db, `INSERT INTO vistoria_item (vistoria_id, tipo, descricao, valor_estimado) VALUES (3, 'dano', 'Torneira', 100)`);
 
-      const relatorio = gerarRelatorioProvisionoesPendentes(db, entidade_id);
+      const relatorio = gerarRelatorioProvisionoesPendentes(db);
 
       expect(relatorio.total_vistorias).toBe(3);
       expect(relatorio.pendentes).toBe(3);

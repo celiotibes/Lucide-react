@@ -321,7 +321,10 @@ export function AnalyticsIntegradosView() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry: { name: string; valor: number }) => `${entry.name}: ${entry.valor}`}
+                    label={(entry: any) => {
+                      if (entry.nome && entry.valor) return `${entry.nome}: ${entry.valor}`;
+                      return '';
+                    }}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="valor"
@@ -391,7 +394,10 @@ export function AnalyticsIntegradosView() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry: { nome: string; valor: number }) => `${entry.nome}: ${formatarMoeda(entry.valor)}`}
+                    label={(entry: any) => {
+                      if (entry.nome && entry.valor) return `${entry.nome}: ${formatarMoeda(entry.valor)}`;
+                      return '';
+                    }}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="valor"
