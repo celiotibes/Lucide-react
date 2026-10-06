@@ -163,7 +163,6 @@ export function PortalPrestador() {
           className="btn"
           onClick={() => {
             setPrestadorSelecionado(null);
-            setApontamentoEmEdicao(null);
           }}
         >
           Trocar prestador
@@ -192,10 +191,7 @@ export function PortalPrestador() {
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => {
-              setAbaAtiva(id);
-              setApontamentoEmEdicao(null);
-            }}
+            onClick={() => setAbaAtiva(id)}
             style={{
               flex: 1,
               padding: "12px 16px",
@@ -224,8 +220,7 @@ export function PortalPrestador() {
         <TabAgenda
           dataSelecionada={dataSelecionada}
           apontamentoHoje={apontamentoHoje}
-          onSelecionarApontamento={(apt) => {
-            setApontamentoEmEdicao(apt.id ?? null);
+          onSelecionarApontamento={() => {
             setAbaAtiva("apontamentos");
           }}
         />
