@@ -1,346 +1,378 @@
 /**
- * Importação de Documentos - Routes (Fase 1: UPLOAD)
+ * Rotas HTTP para Sistema de Importação de Documentos
+ * Fase 3: Validação e Deduplicação
  *
- * Implementa endpoints para upload e validação de documentos financeiros
- *
- * Endpoints:
- * - POST /api/importacao/upload — Upload de arquivo com validação
- *
- * Fase 1 (UPLOAD):
- * - Validação de arquivo (extensão, tamanho, MIME type)
- * - Cálculo de SHA-256
- * - Detecção de tipo de arquivo
- * - Armazenamento no banco de dados
- *
- * Fases posteriores (parsing, reconhecimento, etc.) virão depois.
+ * GET    /api/importacao/:loteId/linhas?status=pendente — Lista linhas de um lote
+ * POST   /api/importacao/aprovar-linha/:linhaId         — Aprova uma linha
+ * POST   /api/importacao/rejeitar-linha/:linhaId        — Rejeita uma linha
  */
 
-import { Router, Request, Response } from "express";
-import { createReadStream } from "fs";
-import { createHash } from "crypto";
-import { v4 as uuidv4 } from "crypto";
+import express from "express";
+import { z } from "zod";
 import Database from "better-sqlite3";
 import { logger } from "../services/logger-service.js";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import {
-  FileType,
-  LoteStatus,
-  ValidationResult,
-  UploadResult,
-  VALIDACAO_CONSTANTES,
+  validarLinha,
+  registrarValidacao,
+  obterResumoValidacoes,
+} from "../domain/importacao/validacao.js";
+import {
+  detectarDuplicata,
+  registrarDuplicata,
+} from "../domain/importacao/deduplicacao.js";
+import type {
+  LinhaImportacao,
+  ListarLinhasQuerySchema,
+  AprovarLinhaSchema,
+  RejeitarLinhaSchema,
+  RespostaListaLinhas,
+} from "../domain/importacao/tipos.js";
+import {
+  ListarLinhasQuerySchema as QuerySchema,
+  AprovarLinhaSchema as AprovSchema,
+  RejeitarLinhaSchema as RejSchema,
 } from "../domain/importacao/tipos.js";
 
-export interface ImportacaoRoutesOptions {
-  authService: AuthServiceDB;
+export interface ImportacaoRoutesDeps {
   db: Database.Database;
-  multer?: any; // Multer middleware for file uploads
+  authService: AuthServiceDB;
 }
 
-/**
- * Gera UUID v4 simplificado (sem dependência externa)
- */
-function gerarUUID(): string {
-  return `${Math.random().toString(36).substring(2, 15)}-${Math.random().toString(36).substring(2, 15)}-${Math.random().toString(36).substring(2, 15)}-${Math.random().toString(36).substring(2, 15)}`;
-}
-
-/**
- * Calcula SHA-256 de um buffer
- */
-function calcularSHA256(buffer: Buffer): string {
-  return createHash("sha256").update(buffer).digest("hex");
-}
-
-/**
- * Detecta o tipo de arquivo baseado na extensão e conteúdo
- */
-async function detectarTipo(
-  nomeArquivo: string,
-  conteudo: Buffer
-): Promise<FileType | null> {
-  const extensao = nomeArquivo.toLowerCase().split(".").pop() || "";
-
-  // Assinatura de arquivo (magic bytes)
-  const magic = conteudo.slice(0, 12);
-  const magicStr = magic.toString("hex");
-
-  // Detectar por extensão primeiro
-  switch (extensao) {
-    case "ofx":
-      // Verifica se começa com OFX ou OFXHEADER
-      if (
-        conteudo.toString("utf-8", 0, 3) === "OFX" ||
-        conteudo.toString("utf-8", 0, 9) === "OFXHEADER"
-      ) {
-        return FileType.OFX;
-      }
-      break;
-
-    case "csv":
-      // CSV é texto
-      if (conteudo.toString("utf-8", 0, 1).charCodeAt(0) < 128) {
-        return FileType.CSV;
-      }
-      break;
-
-    case "pdf":
-      // PDF sempre começa com %PDF
-      if (conteudo.toString("utf-8", 0, 4) === "%PDF") {
-        return FileType.PDF;
-      }
-      break;
-
-    case "jpg":
-    case "jpeg":
-      // JPEG: FFD8 FFE0/FFE1
-      if (magicStr.startsWith("ffd8ffe")) {
-        return FileType.JPEG;
-      }
-      break;
-
-    case "png":
-      // PNG: 89504E47
-      if (magicStr.startsWith("89504e47")) {
-        return FileType.PNG;
-      }
-      break;
-  }
-
-  // Detectar por magic bytes se extensão falhar
-  if (magicStr.startsWith("ffd8ffe")) {
-    return FileType.JPEG;
-  }
-  if (magicStr.startsWith("89504e47")) {
-    return FileType.PNG;
-  }
-  if (conteudo.toString("utf-8", 0, 4) === "%PDF") {
-    return FileType.PDF;
-  }
-  if (
-    conteudo.toString("utf-8", 0, 3) === "OFX" ||
-    conteudo.toString("utf-8", 0, 9) === "OFXHEADER"
-  ) {
-    return FileType.OFX;
-  }
-
-  return null;
-}
-
-/**
- * Valida um arquivo antes do upload
- */
-async function validarArquivo(
-  nomeArquivo: string,
-  conteudo: Buffer,
-  mimeType?: string
-): Promise<ValidationResult> {
-  const erros: string[] = [];
-  const avisos: string[] = [];
-
-  // 1. Validar extensão
-  const extensao = nomeArquivo.toLowerCase().split(".").pop() || "";
-  if (!VALIDACAO_CONSTANTES.EXTENSOES_PERMITIDAS.includes(`.${extensao}`)) {
-    erros.push(
-      `Extensão não permitida: .${extensao}. Permitidas: ${VALIDACAO_CONSTANTES.EXTENSOES_PERMITIDAS.join(", ")}`
-    );
-  }
-
-  // 2. Validar tamanho
-  if (conteudo.length > VALIDACAO_CONSTANTES.TAMANHO_MAXIMO_BYTES) {
-    erros.push(
-      `Arquivo muito grande: ${conteudo.length} bytes. Máximo: ${VALIDACAO_CONSTANTES.TAMANHO_MAXIMO_BYTES} bytes (50 MB)`
-    );
-  }
-
-  if (conteudo.length === 0) {
-    erros.push("Arquivo vazio");
-  }
-
-  // 3. Validar MIME type se fornecido
-  if (mimeType && !VALIDACAO_CONSTANTES.MIME_TYPES_PERMITIDOS.includes(mimeType)) {
-    avisos.push(
-      `MIME type inesperado: ${mimeType}. Tipos esperados: ${VALIDACAO_CONSTANTES.MIME_TYPES_PERMITIDOS.join(", ")}`
-    );
-  }
-
-  // 4. Detectar tipo de arquivo
-  const tipo = await detectarTipo(nomeArquivo, conteudo);
-  if (!tipo) {
-    erros.push("Não foi possível detectar o tipo de arquivo");
-  }
-
-  return {
-    valido: erros.length === 0,
-    erros,
-    avisos,
-    tipo: tipo || undefined,
-    tamanho: conteudo.length,
-  };
-}
-
-/**
- * Armazena o lote no banco de dados
- */
-function armazenarLote(
-  db: Database.Database,
-  usuarioId: string,
-  nomeArquivo: string,
-  hash: string,
-  tipo: FileType,
-  tamanho: number
-): string {
-  const loteId = gerarUUID();
-  const agora = new Date().toISOString();
-
-  const stmt = db.prepare(`
-    INSERT INTO importacao_lotes (
-      id, usuario_id, arquivo_nome, arquivo_hash, tipo, tamanho_bytes, status, criado_em, atualizado_em
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  try {
-    stmt.run(
-      loteId,
-      usuarioId,
-      nomeArquivo,
-      hash,
-      tipo,
-      tamanho,
-      LoteStatus.RECEBIDO,
-      agora,
-      agora
-    );
-    return loteId;
-  } catch (erro) {
-    if (erro instanceof Error && erro.message.includes("UNIQUE constraint failed")) {
-      throw new Error("Arquivo já foi importado anteriormente (mesmo hash SHA-256)");
-    }
-    throw erro;
-  }
-}
-
-/**
- * Cria o router de importação
- */
-export function criarRotasImportacao(options: ImportacaoRoutesOptions): Router {
-  const router = Router();
-  const { authService, db } = options;
+export function criarRotasImportacao({
+  db,
+  authService,
+}: ImportacaoRoutesDeps): express.Router {
+  const router = express.Router();
   const exigirAutenticacao = criarMiddlewareAutenticacao(authService);
 
   /**
-   * POST /api/importacao/upload
-   * Upload e validação de arquivo
+   * GET /api/importacao/:loteId/linhas
    *
-   * Requer: multipart/form-data com o arquivo em 'arquivo'
+   * Lista linhas de importação de um lote
    *
-   * Retorna:
-   * - 200: Arquivo validado e armazenado com sucesso
-   * - 400: Validação falhou (extensão, tamanho, tipo)
-   * - 409: Arquivo duplicado (mesmo SHA-256)
-   * - 500: Erro interno do servidor
+   * Query params:
+   * - status: "pendente" | "validado" | "aprovado" | "rejeitado" (opcional)
+   * - apenas_suspeitadas: "true" | "false" (opcional, default=false)
+   * - offset: número (opcional, default=0)
+   * - limit: número (opcional, default=100, max=1000)
+   *
+   * Resposta: RespostaListaLinhas
    */
-  router.post("/upload", exigirAutenticacao, async (req: Request, res: Response) => {
+  router.get("/:loteId/linhas", exigirAutenticacao, (req, res) => {
     try {
-      const usuarioId = req.auth?.usuario?.id;
+      const { loteId } = req.params;
 
-      if (!usuarioId) {
-        return res.status(401).json({
-          sucesso: false,
-          erro: "Usuário não autenticado",
-        });
-      }
-
-      // Verificar se arquivo foi enviado
-      if (!req.file) {
+      // Validar query params
+      const parseResult = QuerySchema.safeParse(req.query);
+      if (!parseResult.success) {
+        const issues = parseResult.error.issues;
+        const mainIssue = issues[0];
         return res.status(400).json({
-          sucesso: false,
-          erro: "Nenhum arquivo foi enviado",
-          detalhes: "Use 'arquivo' como nome do campo multipart/form-data",
+          erro: `Parâmetro inválido: ${mainIssue?.message}`,
+          detalhes: issues.map((i) => `${i.path.join(".")}: ${i.message}`),
         });
       }
 
-      const { filename, mimetype, buffer, size } = req.file;
+      const { status, offset, limit, apenas_suspeitadas } = parseResult.data;
 
-      logger.info(`[ImportacaoRoutes] Upload iniciado por usuário ${usuarioId}`, {
-        arquivo: filename,
-        tamanho: size,
-        mimeType: mimetype,
+      // Verificar se lote pertence ao usuário
+      const loteStmt = db.prepare(
+        `SELECT id, usuario_id FROM importacao_lotes WHERE id = ?`
+      );
+      const lote = loteStmt.get(loteId) as {
+        id: string;
+        usuario_id: string;
+      } | undefined;
+
+      if (!lote) {
+        return res.status(404).json({ erro: "Lote não encontrado" });
+      }
+
+      const userId = (req.auth as any)?.usuario?.id;
+      if (lote.usuario_id !== userId) {
+        return res.status(403).json({
+          erro: "Acesso negado",
+        });
+      }
+
+      // Construir query dinâmica
+      let query = `SELECT * FROM importacao_linhas WHERE lote_id = ?`;
+      const params: any[] = [loteId];
+
+      if (status) {
+        query += ` AND status = ?`;
+        params.push(status);
+      }
+
+      if (apenas_suspeitadas) {
+        query += ` AND suspeita_duplicata = 1`;
+      }
+
+      // Contar total
+      const countResult = db.prepare(query).all(...params);
+      const total = countResult.length;
+
+      // Buscar com paginação
+      query += ` ORDER BY numero_linha ASC LIMIT ? OFFSET ?`;
+      params.push(limit, offset);
+
+      const linhasStmt = db.prepare(query);
+      const linhas = linhasStmt.all(...params) as LinhaImportacao[];
+
+      // Formatar resposta
+      const linhasFormatadas = linhas.map((linha) => {
+        const erros = linha.erros_validacao
+          ? JSON.parse(linha.erros_validacao)
+          : [];
+
+        return {
+          ...linha,
+          errosFormatados: erros,
+          duplicataFormatada: linha.suspeita_duplicata
+            ? {
+                score: linha.score_duplicata,
+                motivo: linha.motivo_duplicata,
+              }
+            : undefined,
+        };
       });
 
-      // 1. Validar arquivo
-      const validacao = await validarArquivo(filename, buffer, mimetype);
+      const resposta: RespostaListaLinhas = {
+        total,
+        linhas: linhasFormatadas,
+      };
 
-      if (!validacao.valido) {
-        logger.warn(`[ImportacaoRoutes] Validação falhou para ${filename}:`, validacao.erros);
+      res.json(resposta);
+    } catch (erro) {
+      logger.error("Erro ao listar linhas de importação:", {
+        requestId: req.id,
+        userId: (req.auth as unknown)?.usuario?.id,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      res.status(500).json({
+        erro: "Falha ao listar linhas de importação",
+      });
+    }
+  });
+
+  /**
+   * POST /api/importacao/aprovar-linha/:linhaId
+   *
+   * Aprova uma linha de importação
+   *
+   * Body:
+   * {
+   *   usuarioId: string (required),
+   *   motivo: string (optional)
+   * }
+   *
+   * Resposta:
+   * {
+   *   linhaId: string,
+   *   status: "aprovado",
+   *   aprovadoEm: ISO string,
+   *   aprovadoPor: string
+   * }
+   */
+  router.post("/aprovar-linha/:linhaId", exigirAutenticacao, (req, res) => {
+    try {
+      const { linhaId } = req.params;
+
+      // Validar body
+      const parseResult = AprovSchema.safeParse(req.body);
+      if (!parseResult.success) {
         return res.status(400).json({
-          sucesso: false,
-          erro: "Validação de arquivo falhou",
-          detalhes: validacao.erros,
-          avisos: validacao.avisos,
-        } as UploadResult);
+          erro: "Dados inválidos",
+          detalhes: parseResult.error.issues,
+        });
       }
 
-      // 2. Calcular SHA-256
-      const hash = calcularSHA256(buffer);
-      logger.debug(`[ImportacaoRoutes] SHA-256 calculado para ${filename}: ${hash}`);
+      const { usuarioId } = parseResult.data;
 
-      // 3. Armazenar no banco de dados
-      const loteId = armazenarLote(
-        db,
-        usuarioId,
-        filename,
-        hash,
-        validacao.tipo!,
-        validacao.tamanho!
+      // Verificar permissão
+      const userId = (req.auth as any)?.usuario?.id;
+      if (userId !== usuarioId) {
+        return res.status(403).json({
+          erro: "Acesso negado",
+        });
+      }
+
+      // Buscar linha
+      const linhaStmt = db.prepare(
+        `SELECT * FROM importacao_linhas WHERE id = ?`
+      );
+      const linha = linhaStmt.get(linhaId) as LinhaImportacao | undefined;
+
+      if (!linha) {
+        return res.status(404).json({ erro: "Linha não encontrada" });
+      }
+
+      if (linha.usuario_id !== userId) {
+        return res.status(403).json({ erro: "Acesso negado" });
+      }
+
+      if (linha.status !== "pendente" && linha.status !== "validado") {
+        return res.status(400).json({
+          erro: `Linha não pode ser aprovada (status: ${linha.status})`,
+        });
+      }
+
+      // Validar novamente antes de aprovar
+      const validacao = validarLinha(db, linha, userId);
+      if (!validacao.valido) {
+        return res.status(400).json({
+          erro: "Linha não passou na validação",
+          detalhes: validacao.erros,
+        });
+      }
+
+      // Aprovar
+      const updateStmt = db.prepare(
+        `UPDATE importacao_linhas
+         SET status = 'aprovado',
+             aprovado_por = ?,
+             aprovado_em = CURRENT_TIMESTAMP,
+             atualizado_em = CURRENT_TIMESTAMP
+         WHERE id = ?`
       );
 
-      const agora = new Date().toISOString();
+      updateStmt.run(usuarioId, linhaId);
 
-      logger.info(`[ImportacaoRoutes] Arquivo armazenado com sucesso`, {
-        loteId,
-        arquivo: filename,
-        hash,
-        tipo: validacao.tipo,
+      // Atualizar contadores do lote
+      const updateLoteStmt = db.prepare(
+        `UPDATE importacao_lotes
+         SET linhas_aprovadas = linhas_aprovadas + 1,
+             linhas_processadas = linhas_processadas + 1,
+             atualizado_em = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      );
+
+      updateLoteStmt.run(linha.lote_id);
+
+      res.json({
+        linhaId,
+        status: "aprovado",
+        aprovadoEm: new Date().toISOString(),
+        aprovadoPor: usuarioId,
       });
-
-      return res.status(200).json({
-        sucesso: true,
-        lote_id: loteId,
-        arquivo_nome: filename,
-        arquivo_hash: hash,
-        tipo: validacao.tipo,
-        tamanho_bytes: validacao.tamanho,
-        criado_em: agora,
-      } as UploadResult);
     } catch (erro) {
-      if (erro instanceof Error) {
-        // Duplicado
-        if (erro.message.includes("já foi importado")) {
-          logger.warn(`[ImportacaoRoutes] Arquivo duplicado:`, erro.message);
-          return res.status(409).json({
-            sucesso: false,
-            erro: "Arquivo duplicado",
-            detalhes: erro.message,
-          } as UploadResult);
-        }
+      logger.error("Erro ao aprovar linha:", {
+        requestId: req.id,
+        userId: (req.auth as unknown)?.usuario?.id,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      res.status(500).json({
+        erro: "Falha ao aprovar linha",
+      });
+    }
+  });
 
-        // Erro de constraint
-        if (erro.message.includes("UNIQUE")) {
-          logger.warn(`[ImportacaoRoutes] Violação de constraint:`, erro.message);
-          return res.status(409).json({
-            sucesso: false,
-            erro: "Conflito de dados",
-            detalhes: "Arquivo ou lote já existe",
-          } as UploadResult);
-        }
+  /**
+   * POST /api/importacao/rejeitar-linha/:linhaId
+   *
+   * Rejeita uma linha de importação
+   *
+   * Body:
+   * {
+   *   usuarioId: string (required),
+   *   motivo: string (required)
+   * }
+   *
+   * Resposta:
+   * {
+   *   linhaId: string,
+   *   status: "rejeitado",
+   *   rejeitadoEm: ISO string,
+   *   rejeitadoPor: string
+   * }
+   */
+  router.post("/rejeitar-linha/:linhaId", exigirAutenticacao, (req, res) => {
+    try {
+      const { linhaId } = req.params;
+
+      // Validar body
+      const parseResult = RejSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          erro: "Dados inválidos",
+          detalhes: parseResult.error.issues,
+        });
       }
 
-      logger.error(`[ImportacaoRoutes] Erro ao processar upload:`, erro);
-      return res.status(500).json({
-        sucesso: false,
-        erro: "Erro ao processar upload",
-        detalhes: erro instanceof Error ? erro.message : String(erro),
-      } as UploadResult);
+      const { usuarioId, motivo } = parseResult.data;
+
+      // Verificar permissão
+      const userId = (req.auth as any)?.usuario?.id;
+      if (userId !== usuarioId) {
+        return res.status(403).json({
+          erro: "Acesso negado",
+        });
+      }
+
+      // Buscar linha
+      const linhaStmt = db.prepare(
+        `SELECT * FROM importacao_linhas WHERE id = ?`
+      );
+      const linha = linhaStmt.get(linhaId) as LinhaImportacao | undefined;
+
+      if (!linha) {
+        return res.status(404).json({ erro: "Linha não encontrada" });
+      }
+
+      if (linha.usuario_id !== userId) {
+        return res.status(403).json({ erro: "Acesso negado" });
+      }
+
+      if (linha.status === "aprovado" || linha.status === "rejeitado") {
+        return res.status(400).json({
+          erro: `Linha não pode ser modificada (status: ${linha.status})`,
+        });
+      }
+
+      // Rejeitar
+      const updateStmt = db.prepare(
+        `UPDATE importacao_linhas
+         SET status = 'rejeitado',
+             rejeitado_por = ?,
+             rejeitado_em = CURRENT_TIMESTAMP,
+             motivo_rejeicao = ?,
+             atualizado_em = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      );
+
+      updateStmt.run(usuarioId, motivo, linhaId);
+
+      // Atualizar contadores do lote
+      const updateLoteStmt = db.prepare(
+        `UPDATE importacao_lotes
+         SET linhas_rejeitadas = linhas_rejeitadas + 1,
+             linhas_processadas = linhas_processadas + 1,
+             atualizado_em = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      );
+
+      updateLoteStmt.run(linha.lote_id);
+
+      res.json({
+        linhaId,
+        status: "rejeitado",
+        rejeitadoEm: new Date().toISOString(),
+        rejeitadoPor: usuarioId,
+      });
+    } catch (erro) {
+      logger.error("Erro ao rejeitar linha:", {
+        requestId: req.id,
+        userId: (req.auth as unknown)?.usuario?.id,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      res.status(500).json({
+        erro: "Falha ao rejeitar linha",
+      });
     }
   });
 

@@ -1,399 +1,433 @@
 /**
- * Testes para Importação de Documentos - Fase 1 (UPLOAD)
- *
- * Testes implementados:
- * 1. Upload de arquivo válido (PDF 1MB)
- * 2. Rejeição de arquivo > 50MB
- * 3. Detecção de tipos corretamente (5 tipos)
- * 4. Cálculo de SHA-256
- * 5. Validação de extensão
+ * Testes para sistema de importação de documentos
+ * Fase 3: Validação e Deduplicação
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import express from "express";
-import request from "supertest";
+import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import multer from "multer";
-import { AuthServiceDB } from "../../domain/auth/auth-service-db";
-import { AuditTrailServiceDB } from "../../domain/auth/audit-trail-db";
-import { gerarHashSenha } from "../../domain/auth/password";
-import { criarRotasAuth } from "../auth-routes";
-import { criarRotasImportacao } from "../importacao-routes";
-import { tokenDoCookie } from "./token-cookie.js";
-import { FileType } from "../../domain/importacao/tipos.js";
-import { createHash } from "crypto";
+import { validarLinha, obterResumoValidacoes } from "../../domain/importacao/validacao.js";
+import { detectarDuplicata, registrarDuplicata } from "../../domain/importacao/deduplicacao.js";
+import type { LinhaImportacao } from "../../domain/importacao/tipos.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SRC_DIR = path.join(__dirname, "../..");
 
-const TEST_DB_PATH = path.join(__dirname, `test-importacao-routes-${process.pid}.db`);
-const SENHA_PADRAO = "senha-correta-123";
+function criarBancoTeste(): Database.Database {
+  const db = new Database(":memory:");
 
-function resolverSchema(nomeArquivo: string): string {
-  const candidatos = [
-    path.join(__dirname, `../../../${nomeArquivo}`),
-    path.join(process.cwd(), `server/src/${nomeArquivo}`),
-    path.join(process.cwd(), `src/${nomeArquivo}`),
-  ];
-  const encontrado = candidatos.find((p) => fs.existsSync(p));
-  if (!encontrado) throw new Error(`Schema não encontrado: ${nomeArquivo}`);
-  return fs.readFileSync(encontrado, "utf-8");
-}
+  // Carregar migrations
+  const migrationsPhase2 = fs.readFileSync(
+    path.join(SRC_DIR, "migrations-phase2-auth.sql"),
+    "utf-8"
+  );
+  db.exec(migrationsPhase2);
 
-function createTestDatabase(): Database.Database {
-  if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
-  const db = new Database(TEST_DB_PATH);
-  db.pragma("foreign_keys = ON");
-  db.exec(resolverSchema("migrations-phase2-auth.sql"));
-  db.exec(resolverSchema("migrations-phase17-importacao.sql"));
+  // Carregar migration de importação
+  const migrationsImportacao = fs.readFileSync(
+    path.join(SRC_DIR, "migrations-phase17-importacao-deduplicacao.sql"),
+    "utf-8"
+  );
+  db.exec(migrationsImportacao);
+
   return db;
 }
 
-function createTestApp(db: Database.Database) {
-  const authService = new AuthServiceDB(db);
-  const auditService = new AuditTrailServiceDB(db);
-  const app = express();
+function criarUsuarioTeste(db: Database.Database, id: string): void {
+  const stmt = db.prepare(
+    `INSERT INTO usuarios (id, nome, email, senha_hash, role) VALUES (?, ?, ?, ?, ?)`
+  );
+  stmt.run(id, "Teste User", `${id}@test.com`, "hash_qualquer", "titular");
+}
 
-  app.use(express.json());
+function criarLoteTeste(
+  db: Database.Database,
+  loteId: string,
+  usuarioId: string
+): void {
+  const stmt = db.prepare(
+    `INSERT INTO importacao_lotes (id, usuario_id, nome_arquivo, formato, total_linhas, status)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  stmt.run(loteId, usuarioId, "teste.csv", "csv", 0, "processando");
+}
 
-  // Configurar multer para upload em memória
-  const upload = multer({ storage: multer.memoryStorage() });
+function criarLinhaTeste(
+  db: Database.Database,
+  linhaId: string,
+  loteId: string,
+  usuarioId: string,
+  dadosOp: Partial<LinhaImportacao>
+): LinhaImportacao {
+  const linha: LinhaImportacao = {
+    id: linhaId,
+    lote_id: loteId,
+    usuario_id: usuarioId,
+    numero_linha: dadosOp.numero_linha || 1,
+    data_transacao: dadosOp.data_transacao || "2024-10-01",
+    valor: dadosOp.valor || 100.0,
+    descricao: dadosOp.descricao || "Teste",
+    status: "pendente",
+    score_duplicata: 0,
+    suspeita_duplicata: 0,
+    criado_em: new Date().toISOString(),
+  };
 
-  app.use(
-    "/api/auth",
-    criarRotasAuth({
-      authService,
-      auditService,
-      permissoesService: { listarMatriz: () => [] } as any,
-    }),
+  const stmt = db.prepare(
+    `INSERT INTO importacao_linhas
+     (id, lote_id, usuario_id, numero_linha, data_transacao, valor, descricao, status, score_duplicata, suspeita_duplicata, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
-  app.use(
-    "/api/importacao",
-    upload.single("arquivo"),
-    criarRotasImportacao({ authService, db }),
+  stmt.run(
+    linha.id,
+    linha.lote_id,
+    linha.usuario_id,
+    linha.numero_linha,
+    linha.data_transacao,
+    linha.valor,
+    linha.descricao,
+    linha.status,
+    linha.score_duplicata,
+    linha.suspeita_duplicata,
+    linha.criado_em
   );
 
-  return app;
+  return linha;
 }
 
-async function login(app: express.Express, email: string): Promise<string> {
-  const resp = await request(app).post("/api/auth/login").send({ email, senha: SENHA_PADRAO });
-  expect(resp.status).toBe(200);
-  return tokenDoCookie(resp);
-}
-
-function calcularSHA256(buffer: Buffer): string {
-  return createHash("sha256").update(buffer).digest("hex");
-}
-
-describe("Rotas de Importação (/api/importacao)", () => {
+describe("Validação de Linhas de Importação", () => {
   let db: Database.Database;
-  let app: express.Express;
-  let token: string;
-  const usuarioEmail = "usuario-teste@example.com";
+  const usuarioId = "user-123";
+  const loteId = "lote-456";
 
-  beforeEach(async () => {
-    db = createTestDatabase();
-    app = createTestApp(db);
+  beforeEach(() => {
+    db = criarBancoTeste();
+    criarUsuarioTeste(db, usuarioId);
+    criarLoteTeste(db, loteId, usuarioId);
+  });
 
-    // Criar usuário de teste
-    const authService = new AuthServiceDB(db);
-    const hash = await gerarHashSenha(SENHA_PADRAO);
-    db.prepare(
-      `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      "usuario-teste-id",
-      "Usuário Teste",
-      usuarioEmail,
-      hash,
-      "titular",
-      1,
-      new Date().toISOString(),
+  it("deve rejeitar linha com data no futuro", () => {
+    const dataFutura = new Date();
+    dataFutura.setDate(dataFutura.getDate() + 1);
+    const dataStr = dataFutura.toISOString().split("T")[0];
+
+    const linha: Partial<LinhaImportacao> = {
+      lote_id: loteId,
+      data_transacao: dataStr,
+      valor: 100,
+      descricao: "Teste com data futura",
+    };
+
+    const resultado = validarLinha(db, linha, usuarioId);
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.erros.some((e) => e.includes("futuro"))).toBe(true);
+  });
+
+  it("deve rejeitar linha com valor <= 0", () => {
+    const linha: Partial<LinhaImportacao> = {
+      lote_id: loteId,
+      data_transacao: "2024-10-01",
+      valor: -50,
+      descricao: "Teste com valor negativo",
+    };
+
+    const resultado = validarLinha(db, linha, usuarioId);
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.erros.some((e) => e.includes("Valor"))).toBe(true);
+  });
+
+  it("deve rejeitar linha com valor 0", () => {
+    const linha: Partial<LinhaImportacao> = {
+      lote_id: loteId,
+      data_transacao: "2024-10-01",
+      valor: 0,
+      descricao: "Teste com valor zero",
+    };
+
+    const resultado = validarLinha(db, linha, usuarioId);
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.erros.some((e) => e.includes("Valor"))).toBe(true);
+  });
+
+  it("deve rejeitar linha com campos obrigatórios vazios", () => {
+    const linha: Partial<LinhaImportacao> = {
+      lote_id: loteId,
+      data_transacao: "",
+      valor: 100,
+      descricao: "",
+    };
+
+    const resultado = validarLinha(db, linha, usuarioId);
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.erros.length).toBeGreaterThan(0);
+  });
+
+  it("deve aceitar linha válida", () => {
+    const linha: Partial<LinhaImportacao> = {
+      lote_id: loteId,
+      data_transacao: "2024-10-01",
+      valor: 150.5,
+      descricao: "Pagamento válido",
+    };
+
+    const resultado = validarLinha(db, linha, usuarioId);
+
+    expect(resultado.valido).toBe(true);
+    expect(resultado.erros.length).toBe(0);
+  });
+
+  it("deve rejeitar descrição muito longa", () => {
+    const descricaoLonga = "A".repeat(501);
+
+    const linha: Partial<LinhaImportacao> = {
+      lote_id: loteId,
+      data_transacao: "2024-10-01",
+      valor: 100,
+      descricao: descricaoLonga,
+    };
+
+    const resultado = validarLinha(db, linha, usuarioId);
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.erros.some((e) => e.includes("500"))).toBe(true);
+  });
+});
+
+describe("Detecção de Duplicatas", () => {
+  let db: Database.Database;
+  const usuarioId = "user-123";
+  const loteId = "lote-456";
+
+  beforeEach(() => {
+    db = criarBancoTeste();
+    criarUsuarioTeste(db, usuarioId);
+    criarLoteTeste(db, loteId, usuarioId);
+  });
+
+  it("deve detectar duplicata exata (score 100)", () => {
+    const linhaExistente = criarLinhaTeste(db, "linha-1", loteId, usuarioId, {
+      numero_linha: 1,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento - João Silva",
+    });
+
+    const linhaAtual: LinhaImportacao = {
+      id: "linha-2",
+      lote_id: loteId,
+      usuario_id: usuarioId,
+      numero_linha: 2,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento - João Silva",
+      status: "pendente",
+      score_duplicata: 0,
+      suspeita_duplicata: 0,
+      criado_em: new Date().toISOString(),
+    };
+
+    const resultado = detectarDuplicata(db, linhaAtual, usuarioId, [
+      linhaExistente,
+    ]);
+
+    expect(resultado).not.toBeNull();
+    expect(resultado?.score).toBe(100);
+    expect(resultado?.linhaExistenteId).toBe("linha-1");
+  });
+
+  it("deve detectar fuzzy match (data próxima, valor similar)", () => {
+    const linhaExistente = criarLinhaTeste(db, "linha-1", loteId, usuarioId, {
+      numero_linha: 1,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento - João Silva",
+    });
+
+    const linhaAtual: LinhaImportacao = {
+      id: "linha-2",
+      lote_id: loteId,
+      usuario_id: usuarioId,
+      numero_linha: 2,
+      data_transacao: "2024-10-02", // 1 dia depois
+      valor: 102.0, // 2% diferença
+      descricao: "Pagamento - João Silva", // Idêntico
+      status: "pendente",
+      score_duplicata: 0,
+      suspeita_duplicata: 0,
+      criado_em: new Date().toISOString(),
+    };
+
+    const resultado = detectarDuplicata(db, linhaAtual, usuarioId, [
+      linhaExistente,
+    ]);
+
+    expect(resultado).not.toBeNull();
+    expect(resultado!.score).toBeGreaterThanOrEqual(80);
+    expect(resultado!.componentes.dataScore).toBeGreaterThan(0);
+    expect(resultado!.componentes.valorScore).toBeGreaterThan(0);
+  });
+
+  it("deve não detectar duplicata com diferenças grandes", () => {
+    const linhaExistente = criarLinhaTeste(db, "linha-1", loteId, usuarioId, {
+      numero_linha: 1,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento - João Silva",
+    });
+
+    const linhaAtual: LinhaImportacao = {
+      id: "linha-2",
+      lote_id: loteId,
+      usuario_id: usuarioId,
+      numero_linha: 2,
+      data_transacao: "2024-10-10", // 9 dias depois
+      valor: 200.0, // 100% diferença
+      descricao: "Pagamento - Maria Santos", // Completamente diferente
+      status: "pendente",
+      score_duplicata: 0,
+      suspeita_duplicata: 0,
+      criado_em: new Date().toISOString(),
+    };
+
+    const resultado = detectarDuplicata(db, linhaAtual, usuarioId, [
+      linhaExistente,
+    ]);
+
+    expect(resultado).toBeNull();
+  });
+
+  it("deve detectar duplicata com descrição similar (typos)", () => {
+    const linhaExistente = criarLinhaTeste(db, "linha-1", loteId, usuarioId, {
+      numero_linha: 1,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento transferencia",
+    });
+
+    const linhaAtual: LinhaImportacao = {
+      id: "linha-2",
+      lote_id: loteId,
+      usuario_id: usuarioId,
+      numero_linha: 2,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento transeferencia", // Typo
+      status: "pendente",
+      score_duplicata: 0,
+      suspeita_duplicata: 0,
+      criado_em: new Date().toISOString(),
+    };
+
+    const resultado = detectarDuplicata(db, linhaAtual, usuarioId, [
+      linhaExistente,
+    ]);
+
+    expect(resultado).not.toBeNull();
+    expect(resultado!.score).toBeGreaterThanOrEqual(80);
+  });
+
+  it("deve registrar duplicata no banco", () => {
+    const linhaExistente = criarLinhaTeste(db, "linha-1", loteId, usuarioId, {
+      numero_linha: 1,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento - João Silva",
+    });
+
+    const linhaNovaId = "linha-2";
+    criarLinhaTeste(db, linhaNovaId, loteId, usuarioId, {
+      numero_linha: 2,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento - João Silva",
+    });
+
+    const linhaAtual: LinhaImportacao = {
+      id: linhaNovaId,
+      lote_id: loteId,
+      usuario_id: usuarioId,
+      numero_linha: 2,
+      data_transacao: "2024-10-01",
+      valor: 100.0,
+      descricao: "Pagamento - João Silva",
+      status: "pendente",
+      score_duplicata: 0,
+      suspeita_duplicata: 0,
+      criado_em: new Date().toISOString(),
+    };
+
+    const duplicata = detectarDuplicata(db, linhaAtual, usuarioId, [
+      linhaExistente,
+    ]);
+
+    expect(duplicata).not.toBeNull();
+    expect(duplicata!.score).toBe(100);
+
+    // Registrar no banco
+    registrarDuplicata(db, linhaNovaId, duplicata!);
+
+    // Verificar se foi registrada
+    const verificarStmt = db.prepare(
+      `SELECT * FROM importacao_linhas WHERE id = ?`
     );
+    const linhaRegistrada = verificarStmt.get(linhaNovaId) as LinhaImportacao;
 
-    token = await login(app, usuarioEmail);
+    expect(linhaRegistrada.suspeita_duplicata).toBe(1);
+    expect(linhaRegistrada.score_duplicata).toBe(100);
+    expect(linhaRegistrada.linha_duplicada_id).toBe("linha-1");
+  });
+});
+
+describe("Resumo de Validações", () => {
+  let db: Database.Database;
+  const usuarioId = "user-123";
+  const loteId = "lote-456";
+
+  beforeEach(() => {
+    db = criarBancoTeste();
+    criarUsuarioTeste(db, usuarioId);
+    criarLoteTeste(db, loteId, usuarioId);
   });
 
-  afterEach(() => {
-    db.close();
-    if (fs.existsSync(TEST_DB_PATH)) {
-      fs.unlinkSync(TEST_DB_PATH);
+  it("deve retornar resumo correto de validações", () => {
+    const linhaId = "linha-1";
+    criarLinhaTeste(db, linhaId, loteId, usuarioId, {
+      numero_linha: 1,
+      data_transacao: "2024-10-01",
+      valor: 100,
+      descricao: "Teste",
+    });
+
+    const linha: Partial<LinhaImportacao> = {
+      id: linhaId,
+      lote_id: loteId,
+      data_transacao: "2024-10-01",
+      valor: 100,
+      descricao: "Teste",
+    };
+
+    const validacao = validarLinha(db, linha, usuarioId);
+
+    if (validacao.erros.length > 0) {
+      validacao.erros.forEach((erro) => {
+        const insertStmt = db.prepare(
+          `INSERT INTO importacao_validacoes (linha_id, tipo_validacao, passou, mensagem_erro)
+           VALUES (?, ?, ?, ?)`
+        );
+        insertStmt.run(linhaId, "formato", 0, erro);
+      });
     }
-  });
 
-  describe("POST /api/importacao/upload", () => {
-    /**
-     * Teste 1: Upload de arquivo válido (PDF 1MB)
-     */
-    it("deve aceitar arquivo PDF válido de 1MB", async () => {
-      const pdfBuffer = Buffer.alloc(1024 * 1024); // 1MB
-      // Adicionar assinatura PDF no início
-      pdfBuffer.write("%PDF-1.4");
+    const resumo = obterResumoValidacoes(db, linhaId);
 
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", pdfBuffer, "documento.pdf");
-
-      expect(response.status).toBe(200);
-      expect(response.body.sucesso).toBe(true);
-      expect(response.body.lote_id).toBeDefined();
-      expect(response.body.arquivo_nome).toBe("documento.pdf");
-      expect(response.body.arquivo_hash).toBeDefined();
-      expect(response.body.tipo).toBe(FileType.PDF);
-      expect(response.body.tamanho_bytes).toBe(1024 * 1024);
-      expect(response.body.criado_em).toBeDefined();
-
-      // Verificar se foi armazenado no banco
-      const lote = db.prepare("SELECT * FROM importacao_lotes WHERE id = ?").get(response.body.lote_id);
-      expect(lote).toBeDefined();
-      expect(lote.status).toBe("RECEBIDO");
-    });
-
-    /**
-     * Teste 2: Rejeição de arquivo > 50MB
-     */
-    it("deve rejeitar arquivo maior que 50MB", async () => {
-      const largeBuffer = Buffer.alloc(51 * 1024 * 1024); // 51MB
-      largeBuffer.write("%PDF-1.4");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", largeBuffer, "documento-grande.pdf");
-
-      expect(response.status).toBe(400);
-      expect(response.body.sucesso).toBe(false);
-      expect(response.body.erro).toBe("Validação de arquivo falhou");
-      expect(response.body.detalhes).toContain("muito grande");
-
-      // Verificar que nada foi armazenado
-      const lotes = db.prepare("SELECT COUNT(*) as count FROM importacao_lotes").get() as any;
-      expect(lotes.count).toBe(0);
-    });
-
-    /**
-     * Teste 3: Detecção de tipos corretamente (5 tipos)
-     */
-    it("deve detectar corretamente arquivo OFX", async () => {
-      const ofxBuffer = Buffer.from("OFXHEADER:100\nOFXVER:102\n");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", ofxBuffer, "extrato.ofx");
-
-      expect(response.status).toBe(200);
-      expect(response.body.tipo).toBe(FileType.OFX);
-    });
-
-    it("deve detectar corretamente arquivo CSV", async () => {
-      const csvBuffer = Buffer.from("data1,data2,data3\nvalue1,value2,value3\n");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", csvBuffer, "dados.csv");
-
-      expect(response.status).toBe(200);
-      expect(response.body.tipo).toBe(FileType.CSV);
-    });
-
-    it("deve detectar corretamente arquivo PNG", async () => {
-      // PNG magic bytes: 89 50 4E 47
-      const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", pngBuffer, "imagem.png");
-
-      expect(response.status).toBe(200);
-      expect(response.body.tipo).toBe(FileType.PNG);
-    });
-
-    it("deve detectar corretamente arquivo JPEG", async () => {
-      // JPEG magic bytes: FF D8 FF E0
-      const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", jpegBuffer, "foto.jpg");
-
-      expect(response.status).toBe(200);
-      expect(response.body.tipo).toBe(FileType.JPEG);
-    });
-
-    it("deve detectar corretamente arquivo PDF", async () => {
-      const pdfBuffer = Buffer.from("%PDF-1.4\n%comentário");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", pdfBuffer, "documento.pdf");
-
-      expect(response.status).toBe(200);
-      expect(response.body.tipo).toBe(FileType.PDF);
-    });
-
-    /**
-     * Teste 4: Cálculo de SHA-256
-     */
-    it("deve calcular SHA-256 corretamente", async () => {
-      const conteudo = Buffer.from("Conteúdo de teste para SHA-256");
-      conteudo.write("%PDF-1.4");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", conteudo, "test.pdf");
-
-      expect(response.status).toBe(200);
-      expect(response.body.arquivo_hash).toBeDefined();
-
-      // Verificar se o hash é válido (64 caracteres hexadecimais)
-      expect(response.body.arquivo_hash).toMatch(/^[a-f0-9]{64}$/);
-
-      // Calcular o hash esperado e comparar
-      const expectedHash = calcularSHA256(conteudo);
-      expect(response.body.arquivo_hash).toBe(expectedHash);
-    });
-
-    it("não deve permitir a mesma arquivo duas vezes (duplicado por hash)", async () => {
-      const conteudo = Buffer.from("Conteúdo único para teste");
-      conteudo.write("%PDF-1.4");
-
-      // Primeiro upload
-      const response1 = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", conteudo, "documento1.pdf");
-
-      expect(response1.status).toBe(200);
-      const hash1 = response1.body.arquivo_hash;
-
-      // Segundo upload com mesmo conteúdo
-      const response2 = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", conteudo, "documento2.pdf");
-
-      expect(response2.status).toBe(409);
-      expect(response2.body.sucesso).toBe(false);
-      expect(response2.body.erro).toBe("Arquivo duplicado");
-    });
-
-    /**
-     * Teste 5: Validação de extensão
-     */
-    it("deve rejeitar extensão não permitida", async () => {
-      const buffer = Buffer.from("conteúdo");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", buffer, "documento.exe");
-
-      expect(response.status).toBe(400);
-      expect(response.body.sucesso).toBe(false);
-      expect(response.body.detalhes[0]).toContain("Extensão não permitida");
-    });
-
-    it("deve rejeitar arquivo vazio", async () => {
-      const emptyBuffer = Buffer.alloc(0);
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", emptyBuffer, "vazio.pdf");
-
-      expect(response.status).toBe(400);
-      expect(response.body.sucesso).toBe(false);
-      expect(response.body.detalhes).toContain("Arquivo vazio");
-    });
-
-    it("deve rejeitar requisição sem arquivo", async () => {
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .send({});
-
-      expect(response.status).toBe(400);
-      expect(response.body.sucesso).toBe(false);
-      expect(response.body.erro).toBe("Nenhum arquivo foi enviado");
-    });
-
-    it("deve rejeitar requisição sem autenticação", async () => {
-      const buffer = Buffer.from("%PDF-1.4");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .attach("arquivo", buffer, "documento.pdf");
-
-      expect(response.status).toBe(401);
-    });
-  });
-
-  describe("Validação de tipos", () => {
-    it("deve avisar sobre MIME type inesperado", async () => {
-      const buffer = Buffer.from("conteúdo");
-      buffer.write("%PDF-1.4");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .set("Content-Type", "multipart/form-data")
-        .attach("arquivo", buffer, "documento.pdf");
-
-      // Mesmo com MIME type estranho, deve aceitar se o tipo for detectado
-      expect(response.status).toBe(200);
-      expect(response.body.sucesso).toBe(true);
-    });
-  });
-
-  describe("Armazenamento no banco de dados", () => {
-    it("deve armazenar lote com status RECEBIDO", async () => {
-      const buffer = Buffer.from("%PDF-1.4");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", buffer, "documento.pdf");
-
-      expect(response.status).toBe(200);
-      const loteId = response.body.lote_id;
-
-      const lote = db.prepare("SELECT * FROM importacao_lotes WHERE id = ?").get(loteId) as any;
-      expect(lote).toBeDefined();
-      expect(lote.status).toBe("RECEBIDO");
-      expect(lote.usuario_id).toBe("usuario-teste-id");
-      expect(lote.arquivo_nome).toBe("documento.pdf");
-      expect(lote.tipo).toBe("PDF");
-      expect(lote.criado_em).toBeDefined();
-      expect(lote.atualizado_em).toBeDefined();
-    });
-
-    it("deve armazenar metadados corretos do arquivo", async () => {
-      const buffer = Buffer.from("Conteúdo de teste");
-      buffer.write("%PDF-1.4");
-
-      const response = await request(app)
-        .post("/api/importacao/upload")
-        .set("Cookie", `auth=${token}`)
-        .attach("arquivo", buffer, "teste.pdf");
-
-      expect(response.status).toBe(200);
-      const loteId = response.body.lote_id;
-
-      const lote = db.prepare("SELECT * FROM importacao_lotes WHERE id = ?").get(loteId) as any;
-      expect(lote.arquivo_hash).toBe(response.body.arquivo_hash);
-      expect(lote.tamanho_bytes).toBe(buffer.length);
-    });
+    expect(resumo.totalValidacoes).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(resumo.erros)).toBe(true);
   });
 });

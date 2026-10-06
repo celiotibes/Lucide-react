@@ -43,6 +43,7 @@ export default mergeConfig(
         "server/src/domain/relatorios/**/*.test.ts",
         "server/src/domain/integracoes/**/*.test.ts",
         "server/src/domain/anomalias/**/*.test.ts",
+        "server/src/domain/importacao/**/*.test.ts",
         "server/src/routes/**/*.test.ts",
         "server/tests/database/**/*.spec.ts",
       ],

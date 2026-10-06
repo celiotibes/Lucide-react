@@ -236,3 +236,156 @@ export interface RespostaListaLinhas {
     };
   })[];
 }
+
+/**
+ * ========== FASE 2: PARSING ==========
+ * Tipos para normalização de transações após parsing de diferentes formatos
+ */
+
+/**
+ * Transação normalizada extraída de arquivo (CSV, PDF, OFX)
+ * Cada parser deve converter seus dados para este formato
+ */
+export interface TransacaoBruta {
+  /**
+   * Data da transação em formato ISO 8601 (YYYY-MM-DD)
+   * Os parsers devem normalizar de qualquer formato para este padrão
+   */
+  data: string;
+
+  /**
+   * Valor em número decimal (positivo para entrada/crédito, negativo para saída/débito)
+   * Parsers devem converter strings com separadores de milhar/decimal
+   */
+  valor: number;
+
+  /**
+   * Descrição da transação (memo/subject)
+   * Texto livre, pode vir de diferentes campos dependendo do formato
+   */
+  descricao: string;
+
+  /**
+   * Tipo de transação: entrada (crédito) ou saída (débito)
+   * Alguns formatos indicam isso explicitamente (OFX), outros requerem inferência do sinal do valor
+   */
+  tipo_transacao: "entrada" | "saida";
+
+  /**
+   * Módulo/origem de onde veio a transação
+   * Usável para rastreabilidade: "csv", "pdf", "ofx", "csv_contabil", etc.
+   */
+  origem_modulo: string;
+
+  /**
+   * Número de linha do arquivo original (para rastreabilidade em CSV/PDF)
+   * Opcional, usado principalmente para debug e auditoria
+   */
+  numero_linha?: number;
+
+  /**
+   * Campos adicionais que não foram normalizados (opcional)
+   * Útil para reter informações que podem ser importantes em contextos específicos
+   */
+  campos_adicionais?: Record<string, unknown>;
+}
+
+/**
+ * Erro durante parsing de transação
+ */
+export interface ParseError {
+  linha: number;
+  coluna?: number;
+  motivo: string;
+  valor_original?: string;
+}
+
+/**
+ * Resultado da operação de parsing
+ * Indica sucesso/falha e fornece feedback detalhado
+ */
+export interface ParserResult {
+  /**
+   * Indicador de sucesso (true = pelo menos uma transação foi parseada)
+   * Pode haver um mix de sucesso com erros parciais
+   */
+  sucesso: boolean;
+
+  /**
+   * Array de transações extraídas com sucesso
+   * Sempre normalizado para TransacaoBruta
+   */
+  transacoes: TransacaoBruta[];
+
+  /**
+   * Array de erros encontrados durante parsing
+   * Inclui linha, coluna, motivo (para debug)
+   */
+  erros: ParseError[];
+
+  /**
+   * Número de linhas/registros descartados (inválidos, vazias, etc.)
+   * Usado para relatório de qualidade
+   */
+  linhas_descartadas: number;
+
+  /**
+   * Mensagens de aviso (warnings)
+   * Situações que não impedem parsing mas podem indicar problemas
+   */
+  avisos?: string[];
+
+  /**
+   * Estatísticas sobre o arquivo processado
+   */
+  estatisticas?: {
+    total_linhas: number;
+    linhas_vazias: number;
+    linhas_processadas: number;
+    linhas_com_erro: number;
+  };
+}
+
+/**
+ * Opções para configurar o comportamento de parsing
+ */
+export interface ParserOptions {
+  /**
+   * Modulo de origem (usado em origem_modulo)
+   */
+  origem?: string;
+
+  /**
+   * Se true, continua processando mesmo com erros;
+   * se false, para no primeiro erro crítico
+   */
+  tolerarErros?: boolean;
+
+  /**
+   * Encoding do arquivo (default: utf-8)
+   */
+  encoding?: string;
+
+  /**
+   * Número máximo de linhas a processar (para testes/preview)
+   */
+  maxLinhas?: number;
+
+  /**
+   * Formats de data aceitos pelo parser
+   * Ex: ["DD/MM/YYYY", "YYYY-MM-DD", "MM/DD/YYYY"]
+   */
+  formatosDatas?: string[];
+
+  /**
+   * Separador decimal (default: ".")
+   * Alguns arquivos usam "," para decimais
+   */
+  separadorDecimal?: string;
+
+  /**
+   * Separador de milhares (default: ",")
+   * Alguns arquivos usam "." para milhares
+   */
+  separadorMilhares?: string;
+}

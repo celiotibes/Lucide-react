@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
 import express from "express";
+import multer from "multer";
 import { criarMiddlewareCors, interpretarOrigensCors, cookieCrossSiteAtivo } from "./middleware/cors-middleware.js";
 import helmet from "helmet";
 import compression from "compression";
@@ -38,6 +39,7 @@ import { criarRotasCarimbo } from "../src/routes/carimbo-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
 import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
+import { criarRotasImportacaoUpload } from "../src/routes/importacao-upload-routes.js";
 import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembretes-agendados-db.js";
 import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
@@ -389,6 +391,22 @@ app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db, authService }));
  * GET /api/anomalias/estatisticas — estatísticas agregadas de anomalias
  * PATCH /api/anomalias/alertas/:id/revisar — marca alerta como revisado (auditoria) */
 app.use("/api/anomalias", criarRotasAnomalias({ db, authService }));
+
+/** Importação de Documentos - Fase 1 (UPLOAD)
+ * POST /api/importacao/upload — upload e validação de arquivo (PDF, CSV, OFX, JPEG, PNG)
+ *
+ * Validação:
+ * - Extensão permitida (.ofx, .csv, .pdf, .jpg, .jpeg, .png)
+ * - Tamanho máximo 50 MB
+ * - MIME type válido
+ * - Detecção de tipo por magic bytes
+ *
+ * Armazenamento:
+ * - Cálculo de SHA-256 para deduplicação
+ * - Metadados no banco (importacao_lotes)
+ * - Status RECEBIDO após validação */
+const uploadMiddleware = multer({ storage: multer.memoryStorage() });
+app.use("/api/importacao", uploadMiddleware.single("arquivo"), criarRotasImportacaoUpload({ authService, db }));
 
 /** Backup automático para Google Drive (backup horário)
  * GET /api/backup/listar — lista backups no Google Drive
