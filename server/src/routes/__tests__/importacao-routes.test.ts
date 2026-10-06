@@ -25,9 +25,9 @@ function criarBancoTeste(): Database.Database {
   );
   db.exec(migrationsPhase2);
 
-  // Carregar migration de importação
+  // Carregar migration de importação (upload + validação + deduplicação)
   const migrationsImportacao = fs.readFileSync(
-    path.join(SRC_DIR, "migrations-phase17-importacao-deduplicacao.sql"),
+    path.join(SRC_DIR, "migrations-phase17-importacao.sql"),
     "utf-8"
   );
   db.exec(migrationsImportacao);
@@ -48,10 +48,11 @@ function criarLoteTeste(
   usuarioId: string
 ): void {
   const stmt = db.prepare(
-    `INSERT INTO importacao_lotes (id, usuario_id, nome_arquivo, formato, total_linhas, status)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO importacao_lotes (id, usuario_id, arquivo_nome, arquivo_hash, tipo, tamanho_bytes, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
-  stmt.run(loteId, usuarioId, "teste.csv", "csv", 0, "processando");
+  const hash = Math.random().toString(36).substring(7);
+  stmt.run(loteId, usuarioId, "teste.csv", hash, "CSV", 1024, "PROCESSANDO");
 }
 
 function criarLinhaTeste(
@@ -77,8 +78,8 @@ function criarLinhaTeste(
 
   const stmt = db.prepare(
     `INSERT INTO importacao_linhas
-     (id, lote_id, usuario_id, numero_linha, data_transacao, valor, descricao, status, score_duplicata, suspeita_duplicata, criado_em)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, lote_id, usuario_id, numero_linha, dados_brutos, data_transacao, valor, descricao, status, score_duplicata, suspeita_duplicata, criado_em)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
   stmt.run(
@@ -86,10 +87,11 @@ function criarLinhaTeste(
     linha.lote_id,
     linha.usuario_id,
     linha.numero_linha,
+    JSON.stringify(dadosOp),  // dados_brutos: JSON da linha
     linha.data_transacao,
     linha.valor,
     linha.descricao,
-    linha.status,
+    "PENDENTE",  // status must match schema enum
     linha.score_duplicata,
     linha.suspeita_duplicata,
     linha.criado_em

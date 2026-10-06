@@ -81,26 +81,58 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_importacao_lotes_usuario_hash
 CREATE TABLE IF NOT EXISTS importacao_linhas (
   id                          TEXT PRIMARY KEY,                -- UUID
   lote_id                     TEXT NOT NULL,                  -- FK para importacao_lotes.id
+  usuario_id                  TEXT NOT NULL,                  -- FK para usuarios.id
 
-  -- Dados da linha
+  -- Dados da linha (brutos e estruturados)
   numero_linha                INTEGER NOT NULL,               -- Número da linha (1-indexed)
   dados_brutos                TEXT NOT NULL,                  -- Dados brutos da linha
+
+  -- Dados estruturados (extraídos/parseados)
+  data_transacao              DATE,                           -- Data da transação
+  valor                       DECIMAL(12, 2),                 -- Valor da transação
+  descricao                   TEXT,                           -- Descrição/histórico
+  tipo_operacao               TEXT,                           -- débito, crédito, etc
+  categoria                   TEXT,                           -- Categoria opcional
+  conta_bancaria              TEXT,                           -- Conta bancária
 
   -- Status e auditoria
   status                      TEXT NOT NULL DEFAULT 'PENDENTE',  -- LinhaStatus enum
   erro_mensagem               TEXT,                            -- Mensagem de erro, se houver
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  -- Foreign key
+  -- Validação (Fase 3)
+  validacoes_executadas       TEXT,                           -- JSON array de validações
+  erros_validacao             TEXT,                           -- JSON array de erros
+
+  -- Deduplicação (Fase 3)
+  score_duplicata             REAL DEFAULT 0,                 -- Score de duplicata (0-100)
+  suspeita_duplicata          INTEGER NOT NULL DEFAULT 0 CHECK(suspeita_duplicata IN (0, 1)),
+  linha_duplicada_id          TEXT,                           -- FK para outra linha (duplicata)
+  motivo_duplicata            TEXT,                           -- Motivo da suspeita
+
+  -- Aprovação/Rejeição
+  aprovado_por                TEXT,                           -- FK para usuarios.id
+  aprovado_em                 DATETIME,
+  rejeitado_por               TEXT,                           -- FK para usuarios.id
+  rejeitado_em                DATETIME,
+  motivo_rejeicao             TEXT,
+
+  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em               DATETIME,
+
+  -- Foreign keys
   FOREIGN KEY (lote_id) REFERENCES importacao_lotes(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (linha_duplicada_id) REFERENCES importacao_linhas(id) ON DELETE SET NULL,
+  FOREIGN KEY (aprovado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (rejeitado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
 
   -- Constraints
   CHECK (numero_linha >= 1),
-  CHECK (status IN ('PENDENTE', 'VALIDADA', 'PROCESSADA', 'ERRO', 'IGNORADA')),
+  CHECK (status IN ('PENDENTE', 'VALIDADA', 'PROCESSADA', 'ERRO', 'IGNORADA', 'APROVADO', 'REJEITADO')),
   UNIQUE (lote_id, numero_linha)  -- Evitar duplicatas de linha no mesmo lote
 );
 
--- Índices para buscar linhas
+-- Índices para buscar linhas (Phase 1 - Upload)
 CREATE INDEX IF NOT EXISTS idx_importacao_linhas_lote
   ON importacao_linhas(lote_id);
 
@@ -110,6 +142,20 @@ CREATE INDEX IF NOT EXISTS idx_importacao_linhas_status
 -- Índice para otimizar buscas de linhas com erro
 CREATE INDEX IF NOT EXISTS idx_importacao_linhas_lote_status
   ON importacao_linhas(lote_id, status);
+
+-- Índices para Validação e Deduplicação (Phase 3)
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_usuario
+  ON importacao_linhas(usuario_id);
+
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_suspeita_duplicata
+  ON importacao_linhas(suspeita_duplicata)
+  WHERE suspeita_duplicata = 1;
+
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_data_valor
+  ON importacao_linhas(data_transacao, valor);
+
+CREATE INDEX IF NOT EXISTS idx_importacao_linhas_descricao
+  ON importacao_linhas(descricao);
 
 -- =====================================================================
 -- Fase 3: VALIDAÇÃO E DEDUPLICAÇÃO

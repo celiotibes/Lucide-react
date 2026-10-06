@@ -169,9 +169,9 @@ export function detectarDuplicata(
   if (!linhasExistentes) {
     try {
       const stmt = db.prepare(
-        `SELECT * FROM importacao_linhas 
-         WHERE usuario_id = ? 
-         AND status IN ('aprovado', 'validado')
+        `SELECT * FROM importacao_linhas
+         WHERE usuario_id = ?
+         AND status IN ('APROVADO', 'VALIDADA')
          AND id != ?
          AND data_transacao BETWEEN date(?, '-7 days') AND date(?, '+7 days')
          ORDER BY ABS(CAST(valor AS REAL) - CAST(? AS REAL)) ASC
@@ -292,7 +292,7 @@ export function registrarDuplicata(
          score_duplicata = ?,
          linha_duplicada_id = ?,
          motivo_duplicata = ?,
-         status = 'validado',
+         status = 'VALIDADA',
          atualizado_em = CURRENT_TIMESTAMP
      WHERE id = ?`
   );

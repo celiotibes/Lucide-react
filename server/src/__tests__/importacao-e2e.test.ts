@@ -326,14 +326,23 @@ describe('E2E Import Workflow', () => {
         return res.status(413).json({ error: 'File too large' });
       }
 
-      const { hash, id } = uploadService.uploadFile(file, fileName);
       const loteId = `lote_${Date.now()}`;
 
       try {
+        // Calculate hash for duplicate detection
+        const hash = crypto
+          .createHash('sha256')
+          .update(file)
+          .digest('hex');
+
         db.prepare(`
           INSERT INTO importacao_lotes (id, usuario_id, arquivo_nome, arquivo_hash, tipo, tamanho_bytes, status)
           VALUES (?, ?, ?, ?, ?, ?, 'RECEBIDO')
         `).run(loteId, 'test-user', fileName, hash, fileType);
+
+        // Store file with loteId as key so it can be retrieved later
+        uploadService.uploadFile(file, fileName);
+        (uploadService as any).uploads.set(loteId, file);
 
         res.status(201).json({
           loteId,
