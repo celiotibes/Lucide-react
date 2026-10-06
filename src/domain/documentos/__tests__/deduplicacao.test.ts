@@ -12,8 +12,6 @@ import {
   exigeRevisaoHumana,
   documentoPodeSerLancado,
   acuraciaIA,
-  type RegistroSugestao,
-  type RevisaoSugestao,
 } from "../revisaoIA";
 import { migrarBancoExistente } from "../../../db/connection";
 import type { Database } from "sql.js";

@@ -321,6 +321,7 @@ export function AnalyticsIntegradosView() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     label={(entry: any) => {
                       if (entry.nome && entry.valor) return `${entry.nome}: ${entry.valor}`;
                       return '';
@@ -394,6 +395,7 @@ export function AnalyticsIntegradosView() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     label={(entry: any) => {
                       if (entry.nome && entry.valor) return `${entry.nome}: ${formatarMoeda(entry.valor)}`;
                       return '';

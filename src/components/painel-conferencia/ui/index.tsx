@@ -165,10 +165,11 @@ export function Select({
 }
 // SelectTrigger/SelectValue existem só para compatibilidade de API com o código das telas —
 // o <select> nativo acima já é o próprio "trigger" e já mostra o valor selecionado sozinho.
-export function SelectTrigger({ children, className }: { children?: ReactNode; className?: string }) {
+export function SelectTrigger({ children }: { children?: ReactNode; className?: string }) {
   return <>{children}</>;
 }
-export function SelectValue({ placeholder }: { placeholder?: string }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function SelectValue(_props?: { placeholder?: string }) {
   return null;
 }
 export function SelectContent({ children }: { children?: ReactNode }) {

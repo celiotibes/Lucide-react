@@ -41,6 +41,7 @@ describe("entrar (POST /api/auth/login)", () => {
     expect(caminho).toBe("/api/auth/login");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({ email: "ana@x.com", senha: "s3nha" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((init as any)?.semEventoLogout).toBe(true);
     expect(d.esquecerTokenCsrf).toHaveBeenCalled();
   });

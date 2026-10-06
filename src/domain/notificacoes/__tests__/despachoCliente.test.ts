@@ -92,6 +92,7 @@ describe("despachoCliente", () => {
 
       // apiClient só recebeu os 2 canais com destinatário — nunca telegram vazio.
       expect(apiClient.chamadas).toHaveLength(1);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((apiClient.chamadas[0] as any).destinatarios.telegramChatId).toBeUndefined();
 
       const historico = listarPorOrigem(db, "comunicado_generico", null);

@@ -62,6 +62,7 @@ export async function consultarSessao(deps: DepsSessao = DEPS_PADRAO): Promise<R
   if (resposta.status === 401) return { status: "anonimo" };
   if (resposta.ok) {
     const corpo = await lerJson(resposta);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const usuarioObj = (corpo && typeof corpo === 'object' && 'usuario' in corpo) ? (corpo as any).usuario : undefined;
     if (usuarioValido(usuarioObj)) return { status: "autenticado", usuario: usuarioObj };
     return { status: "indisponivel", motivo: "A resposta do servidor não é a esperada (API não encontrada neste endereço)." };
@@ -82,7 +83,9 @@ export async function entrar(email: string, senha: string, deps: DepsSessao = DE
     return { ok: false, tipo: "indisponivel", mensagem: "Não foi possível alcançar o servidor. Verifique a conexão e tente novamente." };
   }
   const corpo = await lerJson(resposta);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const usuarioObj = (corpo && typeof corpo === 'object' && 'usuario' in corpo) ? (corpo as any).usuario : undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const erroMsg = (corpo && typeof corpo === 'object' && 'erro' in corpo && typeof (corpo as any).erro === 'string') ? (corpo as any).erro : null;
 
   if (resposta.ok && usuarioValido(usuarioObj)) {

@@ -316,6 +316,7 @@ describe("lembretesVencimento", () => {
       expect(apiClient.chamadas[0].origemTipo).toBe("lembrete_aluguel");
       expect(apiClient.chamadas[0].origemId).toBe(id);
       expect(apiClient.chamadas[0].mensagem).toMatch(/vence em 2 dias/i);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((apiClient.chamadas[0] as any).destinatarios.email).toBe("inquilino@example.com");
 
       const emailResultado = resultados[0].resultadosDisparo.find((r) => r.canal === "email");
