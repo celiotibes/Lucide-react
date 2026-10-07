@@ -124,6 +124,7 @@ export const TEST_UNAUTHENTICATED_CONTEXT: ContextoAutenticacao = {
  */
 export function createSamplePessoaFisicaTenant(overrides?: Partial<AgenteEconomico>): AgenteEconomico {
   const id = uuidv4();
+  const now = new Date().toISOString();
   return {
     id,
     tipo_entidade: TipoEntidade.PESSOA_FISICA,
@@ -144,9 +145,9 @@ export function createSamplePessoaFisicaTenant(overrides?: Partial<AgenteEconomi
       pais: 'Brasil',
     },
     ativo: true,
-    criado_em: new Date(),
+    criado_em: now,
     criado_por: TEST_ADMIN_USER.id,
-    atualizado_em: new Date(),
+    atualizado_em: now,
     atualizado_por: TEST_ADMIN_USER.id,
     validado: false,
     ...overrides,
@@ -190,6 +191,7 @@ export function createSamplePessoaFisicaLender(overrides?: Partial<AgenteEconomi
  */
 export function createSamplePessoaJuridicaSupplier(overrides?: Partial<AgenteEconomico>): AgenteEconomico {
   const id = uuidv4();
+  const now = new Date().toISOString();
   return {
     id,
     tipo_entidade: TipoEntidade.PESSOA_JURIDICA,
@@ -214,9 +216,9 @@ export function createSamplePessoaJuridicaSupplier(overrides?: Partial<AgenteEco
       pais: 'Brasil',
     },
     ativo: true,
-    criado_em: new Date(),
+    criado_em: now,
     criado_por: TEST_ADMIN_USER.id,
-    atualizado_em: new Date(),
+    atualizado_em: now,
     atualizado_por: TEST_ADMIN_USER.id,
     validado: false,
     ...overrides,
@@ -438,7 +440,7 @@ export function createSampleValidacao(agente_id: string) {
     tipo_validacao: TipoValidacao.CPF_CNPJ,
     resultado: ResultadoValidacao.APROVADO,
     motivo: null,
-    executado_em: new Date(),
+    executado_em: new Date().toISOString(),
     executado_por: TEST_ADMIN_USER.id,
   };
 }
@@ -456,7 +458,7 @@ export function createSampleDuplicata(agente_id_1: string, agente_id_2: string) 
     score_cpf: 90,
     score_nome: 80,
     status: StatusDuplicata.PENDENTE,
-    criado_em: new Date(),
+    criado_em: new Date().toISOString(),
     criado_por: TEST_ADMIN_USER.id,
   };
 }
@@ -473,7 +475,7 @@ export function createSampleVinculacao(agente_id: string, entidade_id: string) {
     entidade_nome: 'Property #123',
     tipo_relacionamento: 'proprietário',
     ativo: true,
-    criado_em: new Date(),
+    criado_em: new Date().toISOString(),
     criado_por: TEST_ADMIN_USER.id,
   };
 }
@@ -486,6 +488,7 @@ export function createSampleVinculacao(agente_id: string, entidade_id: string) {
  * Minimal valid pessoa física for testing required fields only
  */
 export function createMinimalValidPessoaFisica(): AgenteEconomico {
+  const now = new Date().toISOString();
   return {
     id: uuidv4(),
     tipo_entidade: TipoEntidade.PESSOA_FISICA,
@@ -494,9 +497,9 @@ export function createMinimalValidPessoaFisica(): AgenteEconomico {
     pessoa_fisica_pf_nome_mae: 'Test Mother',
     papel: PapelAgente.TENANT,
     ativo: true,
-    criado_em: new Date(),
+    criado_em: now,
     criado_por: TEST_ADMIN_USER.id,
-    atualizado_em: new Date(),
+    atualizado_em: now,
     atualizado_por: TEST_ADMIN_USER.id,
     validado: false,
   };
