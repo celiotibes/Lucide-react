@@ -19,7 +19,7 @@
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS agentes_duplicatas_audit_trail (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY,
 
   -- Tipo de operação
   tipo_operacao TEXT NOT NULL CHECK (tipo_operacao IN ('MERGE', 'UNMERGE', 'REVIEW')),
@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS agentes_duplicatas_audit_trail (
   agente_secundario_id UUID NOT NULL,
 
   -- Estados antes e depois (JSON para flexibilidade)
-  estado_anterior JSONB NOT NULL,
-  estado_posterior JSONB NOT NULL,
+  estado_anterior TEXT NOT NULL,
+  estado_posterior TEXT NOT NULL,
 
   -- Auditoria
   criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -203,7 +203,7 @@ ORDER BY d.score DESC;
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS ledger_entries_duplicatas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY,
 
   -- Referências às transações
   ledger_entrada_1_id UUID NOT NULL,
@@ -246,75 +246,11 @@ CREATE INDEX IF NOT EXISTS idx_ledger_duplicatas_data
 
 
 -- =====================================================================
--- Função helper: Contar referências de um agente
+-- Helper Functions: Implementadas em TypeScript (database-init.ts)
 -- =====================================================================
-
-CREATE OR REPLACE FUNCTION count_agent_references(agent_id UUID)
-RETURNS TABLE (
-  table_name TEXT,
-  reference_count BIGINT
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 'ledger_entries'::TEXT, COUNT(*)
-  FROM ledger_entries
-  WHERE agente_id = agent_id
-  UNION ALL
-  SELECT 'agentes_validacoes'::TEXT, COUNT(*)
-  FROM agentes_validacoes
-  WHERE agente_id = agent_id
-  UNION ALL
-  SELECT 'agentes_vinculacoes'::TEXT, COUNT(*)
-  FROM agentes_vinculacoes
-  WHERE agente_id = agent_id;
-END;
-$$ LANGUAGE plpgsql;
-
-
--- =====================================================================
--- Função helper: Validar merge de agentes
--- =====================================================================
-
-CREATE OR REPLACE FUNCTION validate_agent_merge(
-  primary_agent_id UUID,
-  secondary_agent_id UUID
-)
-RETURNS TABLE (
-  can_merge BOOLEAN,
-  message TEXT,
-  issues TEXT[]
-) AS $$
-DECLARE
-  issues TEXT[] := ARRAY[]::TEXT[];
-  primary_exists BOOLEAN;
-  secondary_exists BOOLEAN;
-  same_id BOOLEAN;
-BEGIN
-  -- Validações básicas
-  SELECT EXISTS(SELECT 1 FROM agentes_economicos WHERE id = primary_agent_id) INTO primary_exists;
-  SELECT EXISTS(SELECT 1 FROM agentes_economicos WHERE id = secondary_agent_id) INTO secondary_exists;
-
-  same_id := primary_agent_id = secondary_agent_id;
-
-  IF NOT primary_exists THEN
-    issues := array_append(issues, 'Agente primário não existe');
-  END IF;
-
-  IF NOT secondary_exists THEN
-    issues := array_append(issues, 'Agente secundário não existe');
-  END IF;
-
-  IF same_id THEN
-    issues := array_append(issues, 'Não é possível fundir um agente com ele mesmo');
-  END IF;
-
-  RETURN QUERY SELECT
-    (array_length(issues, 1) IS NULL),
-    CASE
-      WHEN array_length(issues, 1) IS NULL THEN 'Merge pode ser realizado'
-      ELSE 'Merge não pode ser realizado: ' || array_to_string(issues, '; ')
-    END,
-    issues;
-END;
-$$ LANGUAGE plpgsql;
+-- count_agent_references(agent_id UUID)
+--   Conta referências de um agente em: ledger_entries, agentes_validacoes, agentes_vinculacoes
+-- validate_agent_merge(primary_agent_id UUID, secondary_agent_id UUID)
+--   Valida se merge é possível e retorna lista de issues
+-- NOTA: PL/pgSQL não é suportado em SQLite. Implementação movida para TypeScript.
 

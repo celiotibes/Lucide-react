@@ -52,7 +52,7 @@ function detectarVersaoOFX(conteudo: string): "1.x" | "2.x" {
 
 /**
  * Converte OFX 1.x (formato texto) para XML bem-formado
- * Remove headers OFXHEADER e converte tags
+ * Remove headers OFXHEADER e converte tags com fechamento automático
  */
 function converterOFX1xParaXML(conteudo: string): string {
   let xml = conteudo;
@@ -70,12 +70,131 @@ function converterOFX1xParaXML(conteudo: string): string {
   // Remover linhas em branco extras
   xml = xml.replace(/\n\n+/g, "\n");
 
-  // Envolver em tags raiz se não tiver
-  if (!xml.includes("<OFX>") && !xml.includes("<ofx>")) {
-    xml = `<OFX>\n${xml}\n</OFX>`;
+  // Processar tags OFX 1.x: adicionar fechamento de tags
+  // OFX 1.x tem formato: <TAG>value seguido de nova tag ou </TAG>
+  const linhas = xml.split("\n");
+  const resultado: string[] = [];
+  const stack: string[] = [];
+
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i].trim();
+
+    if (!linha) {
+      continue;
+    }
+
+    // Detectar tags de abertura e fechamento
+    if (linha.startsWith("</")) {
+      // Tag de fechamento
+      resultado.push(linha);
+      const nomeTags = linha.match(/<\/([^>]+)>/);
+      if (nomeTags && stack.length > 0 && stack[stack.length - 1] === nomeTags[1]) {
+        stack.pop();
+      }
+    } else if (linha.startsWith("<") && linha.endsWith(">")) {
+      // Tag sem valor
+      const nomeTag = linha.match(/<([^>]+)>/)?.[1];
+      if (nomeTag) {
+        resultado.push(linha);
+        // Se é tag de abertura (não auto-fechada)
+        if (!nomeTag.startsWith("/") && !nomeTag.endsWith("/")) {
+          stack.push(nomeTag.split(/\s/)[0]);
+        }
+      }
+    } else if (linha.includes("<") && linha.includes(">")) {
+      // Tag com valor: <TAG>value
+      const match = linha.match(/<([^/>]+)>(.*)$/);
+      if (match) {
+        const nomeTag = match[1].trim();
+        const valor = match[2];
+
+        // Fechar tags abertas que podem estar terminando
+        while (stack.length > 0) {
+          const tagTopo = stack[stack.length - 1];
+          // Se a próxima linha é uma tag diferente ou fechamento, fechar
+          if (i + 1 < linhas.length) {
+            const proximaLinha = linhas[i + 1].trim();
+            if (
+              proximaLinha.startsWith("</") ||
+              (proximaLinha.startsWith("<") && !proximaLinha.includes(tagTopo))
+            ) {
+              resultado.push(`</${stack.pop()}>`);
+            } else {
+              break;
+            }
+          } else {
+            break;
+          }
+        }
+
+        resultado.push(`<${nomeTag}>${valor}</${nomeTag}>`);
+      }
+    }
   }
 
-  return xml;
+  // Fechar todas as tags abertas
+  while (stack.length > 0) {
+    resultado.push(`</${stack.pop()}>`);
+  }
+
+  return resultado.join("\n");
+}
+
+/**
+ * Extrai transações usando regex para OFX 1.x
+ */
+function extrairTransacoesOFX1x(conteudo: string): OFXTransaction[] {
+  const transacoes: OFXTransaction[] = [];
+
+  if (!conteudo.includes("STMTTRN")) {
+    throw new Error("extrairTransacoesOFX1x: conteúdo não contém STMTTRN!");
+  }
+
+  // Regex para encontrar blocos STMTTRN
+  // OFX 1.x usa <STMTTRN>.....</STMTTRN>
+  const regexSTMTTRN = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
+  let match;
+  let regexMatches = 0;
+
+  while ((match = regexSTMTTRN.exec(conteudo)) !== null) {
+    regexMatches++;
+    const blocoSTMTTRN = match[1];
+
+    // Extrair campos específicos do bloco
+    const trntype = extrairCampoOFX(blocoSTMTTRN, "TRNTYPE");
+    const dtposted = extrairCampoOFX(blocoSTMTTRN, "DTPOSTED");
+    const trnamt = extrairCampoOFX(blocoSTMTTRN, "TRNAMT");
+    const fitid = extrairCampoOFX(blocoSTMTTRN, "FITID");
+    const name = extrairCampoOFX(blocoSTMTTRN, "NAME");
+    const memo = extrairCampoOFX(blocoSTMTTRN, "MEMO");
+
+    if (dtposted && trnamt) {
+      transacoes.push({
+        TRNTYPE: trntype,
+        DTPOSTED: dtposted,
+        TRNAMT: trnamt,
+        FITID: fitid,
+        NAME: name,
+        MEMO: memo,
+      });
+    }
+  }
+
+  return transacoes;
+}
+
+/**
+ * Extrai um campo específico do formato OFX 1.x
+ * Formato: <CAMPO>valor ou <CAMPO>valor\n<OUTROCAMPO>
+ */
+function extrairCampoOFX(conteudo: string, nomeCampo: string): string | undefined {
+  // Procurar por <NOMECAMPO>valor e capturar até nova tag ou fim
+  const regex = new RegExp(`<${nomeCampo}>\\s*([^<\\n]*)`, "i");
+  const match = conteudo.match(regex);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return undefined;
 }
 
 /**
@@ -83,13 +202,28 @@ function converterOFX1xParaXML(conteudo: string): string {
  */
 function extrairTransacoesDoXML(
   xmlObj: Record<string, unknown>,
+  conteudoOriginal?: string,
 ): OFXTransaction[] {
   const transacoes: OFXTransaction[] = [];
 
-  // Navegar na estrutura do XML
-  // OFX 2.x: ofx -> bankmsgsrsv1 -> stmttrs -> stmtrs -> banktranlist -> stmttrn
-  // OFX 1.x: ofx -> bankmsgsrsv1 -> stmttrs -> stmtrs -> banktranlist -> stmttrn
+  // Se temos conteúdo original e contém STMTTRN, tenta parsing por regex (OFX 1.x)
+  if (conteudoOriginal) {
+    const temSTMTTRN = /<STMTTRN>[\s\S]*?<\/STMTTRN>/i.test(conteudoOriginal);
+    if (temSTMTTRN) {
+      try {
+        const resultado = extrairTransacoesOFX1x(conteudoOriginal);
+        if (resultado.length > 0) {
+          return resultado;
+        }
+        // Se não encontrou por regex, continua para tentar parse por navegação XML
+      } catch (erro) {
+        // Se erro no parsing OFX 1.x, relança para o chamador
+        throw erro;
+      }
+    }
+  }
 
+  // Navegar na estrutura do XML (para OFX 2.x/XML puro)
   const navegar = (obj: unknown, chaves: string[]): OFXTransaction[] => {
     let atual = obj as Record<string, unknown>;
 
@@ -274,9 +408,10 @@ export function parseOFX(
     });
     const xmlObj = parser.parse(xml);
 
-    // Extrair transações
+    // Extrair transações - passar conteúdo original para permitir parsing OFX 1.x por regex
     const transacoesOFX = extrairTransacoesDoXML(
       xmlObj as Record<string, unknown>,
+      conteudo,
     );
 
     if (transacoesOFX.length === 0) {
