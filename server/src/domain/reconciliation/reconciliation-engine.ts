@@ -173,25 +173,44 @@ export class ReconciliationEngine {
   /**
    * Calcula score de description matching usando Fuse.js
    * Max: 30 points
+   *
+   * Usa string similarity básica se as descrições forem muito curtas
    */
   private calculateDescriptionScore(ledgerDesc: string, sourceDesc: string): number {
     if (!ledgerDesc || !sourceDesc) {
-      return 0;
+      return this.config.score_thresholds!.description || 30; // Se não há descrição, assume match
+    }
+
+    // Normaliza strings
+    const ledger = ledgerDesc.toLowerCase().trim();
+    const source = sourceDesc.toLowerCase().trim();
+
+    // Exact match
+    if (ledger === source) {
+      return this.config.score_thresholds!.description || 30;
+    }
+
+    // Partial match (one contains the other)
+    if (ledger.includes(source) || source.includes(ledger)) {
+      return Math.round((this.config.score_thresholds!.description || 30) * 0.8);
     }
 
     // Use Fuse para fuzzy matching de descrição
-    const fuse = new Fuse([sourceDesc], {
+    const fuse = new Fuse([source], {
       includeScore: true,
-      threshold: 1 - (this.config.description_similarity_threshold || 0.7),
+      threshold: 1 - (this.config.description_similarity_threshold || 0.6),
+      minMatchCharLength: 3,
     });
 
-    const results = fuse.search(ledgerDesc);
-    if (results.length > 0 && results[0].score) {
+    const results = fuse.search(ledger);
+    if (results.length > 0 && results[0].score !== undefined) {
       // Inverte score: Fuse usa 0 para match perfeito, 1 para não match
       const similarity = 1 - results[0].score;
-      return Math.round(
-        (this.config.score_thresholds!.description || 30) * similarity
-      );
+      if (similarity > 0.5) {
+        return Math.round(
+          (this.config.score_thresholds!.description || 30) * similarity
+        );
+      }
     }
 
     return 0;

@@ -8,6 +8,7 @@
  * - Auditoria de validações
  */
 
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import Database from "better-sqlite3";
 import path from "path";

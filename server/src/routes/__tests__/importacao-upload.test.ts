@@ -27,6 +27,23 @@ import { FileType } from "../../domain/importacao/tipos.js";
 import { createHash } from "crypto";
 import type { PermissoesServiceDB } from "../../domain/auth/permissoes-service-db";
 
+interface CountResult {
+  count: number;
+}
+
+interface LoteRow {
+  id: string;
+  usuario_id: string;
+  arquivo_nome: string;
+  arquivo_hash: string;
+  tipo: string;
+  tamanho_bytes: number;
+  status: string;
+  erro_mensagem?: string;
+  criado_em: string;
+  atualizado_em: string;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -108,7 +125,6 @@ describe("Rotas de Importação - Upload (/api/importacao/upload)", () => {
     app = createTestApp(db);
 
     // Criar usuário de teste
-    const authService = new AuthServiceDB(db);
     const hash = await gerarHashSenha(SENHA_PADRAO);
     db.prepare(
       `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
@@ -179,7 +195,7 @@ describe("Rotas de Importação - Upload (/api/importacao/upload)", () => {
     expect(response.body.detalhes.some((msg: string) => msg.includes("muito grande"))).toBe(true);
 
     // Verificar que nada foi armazenado
-    const lotes = db.prepare("SELECT COUNT(*) as count FROM importacao_lotes").get() as any;
+    const lotes = db.prepare("SELECT COUNT(*) as count FROM importacao_lotes").get() as CountResult;
     expect(lotes.count).toBe(0);
   });
 
@@ -284,7 +300,6 @@ describe("Rotas de Importação - Upload (/api/importacao/upload)", () => {
       .attach("arquivo", conteudo, "documento1.pdf");
 
     expect(response1.status).toBe(200);
-    const hash1 = response1.body.arquivo_hash;
 
     // Segundo upload com mesmo conteúdo
     const response2 = await request(app)
@@ -363,7 +378,7 @@ describe("Rotas de Importação - Upload (/api/importacao/upload)", () => {
       expect(response.status).toBe(200);
       const loteId = response.body.lote_id;
 
-      const lote = db.prepare("SELECT * FROM importacao_lotes WHERE id = ?").get(loteId) as any;
+      const lote = db.prepare("SELECT * FROM importacao_lotes WHERE id = ?").get(loteId) as LoteRow;
       expect(lote).toBeDefined();
       expect(lote.status).toBe("RECEBIDO");
       expect(lote.usuario_id).toBe("usuario-teste-id");
@@ -385,7 +400,7 @@ describe("Rotas de Importação - Upload (/api/importacao/upload)", () => {
       expect(response.status).toBe(200);
       const loteId = response.body.lote_id;
 
-      const lote = db.prepare("SELECT * FROM importacao_lotes WHERE id = ?").get(loteId) as any;
+      const lote = db.prepare("SELECT * FROM importacao_lotes WHERE id = ?").get(loteId) as LoteRow;
       expect(lote.arquivo_hash).toBe(response.body.arquivo_hash);
       expect(lote.tamanho_bytes).toBe(buffer.length);
     });

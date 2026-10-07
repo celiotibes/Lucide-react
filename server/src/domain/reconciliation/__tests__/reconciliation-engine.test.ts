@@ -471,19 +471,29 @@ describe("ReconciliationEngine", () => {
     it("should approve a match", async () => {
       const matchId = randomUUID();
       const userId = randomUUID();
+      const ledgerId = randomUUID();
+      const sourceId = randomUUID();
+
+      // Insert users first
+      db.prepare(`INSERT INTO usuarios (id, email, nome) VALUES (?, ?, ?)`).run(
+        userId,
+        "test@example.com",
+        "Test User"
+      );
+
+      // Insert ledger entry
+      db.prepare(
+        `INSERT INTO ledger_entries
+       (id, data, tipo, categoria, valor, descricao, usuario_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(ledgerId, "2024-01-15", "receita", "receita", 1000, "Test", userId);
 
       // Insert test data
       db.prepare(
         `INSERT INTO reconciliation_matches
        (id, ledger_entry_id, source_transaction_id, match_score, status)
        VALUES (?, ?, ?, ?, ?)`
-      ).run(matchId, randomUUID(), randomUUID(), 90, "PENDING");
-
-      db.prepare(`INSERT INTO usuarios (id, email, nome) VALUES (?, ?, ?)`).run(
-        userId,
-        "test@example.com",
-        "Test User"
-      );
+      ).run(matchId, ledgerId, sourceId, 90, "PENDING");
 
       await engine.approveMatch(matchId, userId, "Looks good");
 
@@ -498,18 +508,28 @@ describe("ReconciliationEngine", () => {
     it("should reject a match", async () => {
       const matchId = randomUUID();
       const userId = randomUUID();
+      const ledgerId = randomUUID();
+      const sourceId = randomUUID();
 
-      db.prepare(
-        `INSERT INTO reconciliation_matches
-       (id, ledger_entry_id, source_transaction_id, match_score, status)
-       VALUES (?, ?, ?, ?, ?)`
-      ).run(matchId, randomUUID(), randomUUID(), 50, "PENDING");
-
+      // Insert users first
       db.prepare(`INSERT INTO usuarios (id, email, nome) VALUES (?, ?, ?)`).run(
         userId,
         "test@example.com",
         "Test User"
       );
+
+      // Insert ledger entry
+      db.prepare(
+        `INSERT INTO ledger_entries
+       (id, data, tipo, categoria, valor, descricao, usuario_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(ledgerId, "2024-01-15", "receita", "receita", 1000, "Test", userId);
+
+      db.prepare(
+        `INSERT INTO reconciliation_matches
+       (id, ledger_entry_id, source_transaction_id, match_score, status)
+       VALUES (?, ?, ?, ?, ?)`
+      ).run(matchId, ledgerId, sourceId, 50, "PENDING");
 
       await engine.rejectMatch(matchId, userId, "Amount mismatch");
 

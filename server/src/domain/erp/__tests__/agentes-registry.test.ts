@@ -8,6 +8,7 @@
  * - Auditoria
  */
 
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
@@ -280,7 +281,7 @@ describe("AgenteRegistryService", () => {
 
   describe("verifySoleCNPJ", () => {
     it("verifica CNPJ válido", async () => {
-      const resultado = await service.verifySoleCNPJ("00000000000191");
+      const resultado = await service.verifySoleCNPJ("11444777000161");
       expect(resultado.valido).toBe(true);
       expect(resultado.nomeEmpresa).toBeDefined();
       expect(resultado.fonte).toBe("receita_federal");
@@ -294,8 +295,9 @@ describe("AgenteRegistryService", () => {
 
     it("retorna erro para CNPJ cancelado", async () => {
       // 00000000000191 é um dos CNPJs bloqueados na simulação
-      const resultado = await service.verifySoleCNPJ("11444777000161");
-      expect(resultado.fonte).toBe("receita_federal");
+      const resultado = await service.verifySoleCNPJ("00000000000191");
+      expect(resultado.valido).toBe(false);
+      expect(resultado.situacao).toContain("cancelado");
     });
   });
 

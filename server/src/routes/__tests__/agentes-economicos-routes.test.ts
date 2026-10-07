@@ -239,7 +239,7 @@ describe("Rotas de Agentes Econômicos", () => {
       const res = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
-        .send({ ...pessoaFisicaData, cpf_cnpj: "12345678900" });
+        .send({ ...pessoaFisicaData, cpf_cnpj: "00000000000" });
 
       expect(res.status).toBe(400);
       expect(res.body.erro).toContain("Validação");
@@ -559,7 +559,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .set("Authorization", `Bearer ${validToken}`)
         .send({
           ...pessoaFisicaData,
-          cpf_cnpj: "98765432101",
+          cpf_cnpj: "19960353503",
           nome: "Outro Agente",
         });
 
@@ -732,12 +732,12 @@ describe("Rotas de Agentes Econômicos", () => {
       const res10 = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
-        .send({ ...pessoaFisicaData, cpf_cnpj: "12345678901", telefone: "1133333333" });
+        .send({ ...pessoaFisicaData, cpf_cnpj: "27865298085", telefone: "1133333333" });
 
       const res11 = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
-        .send({ ...pessoaFisicaData, cpf_cnpj: "12345678902", telefone: "11933333333" });
+        .send({ ...pessoaFisicaData, cpf_cnpj: "45522164503", telefone: "11933333333" });
 
       expect(res10.status).toBe(201);
       expect(res11.status).toBe(201);
