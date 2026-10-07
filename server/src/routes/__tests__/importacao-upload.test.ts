@@ -20,11 +20,12 @@ import multer from "multer";
 import { AuthServiceDB } from "../../domain/auth/auth-service-db";
 import { AuditTrailServiceDB } from "../../domain/auth/audit-trail-db";
 import { gerarHashSenha } from "../../domain/auth/password";
-import { criarRotasAuth } from "../auth-routes";
+import { criarRotasAuth, type AuthRoutesDeps } from "../auth-routes";
 import { criarRotasImportacaoUpload } from "../importacao-upload-routes";
 import { tokenDoCookie } from "./token-cookie.js";
 import { FileType } from "../../domain/importacao/tipos.js";
 import { createHash } from "crypto";
+import type { PermissoesServiceDB } from "../../domain/auth/permissoes-service-db";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
