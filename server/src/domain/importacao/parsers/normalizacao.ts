@@ -93,6 +93,7 @@ export class NormalizadorTransacao {
    */
   static normalizarValor(
     valor: number | string | undefined,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _separadorDecimal: string = ".",
   ): number | null {
     if (valor === undefined || valor === null || valor === "") return null;

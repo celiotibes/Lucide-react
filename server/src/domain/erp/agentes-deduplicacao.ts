@@ -558,7 +558,10 @@ export class AgentesDeduplicacaoService {
             "SELECT changes() as count"
           ) as unknown;
           totalTransacoesMigradas = changesLedger[0]?.count || 0;
-        } catch (_e) {
+        } catch (
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          _e
+        ) {
           // Se a coluna não existir, ignorar
           console.log(
             "Nota: ledger_entries não possui coluna agente_id"
@@ -683,7 +686,10 @@ export class AgentesDeduplicacaoService {
             registroMerge.agente_id_2,
             registroMerge.agente_id_1
           );
-        } catch (_e) {
+        } catch (
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          _e
+        ) {
           // Ignorar se coluna não existir
         }
 

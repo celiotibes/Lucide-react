@@ -35,6 +35,7 @@ class MockAuthService implements Partial<AuthServiceDB> {
 }
 
 class MockAuditService implements Partial<AuditTrailServiceDB> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   registrarAcao = (_contexto: unknown, _acao: string, _recurso: string, _id: string, _dados: unknown) => {
     // Mock implementation
   };
@@ -43,6 +44,7 @@ class MockAuditService implements Partial<AuditTrailServiceDB> {
 describe("Rotas de Agentes Econômicos", () => {
   let app: express.Application;
   let db: Database.Database;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let _agenteService: AgenteService;
   let mockAuthService: MockAuthService;
   let mockAuditService: MockAuditService;
@@ -255,6 +257,7 @@ describe("Rotas de Agentes Econômicos", () => {
     });
 
     it("deve rejeitar pessoa jurídica sem nome fantasia", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { nome_fantasia: _nome_fantasia, ...data } = pessoaJuridicaData;
       const res = await request(app)
         .post("/api/v1/agentes-economicos")
@@ -265,6 +268,7 @@ describe("Rotas de Agentes Econômicos", () => {
     });
 
     it("deve rejeitar pessoa física sem nome da mãe", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { pessoa_fisica_pf_nome_mae: _pessoa_fisica_pf_nome_mae, ...data } = pessoaFisicaData;
       const res = await request(app)
         .post("/api/v1/agentes-economicos")
@@ -551,6 +555,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .set("Authorization", `Bearer ${validToken}`)
         .send(pessoaFisicaData);
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const _agente2 = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
@@ -677,6 +682,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .send({ ...pessoaFisicaData, cpf_cnpj: "11144477735" });
 
       // Criar segundo agente com nome similar
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const _agente2 = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)

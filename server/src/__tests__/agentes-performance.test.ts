@@ -294,6 +294,7 @@ describe('Agentes Performance Tests', () => {
     it('should filter by papel efficiently', () => {
       const startTime = performance.now();
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const items = db.prepare(
         'SELECT * FROM agentes_economicos WHERE papel = ? LIMIT 100'
       ).all('tenant') as unknown[];
@@ -307,6 +308,7 @@ describe('Agentes Performance Tests', () => {
     it('should filter by ativo status efficiently', () => {
       const startTime = performance.now();
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const items = db.prepare(
         'SELECT * FROM agentes_economicos WHERE ativo = 1 LIMIT 100'
       ).all() as unknown[];
@@ -320,6 +322,7 @@ describe('Agentes Performance Tests', () => {
     it('should combine multiple filters efficiently', () => {
       const startTime = performance.now();
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const items = db.prepare(
         'SELECT * FROM agentes_economicos WHERE tipo_entidade = ? AND ativo = 1 AND papel = ? LIMIT 100'
       ).all('pessoa_fisica', 'tenant') as unknown[];
@@ -353,6 +356,7 @@ describe('Agentes Performance Tests', () => {
 
       const startTime = performance.now();
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const duplicates = db.prepare(
         'SELECT * FROM agentes_economicos WHERE cpf_cnpj = ?'
       ).all(cpf.cpf_cnpj) as unknown[];
@@ -366,6 +370,7 @@ describe('Agentes Performance Tests', () => {
     it('should find candidates for fuzzy matching on large dataset', () => {
       const startTime = performance.now();
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const candidates = db.prepare(
         `SELECT ae1.id, ae2.id, ae1.nome, ae2.nome
          FROM agentes_economicos ae1
@@ -535,6 +540,7 @@ describe('Agentes Performance Tests', () => {
     it('should search by multiple criteria efficiently', () => {
       const startTime = performance.now();
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const results = db.prepare(
         `SELECT * FROM agentes_economicos
          WHERE tipo_entidade = ?
@@ -590,6 +596,7 @@ describe('Agentes Performance Tests', () => {
       const startTime = performance.now();
 
       // This query should use idx_agentes_economicos_papel index
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const results = db.prepare(
         'SELECT * FROM agentes_economicos WHERE papel = ? LIMIT 100'
       ).all('supplier') as unknown[];
@@ -604,6 +611,7 @@ describe('Agentes Performance Tests', () => {
       const startTime = performance.now();
 
       // This query should use idx_agentes_economicos_ativos index
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const results = db.prepare(
         'SELECT * FROM agentes_economicos WHERE ativo = 1 LIMIT 100'
       ).all() as unknown[];

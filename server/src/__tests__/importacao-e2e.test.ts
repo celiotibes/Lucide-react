@@ -551,7 +551,10 @@ describe('E2E Import Workflow', () => {
 
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('PROCESSADA', linha.id);
             successCount++;
-          } catch (_error) {
+          } catch (
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            _error
+          ) {
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('ERRO', linha.id);
           }
         });

@@ -9,14 +9,12 @@
  * - Performance requirements (<5s per document)
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   initializeOCR,
   terminateOCR,
   extractTextFromPDF,
-  extractTextFromImage,
   extractStructuredData,
-  processDocument,
   formatConfidenceScores,
   type ExtractedInvoice,
 } from "../ocr-service.js";

@@ -20,6 +20,7 @@ import multer from "multer";
 import { AuthServiceDB } from "../../domain/auth/auth-service-db";
 import { AuditTrailServiceDB } from "../../domain/auth/audit-trail-db";
 import { gerarHashSenha } from "../../domain/auth/password";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { criarRotasAuth, type AuthRoutesDeps } from "../auth-routes";
 import { criarRotasImportacaoUpload } from "../importacao-upload-routes";
 import { tokenDoCookie } from "./token-cookie.js";

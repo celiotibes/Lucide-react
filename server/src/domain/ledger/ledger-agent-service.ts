@@ -526,8 +526,10 @@ export function getAgentAging(
   agenteId: string
 ): AgingAnalysis[] {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _dataAtual = new Date().toISOString().split('T')[0];
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _sql = `
       SELECT
         ? as faixa_dias,
@@ -550,6 +552,7 @@ export function getAgentAging(
     `;
 
     // Implementação alternativa mais simples
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _faixas = [
       { dias: '0-30', dataLimite: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
       { dias: '31-60', dataLimite: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },

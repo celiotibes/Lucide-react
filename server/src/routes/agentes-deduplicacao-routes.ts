@@ -372,7 +372,10 @@ export function setupAgentesDeduplicacaoRoutes(
                   usuarioId
                 );
                 totalRegistradas++;
-              } catch (e) {
+              } catch (
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                _e
+              ) {
                 // Ignorar conflitos
               }
             }

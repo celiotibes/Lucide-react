@@ -483,6 +483,7 @@ export class AgenteRegistryService {
   /**
    * Simula consulta a lista OFAC
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async consultarOFAC(cpf_cnpj: string, _nome: string): Promise<boolean> {
     // Simula delay de rede
     await new Promise((resolve) => setTimeout(resolve, 50));

@@ -58,6 +58,7 @@ function gerarUUID(): string {
 /**
  * Get file buffer from lote_id
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getFileBufferFromLote(db: Database.Database, loteId: string): Buffer | null {
   try {
     // In a real implementation, the file would be stored in a blob table
@@ -169,6 +170,7 @@ function storeExtractionResults(
 /**
  * Trigger OCR extraction for a lote (asynchronous)
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function triggerOCRExtraction(
   db: Database.Database,
   loteId: string,

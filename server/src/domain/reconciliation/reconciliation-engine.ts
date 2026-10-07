@@ -55,6 +55,7 @@ export class ReconciliationEngine {
   async matchTransactions(
     ledgerEntries: LedgerEntryForReconciliation[],
     sourceTransactions: SourceTransaction[],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _agenteId?: string
   ): Promise<MatchingResult[]> {
     const results: MatchingResult[] = [];
@@ -226,6 +227,7 @@ export class ReconciliationEngine {
     endDate: string,
     userId?: string
   ): Promise<ReconciliationStatus> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _matchId = randomUUID();
     const startTime = Date.now();
 

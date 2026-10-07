@@ -435,6 +435,7 @@ describe("POST /api/agentes/:id/verificar-duplicata", () => {
         papel: "tenant",
       });
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const id2 = res2.body.id;
 
     // Verifica duplicata do primeiro - não deve encontrar
