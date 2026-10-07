@@ -99,6 +99,7 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase14-portal-inquilino.sql",
       "migrations-phase15-prestador-apontamentos.sql",
       "migrations-phase16-ledger-entries.sql",
+      "migrations-phase16-revisao-ia.sql",
       "migrations-phase17-importacao.sql",
       "migrations-phase18-agentes-economicos-sqlite.sql",
       "migrations-phase18-ocr-extraction.sql",
@@ -107,7 +108,8 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase20-agentes-deduplicacao-sqlite.sql",
     ]);
 
-    // Adicionar colunas opcionais de forma idempotente (Phase 20)
+    // Adicionar colunas opcionais de forma idempotente (Phase 19 e 20)
+    ensurePhase19Columns(db);
     ensurePhase20Columns(db);
 
     // Setup periodic cleanup of expired sessions
@@ -310,6 +312,95 @@ export function cleanupExpiredSessions(db: Database.Database): number {
   } catch (erro) {
     logger.error("[Database] Error cleaning expired sessions:", erro);
     return 0;
+  }
+}
+
+/**
+ * Adiciona colunas para Phase 19 de forma idempotente
+ * SQLite não suporta IF NOT EXISTS em ALTER TABLE, então usa PRAGMA table_info para verificar
+ */
+function ensurePhase19Columns(db: Database.Database): void {
+  try {
+    // Verificar se as colunas já existem usando PRAGMA table_info
+    const columns = db
+      .prepare("PRAGMA table_info(ledger_entries)")
+      .all() as Array<{ name: string }>;
+
+    const columnNames = columns.map((c: any) => c.name);
+
+    // Adicionar coluna agente_id se não existir
+    if (!columnNames.includes("agente_id")) {
+      try {
+        db.exec("ALTER TABLE ledger_entries ADD COLUMN agente_id TEXT");
+        logger.info("[Database] Added column agente_id to ledger_entries");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add agente_id column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+
+    // Adicionar coluna agente_papel se não existir
+    if (!columnNames.includes("agente_papel")) {
+      try {
+        db.exec("ALTER TABLE ledger_entries ADD COLUMN agente_papel TEXT");
+        logger.info("[Database] Added column agente_papel to ledger_entries");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add agente_papel column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+
+    // Adicionar coluna referencia_agente_externo se não existir
+    if (!columnNames.includes("referencia_agente_externo")) {
+      try {
+        db.exec("ALTER TABLE ledger_entries ADD COLUMN referencia_agente_externo TEXT");
+        logger.info("[Database] Added column referencia_agente_externo to ledger_entries");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add referencia_agente_externo column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+
+    // Adicionar coluna backfill_em se não existir
+    if (!columnNames.includes("backfill_em")) {
+      try {
+        db.exec("ALTER TABLE ledger_entries ADD COLUMN backfill_em TIMESTAMP");
+        logger.info("[Database] Added column backfill_em to ledger_entries");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add backfill_em column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+
+    // Adicionar coluna agente_atualizado_em se não existir
+    if (!columnNames.includes("agente_atualizado_em")) {
+      try {
+        db.exec("ALTER TABLE ledger_entries ADD COLUMN agente_atualizado_em TIMESTAMP");
+        logger.info("[Database] Added column agente_atualizado_em to ledger_entries");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add agente_atualizado_em column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+
+    // Adicionar coluna agente_atualizado_por se não existir
+    if (!columnNames.includes("agente_atualizado_por")) {
+      try {
+        db.exec("ALTER TABLE ledger_entries ADD COLUMN agente_atualizado_por TEXT");
+        logger.info("[Database] Added column agente_atualizado_por to ledger_entries");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add agente_atualizado_por column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+  } catch (erro) {
+    logger.warn("[Database] Error checking Phase 19 columns:", erro instanceof Error ? erro.message : String(erro));
   }
 }
 
