@@ -106,6 +106,9 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase20-agentes-deduplicacao-sqlite.sql",
     ]);
 
+    // Adicionar colunas opcionais de forma idempotente (Phase 20)
+    ensurePhase20Columns(db);
+
     // Setup periodic cleanup of expired sessions
     setupSessionCleanup(db);
 
@@ -313,6 +316,47 @@ export function cleanupExpiredSessions(db: Database.Database): number {
  * Get the database instance
  * Must call initializeDatabase() first
  */
+/**
+ * Adiciona colunas opcionais para Phase 20 de forma idempotente
+ * SQLite não suporta IF NOT EXISTS em ALTER TABLE em todas as versões
+ */
+function ensurePhase20Columns(db: Database.Database): void {
+  try {
+    // Verificar se as colunas já existem usando PRAGMA table_info
+    const columns = db
+      .prepare("PRAGMA table_info(agentes_duplicatas_suspeitas)")
+      .all() as Array<{ name: string }>;
+
+    const columnNames = columns.map((c: any) => c.name);
+
+    // Adicionar coluna revisao_notas se não existir
+    if (!columnNames.includes("revisao_notas")) {
+      try {
+        db.exec("ALTER TABLE agentes_duplicatas_suspeitas ADD COLUMN revisao_notas TEXT");
+        logger.info("[Database] Added column revisao_notas to agentes_duplicatas_suspeitas");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add revisao_notas column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+
+    // Adicionar coluna merge_data se não existir
+    if (!columnNames.includes("merge_data")) {
+      try {
+        db.exec("ALTER TABLE agentes_duplicatas_suspeitas ADD COLUMN merge_data TIMESTAMP");
+        logger.info("[Database] Added column merge_data to agentes_duplicatas_suspeitas");
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("duplicate column"))) {
+          logger.warn("[Database] Could not add merge_data column:", e instanceof Error ? e.message : String(e));
+        }
+      }
+    }
+  } catch (erro) {
+    logger.warn("[Database] Error checking Phase 20 columns:", erro instanceof Error ? erro.message : String(erro));
+  }
+}
+
 export function getDatabase(): Database.Database {
   if (!dbInstance) {
     throw new Error(
