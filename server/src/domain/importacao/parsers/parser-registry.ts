@@ -124,7 +124,6 @@ export class ParserRegistry {
 
     try {
       // Importações dinâmicas dos parsers
-      console.log("[ParserRegistry] Starting async parser initialization...");
       const [
         csvModule,
         ofxModule,
@@ -134,7 +133,6 @@ export class ParserRegistry {
         import("./ofx-parser"),
         import("./mt940-parser"),
       ]);
-      console.log("[ParserRegistry] Imports successful, registering parsers...");
 
       const { parseCSV } = csvModule;
       const { parseOFX } = ofxModule;
@@ -174,14 +172,10 @@ export class ParserRegistry {
       });
 
       this.registrarParser("mt940", new MT940Parser());
-      console.log("[ParserRegistry] All parsers registered successfully");
 
       this.inicializado = true;
     } catch (erro) {
-      console.error("[ParserRegistry] Error during initialization:", erro instanceof Error ? erro.message : erro);
-      if (erro instanceof Error) {
-        console.error("[ParserRegistry] Error stack:", erro.stack);
-      }
+      console.error("Erro ao inicializar parsers:", erro instanceof Error ? erro.message : erro);
       this.inicializado = true; // Marcar como tentado, mesmo com erro
     }
   }
