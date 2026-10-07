@@ -29,7 +29,7 @@ describe("POST /api/carimbo-tempo", () => {
   const montar = (fetchImpl: typeof fetch) => {
     const app = express();
     app.use(express.json());
-    app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as any }));
+    app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as unknown }));
     app.use("/api/carimbo-tempo", criarRotasCarimbo({ authService, opcoesTsa: { urls: ["https://tsa.teste/tsr"], fetchImpl } }));
     return app;
   };

@@ -182,8 +182,8 @@ export function calcularDREPeriodo(
   dataInicio: string, // YYYY-MM-DD
   dataFim: string,   // YYYY-MM-DD
 ): ResultadoDRE {
-  const [anoIni, mesIni, diaIni] = dataInicio.split("-").map(Number);
-  const [anoFim, mesFim, diaFim] = dataFim.split("-").map(Number);
+  const [anoIni, mesIni] = dataInicio.split("-").map(Number);
+  const [anoFim, mesFim] = dataFim.split("-").map(Number);
 
   // Valida período
   if (anoIni > anoFim || (anoIni === anoFim && mesIni > mesFim)) {
@@ -349,7 +349,7 @@ export function buscarDREPeriodo(
     LIMIT 1
   `);
 
-  const row = stmt.get(ano, mes) as any;
+  const row = stmt.get(ano, mes) as unknown;
   if (!row) return null;
 
   // Reconstrói datas baseado em ano/mes
@@ -417,7 +417,7 @@ export function listarDREPeriodos(
   query += " ORDER BY ano DESC, mes DESC";
 
   const stmt = db.prepare(query);
-  const rows = stmt.all(...params) as any[];
+  const rows = stmt.all(...params) as Record<string, unknown>[];
 
   return rows.map((row) => {
     const dataInicio = `${row.ano}-${String(row.mes).padStart(2, "0")}-01`;

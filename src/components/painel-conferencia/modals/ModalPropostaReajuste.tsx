@@ -19,7 +19,6 @@ const ModalPropostaReajuste: React.FC<ModalPropostaReajusteProps> = ({
   onClose,
   reajusteIPCA,
   onConfirm,
-  usuarioId,
 }) => {
   const { db, persistir } = useDb();
   const [rubricas, setRubricas] = useState<RubricaReajuste[]>(

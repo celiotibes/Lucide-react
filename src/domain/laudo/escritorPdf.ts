@@ -17,6 +17,7 @@ import type { default as jsPDF } from "jspdf";
  * comum (U+0020), então a chamada não fazia absolutamente nada (comparação byte a byte
  * confirmou os dois lados idênticos). A normalização de NBSP nunca chegou a rodar. */
 export function sanitizarTextoPdf(texto: string): string {
+  // eslint-disable-next-line no-irregular-whitespace
   return texto.replace(/[−‐‑‒―]/g, "-").replace(/ /g, " ");
 }
 

@@ -21,12 +21,9 @@
 
 import { logger } from './logger-service.js';
 import BackupService, { BackupManifest } from './backup-service.js';
+import { getAlertService } from './alert-service.js';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
-import Database from 'better-sqlite3';
-import { enviarAlertaEmail, templateAlertaCritico } from '../utils/email-alertas.js';
-import { enviarAlertaSlack } from '../utils/slack-alertas.js';
 
 interface ScheduleConfig {
   backupSchedule: string;        // "0 2 * * *" ou "1440" (minutos)
@@ -35,15 +32,6 @@ interface ScheduleConfig {
   fiscalRetentionDays: number;   // Fiscal: 1825 (~5 anos)
   nasPath?: string;              // /mnt/nas/backups
   nasCopyEnabled: boolean;       // ativar cópia NAS
-  alertsEnabled?: boolean;       // ativar alertas por email/Slack
-  alertsEmail?: string;          // email(s) para alertas (separados por vírgula)
-}
-
-interface BackupRetryState {
-  failureCount: number;          // Número de falhas consecutivas
-  lastError?: string;            // Último erro ocorrido
-  lastFailureTime?: Date;        // Quando falhou pela última vez
-  nextRetryTime?: Date;          // Quando vai tentar novamente
 }
 
 export class BackupScheduler {
@@ -54,11 +42,6 @@ export class BackupScheduler {
   private isRunning: boolean = false;
   private lastBackupTime: Date | null = null;
   private lastVerifyTime: Date | null = null;
-
-  // Retry and alerts
-  private backupRetryState: BackupRetryState = { failureCount: 0 };
-  private MAX_RETRY_ATTEMPTS = 3;
-  private RETRY_BASE_DELAY_MS = 300000; // 5 minutos base
 
   constructor(backupService: BackupService, config?: Partial<ScheduleConfig>) {
     this.backupService = backupService;
@@ -73,10 +56,6 @@ export class BackupScheduler {
       nasCopyEnabled: config?.nasCopyEnabled !== undefined
         ? config.nasCopyEnabled
         : process.env.NAS_COPY_ENABLED === 'true',
-      alertsEnabled: config?.alertsEnabled !== undefined
-        ? config.alertsEnabled
-        : process.env.BACKUP_ALERTS_ENABLED !== 'false',
-      alertsEmail: config?.alertsEmail || process.env.BACKUP_ALERTS_EMAIL,
     };
 
     // Validar configuração NAS
@@ -92,8 +71,6 @@ export class BackupScheduler {
       fiscalRetentionDays: this.config.fiscalRetentionDays,
       nasPath: this.config.nasPath || 'não configurado',
       nasCopyEnabled: this.config.nasCopyEnabled,
-      alertsEnabled: this.config.alertsEnabled,
-      alertsEmail: this.config.alertsEmail ? 'configurado' : 'não configurado',
     });
   }
 
@@ -187,135 +164,23 @@ export class BackupScheduler {
   }
 
   /**
-   * Calcula o tempo de espera para retry com backoff exponencial
-   * Tentativa 1: 5 minutos
-   * Tentativa 2: 10 minutos
-   * Tentativa 3: 20 minutos
-   */
-  private calcularDelayRetry(tentativa: number): number {
-    return this.RETRY_BASE_DELAY_MS * Math.pow(2, tentativa - 1);
-  }
-
-  /**
-   * Envia alerta de falha de backup por email e Slack
-   */
-  private async enviarAlertaFalhaBackup(erro: unknown, tentativa: number): Promise<void> {
-    if (!this.config.alertsEnabled) return;
-
-    const mensagemErro = erro instanceof Error ? erro.message : String(erro);
-    const agora = new Date().toISOString();
-
-    // Preparar dados para alerta
-    const detalhes = {
-      timestamp: agora,
-      tentativa: `${tentativa}/${this.MAX_RETRY_ATTEMPTS}`,
-      erro: mensagemErro,
-      proximaRetentativa: tentativa < this.MAX_RETRY_ATTEMPTS
-        ? new Date(Date.now() + this.calcularDelayRetry(tentativa + 1)).toISOString()
-        : 'Nenhuma',
-    };
-
-    // 1. Email alert (se configurado)
-    if (this.config.alertsEmail) {
-      try {
-        const html = templateAlertaCritico({
-          titulo: `Falha no Backup Agendado (Tentativa ${tentativa}/${this.MAX_RETRY_ATTEMPTS})`,
-          mensagem: `O backup agendado falhou. ${
-            tentativa < this.MAX_RETRY_ATTEMPTS
-              ? `Sistema tentará novamente em ${this.calcularDelayRetry(tentativa + 1) / 60000} minutos.`
-              : 'Todas as tentativas de retry foram exauridas.'
-          }`,
-          detalhes,
-          timestamp: agora,
-        });
-
-        await enviarAlertaEmail({
-          assunto: `❌ Falha de Backup - Tentativa ${tentativa}/${this.MAX_RETRY_ATTEMPTS}`,
-          corpo: html,
-          destinatario: this.config.alertsEmail,
-          html: true,
-          severidade: tentativa === this.MAX_RETRY_ATTEMPTS ? 'critical' : 'warning',
-        });
-      } catch (emailErro) {
-        logger.error('[BackupScheduler] Erro ao enviar alerta por email:', emailErro);
-      }
-    }
-
-    // 2. Slack alert (se configurado)
-    if (process.env.SLACK_WEBHOOK_URL) {
-      try {
-        await enviarAlertaSlack({
-          mensagem: `Falha no Backup Agendado (Tentativa ${tentativa}/${this.MAX_RETRY_ATTEMPTS})`,
-          detalhes: mensagemErro,
-          severidade: tentativa === this.MAX_RETRY_ATTEMPTS ? 'critical' : 'warning',
-          campos: detalhes,
-        });
-      } catch (slackErro) {
-        logger.error('[BackupScheduler] Erro ao enviar alerta Slack:', slackErro);
-      }
-    }
-
-    // 3. Log estruturado para auditoria
-    logger.warn('[BackupScheduler] Falha de backup alertada', {
-      tentativa,
-      maxTentativas: this.MAX_RETRY_ATTEMPTS,
-      erro: mensagemErro,
-      proximaRetentativa: detalhes.proximaRetentativa,
-    });
-  }
-
-  /**
-   * Envia notificação de sucesso do backup
-   */
-  private async enviarNotificacaoSucesso(backupId: string): Promise<void> {
-    if (!this.config.alertsEnabled) return;
-
-    try {
-      if (process.env.SLACK_WEBHOOK_URL) {
-        await enviarAlertaSlack({
-          mensagem: 'Backup Completado com Sucesso',
-          severidade: 'info',
-          campos: {
-            'Backup ID': backupId,
-            'Timestamp': new Date().toISOString(),
-            'Status': '✅ OK',
-          },
-        });
-      }
-    } catch (erro) {
-      logger.error('[BackupScheduler] Erro ao enviar notificação de sucesso:', erro);
-    }
-  }
-
-  /**
    * Executa backup imediato com retenção e cópia NAS
-   * Implementa retry automático com exponential backoff (3 tentativas máximo)
    */
   private async executarBackup(): Promise<void> {
     try {
       this.lastBackupTime = new Date();
-
-      // Se houver retry agendado e ainda não é a hora, aguardar próxima tentativa
-      if (this.backupRetryState.nextRetryTime && Date.now() < this.backupRetryState.nextRetryTime.getTime()) {
-        logger.debug('[BackupScheduler] Retry agendado para mais tarde, pulando este intervalo');
-        return;
-      }
-
-      // Se ainda há tentativas disponíveis, tentar novamente
-      if (this.backupRetryState.failureCount > 0 && this.backupRetryState.failureCount < this.MAX_RETRY_ATTEMPTS) {
-        logger.info(`[BackupScheduler] Retry de backup (tentativa ${this.backupRetryState.failureCount + 1}/${this.MAX_RETRY_ATTEMPTS})`);
-      } else if (this.backupRetryState.failureCount === 0) {
-        logger.info('[BackupScheduler] Iniciando backup agendado...');
-      } else {
-        logger.error('[BackupScheduler] Máximo de tentativas atingido, aguardando próximo intervalo agendado');
-        this.backupRetryState = { failureCount: 0 }; // Reset para próximo ciclo
-        return;
-      }
+      logger.info('[BackupScheduler] Iniciando backup agendado...');
 
       // 1. Criar backup
       const result = await this.backupService.criarBackup();
       if (!result.sucesso) {
-        throw new Error(`Falha ao criar backup: ${JSON.stringify(result.erros)}`);
+        logger.error('[BackupScheduler] Falha ao criar backup:', result.erros);
+        // Enviar alerta de falha
+        await this.enviarAlertaFalhaBackup(
+          `backup-${new Date().toISOString()}`,
+          result.erros.join('; ')
+        );
+        return;
       }
 
       logger.info('[BackupScheduler] Backup criado com sucesso:', result.backupId);
@@ -328,38 +193,17 @@ export class BackupScheduler {
       // 3. Aplicar retenção
       await this.aplicarRetencao();
 
-      // ✅ Sucesso — resetar retry state e enviar notificação
-      this.backupRetryState = { failureCount: 0 };
-      await this.enviarNotificacaoSucesso(result.backupId);
-
       logger.info('[BackupScheduler] Backup agendado completo:', {
         backupId: result.backupId,
         timestamp: new Date().toISOString(),
       });
     } catch (erro) {
-      // ❌ Falha — implementar retry com exponential backoff
-      this.backupRetryState.failureCount++;
-      this.backupRetryState.lastError = erro instanceof Error ? erro.message : String(erro);
-      this.backupRetryState.lastFailureTime = new Date();
-
-      logger.error(`[BackupScheduler] Backup falhou (tentativa ${this.backupRetryState.failureCount}/${this.MAX_RETRY_ATTEMPTS}):`, erro);
-
-      // Enviar alerta
-      await this.enviarAlertaFalhaBackup(erro, this.backupRetryState.failureCount);
-
-      // Se ainda há tentativas, agendar retry
-      if (this.backupRetryState.failureCount < this.MAX_RETRY_ATTEMPTS) {
-        const delayMs = this.calcularDelayRetry(this.backupRetryState.failureCount);
-        const proximaTentativa = new Date(Date.now() + delayMs);
-        this.backupRetryState.nextRetryTime = proximaTentativa;
-
-        logger.info(`[BackupScheduler] Próxima tentativa agendada para: ${proximaTentativa.toISOString()} (em ${delayMs / 60000} minutos)`);
-
-        // Agendar retry imediato após delay
-        setTimeout(() => this.executarBackup(), delayMs);
-      } else {
-        logger.error('[BackupScheduler] ⚠️  CRÍTICO: Máximo de tentativas atingido. Backup não será tentado até próximo intervalo agendado.');
-      }
+      logger.error('[BackupScheduler] Erro durante backup agendado:', erro);
+      // Enviar alerta de erro
+      await this.enviarAlertaFalhaBackup(
+        `backup-${new Date().toISOString()}`,
+        erro instanceof Error ? erro.message : String(erro)
+      );
     }
   }
 
@@ -408,6 +252,12 @@ export class BackupScheduler {
 
     } catch (erro) {
       logger.error('[BackupScheduler] Erro ao copiar para NAS (cópia local mantida):', erro);
+      // Enviar alerta de falha na cópia NAS
+      await this.enviarAlertaCopiaFalhou(
+        backupId,
+        erro instanceof Error ? erro.message : String(erro),
+        this.config.nasPath
+      );
       // Não falha o backup inteiro por erro de NAS
     }
   }
@@ -446,68 +296,6 @@ export class BackupScheduler {
   }
 
   /**
-   * Envia alerta quando verificação de integridade falha
-   */
-  private async enviarAlertaVerificacaoFalhou(backupId: string, erros: string[], integridade: string): Promise<void> {
-    if (!this.config.alertsEnabled) return;
-
-    const agora = new Date().toISOString();
-    const detalhes = {
-      timestamp: agora,
-      'Backup ID': backupId,
-      'Status de Integridade': integridade,
-      'Erros': erros.join('; '),
-    };
-
-    // 1. Email alert (se configurado)
-    if (this.config.alertsEmail) {
-      try {
-        const html = templateAlertaCritico({
-          titulo: 'Falha na Verificação de Integridade de Backup',
-          mensagem: `O teste de restauração do backup ${backupId} falhou. Isso indica um problema potencial com a capacidade de recuperação.`,
-          detalhes: {
-            'Backup ID': backupId,
-            'Integridade': integridade,
-            'Erros': erros,
-            'Timestamp': agora,
-          },
-          timestamp: agora,
-        });
-
-        await enviarAlertaEmail({
-          assunto: `🚨 Backup inválido: Verificação de integridade falhou - ${backupId}`,
-          corpo: html,
-          destinatario: this.config.alertsEmail,
-          html: true,
-          severidade: 'critical',
-        });
-      } catch (emailErro) {
-        logger.error('[BackupScheduler] Erro ao enviar alerta de verificação por email:', emailErro);
-      }
-    }
-
-    // 2. Slack alert (se configurado)
-    if (process.env.SLACK_WEBHOOK_URL) {
-      try {
-        await enviarAlertaSlack({
-          mensagem: 'Falha na Verificação de Integridade de Backup',
-          detalhes: `Backup ID: ${backupId}\n\nErros:\n${erros.join('\n')}`,
-          severidade: 'critical',
-          campos: detalhes,
-        });
-      } catch (slackErro) {
-        logger.error('[BackupScheduler] Erro ao enviar alerta de verificação Slack:', slackErro);
-      }
-    }
-
-    logger.error('[BackupScheduler] 🚨 CRÍTICO: Verificação de backup falhou', {
-      backupId,
-      erros,
-      integridade,
-    });
-  }
-
-  /**
    * Verifica integridade do backup mais recente periodicamente
    * Testa: descriptografia, PRAGMA integrity_check, contagem de linhas
    */
@@ -543,53 +331,27 @@ export class BackupScheduler {
       const testResult = await this.backupService.testarRestauracao(encFile, manifesto);
 
       if (testResult.valido) {
-        logger.info('[BackupScheduler] ✅ Verificação de restauração PASSOU', {
+        logger.info('[BackupScheduler] Verificação de restauração PASSOU', {
           backupId: latestBackup.id,
           integridade: testResult.relatorio.integridade,
           tabelas: testResult.relatorio.tabelas,
         });
       } else {
-        logger.error('[BackupScheduler] ❌ Verificação de restauração FALHOU', {
+        logger.error('[BackupScheduler] Verificação de restauração FALHOU', {
           backupId: latestBackup.id,
           erros: testResult.erros,
           integridade: testResult.relatorio.integridade,
         });
-
-        // Enviar alerta de falha de verificação
+        // Enviar alerta de falha na verificação de restauração
         await this.enviarAlertaVerificacaoFalhou(
           latestBackup.id,
-          testResult.erros || [],
-          testResult.relatorio.integridade || 'desconhecido'
+          testResult.erros.join('; '),
+          testResult.relatorio
         );
       }
 
     } catch (erro) {
       logger.error('[BackupScheduler] Erro durante verificação de restauração:', erro);
-
-      // Enviar alerta de erro inesperado na verificação
-      if (this.config.alertsEnabled && this.config.alertsEmail) {
-        try {
-          const mensagemErro = erro instanceof Error ? erro.message : String(erro);
-          const html = templateAlertaCritico({
-            titulo: 'Erro ao Executar Verificação de Backup',
-            mensagem: 'Ocorreu um erro inesperado ao tentar verificar a integridade do backup.',
-            detalhes: {
-              'Timestamp': new Date().toISOString(),
-              'Erro': mensagemErro,
-            },
-          });
-
-          await enviarAlertaEmail({
-            assunto: '⚠️ Erro ao verificar integridade de backup',
-            corpo: html,
-            destinatario: this.config.alertsEmail,
-            html: true,
-            severidade: 'warning',
-          });
-        } catch (alertErro) {
-          logger.error('[BackupScheduler] Erro ao enviar alerta de erro de verificação:', alertErro);
-        }
-      }
     }
   }
 
@@ -704,26 +466,75 @@ export class BackupScheduler {
   }
 
   /**
-   * Retorna status do scheduler com informações de retry
+   * Envia alerta de falha de backup
+   */
+  private async enviarAlertaFalhaBackup(backupName: string, erroMessage: string): Promise<void> {
+    try {
+      const alertService = getAlertService();
+      await alertService.enviarAlertaFalhaBackup({
+        backupName,
+        errorMessage: erroMessage,
+        timestamp: new Date(),
+        severity: 'critical',
+        recoverySteps: [
+          'Verificar logs do sistema para detalhes do erro',
+          'Verificar espaço disponível no disco',
+          'Validar permissões de arquivo/diretório',
+          'Tentar executar backup manualmente',
+          'Se o problema persistir, contactar suporte',
+        ],
+      });
+    } catch (erro) {
+      logger.error('[BackupScheduler] Erro ao enviar alerta de falha:', erro);
+    }
+  }
+
+  /**
+   * Envia alerta de falha na verificação de restauração
+   */
+  private async enviarAlertaVerificacaoFalhou(
+    backupId: string,
+    erroMessage: string,
+    detalhes?: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      const alertService = getAlertService();
+      await alertService.enviarAlertaVerificacaoFalhou(backupId, erroMessage, detalhes);
+    } catch (erro) {
+      logger.error('[BackupScheduler] Erro ao enviar alerta de verificação falha:', erro);
+    }
+  }
+
+  /**
+   * Envia alerta de falha na cópia NAS
+   */
+  private async enviarAlertaCopiaFalhou(
+    backupId: string,
+    erroMessage: string,
+    nasPath: string
+  ): Promise<void> {
+    try {
+      const alertService = getAlertService();
+      await alertService.enviarAlertaCopiaFalhou(backupId, erroMessage, nasPath);
+    } catch (erro) {
+      logger.error('[BackupScheduler] Erro ao enviar alerta de cópia falha:', erro);
+    }
+  }
+
+  /**
+   * Retorna status do scheduler
    */
   getStatus(): {
     running: boolean;
     lastBackup: string | null;
     lastVerify: string | null;
     config: ScheduleConfig;
-    retryState: BackupRetryState & { alertsConfigured: boolean };
   } {
     return {
       running: this.isRunning,
       lastBackup: this.lastBackupTime?.toISOString() || null,
       lastVerify: this.lastVerifyTime?.toISOString() || null,
       config: this.config,
-      retryState: {
-        ...this.backupRetryState,
-        lastFailureTime: this.backupRetryState.lastFailureTime?.toISOString() as any,
-        nextRetryTime: this.backupRetryState.nextRetryTime?.toISOString() as any,
-        alertsConfigured: this.config.alertsEnabled && (!!this.config.alertsEmail || !!process.env.SLACK_WEBHOOK_URL),
-      },
     };
   }
 }

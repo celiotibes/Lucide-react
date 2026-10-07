@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import express from "express";
 import { z } from "zod";
 import type Database from "better-sqlite3";
+import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import type { AuditTrailServiceDB } from "../domain/auth/audit-trail-db.js";
 import type { ContextoAutenticacao } from "../domain/auth/auth-service.js";
@@ -163,11 +164,10 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
 
     const parse = esquemaApontamento.safeParse(req.body);
     if (!parse.success) {
-      res.status(400).json({
+      return res.status(400).json({
         erro: "Payload inválido",
         detalhes: parse.error.issues.map((i) => `${i.path.join(".") || "(raiz)"}: ${i.message}`),
       });
-      return;
     }
     const p = parse.data;
 
@@ -176,24 +176,20 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
     for (const [i, a] of p.anexos.entries()) {
       const conteudo = Buffer.from(a.conteudoBase64, "base64");
       if (conteudo.length === 0 || conteudo.toString("base64").replace(/=+$/, "") !== a.conteudoBase64.replace(/=+$/, "")) {
-        res.status(400).json({ erro: "Payload inválido", detalhes: [`anexos.${i}.conteudoBase64: base64 malformado`] });
-        return;
+        return res.status(400).json({ erro: "Payload inválido", detalhes: [`anexos.${i}.conteudoBase64: base64 malformado`] });
       }
       if (conteudo.length > LIMITE_ANEXO_BYTES) {
-        res.status(413).json({ erro: `Anexo "${sanitizarNome(a.nome)}" excede o limite de 5 MB` });
-        return;
+        return res.status(413).json({ erro: `Anexo "${sanitizarNome(a.nome)}" excede o limite de 5 MB` });
       }
       total += conteudo.length;
       const sha256 = createHash("sha256").update(conteudo).digest("hex");
       if (a.sha256 && a.sha256.toLowerCase() !== sha256) {
-        res.status(400).json({ erro: "Payload inválido", detalhes: [`anexos.${i}.sha256: não confere com o conteúdo`] });
-        return;
+        return res.status(400).json({ erro: "Payload inválido", detalhes: [`anexos.${i}.sha256: não confere com o conteúdo`] });
       }
       anexos.push({ nome: sanitizarNome(a.nome), tipo: a.tipo, tamanho: conteudo.length, sha256, conteudo });
     }
     if (total > LIMITE_TOTAL_ANEXOS_BYTES) {
-      res.status(413).json({ erro: "Os anexos somam mais que o limite de 15 MB" });
-      return;
+      return res.status(413).json({ erro: "Os anexos somam mais que o limite de 15 MB" });
     }
 
     const hash = hashConteudo(p, anexos);
@@ -217,10 +213,20 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
           )
           .run(p.uuid, usuarioId, p.tipo, p.imovelRef, p.servico, p.data, p.horasMinutos ?? null, p.valorCentavos ?? null, hash);
         const id = Number(r.lastInsertRowid);
-        const insAnexo = db.prepare(
-          "INSERT INTO prestador_apontamento_anexos (apontamento_id, nome, tipo, tamanho, sha256, conteudo) VALUES (?,?,?,?,?,?)",
-        );
-        for (const a of anexos) insAnexo.run(id, a.nome, a.tipo, a.tamanho, a.sha256, a.conteudo);
+
+        // Batch insert anexos to avoid N+1 queries
+        if (anexos.length > 0) {
+          const placeholders = anexos.map(() => "(?,?,?,?,?,?)").join(",");
+          const insAnexo = db.prepare(
+            `INSERT INTO prestador_apontamento_anexos (apontamento_id, nome, tipo, tamanho, sha256, conteudo) VALUES ${placeholders}`,
+          );
+          const flatParams: unknown[] = [];
+          for (const a of anexos) {
+            flatParams.push(id, a.nome, a.tipo, a.tamanho, a.sha256, a.conteudo);
+          }
+          insAnexo.run(...flatParams);
+        }
+
         return { codigo: 201, corpo: { ok: true, idempotente: false, id, status: "recebido", anexos: anexos.length } };
       })();
 
@@ -236,16 +242,22 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
         user_agent: req.get("user-agent") ?? undefined,
       });
       res.status(resultado.codigo).json(resultado.corpo);
-    } catch {
-      res.status(500).json({ erro: "Erro ao registrar apontamento" });
+    } catch (erro) {
+      logger.error("Erro ao registrar apontamento:", {
+        requestId: (req as unknown).id || "unknown",
+        userId: usuarioId,
+        endpoint: req.path,
+        uuid: p.uuid,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Erro ao registrar apontamento" });
     }
   });
 
   router.get("/", exigirAutenticacao, exigirPrestador, (req, res) => {
     const pg = paginacao(req.query);
     if (!pg) {
-      res.status(400).json({ erro: "limite (1-100) e offset inválidos" });
-      return;
+      return res.status(400).json({ erro: "limite (1-100) e offset inválidos" });
     }
     const uid = req.auth!.usuario!.id;
     try {
@@ -253,28 +265,56 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
       const linhas = db
         .prepare(`SELECT ${COLUNAS} FROM prestador_apontamentos_recebidos a WHERE a.usuario_id = ? ORDER BY a.id DESC LIMIT ? OFFSET ?`)
         .all(uid, pg.limite, pg.offset) as Array<{ id: number }>;
-      const anexosDe = db.prepare("SELECT nome, tipo, tamanho, sha256 FROM prestador_apontamento_anexos WHERE apontamento_id = ? ORDER BY id");
-      const itens = linhas.map((l) => ({ ...l, anexos: anexosDe.all(l.id) }));
+
+      // Batch load all annexes to avoid N+1 queries
+      const apontamentoIds = linhas.map(l => l.id);
+      const anexosPorApontamento: Map<number, Array<{ nome: string; tipo: string; tamanho: number; sha256: string }>> = new Map();
+
+      if (apontamentoIds.length > 0) {
+        const placeholders = apontamentoIds.map(() => "?").join(",");
+        const stmt = db.prepare(
+          `SELECT apontamento_id, nome, tipo, tamanho, sha256 FROM prestador_apontamento_anexos WHERE apontamento_id IN (${placeholders}) ORDER BY apontamento_id, id`
+        );
+        const todosAnexos = stmt.all(...apontamentoIds) as Array<{ apontamento_id: number; nome: string; tipo: string; tamanho: number; sha256: string }>;
+
+        for (const anexo of todosAnexos) {
+          if (!anexosPorApontamento.has(anexo.apontamento_id)) {
+            anexosPorApontamento.set(anexo.apontamento_id, []);
+          }
+          anexosPorApontamento.get(anexo.apontamento_id)!.push({
+            nome: anexo.nome,
+            tipo: anexo.tipo,
+            tamanho: anexo.tamanho,
+            sha256: anexo.sha256,
+          });
+        }
+      }
+
+      const itens = linhas.map((l) => ({ ...l, anexos: anexosPorApontamento.get(l.id) ?? [] }));
       res.json({ itens, total, limite: pg.limite, offset: pg.offset });
-    } catch {
-      res.status(500).json({ erro: "Erro ao consultar apontamentos" });
+    } catch (erro) {
+      logger.error("Erro ao consultar apontamentos:", {
+        requestId: (req as unknown).id || "unknown",
+        userId: uid,
+        endpoint: req.path,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Erro ao consultar apontamentos" });
     }
   });
 
   router.post("/:id/conferir", exigirAutenticacao, exigirInterno, (req, res) => {
     const contexto = req.auth as ContextoAutenticacao;
     if (!/^\d{1,12}$/.test(req.params.id)) {
-      res.status(404).json({ erro: "Recurso não encontrado" });
-      return;
+      return res.status(404).json({ erro: "Recurso não encontrado" });
     }
     const id = Number(req.params.id);
     const parse = esquemaConferencia.safeParse(req.body);
     if (!parse.success) {
-      res.status(400).json({
+      return res.status(400).json({
         erro: "Payload inválido",
         detalhes: parse.error.issues.map((i) => `${i.path.join(".") || "(raiz)"}: ${i.message}`),
       });
-      return;
     }
     const { status, motivo } = parse.data;
 
@@ -295,8 +335,7 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
       })();
 
       if (resultado.corpo.naoEncontrado) {
-        res.status(404).json({ erro: "Recurso não encontrado" });
-        return;
+        return res.status(404).json({ erro: "Recurso não encontrado" });
       }
       const conflito = resultado.codigo === 409;
       auditService.registrarAcao(contexto, "prestador_apontamento_conferencia", "prestador_apontamento", String(id), {
@@ -310,8 +349,15 @@ export function criarRotasPrestadorApontamentos({ authService, auditService, db 
         user_agent: req.get("user-agent") ?? undefined,
       });
       res.status(resultado.codigo).json(resultado.corpo);
-    } catch {
-      res.status(500).json({ erro: "Erro ao conferir apontamento" });
+    } catch (erro) {
+      logger.error("Erro ao conferir apontamento:", {
+        requestId: (req as unknown).id || "unknown",
+        userId: contexto.usuario?.id,
+        endpoint: req.path,
+        apontamentoId: id,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Erro ao conferir apontamento" });
     }
   });
 

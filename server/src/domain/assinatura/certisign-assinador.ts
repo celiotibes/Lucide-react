@@ -81,12 +81,6 @@ export class CertisignAssinador {
         };
       }
 
-      // Calcula hash do documento original para validação
-      const hashDocumento = crypto
-        .createHash("sha256")
-        .update(pdfBuffer)
-        .digest("hex");
-
       // Prepara payload para API Certisign
       const payload = {
         documento_base64: pdfBuffer.toString("base64"),
@@ -220,8 +214,7 @@ export class CertisignAssinador {
    * (Implementação real faria HTTP request; aqui é simulado)
    */
   private async chamarApiCertisign(
-    payload: Record<string, unknown>,
-    metodo: string = "POST"
+    payload: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     // Simulação: Em produção, faria:
     // const response = await fetch(`${this.config.apiUrl}/api/v1/...`, {

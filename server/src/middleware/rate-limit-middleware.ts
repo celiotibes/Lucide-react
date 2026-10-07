@@ -51,6 +51,8 @@ class RateLimitStore {
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
     }, cleanupIntervalMs);
+    // Don't block process exit
+    this.cleanupInterval.unref();
   }
 
   /**

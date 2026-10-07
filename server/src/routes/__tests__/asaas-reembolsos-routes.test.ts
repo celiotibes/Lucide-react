@@ -32,26 +32,8 @@ function criarCobrancaTeste(db: Database, origem_tipo: string, origem_id: number
 describe("Rotas HTTP de Reembolsos Asaas", () => {
   let app: express.Application;
   let db: Database;
-  let mockAuthService: any;
-  let mockEventosService: any;
-
-  const mockApiClient = {
-    criarCliente: async () => ({ asaasCustomerId: `cust_${Date.now()}` }),
-    criarCobranca: async () => ({
-      asaasChargeId: `charge_${Date.now()}`,
-      status: "PENDING",
-      boletoUrl: "https://example.com/boleto",
-      linhaDigitavel: "12345.67890",
-      pixQrCode: "qrcode",
-    }),
-    consultarCobranca: async (id: string) => ({
-      id,
-      status: "RECEIVED",
-      boletoUrl: "https://example.com/boleto",
-      linhaDigitavel: "12345.67890",
-      pixQrCode: "qrcode",
-    }),
-  };
+  let mockAuthService: unknown;
+  let mockEventosService: unknown;
 
   beforeEach(async () => {
     const SQL = await initSqlJs();
@@ -121,13 +103,13 @@ describe("Rotas HTTP de Reembolsos Asaas", () => {
 
     // Middleware que injeta db (simula contexto real) - DEVE vir ANTES das rotas
     app.use((req, res, next) => {
-      (req as any).db = db;
+      (req as unknown).db = db;
       next();
     });
 
     // Middleware de autenticação fake
     app.use((req, res, next) => {
-      (req as any).usuarioId = "user1";
+      (req as unknown).usuarioId = "user1";
       next();
     });
 

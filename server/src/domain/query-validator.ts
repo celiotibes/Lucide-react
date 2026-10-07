@@ -74,8 +74,8 @@ export class QueryValidator {
       const plans = stmt.all() as QueryPlan[];
 
       return plans;
-    } catch (error) {
-      logger.warn(`Failed to get query plan: ${error instanceof Error ? error.message : String(error)}`);
+    } catch (err) {
+      logger.warn(`Failed to get query plan: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
   }
@@ -189,7 +189,7 @@ export class QueryValidator {
    */
   validateQuery(query: string): QueryValidationResult {
     const queryPlan = this.getQueryPlan(query);
-    const { usesIndex, fullScan, details: planDetails } = this.validateIndexUsage(queryPlan);
+    const { usesIndex, fullScan } = this.validateIndexUsage(queryPlan);
 
     const issues: string[] = [];
 

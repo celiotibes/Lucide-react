@@ -11,7 +11,7 @@
  * - CTA: "Calcular e gravar agora" (dispara POST /api/relatorios/dre/calcular)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface ResultadoDRE {
@@ -63,11 +63,7 @@ export const DREView: React.FC = () => {
   const [calculando, setCalculando] = useState(false);
 
   // Carrega DRE on-the-fly ou histórico conforme modo selecionado
-  useEffect(() => {
-    carregarDRE();
-  }, [modo]);
-
-  async function carregarDRE() {
+  const carregarDRE = useCallback(async () => {
     setCarregando(true);
     setErro(null);
 
@@ -106,7 +102,11 @@ export const DREView: React.FC = () => {
     } finally {
       setCarregando(false);
     }
-  }
+  }, [modo]);
+
+  useEffect(() => {
+    carregarDRE();
+  }, [carregarDRE]);
 
   async function calcularEGravarAgora() {
     setCalculando(true);

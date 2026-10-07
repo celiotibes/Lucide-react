@@ -70,14 +70,19 @@ export function HubConsolidacaoView() {
   // persistido: reinicia no padrão (10) a cada visita à tela.
   const [toleranciaDiasInput, setToleranciaDiasInput] = useState("10");
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
 
   const cobertura = useMemo(() => {
+    void versao;
     if (!db || !entidade) return null;
     return relatorioCoberturaFatos(db, entidade.id);
   }, [db, versao, entidade]);
 
   const ligacoesPendentes = useMemo<LigacaoPendente[]>(() => {
+    void versao;
     if (!db || !entidade) return [];
     const linhas = consultar<{
       link_id: number;

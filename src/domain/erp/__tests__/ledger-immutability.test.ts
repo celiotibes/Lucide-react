@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import type { Database } from "sql.js";
+import { describe, it, expect, beforeEach } from "vitest";
 import { prepararBancoTeste } from "./test-setup";
-import { registrarLancamentoContabil, obterSaldoConta, estornarLancamento } from "../ledger";
+import { registrarLancamentoContabil, estornarLancamento } from "../ledger";
 
 /**
  * Testes de imutabilidade do razão: validam que lançamentos contábeis
@@ -9,7 +9,7 @@ import { registrarLancamentoContabil, obterSaldoConta, estornarLancamento } from
  * bloqueiam novos lançamentos.
  */
 describe("Imutabilidade do Razão (Ledger)", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
   let conta_id: number;
@@ -23,7 +23,7 @@ describe("Imutabilidade do Razão (Ledger)", () => {
     const contas = db.exec(
       "SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1"
     );
-    conta_id = contas[0]?.values[0]?.[0];
+    conta_id = Number(contas[0]?.values[0]?.[0]);
   });
 
   describe("ledger_entries: bloqueio de UPDATE de dados contábeis", () => {
@@ -132,7 +132,7 @@ describe("Imutabilidade do Razão (Ledger)", () => {
 
       try {
         db.run(`DELETE FROM ledger_entries WHERE id = ?`, [lancamento_id]);
-      } catch (e) {
+      } catch {
         // Esperado falhar
       }
 

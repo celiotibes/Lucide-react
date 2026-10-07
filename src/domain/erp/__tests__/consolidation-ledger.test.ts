@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   registrarLancamentoContabil,
@@ -19,7 +20,7 @@ import { prepararBancoTeste } from "./test-setup";
  * See: server/migrations/002_consolidate_ledger_entries.sql
  */
 describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 
@@ -63,7 +64,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
       );
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const lancamento_id = registrarLancamentoContabil(db, {
@@ -95,7 +96,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas WHERE codigo = '5.1.01' LIMIT 1`
       );
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const lancamento_id = registrarLancamentoContabil(db, {
@@ -127,7 +128,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
       );
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         // Register debit
@@ -166,7 +167,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
       );
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         // Register balanced entries
@@ -185,7 +186,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
         const contasCredito = db.exec(
           `SELECT id FROM contas_plano_contas WHERE codigo = '5.1.01' LIMIT 1`
         );
-        const conta_credito_id = contasCredito[0]?.values[0]?.[0];
+        const conta_credito_id = Number(contasCredito[0]?.values[0]?.[0]);
 
         if (conta_credito_id) {
           registrarLancamentoContabil(db, {
@@ -215,7 +216,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
       );
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const lancamento_id = registrarLancamentoContabil(db, {
@@ -256,7 +257,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
       );
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const lancamento_id = registrarLancamentoContabil(db, {
@@ -305,7 +306,7 @@ describe("Ledger Consolidation: ledger_entries ← transacoes_integradas", () =>
       const contas = db.exec(
         `SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`
       );
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         registrarLancamentoContabil(db, {

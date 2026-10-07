@@ -1,6 +1,8 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -138,14 +140,14 @@ function mascaraTokensESenhas(texto: string): string {
  * Interface para rastrear objetos já visitados (detectar ciclos)
  */
 interface Visitados {
-  objetos: WeakSet<any>;
+  objetos: WeakSet<object>;
 }
 
 /**
  * Recursivamente mascara objetos, incluindo campos sensíveis
  * Lida com: objetos aninhados, arrays, Errors, e evita ciclos
  */
-function redactarObjeto(obj: any, visitados: Visitados = { objetos: new WeakSet() }): any {
+function redactarObjeto(obj: unknown, visitados: Visitados = { objetos: new WeakSet() }): unknown {
   // Null/undefined
   if (obj === null || obj === undefined) {
     return obj;
@@ -172,7 +174,7 @@ function redactarObjeto(obj: any, visitados: Visitados = { objetos: new WeakSet(
   }
 }
 
-function redactarObjetoInterno(obj: any, visitados: Visitados): any {
+function redactarObjetoInterno(obj: unknown, visitados: Visitados): unknown {
   // Error
   if (obj instanceof Error) {
     return {
@@ -188,10 +190,10 @@ function redactarObjetoInterno(obj: any, visitados: Visitados): any {
   }
 
   // Objeto
-  const redatado: any = {};
+  const redatado: Record<string, unknown> = {};
   const camposSensiveis = ['senha', 'password', 'secret', 'token', 'authorization', 'api_key', 'apikey', 'cookie'];
 
-  for (const [chave, valor] of Object.entries(obj)) {
+  for (const [chave, valor] of Object.entries(obj as Record<string, unknown>)) {
     const chaveLower = chave.toLowerCase();
 
     // Verificar se a chave contém palavra sensível
@@ -208,7 +210,7 @@ function redactarObjetoInterno(obj: any, visitados: Visitados): any {
 /**
  * Aplica redação a mensagem e metadados
  */
-function aplicarRedacao(mensagem: unknown, meta?: Record<string, unknown>): { mensagem: any; meta?: any } {
+function aplicarRedacao(mensagem: unknown, meta?: Record<string, unknown>): { mensagem: unknown; meta?: unknown } {
   try {
     // winston aceita mensagem não-string (objeto, número, undefined): nunca assumir .replace
     const mensagemRedatada =
@@ -224,7 +226,7 @@ function aplicarRedacao(mensagem: unknown, meta?: Record<string, unknown>): { me
 // WINSTON LOGGER INITIALIZATION
 // ============================================================
 
-let winstonLogger: any = null;
+let winstonLogger: winston.Logger | null = null;
 
 // Ensure log directories exist
 function ensureLogDirectories() {
@@ -243,8 +245,6 @@ function ensureLogDirectories() {
 function initWinston() {
   try {
     // Only initialize Winston in node environments
-    const winston = require('winston');
-    const DailyRotateFile = require('winston-daily-rotate-file');
 
     // Ensure directories exist
     ensureLogDirectories();
@@ -255,12 +255,12 @@ function initWinston() {
       winston.format.errors({ stack: true }),
       winston.format.splat(),
       // Apply redaction before logging
-      winston.format((info: any) => {
-        const { mensagem, meta: metaRedatada } = aplicarRedacao(info.message, info);
+      winston.format((info: Record<string, unknown>) => {
+        const { mensagem, meta: metaRedatada } = aplicarRedacao((info.message as string), info);
         info.message = mensagem;
         // Merge redacted metadata back into info (except message which was already processed)
         if (metaRedatada && typeof metaRedatada === 'object') {
-          Object.assign(info, metaRedatada);
+          Object.assign(info, metaRedatada as Record<string, unknown>);
         }
         return info;
       })(),
@@ -272,15 +272,15 @@ function initWinston() {
       winston.format.colorize(),
       winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
       // Apply redaction to console output
-      winston.format((info: any) => {
-        const { mensagem, meta: metaRedatada } = aplicarRedacao(info.message, info);
+      winston.format((info: Record<string, unknown>) => {
+        const { mensagem, meta: metaRedatada } = aplicarRedacao((info.message as string), info);
         info.message = mensagem;
         if (metaRedatada && typeof metaRedatada === 'object') {
-          Object.assign(info, metaRedatada);
+          Object.assign(info, metaRedatada as Record<string, unknown>);
         }
         return info;
       })(),
-      winston.format.printf(({ timestamp, level, message, requestId, ...meta }: any) => {
+      winston.format.printf(({ timestamp, level, message, requestId, ...meta }: Record<string, unknown>) => {
         const requestIdStr = requestId ? `[${requestId}] ` : '';
         const metaStr = Object.keys(meta).length > 0 ? JSON.stringify(meta, null, 2) : '';
         return `${timestamp} ${level}: ${requestIdStr}${message} ${metaStr}`.trim();
@@ -335,7 +335,7 @@ function initWinston() {
         }),
       ],
     });
-  } catch (e) {
+  } catch {
     // Winston not available (e.g., in tests)
     winstonLogger = null;
   }
@@ -346,29 +346,29 @@ initWinston();
 
 // Fallback mock logger if Winston is not available
 const mockLogger = {
-  debug: (message: string, meta?: Record<string, unknown>) => {
+  debug: () => {
     // Silent in test/fallback mode - real logging via Winston
   },
-  info: (message: string, meta?: Record<string, unknown>) => {
+  info: () => {
     // Silent in test/fallback mode - real logging via Winston
   },
-  warn: (message: string, meta?: Record<string, unknown>) => {
+  warn: () => {
     // Silent in test/fallback mode - real logging via Winston
   },
-  error: (message: string, error?: Error | Record<string, unknown>) => {
+  error: () => {
     // Silent in test/fallback mode - real logging via Winston
   },
-  child: (meta: any) => ({
-    debug: (msg: string, data?: any) => {
+  child: () => ({
+    debug: () => {
       // Silent in test/fallback mode - real logging via Winston
     },
-    info: (msg: string, data?: any) => {
+    info: () => {
       // Silent in test/fallback mode - real logging via Winston
     },
-    warn: (msg: string, data?: any) => {
+    warn: () => {
       // Silent in test/fallback mode - real logging via Winston
     },
-    error: (msg: string, error?: any) => {
+    error: () => {
       // Silent in test/fallback mode - real logging via Winston
     },
   }),

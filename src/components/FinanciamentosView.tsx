@@ -14,14 +14,21 @@ export function FinanciamentosView({ aoDrillDown }: { aoDrillDown?: (filtro: Fil
   const [financiamentoSelecionadoId, setFinanciamentoSelecionadoId] = useState<number | null>(null);
 
   const financiamentos = useMemo<Financiamento[]>(
-    () => (db ? consultar<Financiamento>(db, "SELECT * FROM financiamentos ORDER BY id") : []),
+    () => {
+      void versao;
+      return db ? consultar<Financiamento>(db, "SELECT * FROM financiamentos ORDER BY id") : [];
+    },
     [db, versao],
   );
-  const imoveis = useMemo(() => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])), [db, versao]);
+  const imoveis = useMemo(() => {
+    void versao;
+    return new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i]));
+  }, [db, versao]);
 
   const financiamentoAtivo = financiamentos.find((f) => f.id === financiamentoSelecionadoId) ?? financiamentos[0] ?? null;
 
   const divergencias = useMemo(() => {
+    void versao;
     if (!db || !financiamentoAtivo) return [];
     return compararComTransacoes(db, financiamentoAtivo);
   }, [db, financiamentoAtivo, versao]);

@@ -7,10 +7,8 @@ import {
   listarReembolsos,
   atualizarStatusReembolso,
   processarWebhookReembolso,
-  syncronizarReembolsosPendentes,
   ErroValidacaoReembolso,
   type DadosNovoReembolso,
-  type Reembolso,
 } from "../asaasReembolsos";
 
 let db: Database.Database;
@@ -194,7 +192,7 @@ describe("asaasReembolsos", () => {
       const stmtAudit = db.prepare(`
         SELECT * FROM asaas_reembolsos_historico WHERE reembolso_id = ?
       `);
-      const historicos = stmtAudit.all(reembolso.id) as any[];
+      const historicos = stmtAudit.all(reembolso.id) as Record<string, unknown>[];
 
       expect(historicos.length).toBeGreaterThan(0);
       expect(historicos[0].acao).toBe("CRIACAO");
@@ -341,7 +339,7 @@ describe("asaasReembolsos", () => {
       const reembolso = criarReembolso(db, dados);
 
       expect(() => {
-        atualizarStatusReembolso(db, reembolso.id, "invalido" as any);
+        atualizarStatusReembolso(db, reembolso.id, "invalido" as unknown);
       }).toThrow();
     });
 
@@ -359,7 +357,7 @@ describe("asaasReembolsos", () => {
       const stmtAudit = db.prepare(`
         SELECT * FROM asaas_reembolsos_historico WHERE reembolso_id = ? AND acao = 'ATUALIZACAO_STATUS'
       `);
-      const historicos = stmtAudit.all(reembolso.id) as any[];
+      const historicos = stmtAudit.all(reembolso.id) as Record<string, unknown>[];
 
       expect(historicos.length).toBeGreaterThan(0);
       expect(historicos[0].status_anterior).toBe("pendente");

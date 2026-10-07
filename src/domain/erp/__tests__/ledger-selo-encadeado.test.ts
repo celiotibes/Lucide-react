@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { Database } from "sql.js";
 import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { criarEntidadeLegal } from "../entidadeLegal";
 import { registrarLancamentoContabil, encerrarPeriodo, verificarSelosLedger } from "../ledger";
@@ -7,13 +8,13 @@ import { CONTA_CAIXA_ERP } from "../mapeamentoPlanoApp";
 const CONTA_RECEITA = 4101;
 
 describe("Selo encadeado dos encerramentos", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
 
   const abrirPeriodo = (ano: number, mes: number): number => {
     // encerrarPeriodo já abre o período seguinte (criarSaldosProximoPeriodo): reaproveita se existir.
     db.run("INSERT OR IGNORE INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, ?, ?, 'aberto')", [entidade_id, ano, mes]);
-    return db.exec("SELECT id FROM periodos_contabeis WHERE entidade_id = ? AND ano = ? AND mes = ?", [entidade_id, ano, mes])[0].values[0][0];
+    return Number(db.exec("SELECT id FROM periodos_contabeis WHERE entidade_id = ? AND ano = ? AND mes = ?", [entidade_id, ano, mes])[0].values[0][0]);
   };
   const receita = (periodo_id: number, data: string, valor: number, ref: string) => {
     registrarLancamentoContabil(db, { entidade_id, periodo_id, conta_id: CONTA_CAIXA_ERP, data_lancamento: data, valor_debito: valor, descricao: "Recebimento", origem_modulo: "manual", origem_id: 1, referencia_documento: ref });

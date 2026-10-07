@@ -47,19 +47,40 @@ export function RendaTributavelView() {
   // de 12 meses usada no resto da tela — precisa cobrir vários anos inteiros de histórico.
   const inicioHistoricoFiscal = new Date(new Date(hoje).setFullYear(new Date(hoje).getFullYear() - 6, 0, 1)).toISOString().slice(0, 10);
   const comparativoFiscal = useMemo(
-    () => (db ? compararDeclaradoXReconstituido(db, inicioHistoricoFiscal, hoje) : []),
+    () => {
+      void versao;
+      return db ? compararDeclaradoXReconstituido(db, inicioHistoricoFiscal, hoje) : [];
+    },
     [db, versao, inicioHistoricoFiscal, hoje],
   );
 
-  const linhas = useMemo(() => (db ? gerarRendaTributavel(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
+  const linhas = useMemo(() => {
+    void versao;
+    return db ? gerarRendaTributavel(db, inicio12m, hoje) : [];
+  }, [db, versao, inicio12m, hoje]);
   const totais = useMemo(() => totalizarRendaTributavel(linhas), [linhas]);
-  const capacidade = useMemo(() => (db ? calcularCapacidadeContributiva(db, inicio12m, hoje) : null), [db, versao, inicio12m, hoje]);
-  const capacidadeMensal = useMemo(() => (db ? calcularCapacidadeContributivaMensal(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
-  const analiseVertical = useMemo(() => (db ? calcularAnaliseVertical(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
-  const analiseHorizontal = useMemo(() => (db ? calcularAnaliseHorizontal(db, inicio12m, hoje) : []), [db, versao, inicio12m, hoje]);
+  const capacidade = useMemo(() => {
+    void versao;
+    return db ? calcularCapacidadeContributiva(db, inicio12m, hoje) : null;
+  }, [db, versao, inicio12m, hoje]);
+  const capacidadeMensal = useMemo(() => {
+    void versao;
+    return db ? calcularCapacidadeContributivaMensal(db, inicio12m, hoje) : [];
+  }, [db, versao, inicio12m, hoje]);
+  const analiseVertical = useMemo(() => {
+    void versao;
+    return db ? calcularAnaliseVertical(db, inicio12m, hoje) : [];
+  }, [db, versao, inicio12m, hoje]);
+  const analiseHorizontal = useMemo(() => {
+    void versao;
+    return db ? calcularAnaliseHorizontal(db, inicio12m, hoje) : [];
+  }, [db, versao, inicio12m, hoje]);
   const analiseVerticalPorCodigo = useMemo(() => new Map(analiseVertical.map((v) => [v.codigo, v])), [analiseVertical]);
   const comparativoCaixaCompetencia = useMemo(
-    () => (db ? compararReceitaCaixaXCompetencia(db, inicio12m, hoje) : []),
+    () => {
+      void versao;
+      return db ? compararReceitaCaixaXCompetencia(db, inicio12m, hoje) : [];
+    },
     [db, versao, inicio12m, hoje],
   );
 
@@ -68,7 +89,10 @@ export function RendaTributavelView() {
     localStorage.setItem(CHAVE_CATEGORIAS_DEDUTIVEIS, JSON.stringify(codigosDedutiveis));
   }, [codigosDedutiveis]);
   const carneLeao = useMemo(
-    () => (db ? calcularCarneLeaoPorImovel(db, inicio12m, hoje, codigosDedutiveis) : null),
+    () => {
+      void versao;
+      return db ? calcularCarneLeaoPorImovel(db, inicio12m, hoje, codigosDedutiveis) : null;
+    },
     [db, versao, inicio12m, hoje, codigosDedutiveis],
   );
   function alternarCategoriaDedutivel(codigo: string) {
@@ -76,19 +100,31 @@ export function RendaTributavelView() {
   }
 
   const contratosComRateio = useMemo<ContratoLocacao[]>(
-    () => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE percentual_aluguel_efetivo < 100 ORDER BY id") : []),
+    () => {
+      void versao;
+      return db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE percentual_aluguel_efetivo < 100 ORDER BY id") : [];
+    },
     [db, versao],
   );
-  const imoveis = useMemo(() => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])), [db, versao]);
+  const imoveis = useMemo(() => {
+    void versao;
+    return new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i]));
+  }, [db, versao]);
   const [contratoDssId, setContratoDssId] = useState<number | null>(null);
   const contratoDssAtivo = contratoDssId ?? contratosComRateio[0]?.id ?? null;
   const contratoAtivo = contratosComRateio.find((c) => c.id === contratoDssAtivo) ?? null;
   const dss = useMemo(
-    () => (db && contratoDssAtivo ? gerarDss(db, contratoDssAtivo, inicio12m, hoje) : null),
+    () => {
+      void versao;
+      return db && contratoDssAtivo ? gerarDss(db, contratoDssAtivo, inicio12m, hoje) : null;
+    },
     [db, versao, contratoDssAtivo, inicio12m, hoje],
   );
   const sugestaoRateio = useMemo(
-    () => (db && contratoAtivo ? sugerirAjusteRateio(db, contratoAtivo, inicio12m, hoje) : null),
+    () => {
+      void versao;
+      return db && contratoAtivo ? sugerirAjusteRateio(db, contratoAtivo, inicio12m, hoje) : null;
+    },
     [db, versao, contratoAtivo, inicio12m, hoje],
   );
 

@@ -100,6 +100,12 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase15-prestador-apontamentos.sql",
       "migrations-phase16-ledger-entries.sql",
       "migrations-phase16-revisao-ia.sql",
+      "migrations-phase17-importacao.sql",
+      "migrations-phase18-agentes-economicos-sqlite.sql",
+      "migrations-phase18-ocr-extraction.sql",
+      "migrations-phase19-reconciliation.sql",
+      "migrations-phase19-ledger-agentes-fk.sql",
+      "migrations-phase20-agentes-deduplicacao.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions
@@ -154,7 +160,7 @@ function runMigrations(db: Database.Database): void {
     try {
       db.exec(migrationSQL);
       logger.info("[Database] Migration script executed successfully");
-    } catch (error) {
+    } catch {
       // If that fails, try splitting and executing one by one
       // This helps identify and skip problematic statements
       const statements = migrationSQL

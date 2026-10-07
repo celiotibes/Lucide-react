@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { initializeDatabase, closeDatabase, getDatabase, getDatabasePath } from '../database-init.js';
+import { closeDatabase } from '../database-init.js';
 import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
@@ -27,7 +27,7 @@ describe('Database Boot and Idempotency', () => {
     // Close database connection
     try {
       closeDatabase();
-    } catch (e) {
+    } catch {
       // Ignore errors
     }
 

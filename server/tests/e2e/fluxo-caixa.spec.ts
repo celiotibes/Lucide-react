@@ -142,7 +142,7 @@ test.describe('Fluxo de Caixa', () => {
 
     // Get chart content
     const chartContent = page.locator('[data-testid="fluxo-chart"]');
-    const initialContent = await chartContent.textContent();
+    // Unused _initialContent await chartContent.textContent();
 
     // Change period
     const periodSelector = page.locator('[data-testid="period-selector"]');

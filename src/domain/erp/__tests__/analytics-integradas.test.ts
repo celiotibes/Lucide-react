@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   calcularKPIRentabilidade,
@@ -8,7 +9,7 @@ import {
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Analytics Integrados", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 

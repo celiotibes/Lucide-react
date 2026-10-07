@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
@@ -12,13 +12,9 @@ import {
   buscarPagamentoPix,
   listarPagamentosPix,
   type DadosPagamentoPix,
-  type PagamentoPix,
-  AsaasApiError,
-  AsaasConfiguracaoAusenteError,
 } from "../asaas-pagamentos-pix.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEST_DB_PATH = path.join(__dirname, `test-asaas-pix-${process.pid}-${Date.now()}.db`);
 
@@ -49,7 +45,7 @@ function createTestDatabase(): Database.Database {
   // Rodar migrations
   try {
     db.exec(resolverSchema("migrations-phase9-pagamentos-pix-proativos.sql"));
-  } catch (e) {
+  } catch {
     console.warn("Phase 9 migration não encontrada, criando schema manualmente...");
     // Cria manualmente se não encontrar
     db.exec(`
@@ -156,7 +152,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         "12345678901234",
         100,
         "Desc",
-        "INVALIDO" as any,
+        "INVALIDO" as unknown as "CPF" | "EMAIL" | "ALEATORIO",
         "123",
       );
       expect(resultado.valido).toBe(false);
@@ -219,7 +215,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
             value: 1500.5,
             pixQrCode: "00020126580014br.gov.bcb.pix...",
           }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-001",
@@ -260,7 +256,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: false,
         status: 400,
         text: async () => JSON.stringify({ errors: [{ description: "Invalid CPF" }] }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-001",
@@ -275,7 +271,8 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
       await expect(criarPagamentoPix(db, dados, mockFetch)).rejects.toThrow();
 
       // Verifica se foi marcado como FAILED
-      const pagamento = buscarPagamentoPix(db, (await db.prepare(`SELECT id FROM pagamentos_pix_solicitados ORDER BY criado_em DESC LIMIT 1`).get() as any).id);
+      const row = db.prepare(`SELECT id FROM pagamentos_pix_solicitados ORDER BY criado_em DESC LIMIT 1`).get() as unknown as { id: string } | undefined;
+      const pagamento = buscarPagamentoPix(db, row?.id || "");
       expect(pagamento?.status).toBe("FAILED");
     });
 
@@ -286,7 +283,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-pix-002", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-001",
@@ -327,7 +324,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-001", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-001",
@@ -359,7 +356,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-status-001", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-001",
@@ -378,14 +375,14 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-status-001", status: "PAID" }),
-      })) as any;
+      })) as MockFetch;
 
       const atualizado = await buscarStatusPagamentoPix(db, criado.id, mockFetchStatus);
 
       expect(atualizado?.status).toBe("COMPLETED");
 
       // Verifica histórico
-      const historico = db.prepare(`SELECT COUNT(*) as cnt FROM pagamentos_pix_historico WHERE pagamento_id = ?`).get(criado.id) as any;
+      const historico = db.prepare(`SELECT COUNT(*) as cnt FROM pagamentos_pix_historico WHERE pagamento_id = ?`).get(criado.id) as unknown as { cnt: number };
       expect(historico.cnt).toBeGreaterThan(0);
     });
 
@@ -394,7 +391,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-status-002", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-002",
@@ -414,7 +411,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-status-002", status: "PROCESSING" }),
-      })) as any;
+      })) as MockFetch;
 
       const resultado = await buscarStatusPagamentoPix(db, criado.id, mockFetchStatus);
       expect(resultado?.status).toBe(statusAntes);
@@ -425,7 +422,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-status-003", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-003",
@@ -440,7 +437,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
 
       const mockFetchFail = vi.fn(async () => {
         throw new Error("Network timeout");
-      }) as any;
+      }) as MockFetch;
 
       const resultado = await buscarStatusPagamentoPix(db, criado.id, mockFetchFail);
       expect(resultado).not.toBeNull();
@@ -452,7 +449,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-paid-001", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const dados: DadosPagamentoPix = {
         beneficiarioId: "fornec-004",
@@ -470,7 +467,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-paid-001", status: "PAID" }),
-      })) as any;
+      })) as MockFetch;
 
       const atualizado = await buscarStatusPagamentoPix(db, criado.id, mockFetchPaid);
       expect(atualizado?.status).toBe("COMPLETED");
@@ -483,7 +480,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: `asaas-${randomUUID().slice(0, 8)}`, status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       // Criar 3 pagamentos pendentes
       for (let i = 0; i < 3; i++) {
@@ -508,7 +505,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
           }
           return JSON.stringify({});
         },
-      })) as any;
+      })) as MockFetch;
 
       const resultado = await sincronizarPagamentosPendentes(db, mockFetchSync);
 
@@ -536,9 +533,9 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         new Date().toISOString(),
       );
 
-      const mockFetch = vi.fn() as any;
+      const mockFetch = vi.fn() as MockFetch;
 
-      const resultado = await sincronizarPagamentosPendentes(db, mockFetch);
+      await sincronizarPagamentosPendentes(db, mockFetch);
 
       // Não deve ter chamado fetch para pagamento antigo
       expect(mockFetch).not.toHaveBeenCalled();
@@ -549,7 +546,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-error-test", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       // Criar 2 pagamentos
       const ids = [];
@@ -577,7 +574,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
           status: 200,
           text: async () => JSON.stringify({ id: "asaas-123", status: "COMPLETED" }),
         };
-      }) as any;
+      }) as MockFetch;
 
       const resultado = await sincronizarPagamentosPendentes(db, mockFetchSync);
 
@@ -592,7 +589,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: `asaas-${randomUUID().slice(0, 8)}`, status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       for (let i = 0; i < 3; i++) {
         await criarPagamentoPix(db, {
@@ -615,7 +612,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: `asaas-${randomUUID().slice(0, 8)}`, status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const pag = await criarPagamentoPix(db, {
         beneficiarioId: "fornec-filter",
@@ -636,7 +633,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: `asaas-${randomUUID().slice(0, 8)}`, status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const pag = await criarPagamentoPix(db, {
         beneficiarioId: "fornec-especifico",
@@ -658,7 +655,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: `asaas-${randomUUID().slice(0, 8)}`, status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const pag = await criarPagamentoPix(db, {
         beneficiarioId: "fornec-recente",
@@ -684,7 +681,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-webhook-001", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       const pag = await criarPagamentoPix(db, {
         beneficiarioId: "fornec-webhook",
@@ -704,10 +701,10 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
       `).run(new Date().toISOString(), pag.id);
 
       // Verificar histórico
-      const hist = db.prepare(`
+      db.prepare(`
         SELECT COUNT(*) as cnt FROM pagamentos_pix_historico
         WHERE pagamento_id = ? AND status_novo = 'COMPLETED'
-      `).get(pag.id) as any;
+      `).get(pag.id);
 
       // O histórico deveria ter sido criado pela função de atualização
       // Mas neste teste manual, apenas verificamos que a atualização funcionou
@@ -722,7 +719,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-e2e-001", status: "PENDING" }),
-      })) as any;
+      })) as MockFetch;
 
       // 1. Criar
       const pag = await criarPagamentoPix(db, {
@@ -742,7 +739,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ id: "asaas-e2e-001", status: "PAID" }),
-      })) as any;
+      })) as MockFetch;
 
       await sincronizarPagamentosPendentes(db, mockFetchSync);
 
@@ -754,7 +751,7 @@ describe("Pagamentos PIX Proativos (Asaas)", () => {
       const hist = db.prepare(`
         SELECT COUNT(*) as cnt FROM pagamentos_pix_historico
         WHERE pagamento_id = ?
-      `).get(pag.id) as any;
+      `).get(pag.id) as unknown as { cnt: number };
       expect(hist.cnt).toBeGreaterThan(0);
     });
   });

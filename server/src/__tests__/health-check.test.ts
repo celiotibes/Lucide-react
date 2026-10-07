@@ -15,8 +15,8 @@ import {
 } from "../utils/health-check.js";
 
 // Mock fetch global
-const fetchMock = vi.fn();
-global.fetch = fetchMock as any;
+const fetchMock = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>();
+global.fetch = fetchMock;
 
 describe("Health Check", () => {
   beforeEach(() => {
@@ -55,9 +55,8 @@ describe("Health Check", () => {
         prepare: () => ({
           get: () => {
             // Simula um pouco de delay
-            let sum = 0;
-            for (let i = 0; i < 100000; i++) {
-              sum += i;
+            for (let _i = 0; _i < 100000; _i++) {
+              // Loop to simulate work
             }
             return { ping: 1 };
           },

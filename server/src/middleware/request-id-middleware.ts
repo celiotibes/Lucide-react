@@ -13,6 +13,7 @@ import { createRequestLogger } from '../services/logger-service.js';
 
 // Extend Express Request type to include requestId and logger
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       requestId: string;

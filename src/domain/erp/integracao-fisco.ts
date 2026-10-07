@@ -5,6 +5,7 @@
  */
 
 import { assegurarPeriodoAberto } from "./ledger-period-validation";
+import type { Database } from "sql.js";
 
 export interface TaxCalculationParams {
   receita_bruta: number;
@@ -252,7 +253,7 @@ export function calcularISS(
  * Valida conformidade com regras EFD-Reinf
  */
 export function validarEFD(
-  db: any,
+  db: Database,
   entidade_id: number,
   periodo_id: number
 ): {
@@ -266,11 +267,10 @@ export function validarEFD(
   // Verificar se há lançamentos sem origem_modulo
   const result = db.exec(
     `SELECT COUNT(*) FROM ledger_entries
-     WHERE entidade_id = ? AND periodo_id = ? AND origem_modulo IS NULL`,
-    [entidade_id, periodo_id]
+     WHERE entidade_id = ${entidade_id} AND periodo_id = ${periodo_id} AND origem_modulo IS NULL`
   );
 
-  if (result[0]?.values[0]?.[0] > 0) {
+  if ((result[0]?.values[0]?.[0] as number) > 0) {
     avisos.push('Existem lançamentos sem módulo de origem');
   }
 
@@ -280,11 +280,13 @@ export function validarEFD(
       SUM(valor_debito) as total_debito,
       SUM(valor_credito) as total_credito
      FROM ledger_entries
-     WHERE entidade_id = ? AND periodo_id = ?`,
-    [entidade_id, periodo_id]
+     WHERE entidade_id = ${entidade_id} AND periodo_id = ${periodo_id}`
   );
 
-  const [total_debito, total_credito] = saldoResult[0]?.values[0] || [0, 0];
+  const [total_debito, total_credito] = [
+    (saldoResult[0]?.values[0]?.[0] as number) || 0,
+    (saldoResult[0]?.values[0]?.[1] as number) || 0
+  ];
 
   if (Math.abs(total_debito - total_credito) > 0.01) {
     erros.push(`Desbalanceamento: Débitos (${total_debito}) != Créditos (${total_credito})`);
@@ -301,7 +303,7 @@ export function validarEFD(
  * Gera DRE com impacto de impostos
  */
 export function gerarDREComImpactoTaxes(
-  db: any,
+  db: Database,
   periodo_id: number,
   params: TaxCalculationParams
 ): DREComImpactoTaxes {
@@ -337,7 +339,7 @@ export function gerarDREComImpactoTaxes(
  * Gera relatório de obrigações fiscais com cronograma
  */
 export function gerarRelatorioObrigacoesFiscais(
-  db: any,
+  db: Database,
   periodo_inicio: string,
   periodo_fim: string
 ): RelatorioObrigacoesFiscais {
@@ -419,7 +421,7 @@ export function gerarRelatorioObrigacoesFiscais(
  */
 function getProximoVencimento(periodicidade: string, dia_vencimento: number): string {
   const hoje = new Date();
-  let dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), dia_vencimento);
+  const dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), dia_vencimento);
 
   if (periodicidade === 'mensal') {
     if (dataVencimento <= hoje) {
@@ -487,7 +489,7 @@ function origemIdImposto(periodo_id: number, tipo_imposto: string): number {
 }
 
 export function registrarImpostoNoLedger(
-  db: any,
+  db: Database,
   entidade_id: number,
   periodo_id: number,
   imposto: ImpostoCalculado,

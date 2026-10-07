@@ -13,7 +13,6 @@ import {
   atualizarCobrancasVencidas,
   ErroValidacaoCobranca,
   type DadosNovaCobranca,
-  type Cobranca,
 } from "../asaasCobranca";
 
 let db: Database.Database;
@@ -225,7 +224,7 @@ describe("asaasCobranca", () => {
       const stmtAudit = db.prepare(`
         SELECT * FROM asaas_cobrancas_historico WHERE cobranca_id = ?
       `);
-      const historicos = stmtAudit.all(cobranca.id) as any[];
+      const historicos = stmtAudit.all(cobranca.id) as Record<string, unknown>[];
 
       expect(historicos.length).toBeGreaterThan(0);
       expect(historicos[0].acao).toBe("CRIACAO");
@@ -392,7 +391,7 @@ describe("asaasCobranca", () => {
       const cobranca = emitirCobranca(db, dados);
 
       expect(() => {
-        atualizarStatusCobranca(db, cobranca.id, "invalido" as any);
+        atualizarStatusCobranca(db, cobranca.id, "invalido" as unknown);
       }).toThrow();
     });
   });
@@ -465,13 +464,6 @@ describe("asaasCobranca", () => {
 
   describe("listarCobrancasVencidas", () => {
     it("deve listar cobrancas vencidas", () => {
-      const dados: DadosNovaCobranca = {
-        aluguel_id: "aluguel-123",
-        imovel_id: "imovel-456",
-        valor: 1500.0,
-        data_vencimento: "2020-01-01",
-      };
-
       // Inserir manualmente uma cobrança com data no passado
       const stmt = db.prepare(`
         INSERT INTO asaas_cobrancas (
@@ -564,7 +556,7 @@ describe("asaasCobranca", () => {
         SELECT COUNT(*) as count FROM asaas_cobrancas_historico
         WHERE acao = 'ATUALIZACAO_STATUS' AND status_novo = 'vencida'
       `);
-      const auditResult = auditStmt.get() as any;
+      const auditResult = auditStmt.get() as Record<string, unknown>;
       expect(auditResult.count).toBe(numCobrancas);
 
       // Log performance info (transaction should be fast)

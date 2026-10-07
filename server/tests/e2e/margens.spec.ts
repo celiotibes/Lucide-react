@@ -84,7 +84,7 @@ test.describe('Margens', () => {
       await expandButton.click();
       await page.waitForTimeout(300);
 
-      let chart = page.locator('[data-testid="margin-chart"]').first();
+      const chart = page.locator('[data-testid="margin-chart"]').first();
       await expect(chart).toBeVisible();
 
       // Collapse
@@ -166,7 +166,7 @@ test.describe('Margens', () => {
     await page.waitForLoadState('networkidle');
 
     // Get initial margins
-    const initialMargins = await page.locator('[data-testid="margin-percentage"]').first().textContent();
+    // Unused _initialMargins await page.locator('[data-testid="margin-percentage"]').first().textContent();
 
     // Check if period selector exists
     const periodSelector = page.locator('[data-testid="period-selector"]');

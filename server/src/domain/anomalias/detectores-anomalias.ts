@@ -171,7 +171,6 @@ function obterCacheMetricas(
   periodo_dias: number,
 ): MetricasCache | null {
   const agora = new Date();
-  const agoraISO = agora.toISOString();
   const limiteRecomputa = new Date(agora.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
   const stmt = db.prepare(`
@@ -715,7 +714,7 @@ export function obterEstatisticasAnomalias(
     WHERE datetime(criado_em) >= datetime('now', ?)
   `);
 
-  const result = stmt.get(`-${periodo_dias} days`) as any;
+  const result = stmt.get(`-${periodo_dias} days`) as unknown;
 
   const total = result.total || 0;
   const revisadas = result.revisadas || 0;

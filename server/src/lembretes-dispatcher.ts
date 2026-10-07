@@ -266,7 +266,7 @@ export async function enviarRelatorioExecutivoMensal(
  */
 function calcularProximoDisparo1oDiaUtil(): Date {
   const agora = new Date();
-  let data = new Date(agora.getFullYear(), agora.getMonth() + 1, 1, 8, 0, 0);
+  const data = new Date(agora.getFullYear(), agora.getMonth() + 1, 1, 8, 0, 0);
 
   // Verifica se é sábado (6) ou domingo (0)
   while (data.getDay() === 0 || data.getDay() === 6) {
@@ -306,6 +306,7 @@ export function varrerAnomaliastransacoes(db: Database.Database): void {
     }
 
     // Importa dinâmico para evitar ciclo
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { avaliarAnomaliaAgregada, registrarAlertaAnomalia } = require("./domain/anomalias/detectores-anomalias.js");
 
     // Busca transações do último dia sem análise

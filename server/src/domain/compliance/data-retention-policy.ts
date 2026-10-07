@@ -363,6 +363,8 @@ export function executarLimpezaMensal(db: Database): RelatorioRetencao {
 
 /**
  * Agenda execução mensal do cleanup
+ * Verifica diariamente se é o dia configurado para executar a limpeza
+ * Retorna o interval para que o caller possa interromper se necessário
  */
 export function agendarLimpezaMensal(db: Database, diaDoMes: number = 1): NodeJS.Timer {
   function executarSeNecessario(): void {
@@ -386,6 +388,7 @@ export function agendarLimpezaMensal(db: Database, diaDoMes: number = 1): NodeJS
 
   // Executar a cada 1 hora (verificar se é o dia)
   const interval = setInterval(executarSeNecessario, 60 * 60 * 1000);
+  interval.unref(); // Não bloqueia saída do processo
 
   // Executar imediatamente na primeira vez
   executarSeNecessario();

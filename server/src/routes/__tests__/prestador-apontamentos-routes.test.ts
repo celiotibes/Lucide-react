@@ -75,7 +75,7 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
     const authService = new AuthServiceDB(db);
     const auditService = new AuditTrailServiceDB(db);
     app = express();
-    app.use("/api/auth", express.json(), criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as any }));
+    app.use("/api/auth", express.json(), criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as unknown }));
     // Como no index.ts: o parser JSON global não cobre o POST de criação (a rota tem parser próprio).
     const jsonPadrao = express.json();
     app.use((req, res, next) => (req.method === "POST" && req.path === URL_BASE ? next() : jsonPadrao(req, res, next)));
@@ -109,9 +109,9 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
     expect(r.status).toBe(201);
     expect(r.body).toMatchObject({ ok: true, idempotente: false, status: "recebido", anexos: 1 });
 
-    const linha = db.prepare("SELECT * FROM prestador_apontamentos_recebidos WHERE id = ?").get(r.body.id) as any;
+    const linha = db.prepare("SELECT * FROM prestador_apontamentos_recebidos WHERE id = ?").get(r.body.id) as unknown;
     expect(linha).toMatchObject({ usuario_id: "u_prest1", valor_centavos: 15050, horas_minutos: 90, status: "recebido" });
-    const anexo = db.prepare("SELECT nome, tamanho, sha256 FROM prestador_apontamento_anexos").get() as any;
+    const anexo = db.prepare("SELECT nome, tamanho, sha256 FROM prestador_apontamento_anexos").get() as Record<string, unknown>;
     expect(anexo).toEqual({ nome: "__.._etc_foto.jpg", tamanho: conteudo.length, sha256: sha });
     expect(db.prepare(`SELECT COUNT(*) n FROM auditoria WHERE tipo_acao='prestador_apontamento_recebido'`).get()).toEqual({ n: 1 });
   });
@@ -153,8 +153,8 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
     const l1 = await request(app).get(URL_BASE).set(auth(t1));
     const l2 = await request(app).get(URL_BASE).set(auth(t2));
     expect(l1.body.total).toBe(1);
-    expect(l1.body.itens.map((i: any) => i.id)).toEqual([a.body.id]);
-    expect(l2.body.itens.map((i: any) => i.servico)).toEqual(["Serviço do segundo"]);
+    expect(l1.body.itens.map((i: Record<string, unknown>) => i.id)).toEqual([a.body.id]);
+    expect(l2.body.itens.map((i: Record<string, unknown>) => i.servico)).toEqual(["Serviço do segundo"]);
     // Não vaza conteúdo/identidade.
     expect(JSON.stringify(l1.body)).not.toMatch(/conteudo|usuario_id|u_prest/);
   });
@@ -228,7 +228,7 @@ describe("Apontamentos do prestador (/api/prestador/apontamentos)", () => {
       const r = await request(app).post(`${URL_BASE}/${id}/conferir`).set(auth(ti)).send({ status: "conferido" });
       expect(r.status).toBe(200);
       expect(r.body).toMatchObject({ ok: true, idempotente: false, status: "conferido" });
-      const linha = db.prepare("SELECT status, conferido_por, conferido_em, valor_centavos FROM prestador_apontamentos_recebidos WHERE id=?").get(id) as any;
+      const linha = db.prepare("SELECT status, conferido_por, conferido_em, valor_centavos FROM prestador_apontamentos_recebidos WHERE id=?").get(id) as unknown;
       expect(linha).toMatchObject({ status: "conferido", conferido_por: "u_titular", valor_centavos: 15050 });
       expect(linha.conferido_em).toBeTruthy();
       expect(db.prepare(`SELECT COUNT(*) n FROM auditoria WHERE tipo_acao='prestador_apontamento_conferencia' AND resultado='sucesso'`).get()).toEqual({ n: 1 });

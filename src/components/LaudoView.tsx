@@ -33,30 +33,65 @@ export function LaudoView() {
   const [periodoInicio, setPeriodoInicio] = useState(new Date(new Date(hoje).setFullYear(new Date(hoje).getFullYear() - 3)).toISOString().slice(0, 10));
   const [periodoFim, setPeriodoFim] = useState(hoje);
 
-  const linhasDre = useMemo(() => (db ? gerarDre(db, periodoInicio, periodoFim) : []), [db, versao, periodoInicio, periodoFim]);
+  const linhasDre = useMemo(() => {
+    void versao;
+    return db ? gerarDre(db, periodoInicio, periodoFim) : [];
+  }, [db, versao, periodoInicio, periodoFim]);
   const statusInadimplencia = useMemo(() => {
+    void versao;
     if (!db) return [];
     const competencias = gerarCompetencias(db, periodoFim);
     const excecoes = conciliar(db, competencias);
     return calcularInadimplencia(db, excecoes, periodoFim);
   }, [db, versao, periodoFim]);
-  const duplicatas = useMemo(() => (db ? detectarDuplicatas(db) : []), [db, versao]);
-  const outliers = useMemo(() => (db ? detectarOutliers(db, periodoInicio, periodoFim) : []), [db, versao, periodoInicio, periodoFim]);
+  const duplicatas = useMemo(() => {
+    void versao;
+    return db ? detectarDuplicatas(db) : [];
+  }, [db, versao]);
+  const outliers = useMemo(() => {
+    void versao;
+    return db ? detectarOutliers(db, periodoInicio, periodoFim) : [];
+  }, [db, versao, periodoInicio, periodoFim]);
   const lacunas = useMemo(
-    () => (db ? detectarLacunasMensais(db, ["2.1.01", "2.1.05", "2.1.06"], periodoInicio, periodoFim) : []),
+    () => {
+      void versao;
+      return db ? detectarLacunasMensais(db, ["2.1.01", "2.1.05", "2.1.06"], periodoInicio, periodoFim) : [];
+    },
     [db, versao, periodoInicio, periodoFim],
   );
   const capacidadeContributiva = useMemo(
-    () => (db ? calcularCapacidadeContributiva(db, periodoInicio, periodoFim) : null),
+    () => {
+      void versao;
+      return db ? calcularCapacidadeContributiva(db, periodoInicio, periodoFim) : null;
+    },
     [db, versao, periodoInicio, periodoFim],
   );
-  const analiseVertical = useMemo(() => (db ? calcularAnaliseVertical(db, periodoInicio, periodoFim) : []), [db, versao, periodoInicio, periodoFim]);
-  const analiseHorizontal = useMemo(() => (db ? calcularAnaliseHorizontal(db, periodoInicio, periodoFim) : []), [db, versao, periodoInicio, periodoFim]);
-  const patrimonioLiquido = useMemo(() => (db ? calcularPatrimonioLiquido(db, periodoFim) : null), [db, versao, periodoFim]);
-  const liquidezCorrente = useMemo(() => (db ? calcularLiquidezCorrente(db, periodoFim) : null), [db, versao, periodoFim]);
-  const desempenhoImoveis = useMemo(() => (db ? calcularDesempenhoPorImovel(db, periodoInicio, periodoFim) : []), [db, versao, periodoInicio, periodoFim]);
-  const saldoCaixaAtual = useMemo(() => (db ? calcularSaldoCaixaAtual(db) : 0), [db, versao]);
+  const analiseVertical = useMemo(() => {
+    void versao;
+    return db ? calcularAnaliseVertical(db, periodoInicio, periodoFim) : [];
+  }, [db, versao, periodoInicio, periodoFim]);
+  const analiseHorizontal = useMemo(() => {
+    void versao;
+    return db ? calcularAnaliseHorizontal(db, periodoInicio, periodoFim) : [];
+  }, [db, versao, periodoInicio, periodoFim]);
+  const patrimonioLiquido = useMemo(() => {
+    void versao;
+    return db ? calcularPatrimonioLiquido(db, periodoFim) : null;
+  }, [db, versao, periodoFim]);
+  const liquidezCorrente = useMemo(() => {
+    void versao;
+    return db ? calcularLiquidezCorrente(db, periodoFim) : null;
+  }, [db, versao, periodoFim]);
+  const desempenhoImoveis = useMemo(() => {
+    void versao;
+    return db ? calcularDesempenhoPorImovel(db, periodoInicio, periodoFim) : [];
+  }, [db, versao, periodoInicio, periodoFim]);
+  const saldoCaixaAtual = useMemo(() => {
+    void versao;
+    return db ? calcularSaldoCaixaAtual(db) : 0;
+  }, [db, versao]);
   const passivoCaucaoRetido = useMemo(() => {
+    void versao;
     if (!db) return 0;
     const caucoesRetidas = consultar<Caucao>(db, "SELECT * FROM caucoes WHERE data_devolucao IS NULL");
     return caucoesRetidas.reduce((acc, c) => acc + calcularCaucao(db, c.id, periodoFim).valorADevolver, 0);
@@ -65,6 +100,7 @@ export function LaudoView() {
   // Os 3 achados abaixo já existem e são mostrados na aba Auditoria forense, mas até agora
   // nunca chegavam ao PDF protocolável — achado de auditoria de completude, corrigido aqui.
   const valoresBenford = useMemo(() => {
+    void versao;
     if (!db) return [];
     return consultar<{ valor: number }>(
       db,
@@ -75,6 +111,7 @@ export function LaudoView() {
   const amostraBenford = valoresBenford.length;
   const benford = useMemo(() => testeBenford(valoresBenford), [valoresBenford]);
   const divergenciasAnatocismo = useMemo<DivergenciaAnatocismoComFinanciamento[]>(() => {
+    void versao;
     if (!db) return [];
     const financiamentos = consultar<Financiamento>(db, "SELECT * FROM financiamentos ORDER BY id");
     return financiamentos.flatMap((f) =>
@@ -83,10 +120,22 @@ export function LaudoView() {
         .map((d) => ({ ...d, financiamentoId: f.id, instituicao: f.instituicao })),
     );
   }, [db, versao]);
-  const caucoesSemTransacao = useMemo(() => (db ? detectarCaucoesSemTransacao(db) : []), [db, versao]);
-  const transacoesCaucaoSemRegistro = useMemo(() => (db ? detectarTransacoesCaucaoSemRegistro(db) : []), [db, versao]);
-  const financiamentosSemLancamento = useMemo(() => (db ? detectarFinanciamentosSemLancamento(db, periodoFim) : []), [db, versao, periodoFim]);
-  const documentosGerados = useMemo(() => (db ? listarDocumentosGerados(db) : []), [db, versao]);
+  const caucoesSemTransacao = useMemo(() => {
+    void versao;
+    return db ? detectarCaucoesSemTransacao(db) : [];
+  }, [db, versao]);
+  const transacoesCaucaoSemRegistro = useMemo(() => {
+    void versao;
+    return db ? detectarTransacoesCaucaoSemRegistro(db) : [];
+  }, [db, versao]);
+  const financiamentosSemLancamento = useMemo(() => {
+    void versao;
+    return db ? detectarFinanciamentosSemLancamento(db, periodoFim) : [];
+  }, [db, versao, periodoFim]);
+  const documentosGerados = useMemo(() => {
+    void versao;
+    return db ? listarDocumentosGerados(db) : [];
+  }, [db, versao]);
 
   async function gerar() {
     if (!db || !capacidadeContributiva || !patrimonioLiquido || !liquidezCorrente) return;

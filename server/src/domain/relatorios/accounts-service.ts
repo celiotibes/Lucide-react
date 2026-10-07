@@ -12,6 +12,23 @@
 import type Database from "better-sqlite3";
 import { logger } from "../../services/logger-service.js";
 
+interface ContasAcumuladas {
+  total: number;
+  vencido: number;
+  proximo30: number;
+}
+
+interface DevedorRow {
+  nome: string;
+  valor: number;
+  diasVencido: number;
+}
+
+interface InadeplacenciaRow {
+  vencido: number;
+  total: number;
+}
+
 export interface ContasResumo {
   aReceber: {
     total: number;
@@ -54,7 +71,7 @@ export function gerarContasResumo(db: Database.Database): ContasResumo {
       hoje.toISOString().split("T")[0],
       hoje.toISOString().split("T")[0],
       data30DiasADelante.toISOString().split("T")[0],
-    ) as any;
+    ) as unknown as ContasAcumuladas;
 
     const totalReceber = contasReceber.total || 0;
     const vencidoReceber = contasReceber.vencido || 0;
@@ -73,7 +90,7 @@ export function gerarContasResumo(db: Database.Database): ContasResumo {
       LIMIT 5
     `);
 
-    const topDevedores = (topDevedoresStmt.all() as any[])
+    const topDevedores = (topDevedoresStmt.all() as unknown as DevedorRow[])
       .map((row) => ({
         nome: row.nome,
         valor: row.valor,
@@ -95,7 +112,7 @@ export function gerarContasResumo(db: Database.Database): ContasResumo {
       hoje.toISOString().split("T")[0],
       hoje.toISOString().split("T")[0],
       data30DiasADelante.toISOString().split("T")[0],
-    ) as any;
+    ) as unknown as ContasAcumuladas;
 
     const totalPagar = contasPagar.total || 0;
     const vencidoPagar = contasPagar.vencido || 0;
@@ -149,7 +166,7 @@ export function calcularInadeplacencia(db: Database.Database): number {
       WHERE deletado = 0
     `);
 
-    const resultado = stmt.get() as any;
+    const resultado = stmt.get() as unknown as InadeplacenciaRow;
     const vencido = resultado.vencido || 0;
     const total = resultado.total || 0;
 
@@ -181,7 +198,7 @@ export function obterMaioresDevedores(db: Database.Database, limite: number = 10
       LIMIT ?
     `);
 
-    return (stmt.all(limite) as any[])
+    return (stmt.all(limite) as unknown as DevedorRow[])
       .map((row) => ({
         nome: row.nome,
         valor: row.valor,

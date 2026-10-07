@@ -10,10 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 describe("Google Drive Backup - Integração", () => {
   const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
@@ -59,7 +56,7 @@ describe("Google Drive Backup - Integração", () => {
 
       const result = db.prepare("SELECT * FROM test").all();
       expect(result).toHaveLength(1);
-      expect((result[0] as any).valor).toBe("test-value");
+      expect((result[0] as unknown).valor).toBe("test-value");
 
       db.close();
     });
@@ -122,12 +119,12 @@ describe("Google Drive Backup - Integração", () => {
     });
 
     it("deve aceitar GOOGLE_CREDENTIALS_JSON como JSON válido se definida", () => {
-      const json = '{"type":"service_account"}';
+      const json = '{"type":"serce_account"}';
       process.env.GOOGLE_CREDENTIALS_JSON = json;
 
       try {
         const parsed = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
-        expect(parsed.type).toBe("service_account");
+        expect(parsed.type).toBe("serce_account");
       } catch {
         expect.fail("JSON inválido em GOOGLE_CREDENTIALS_JSON");
       }
@@ -137,7 +134,7 @@ describe("Google Drive Backup - Integração", () => {
   describe("Caminho do banco de dados", () => {
     it("deve resolver caminho correto para data/app.db", () => {
       const expectedPath = path.join(process.cwd(), "data", "app.db");
-      expect(expectedPath).toMatch(/data[\/\\]app\.db$/);
+      expect(expectedPath).toMatch(/data[\\/]app\.db$/);
     });
 
     it("deve permitir criar diretório data se não existir", () => {

@@ -20,9 +20,9 @@ import path from "path";
  */
 export interface Database {
   exec(sql: string): void;
-  run(sql: string, params?: any[]): any;
-  get(sql: string, params?: any[]): any;
-  all(sql: string, params?: any[]): any[];
+  run(sql: string, params?: unknown[]): unknown;
+  get(sql: string, params?: unknown[]): unknown;
+  all(sql: string, params?: unknown[]): unknown[];
   close(): void;
 }
 
@@ -132,9 +132,9 @@ export function getDbStatus(db: Database): { connected: boolean; tables: string[
 
     return {
       connected: true,
-      tables: tables.map((t: any) => t.name),
+      tables: (tables as Record<string, unknown>[]).map((t) => String(t.name)),
     };
-  } catch (error) {
+  } catch {
     return {
       connected: false,
       tables: [],

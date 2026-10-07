@@ -16,6 +16,11 @@ import { criarRotasAuth } from '../auth-routes';
 import { criarRotasLgpd } from '../lgpd-routes';
 import { tokenDoCookie } from './token-cookie';
 
+// Mock types for auth route dependencies
+interface MockPermissoesService {
+  listarMatriz: () => unknown[];
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -44,16 +49,16 @@ function createTestDatabase(): Database.Database {
 }
 
 async function criarAppDeTeste(db: Database.Database) {
-  const authService = new AuthServiceDB(db);
-  const auditService = new AuditTrailServiceDB(db);
   const app = express();
   app.use(express.json());
+  const authService = new AuthServiceDB(db);
+  const auditService = new AuditTrailServiceDB(db);
   app.use(
     '/api/auth',
     criarRotasAuth({
       authService,
       auditService,
-      permissoesService: { listarMatriz: () => [] } as any,
+      permissoesService: { listarMatriz: () => [] } as MockPermissoesService,
     })
   );
   app.use('/api/lgpd', criarRotasLgpd({ authService, auditService, db }));
@@ -71,8 +76,6 @@ async function login(app: express.Express, email: string): Promise<string> {
 describe('Rotas LGPD (/api/lgpd)', () => {
   let db: Database.Database;
   let app: express.Express;
-  let authService: AuthServiceDB;
-  let auditService: AuditTrailServiceDB;
 
   beforeEach(async () => {
     db = createTestDatabase();
@@ -87,7 +90,7 @@ describe('Rotas LGPD (/api/lgpd)', () => {
     stmt.run('user_titular_2', 'Titular Dois', 'titular2@example.com', hash, 'titular');
     stmt.run('user_inquilino', 'Inquilino Teste', 'inquilino@example.com', hash, 'inquilino');
 
-    ({ app, authService, auditService } = await criarAppDeTeste(db));
+    ({ app } = await criarAppDeTeste(db));
   });
 
   afterEach(() => {
@@ -143,7 +146,7 @@ describe('Rotas LGPD (/api/lgpd)', () => {
       expect(resp.body).toHaveProperty('sessoes_ativas');
       expect(Array.isArray(resp.body.sessoes_ativas)).toBe(true);
       // Não deve ter campo 'token' nas sessões
-      resp.body.sessoes_ativas.forEach((s: any) => {
+      resp.body.sessoes_ativas.forEach((s: Record<string, unknown>) => {
         expect(s).not.toHaveProperty('token');
       });
     });
@@ -353,7 +356,7 @@ describe('Rotas LGPD (/api/lgpd)', () => {
       const token = await login(app, 'titular1@example.com');
       // Verificar que a sessão estava ativa
       let sessoesStmt = db.prepare('SELECT COUNT(*) as count FROM sessoes WHERE usuario_id = ? AND ativo = true');
-      let result = sessoesStmt.get('user_titular_1') as any;
+      let result = sessoesStmt.get('user_titular_1') as unknown as { count: number };
       expect(result.count).toBeGreaterThan(0);
 
       // Deletar conta
@@ -364,7 +367,7 @@ describe('Rotas LGPD (/api/lgpd)', () => {
 
       // Verificar que não há mais sessões ativas
       sessoesStmt = db.prepare('SELECT COUNT(*) as count FROM sessoes WHERE usuario_id = ? AND ativo = true');
-      result = sessoesStmt.get('user_titular_1') as any;
+      result = sessoesStmt.get('user_titular_1') as unknown as { count: number };
       expect(result.count).toBe(0);
     });
 
@@ -397,7 +400,7 @@ describe('Rotas LGPD (/api/lgpd)', () => {
       const auditStmt = db.prepare(
         `SELECT COUNT(*) as count FROM auditoria WHERE usuario_id = ?`
       );
-      const result = auditStmt.get('user_titular_1') as any;
+      const result = auditStmt.get('user_titular_1') as unknown as { count: number };
       expect(result.count).toBeGreaterThan(0);
     });
 

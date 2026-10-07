@@ -18,7 +18,7 @@
 import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
-import { consultarCobranca, type CobrancaAsaas, AsaasApiError } from "../../asaas.js";
+import { consultarCobranca, AsaasApiError } from "../../asaas.js";
 // SEC-012: Sentry Error Tracking & Performance Monitoring
 import { createSentryTransaction, captureException, addSentryBreadcrumb } from '../../services/sentry-service.js';
 
@@ -103,7 +103,6 @@ function atualizarCobranca(
 ): boolean {
   const statusMudou = cobrancaAnterior.status !== statusNovo;
   const taxaMudou = cobrancaAnterior.taxa_asaas !== taxaNova;
-  const saldoMudou = taxaMudou; // saldo_final é recalculado com base na taxa
 
   if (!statusMudou && !taxaMudou) {
     return false; // nenhuma mudança
@@ -172,7 +171,7 @@ async function sincronizarCobranca(
 
     // Extrai taxa_asaas do response. Por enquanto, usa 0 se não vier no payload
     // (será atualizado quando a Asaas enviar o campo 'fee' ou equivalente).
-    const taxaNova = (cobrancaAsaas as any).fee ?? 0;
+    const taxaNova = (cobrancaAsaas as unknown).fee ?? 0;
 
     const houveMudanca = atualizarCobranca(db, cobracaId, cobrancaAsaas.status, taxaNova, cobrancaAnterior);
 
@@ -342,7 +341,7 @@ export async function sincronizarStatusTaxaAsaas(
     );
 
     return resultado;
-  } catch (error) {
+  } catch {
     // SEC-012: Capture unexpected errors
     captureException(error, {
       tags: {

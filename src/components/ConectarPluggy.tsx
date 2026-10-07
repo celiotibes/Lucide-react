@@ -27,7 +27,10 @@ export function ConectarPluggy({ onImportado }: Props) {
   const [dataInicio, setDataInicio] = useState(new Date(new Date().setFullYear(new Date().getFullYear() - 3)).toISOString().slice(0, 10));
   const [dataFim, setDataFim] = useState(new Date().toISOString().slice(0, 10));
 
-  const contasLocais = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db, versao]);
+  const contasLocais = useMemo<ContaBancaria[]>(() => {
+    void versao;
+    return db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : [];
+  }, [db, versao]);
 
   function salvarBackendUrl(valor: string) {
     setBackendUrl(valor);

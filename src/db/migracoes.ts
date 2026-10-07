@@ -133,7 +133,7 @@ export function reconstruirLedgerEntries(db: Database, schemaSql: string): void 
 
   const createNovo = extrairCreateTable(schemaSql, "ledger_entries");
   if (!createNovo) {
-    // eslint-disable-next-line no-console
+     
     console.error("Migração de ledger_entries abortada: CREATE TABLE não encontrado no schema.sql");
     return;
   }
@@ -184,7 +184,7 @@ export function reconstruirLedgerEntries(db: Database, schemaSql: string): void 
     } catch {
       /* já fora de transação */
     }
-    // eslint-disable-next-line no-console
+     
     console.error("Falha ao reconstruir ledger_entries:", erro);
   } finally {
     db.run(`PRAGMA foreign_keys = ${fkAntes ? "ON" : "OFF"}`);
@@ -215,7 +215,7 @@ export function garantirColunasAtualizadas(db: Database, schemaSql: string): voi
         try {
           db.run(`ALTER TABLE ${tabela} ADD COLUMN ${coluna.definicao}`);
         } catch (erro) {
-          // eslint-disable-next-line no-console
+           
           console.error(`Falha ao migrar coluna ${tabela}.${coluna.nome}:`, erro);
         }
       }

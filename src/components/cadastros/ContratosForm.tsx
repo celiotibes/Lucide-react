@@ -72,8 +72,14 @@ export function ContratosForm() {
   const [expandidoId, setExpandidoId] = useState<number | null>(null);
   const [tabAtiva, setTabAtiva] = useState<"imovel" | "valores" | "garantias">("imovel");
 
-  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
-  const contratos = useMemo<ContratoLocacao[]>(() => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao ORDER BY data_inicio DESC") : []), [db, versao]);
+  const imoveis = useMemo<Imovel[]>(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : [];
+  }, [db, versao]);
+  const contratos = useMemo<ContratoLocacao[]>(() => {
+    void versao;
+    return db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao ORDER BY data_inicio DESC") : [];
+  }, [db, versao]);
   const imoveisPorId = useMemo(() => new Map(imoveis.map((i) => [i.id, i])), [imoveis]);
 
   async function salvar() {
@@ -125,7 +131,7 @@ export function ContratosForm() {
     setForm(null);
   }
 
-  const handleTabKeyDown = (e: React.KeyboardEvent, nova: "imovel" | "valores" | "garantias") => {
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
       const tabs: ("imovel" | "valores" | "garantias")[] = ["imovel", "valores", "garantias"];
@@ -160,7 +166,7 @@ export function ContratosForm() {
                 aria-selected={tabAtiva === tab}
                 aria-controls={`tab-${tab}`}
                 onClick={() => setTabAtiva(tab)}
-                onKeyDown={(e) => handleTabKeyDown(e, tab)}
+                onKeyDown={(e) => handleTabKeyDown(e)}
                 style={{
                   padding: "12px 16px",
                   fontSize: 13,
@@ -342,14 +348,26 @@ function ContratoLinha({
   const [novaRubrica, setNovaRubrica] = useState({ referencia: "", descricao: "", percentual: "", valor_base: "" });
   const [novaFranquia, setNovaFranquia] = useState({ ocupacao_pessoas: "", franquia_total_m3: "", custo_estimado_reais: "" });
 
-  const partes = useMemo(() => (db && expandido ? listarPartes(db, contrato.id) : []), [db, versao, expandido, contrato.id]);
-  const caucoes = useMemo(() => (db && expandido ? consultar<Caucao>(db, "SELECT * FROM caucoes WHERE contrato_id = ?", [contrato.id]) : []), [db, versao, expandido, contrato.id]);
+  const partes = useMemo(() => {
+    void versao;
+    return db && expandido ? listarPartes(db, contrato.id) : [];
+  }, [db, versao, expandido, contrato.id]);
+  const caucoes = useMemo(() => {
+    void versao;
+    return db && expandido ? consultar<Caucao>(db, "SELECT * FROM caucoes WHERE contrato_id = ?", [contrato.id]) : [];
+  }, [db, versao, expandido, contrato.id]);
   const rubricas = useMemo(
-    () => (db && expandido ? consultar<RubricaCusteio>(db, "SELECT * FROM contrato_custeio_rubricas WHERE contrato_id = ? ORDER BY referencia", [contrato.id]) : []),
+    () => {
+      void versao;
+      return db && expandido ? consultar<RubricaCusteio>(db, "SELECT * FROM contrato_custeio_rubricas WHERE contrato_id = ? ORDER BY referencia", [contrato.id]) : [];
+    },
     [db, versao, expandido, contrato.id],
   );
   const franquias = useMemo(
-    () => (db && expandido ? consultar<FranquiaHidrica>(db, "SELECT * FROM contrato_franquia_hidrica WHERE contrato_id = ? ORDER BY ocupacao_pessoas", [contrato.id]) : []),
+    () => {
+      void versao;
+      return db && expandido ? consultar<FranquiaHidrica>(db, "SELECT * FROM contrato_franquia_hidrica WHERE contrato_id = ? ORDER BY ocupacao_pessoas", [contrato.id]) : [];
+    },
     [db, versao, expandido, contrato.id],
   );
 

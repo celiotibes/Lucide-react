@@ -44,9 +44,13 @@ export function IndicadoresGestaoView() {
   const { db, versao } = useDb();
   const { avisar } = useToast();
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
 
   const periodosDisp = useMemo(() => {
+    void versao;
     if (!db || !entidade) return [];
     return consultar<{ id: number; ano: number; mes: number }>(
       db,

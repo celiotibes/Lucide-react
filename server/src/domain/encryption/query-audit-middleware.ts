@@ -41,9 +41,9 @@ export function extrairNomeTabelaSelect(query: string): string | null {
  */
 export class AuditoriaQuerySelectMiddleware {
   private config: ConfigAuditMiddleware;
-  private db: any;
+  private db: unknown;
 
-  constructor(db: any, config: Partial<ConfigAuditMiddleware> = {}) {
+  constructor(db: unknown, config: Partial<ConfigAuditMiddleware> = {}) {
     this.db = db;
     this.config = { ...CONFIG_AUDIT_PADRAO, ...config };
   }
@@ -54,8 +54,8 @@ export class AuditoriaQuerySelectMiddleware {
   async executarComAuditoria(
     query: string,
     contexto: ContextoRequisicao,
-    executor: (q: string) => any
-  ): Promise<any> {
+    executor: (q: string) => Record<string, unknown>
+  ): Promise<unknown> {
     const inicio = Date.now();
 
     // Executar query
@@ -183,7 +183,7 @@ export class AuditoriaQuerySelectMiddleware {
  * Factory para criar middleware com configuração comum
  */
 export function criarMiddlewareAuditoria(
-  db: any,
+  db: unknown,
   config?: Partial<ConfigAuditMiddleware>
 ): AuditoriaQuerySelectMiddleware {
   return new AuditoriaQuerySelectMiddleware(db, config);
@@ -197,13 +197,13 @@ export function AuditarSelect(
   contexto: ContextoRequisicao
 ) {
   return function (
-    target: any,
+    target: unknown,
     propertyKey: string,
     descriptor: PropertyDescriptor
   ) {
     const metodoOriginal = descriptor.value;
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: unknown[]) {
       const inicio = Date.now();
       const resultado = await metodoOriginal.apply(this, args);
       const tempoMs = Date.now() - inicio;

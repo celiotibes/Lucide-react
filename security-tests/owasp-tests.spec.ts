@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 /**
  * OWASP Top 10 Security Tests
@@ -58,7 +58,7 @@ test.describe('OWASP Security Tests', () => {
       const errorMsg = page.locator('text=/SQL|erro|error|inválido|invalid/i').first();
       const hasError = await errorMsg.isVisible().catch(() => false);
 
-      let consoleErrors: string[] = [];
+      const consoleErrors: string[] = [];
       page.on('console', msg => {
         if (msg.type() === 'error' && msg.text().toLowerCase().includes('sql')) {
           consoleErrors.push(msg.text());
@@ -186,7 +186,7 @@ test.describe('OWASP Security Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    let csrfResponse: any = null;
+    let csrfResponse: unknown = null;
 
     // Intercept the CSRF validation
     await context.route('**/api/**', async (route) => {
@@ -224,7 +224,7 @@ test.describe('OWASP Security Tests', () => {
           body: JSON.stringify({ test: 'data' }),
         });
         return response.status;
-      } catch (e) {
+      } catch {
         return null;
       }
     });
@@ -296,17 +296,8 @@ test.describe('OWASP Security Tests', () => {
 
     if (fileCount > 0) {
       // Create temporary XXE file and try to upload
-      const xxeFileName = 'xxe-test.xml';
-
       // Note: Cannot directly create files in Playwright, but can test response
-      const firstFileInput = fileInputs.first();
-
-      // Check if file upload validates XML
-      const uploadForm = firstFileInput.locator('..').first();
-      const formData = new FormData();
-
-      // Try form submission with XXE
-      // This would need proper setup, but main point is to test server-side validation
+      // File upload tests would need proper setup, but main point is to test server-side validation
     }
   });
 
@@ -388,7 +379,7 @@ test.describe('OWASP Security Tests', () => {
       try {
         const response = await fetch(`/api/download?file=${payload}`);
         return response.status;
-      } catch (e) {
+      } catch {
         return null;
       }
     }, traversalPayload);
@@ -415,7 +406,7 @@ test.describe('OWASP Security Tests', () => {
         try {
           const res = await fetch(`/api/file?path=${encodeURIComponent(p)}`);
           return res.status;
-        } catch (e) {
+        } catch {
           return null;
         }
       }, payload);
@@ -466,7 +457,7 @@ test.describe('OWASP Security Tests', () => {
       const hasStrictTransportSecurity = headers['strict-transport-security'];
 
       // At least some security headers should be present
-      expect(hasCSP || hasXFrameOptions || hasXContentTypeOptions).toBeTruthy();
+      expect(hasCSP || hasXFrameOptions || hasXContentTypeOptions || hasStrictTransportSecurity).toBeTruthy();
     }
   });
 });

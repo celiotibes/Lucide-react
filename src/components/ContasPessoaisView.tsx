@@ -151,18 +151,30 @@ export function ContasPessoaisView() {
 
   const [periodoSegregacaoManual, setPeriodoSegregacaoManual] = useState("");
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
   const periodos = useMemo(
-    () => (db && entidade ? listarPeriodosContabeis(db, entidade.id) : []),
+    () => {
+      void versao;
+      return db && entidade ? listarPeriodosContabeis(db, entidade.id) : [];
+    },
     [db, versao, entidade],
   );
   const periodoPadrao = periodos.find((p) => p.status === "aberto") ?? periodos[0] ?? null;
 
-  const pessoas = useMemo<Pessoa[]>(() => (db ? listarPessoas(db) : []), [db, versao]);
+  const pessoas = useMemo<Pessoa[]>(() => {
+    void versao;
+    return db ? listarPessoas(db) : [];
+  }, [db, versao]);
   const pessoaSelecionada = pessoas.find((p) => p.id === pessoaSelecionadaId) ?? null;
 
   const contasPessoa = useMemo<ContaPessoal[]>(
-    () => (db && pessoaSelecionadaId ? listarContasPessoais(db, pessoaSelecionadaId) : []),
+    () => {
+      void versao;
+      return db && pessoaSelecionadaId ? listarContasPessoais(db, pessoaSelecionadaId) : [];
+    },
     [db, versao, pessoaSelecionadaId],
   );
   const contaPessoalPorId = useMemo(() => {
@@ -172,19 +184,23 @@ export function ContasPessoaisView() {
   }, [contasPessoa]);
 
   const extrato = useMemo(
-    () =>
-      db && pessoaSelecionadaId
+    () => {
+      void versao;
+      return db && pessoaSelecionadaId
         ? relatorioMovimentosPessoais(db, pessoaSelecionadaId, { inicio: extratoInicio, fim: extratoFim })
-        : null,
+        : null;
+    },
     [db, versao, pessoaSelecionadaId, extratoInicio, extratoFim],
   );
 
   const periodoSegregacaoId = periodoSegregacaoManual || (periodoPadrao ? String(periodoPadrao.id) : "");
   const segregacao = useMemo(
-    () =>
-      db && entidade && periodoSegregacaoId
+    () => {
+      void versao;
+      return db && entidade && periodoSegregacaoId
         ? relatorioSegregacaoPatrimonial(db, entidade.id, Number(periodoSegregacaoId))
-        : null,
+        : null;
+    },
     [db, versao, entidade, periodoSegregacaoId],
   );
 

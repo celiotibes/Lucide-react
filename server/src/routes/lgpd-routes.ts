@@ -21,6 +21,39 @@ export interface RotasLgpdDeps {
   db: Database.Database;
 }
 
+interface UsuarioRow {
+  id: string;
+  nome: string;
+  email: string;
+  role: string;
+  ativo: number;
+  data_criacao: string;
+  ultimo_login: string | null;
+}
+
+interface SessaoRow {
+  usuario_id: string;
+  data_criacao: string;
+  data_expiracao: string;
+  endereco_ip: string;
+  user_agent: string;
+  ativo: number;
+}
+
+interface AuditoriaRow {
+  id: string;
+  timestamp: string;
+  tipo_acao: string;
+  recurso: string;
+  recurso_id: string;
+  descricao: string;
+  resultado: string;
+}
+
+interface UsuarioSenhaRow {
+  senha_hash: string;
+}
+
 /**
  * Cria router de rotas LGPD
  * Todas as rotas operam SEMPRE e SÓ sobre o usuário autenticado
@@ -48,7 +81,7 @@ export function criarRotasLgpd({ authService, auditService, db }: RotasLgpdDeps)
       const usuarioStmt = db.prepare(
         `SELECT id, nome, email, role, ativo, data_criacao, ultimo_login FROM usuarios WHERE id = ?`
       );
-      const usuario = usuarioStmt.get(usuarioId) as any;
+      const usuario = usuarioStmt.get(usuarioId) as unknown as UsuarioRow | undefined;
       if (!usuario) {
         return res.status(404).json({ erro: 'Usuário não encontrado' });
       }
@@ -59,14 +92,14 @@ export function criarRotasLgpd({ authService, auditService, db }: RotasLgpdDeps)
          FROM sessoes WHERE usuario_id = ? AND ativo = true AND data_expiracao > CURRENT_TIMESTAMP
          ORDER BY data_criacao DESC`
       );
-      const sessoes = sessoesStmt.all(usuarioId) as any[];
+      const sessoes = sessoesStmt.all(usuarioId) as unknown as SessaoRow[];
 
       // Buscar últimas 10 ações de auditoria deste usuário
       const auditoriaStmt = db.prepare(
         `SELECT id, timestamp, tipo_acao, recurso, recurso_id, descricao, resultado
          FROM auditoria WHERE usuario_id = ? ORDER BY timestamp DESC LIMIT 10`
       );
-      const acessos = auditoriaStmt.all(usuarioId) as any[];
+      const acessos = auditoriaStmt.all(usuarioId) as unknown as AuditoriaRow[];
 
       // Registrar este acesso na auditoria
       auditService.registrarAcao(
@@ -92,7 +125,7 @@ export function criarRotasLgpd({ authService, auditService, db }: RotasLgpdDeps)
           data_criacao: usuario.data_criacao,
           ultimo_login: usuario.ultimo_login,
         },
-        sessoes_ativas: sessoes.map((s: any) => ({
+        sessoes_ativas: sessoes.map((s: SessaoRow) => ({
           data_criacao: s.data_criacao,
           data_expiracao: s.data_expiracao,
           endereco_ip: s.endereco_ip,
@@ -131,7 +164,7 @@ export function criarRotasLgpd({ authService, auditService, db }: RotasLgpdDeps)
         `SELECT id, timestamp, tipo_acao, recurso, recurso_id, descricao, resultado
          FROM auditoria WHERE usuario_id = ? ORDER BY timestamp DESC LIMIT ?`
       );
-      const acessos = auditStmt.all(usuarioId, limite) as any[];
+      const acessos = auditStmt.all(usuarioId, limite) as unknown as AuditoriaRow[];
 
       res.status(200).json({
         total: acessos.length,
@@ -176,7 +209,7 @@ export function criarRotasLgpd({ authService, auditService, db }: RotasLgpdDeps)
 
       // Re-autenticar: buscar hash da senha
       const usuarioStmt = db.prepare('SELECT senha_hash FROM usuarios WHERE id = ?');
-      const usuarioRow = usuarioStmt.get(usuarioId) as any;
+      const usuarioRow = usuarioStmt.get(usuarioId) as unknown as UsuarioSenhaRow | undefined;
       if (!usuarioRow) {
         return res.status(404).json({ erro: 'Usuário não encontrado' });
       }

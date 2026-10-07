@@ -33,7 +33,10 @@ export function DividasConsumoForm() {
   const { avisar } = useToast();
   const [form, setForm] = useState<Formulario | null>(null);
 
-  const dividas = useMemo<DividaConsumo[]>(() => (db ? consultar<DividaConsumo>(db, "SELECT * FROM dividas_consumo ORDER BY saldo_devedor_atual DESC") : []), [db, versao]);
+  const dividas = useMemo<DividaConsumo[]>(() => {
+    void versao;
+    return db ? consultar<DividaConsumo>(db, "SELECT * FROM dividas_consumo ORDER BY saldo_devedor_atual DESC") : [];
+  }, [db, versao]);
 
   function abrirEdicao(d: DividaConsumo) {
     setForm({

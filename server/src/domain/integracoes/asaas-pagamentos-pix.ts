@@ -26,6 +26,7 @@
 import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
+import { registrarLancamento } from '../ledger/ledger-service.js';
 
 export type FetchLike = typeof fetch;
 
@@ -448,7 +449,7 @@ export function buscarPagamentoPix(db: Database.Database, pagamentoId: string): 
     WHERE id = ?
   `);
 
-  const registro = stmt.get(pagamentoId) as any;
+  const registro = stmt.get(pagamentoId) as unknown;
   if (!registro) return null;
 
   return {
@@ -507,6 +508,28 @@ export async function buscarStatusPagamentoPix(
     // Se mudou, atualiza
     if (statusNovo !== pagamento.status) {
       atualizarStatusPagamento(db, pagamentoId, statusNovo);
+
+      // Registra no ledger quando pagamento é completado
+      // Integração com contabilidade: débito em despesa, crédito em banco
+      if (statusNovo === "COMPLETED") {
+        const resultadoLedger = registrarLancamento(db, {
+          id: randomUUID(),
+          data: new Date().toISOString().split('T')[0],
+          tipo: 'despesa',
+          categoria: 'comissao', // categoria padrão para pagamentos
+          valor: pagamento.valor,
+          descricao: `Pagamento PIX - ${pagamento.beneficiarioNome} (${pagamento.descricao})`,
+          referencia_externa: `ASAAS-PAG-${pagamento.asaasPaymentId}`,
+          usuario_id: 'sistema-asaas-pagamentos',
+        });
+
+        if (!resultadoLedger.sucesso) {
+          logger.error(`[AsaasPagamentosPix] Falha crítica ao registrar no ledger: ${resultadoLedger.erro}`, {
+            pagamentoId,
+            asaasPaymentId: pagamento.asaasPaymentId,
+          });
+        }
+      }
     }
 
     return buscarPagamentoPix(db, pagamentoId);
@@ -617,7 +640,7 @@ export function listarPagamentosPix(
   sql += ` ORDER BY criado_em DESC`;
 
   const stmt = db.prepare(sql);
-  const registros = stmt.all(...params) as any[];
+  const registros = stmt.all(...params) as Record<string, unknown>[];
 
   return registros.map((r) => ({
     id: r.id,

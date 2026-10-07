@@ -18,7 +18,7 @@ import type { AuditTrailServiceDB } from "../domain/auth/audit-trail-db.js";
 import type { PermissoesServiceDB } from "../domain/auth/permissoes-db.js";
 import { FUNCOES_CATALOGO, PAPEIS_VALIDOS, papelValido } from "../domain/auth/permissoes.js";
 import type { UserRole, ContextoAutenticacao } from "../domain/auth/auth-service.js";
-import { validateTokenSafely, generateSecureToken } from "../utils/security-helpers.js";
+import { generateSecureToken } from "../utils/security-helpers.js";
 import { atributosCookieSessao } from "../middleware/cors-middleware.js";
 
 export interface AuthRoutesDeps {

@@ -152,7 +152,7 @@ export class BackupService {
         try {
           const result = db.prepare(`SELECT COUNT(*) as count FROM ${name}`).get() as { count: number };
           metadados.rowCounts[name] = result.count;
-        } catch (e) {
+        } catch {
           metadados.rowCounts[name] = 0;
         }
       }
@@ -360,7 +360,7 @@ export class BackupService {
         // 4. Tentar abrir banco para verificar integridade
         try {
           const db = new Database(decryptedPath);
-          const pragmaResult = db.prepare("PRAGMA integrity_check").all() as any[];
+          const pragmaResult = db.prepare("PRAGMA integrity_check").all() as Record<string, unknown>[];
           db.close();
 
           if (pragmaResult.length > 0 && pragmaResult[0].integrity_check !== "ok") {
@@ -368,7 +368,7 @@ export class BackupService {
             return { valido: false, erros, avisos };
           }
           logger.info("[BackupService] PRAGMA integrity_check passou");
-        } catch (e) {
+        } catch {
           erros.push(`Erro ao validar banco: ${e}`);
           return { valido: false, erros, avisos };
         }
@@ -429,7 +429,7 @@ export class BackupService {
       db.pragma("query_only = ON");
 
       // PRAGMA integrity_check
-      const pragmaResult = db.prepare("PRAGMA integrity_check").all() as any[];
+      const pragmaResult = db.prepare("PRAGMA integrity_check").all() as Record<string, unknown>[];
       if (pragmaResult.length > 0 && pragmaResult[0].integrity_check === "ok") {
         relatorio.integridade = "ok";
       } else {
@@ -449,7 +449,7 @@ export class BackupService {
               `${table}: esperava ${manifesto.rowCounts[table]}, encontrou ${result.count}`
             );
           }
-        } catch (e) {
+        } catch {
           relatorio.avisos.push(`${table}: erro ao contar linhas`);
         }
       }
@@ -533,7 +533,7 @@ export class BackupService {
             fs.unlinkSync(filePath);
             const manifestPath = filePath.replace(".enc", "-manifest.json");
             if (fs.existsSync(manifestPath)) fs.unlinkSync(manifestPath);
-          } catch (e) {
+          } catch {
             logger.warn(`[BackupService] Erro ao remover ${filePath}:`, e);
           }
         });
@@ -561,7 +561,7 @@ export class BackupService {
             try {
               const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as BackupManifest;
               timestamp = manifest.timestamp;
-            } catch (e) {
+            } catch {
               // ignorar erro
             }
           }

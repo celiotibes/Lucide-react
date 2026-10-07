@@ -2,14 +2,9 @@
  * Testes para Data Retention Policy
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   calcularDataLimite,
-  deletarUsuariosInativos,
-  arquivarCobrancasAntigas,
-  comprimirLogsAuditoria,
-  deletarTransacoesPendentes,
-  executarLimpezaMensal,
   POLITICAS_RETENCAO_PADRAO,
 } from '../data-retention-policy';
 

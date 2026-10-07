@@ -17,8 +17,6 @@ import type Database from "better-sqlite3";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import {
-  calcularMargensImovel,
-  gravarMargensImovel,
   obterMargensHistorico,
   obterMargensRanking,
   obterMargensRankingPaginado,
@@ -60,8 +58,8 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
       }
 
       // Default: últimos 12 meses
-      let inicio = dataInicio ? String(dataInicio) : new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      let fim = dataFim ? String(dataFim) : new Date().toISOString().split("T")[0];
+      const inicio = dataInicio ? String(dataInicio) : new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const fim = dataFim ? String(dataFim) : new Date().toISOString().split("T")[0];
 
       // Validar datas
       if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(fim)) {
@@ -268,47 +266,43 @@ export function criarRotasRelatorios({ authService, db }: RelatoriosRoutesDeps):
    * Retorna a última margem calculada para um imóvel específico
    */
   router.get("/margens/imovel/:imovelId/ultimo", exigirAutenticacao, async (req, res) => {
-    try {
-      const { imovelId } = req.params;
-      const id = parseInt(imovelId, 10);
+    const { imovelId } = req.params;
+    const id = parseInt(imovelId, 10);
 
-      if (!Number.isInteger(id) || id <= 0) {
-        res.status(400).json({ erro: "imovelId deve ser um número inteiro positivo" });
-        return;
-      }
-
-      // Buscar último período gravado
-      const resultado = db
-        .prepare(
-          `
-        SELECT m.*, i.nome as nomePropriedade
-        FROM margens_propriedades_periodo m
-        JOIN imoveis i ON i.id = m.imovel_id
-        WHERE m.imovel_id = ?
-        ORDER BY m.ano DESC, m.mes DESC
-        LIMIT 1
-      `
-        )
-        .get(id) as any;
-
-      if (!resultado) {
-        res.status(404).json({ erro: "Nenhuma margem calculada para este imóvel" });
-        return;
-      }
-
-      res.status(200).json({
-        imovelId: resultado.imovel_id,
-        nomePropriedade: resultado.nomePropriedade,
-        periodo: resultado.periodo,
-        receita: resultado.receita,
-        despesa: resultado.despesa,
-        margem: resultado.margem,
-        status: resultado.status,
-        calculadoEm: resultado.calculado_em,
-      });
-    } catch (erro) {
-      throw erro;
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ erro: "imovelId deve ser um número inteiro positivo" });
+      return;
     }
+
+    // Buscar último período gravado
+    const resultado = db
+      .prepare(
+        `
+      SELECT m.*, i.nome as nomePropriedade
+      FROM margens_propriedades_periodo m
+      JOIN imoveis i ON i.id = m.imovel_id
+      WHERE m.imovel_id = ?
+      ORDER BY m.ano DESC, m.mes DESC
+      LIMIT 1
+    `
+      )
+      .get(id) as unknown;
+
+    if (!resultado) {
+      res.status(404).json({ erro: "Nenhuma margem calculada para este imóvel" });
+      return;
+    }
+
+    res.status(200).json({
+      imovelId: resultado.imovel_id,
+      nomePropriedade: resultado.nomePropriedade,
+      periodo: resultado.periodo,
+      receita: resultado.receita,
+      despesa: resultado.despesa,
+      margem: resultado.margem,
+      status: resultado.status,
+      calculadoEm: resultado.calculado_em,
+    });
   });
 
   return router;

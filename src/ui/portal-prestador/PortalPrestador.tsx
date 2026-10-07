@@ -2,27 +2,22 @@ import { useState, useMemo } from "react";
 import { Clock, Calendar, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDb } from "../../db/useDb";
 import { consultar, executar } from "../../db/connection";
-import type { ApontamentoDiario, Prestador, ItemRemunerable } from "../../domain/types";
+import type { ApontamentoDiario, Prestador } from "../../domain/types";
 import { TabAgenda } from "./TabAgenda";
 import { TabApontamentos } from "./TabApontamentos";
 import { TabPreviaSemanal } from "./TabPreviaSemanal";
 
 type Tab = "agenda" | "apontamentos" | "previa";
 
-interface Props {
-  aoNavegar?: (aba: string) => void;
-}
-
-export function PortalPrestador({ aoNavegar }: Props) {
-  const { db, versao, persistir } = useDb();
+export function PortalPrestador() {
+  const { db, persistir } = useDb();
   const [abaAtiva, setAbaAtiva] = useState<Tab>("agenda");
   const [prestadorSelecionado, setPrestadorSelecionado] = useState<number | null>(null);
-  const [apontamentoEmEdicao, setApontamentoEmEdicao] = useState<ApontamentoDiario | null>(null);
   const [dataSelecionada, setDataSelecionada] = useState<string>(new Date().toISOString().split("T")[0]);
 
   const prestadores = useMemo<Prestador[]>(
     () => (db ? consultar<Prestador>(db, "SELECT id, nome, cpf_cnpj, servico FROM prestadores ORDER BY nome") : []),
-    [db, versao]
+    [db]
   );
 
   const apontamentosDoMes = useMemo<ApontamentoDiario[]>(() => {
@@ -35,7 +30,7 @@ export function PortalPrestador({ aoNavegar }: Props) {
       "SELECT * FROM apontamentos_diarios WHERE prestador_id = ? AND data BETWEEN ? AND ? ORDER BY data DESC",
       [prestadorSelecionado, inicio, fim]
     );
-  }, [db, versao, prestadorSelecionado, dataSelecionada]);
+  }, [db, prestadorSelecionado, dataSelecionada]);
 
   const apontamentoHoje = useMemo<ApontamentoDiario | null>(
     () => apontamentosDoMes.find((a) => a.data === dataSelecionada) || null,
@@ -168,7 +163,6 @@ export function PortalPrestador({ aoNavegar }: Props) {
           className="btn"
           onClick={() => {
             setPrestadorSelecionado(null);
-            setApontamentoEmEdicao(null);
           }}
         >
           Trocar prestador
@@ -197,10 +191,7 @@ export function PortalPrestador({ aoNavegar }: Props) {
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => {
-              setAbaAtiva(id);
-              setApontamentoEmEdicao(null);
-            }}
+            onClick={() => setAbaAtiva(id)}
             style={{
               flex: 1,
               padding: "12px 16px",
@@ -227,11 +218,9 @@ export function PortalPrestador({ aoNavegar }: Props) {
       {/* Conteúdo das abas */}
       {abaAtiva === "agenda" && (
         <TabAgenda
-          prestadorId={prestadorSelecionado}
           dataSelecionada={dataSelecionada}
           apontamentoHoje={apontamentoHoje}
-          onSelecionarApontamento={(apt) => {
-            setApontamentoEmEdicao(apt);
+          onSelecionarApontamento={() => {
             setAbaAtiva("apontamentos");
           }}
         />
@@ -240,12 +229,10 @@ export function PortalPrestador({ aoNavegar }: Props) {
       {abaAtiva === "apontamentos" && (
         <TabApontamentos
           db={db}
-          prestadorId={prestadorSelecionado}
           dataSelecionada={dataSelecionada}
           apontamentoAtual={apontamentoHoje}
           onSalvar={criarOuAtualizarApontamento}
           onPersistir={persistir}
-          versao={versao}
         />
       )}
 
@@ -254,7 +241,6 @@ export function PortalPrestador({ aoNavegar }: Props) {
           db={db}
           prestadorId={prestadorSelecionado}
           dataSelecionada={dataSelecionada}
-          versao={versao}
         />
       )}
     </div>

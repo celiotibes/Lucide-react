@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import type { Database } from "sql.js";
-import { Clock, Plus, Trash2, CheckCircle, AlertCircle } from "lucide-react";
+import { Clock, Plus, Trash2, AlertCircle } from "lucide-react";
 import { consultar, executar } from "../../db/connection";
 import type { ApontamentoDiario, ItemRemunerable } from "../../domain/types";
 import { HorarioAutomatico } from "./HorarioAutomatico";
@@ -8,39 +8,34 @@ import { MemoriaCalculo } from "./MemoriaCalculo";
 
 interface Props {
   db: Database | null;
-  prestadorId: number;
   dataSelecionada: string;
   apontamentoAtual: ApontamentoDiario | null;
   onSalvar: (dados: Partial<ApontamentoDiario>) => Promise<void>;
   onPersistir: () => Promise<void>;
-  versao: number;
 }
 
 type SecaoAtiva = "entrada" | "intervalo" | "atividades" | "saida" | "envio";
 
 export function TabApontamentos({
   db,
-  prestadorId,
   dataSelecionada,
   apontamentoAtual,
   onSalvar,
   onPersistir,
-  versao,
 }: Props) {
-  const [secaoAtiva, setSecaoAtiva] = useState<SecaoAtiva>("entrada");
+  const [, setSecaoAtiva] = useState<SecaoAtiva>("entrada");
   const [horarioCapturado, setHorarioCapturado] = useState<{ tipo: string; horario: string } | null>(null);
-  const [novaAtividade, setNovaAtividade] = useState({ rubrica: "", tipo: "diaria" as const, valor: 0 });
+  const [novaAtividade, setNovaAtividade] = useState({ rubrica: "", tipo: "diaria" as "diaria" | "airbnb" | "urgencia" | "deslocamento" | "materiais" | "extra", valor: 0 });
   const [observacoes, setObservacoes] = useState("");
 
   const atividades = useMemo<ItemRemunerable[]>(
     () => (db && apontamentoAtual ? consultar<ItemRemunerable>(db, "SELECT * FROM itens_remuneraveis WHERE apontamento_id = ? ORDER BY criado_em", [apontamentoAtual.id]) : []),
-    [db, versao, apontamentoAtual]
+    [db, apontamentoAtual]
   );
 
   const totalRemuneracao = useMemo(() => atividades.reduce((sum, a) => sum + a.valor_final, 0), [atividades]);
 
   const podeAvansarParaIntervalo = apontamentoAtual?.entrada && !apontamentoAtual?.saida_intervalo;
-  const podeAvansarParaRetorno = apontamentoAtual?.saida_intervalo && !apontamentoAtual?.retorno_intervalo;
   const podeAvansarParaSaida = apontamentoAtual?.entrada && apontamentoAtual?.saida_final === null;
 
   const adicionarAtividade = async () => {
@@ -214,7 +209,7 @@ export function TabApontamentos({
                 />
                 <select
                   value={novaAtividade.tipo}
-                  onChange={(e) => setNovaAtividade({ ...novaAtividade, tipo: e.target.value as any })}
+                  onChange={(e) => setNovaAtividade({ ...novaAtividade, tipo: e.target.value as "diaria" | "airbnb" | "urgencia" | "deslocamento" | "materiais" | "extra" })}
                   style={{ padding: "8px 10px", borderRadius: "4px", border: "1px solid var(--ink-lighter)", fontSize: 12 }}
                 >
                   <option value="diaria">Diária</option>

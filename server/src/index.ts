@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
 import express from "express";
+import multer from "multer";
 import { criarMiddlewareCors, interpretarOrigensCors, cookieCrossSiteAtivo } from "./middleware/cors-middleware.js";
 import helmet from "helmet";
 import compression from "compression";
@@ -11,7 +12,7 @@ import { pluggy, normalizarTransacao } from "./pluggy.js";
 // SEC-011: Structured Logging
 import { logger } from "./services/logger-service.js";
 // SEC-012: Sentry Error Tracking & Performance Monitoring
-import { initializeSentry, attachSentryHandlers, setSentryUser, clearSentryUser } from "./services/sentry-service.js";
+import { initializeSentry, attachSentryHandlers } from "./services/sentry-service.js";
 import { requestIdMiddleware } from "./middleware/request-id-middleware.js";
 // SEC-013: CSRF Protection
 import {
@@ -20,7 +21,7 @@ import {
   adicionarTokenCSRFAoResponse,
   erroCSRF,
 } from "./middleware/csrf-middleware.js";
-import { initializeDatabase, getDatabase, closeDatabase } from "./database-init.js";
+import { initializeDatabase, closeDatabase } from "./database-init.js";
 import { AuthServiceDB } from "../src/domain/auth/auth-service-db.js";
 import { AuditTrailServiceDB } from "../src/domain/auth/audit-trail-db.js";
 import { PermissoesServiceDB } from "../src/domain/auth/permissoes-db.js";
@@ -38,6 +39,8 @@ import { criarRotasCarimbo } from "../src/routes/carimbo-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
 import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
+import { criarRotasImportacaoUpload } from "../src/routes/importacao-upload-routes.js";
+import { criarRotasOCRDocumento } from "../src/routes/ocr-document-routes.js";
 import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembretes-agendados-db.js";
 import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
@@ -47,6 +50,7 @@ import { criarRotasTransacoes } from "../src/routes/transacoes-routes.js";
 import { criarRotasConciliacaoPixOFX } from "../src/routes/conciliacao-pix-ofx-routes.js";
 import { criarRotasAnomalias } from "../src/routes/anomalias-routes.js";
 import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-routes.js";
+import { criarRotasAgentesEconomicos } from "../src/routes/agentes-economicos-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 import { criarRotasBackup } from "../src/routes/backup-routes.js";
 // Phase 13: Backup Scheduler — agendamento periódico de backups
@@ -109,7 +113,7 @@ const envSchema = z.object({
 let envVars: z.infer<typeof envSchema>;
 try {
   envVars = envSchema.parse(process.env);
-} catch (error) {
+} catch {
   if (error instanceof z.ZodError) {
     logger.error("[Server] Erro na validação das variáveis de ambiente", {
       errors: error.errors.map((e) => `  - ${e.path.join(".")}: ${e.message}`).join("\n"),
@@ -125,7 +129,6 @@ const PORT = envVars.PORT;
 const { origens: ORIGENS_CORS, descartadas: ORIGENS_CORS_DESCARTADAS } = interpretarOrigensCors(
   [envVars.CORS_ORIGINS, envVars.ALLOWED_ORIGIN].filter(Boolean).join(","),
 );
-const DATABASE_URL = envVars.DATABASE_URL;
 const NODE_ENV = envVars.NODE_ENV;
 
 // SEC-012: Initialize Sentry FIRST (before any other operations)
@@ -182,7 +185,7 @@ if (process.env.BACKUP_LOCAL_DIR && process.env.BACKUP_ENCRYPTION_KEY) {
     backupScheduler = new BackupScheduler(backupService);
     backupScheduler.start();
     logger.info("[Server] Backup scheduler iniciado com sucesso");
-  } catch (error) {
+  } catch {
     logger.error("[Server] Erro ao inicializar backup scheduler:", error instanceof Error ? error.message : error);
     // Falha aberta: backup automático desabilitado, mas sistema continua funcionando
   }
@@ -391,6 +394,46 @@ app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db, authService }));
  * PATCH /api/anomalias/alertas/:id/revisar — marca alerta como revisado (auditoria) */
 app.use("/api/anomalias", criarRotasAnomalias({ db, authService }));
 
+/** Sistema de Agentes Econômicos - Fase 18 (CRUD de PF/PJ)
+ * GET    /api/v1/agentes-economicos — lista agentes (paginado, filtrado)
+ * POST   /api/v1/agentes-economicos — criar novo agente
+ * GET    /api/v1/agentes-economicos/:id — buscar agente específico
+ * PUT    /api/v1/agentes-economicos/:id — atualizar agente
+ * DELETE /api/v1/agentes-economicos/:id — desativar agente (soft delete)
+ * GET    /api/v1/agentes-economicos/:id/duplicatas — listar suspeitas de duplicata
+ *
+ * Suporta pessoas físicas (CPF) e jurídicas (CNPJ), com validação de duplicatas
+ * usando Levenshtein distance. Incluição de agentes como tenants, fornecedores,
+ * prestadores, partes legais, co-proprietários, devedores e credores. */
+app.use("/api/v1/agentes-economicos", criarRotasAgentesEconomicos({
+  db,
+  authService,
+  auditService,
+}));
+
+/** Importação de Documentos - Fase 1 (UPLOAD)
+ * POST /api/importacao/upload — upload e validação de arquivo (PDF, CSV, OFX, JPEG, PNG)
+ *
+ * Validação:
+ * - Extensão permitida (.ofx, .csv, .pdf, .jpg, .jpeg, .png)
+ * - Tamanho máximo 50 MB
+ * - MIME type válido
+ * - Detecção de tipo por magic bytes
+ *
+ * Armazenamento:
+ * - Cálculo de SHA-256 para deduplicação
+ * - Metadados no banco (importacao_lotes)
+ * - Status RECEBIDO após validação */
+const uploadMiddleware = multer({ storage: multer.memoryStorage() });
+app.use("/api/importacao", uploadMiddleware.single("arquivo"), criarRotasImportacaoUpload({ authService, db }));
+
+/** OCR Document Extraction (fase 18)
+ * GET /api/documentos/:id/extraction — fetch OCR results with confidence scores
+ * POST /api/documentos/:id/approve — bulk approve extraction
+ * POST /api/documentos/:id/reject — reject extraction with reason
+ * POST /api/documentos/:id/fields/:fieldName/correct — correct individual field */
+app.use("/api", criarRotasOCRDocumento({ authService, db }));
+
 /** Backup automático para Google Drive (backup horário)
  * GET /api/backup/listar — lista backups no Google Drive
  * POST /api/backup/agora — executa backup manual imediato
@@ -411,14 +454,6 @@ app.use("/api", criarRotasAssinaturasLGPD({
   certisignApiKey: envVars.CERTISIGN_API_KEY || "test-key",
   serProIdApiKey: envVars.SERPROID_API_KEY || "test-key",
 }));
-
-/** Extrai só a mensagem do erro pro log, nunca o objeto inteiro: erros do Axios (usado
- * internamente pelo pluggy-sdk) carregam `config`/`request`, que pode conter o CLIENT_SECRET
- * usado na autenticação com a Pluggy — logar o objeto completo arriscaria vazar o segredo em
- * qualquer plataforma de hospedagem que agregue/exponha logs. */
-function mensagemErro(erro: unknown): string {
-  return erro instanceof Error ? erro.message : String(erro);
-}
 
 /** Exige a mesma chave (X-API-Key) configurada no .env em toda rota de dados — CORS por si só
  * não protege nada aqui: é imposto pelo navegador, não pelo servidor, então qualquer chamada
@@ -443,7 +478,7 @@ app.post("/api/connect-token", exigirChaveApi, async (req, res) => {
     const connectToken = await pluggy.createConnectToken(undefined, clientUserId ? { clientUserId } : undefined);
     req.logger.info("Connect token created", { clientUserId });
     res.json({ accessToken: connectToken.accessToken });
-  } catch (erro) {
+  } catch {
     req.logger.error("Erro ao criar connect token", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao criar connect token" });
   }
@@ -470,7 +505,7 @@ app.get("/api/accounts", exigirChaveApi, async (req, res) => {
         saldo: conta.balance,
       })),
     );
-  } catch (erro) {
+  } catch {
     req.logger.error("Erro ao buscar contas", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao buscar contas" });
   }
@@ -492,7 +527,7 @@ app.get("/api/transactions", exigirChaveApi, async (req, res) => {
     });
     req.logger.info("Transactions fetched", { accountId, count: transacoes.length, from, to });
     res.json(transacoes.map(normalizarTransacao));
-  } catch (erro) {
+  } catch {
     req.logger.error("Erro ao buscar transações", erro instanceof Error ? erro : { error: String(erro) });
     res.status(500).json({ erro: "Falha ao buscar transações" });
   }
@@ -536,7 +571,7 @@ app.get("/api/health", async (_req, res) => {
     const statusHttp = saudeCompleta.status === "error" ? 503 : 200;
     _req.logger.info("[Health] Check executed", { leve: usarLeve, status: saudeCompleta.status });
     res.status(statusHttp).json(saudeCompleta);
-  } catch (erro) {
+  } catch {
     _req.logger.error("[Health] Erro ao executar health check", erro instanceof Error ? erro : { error: String(erro) });
     res.status(503).json({
       status: "error",
@@ -583,7 +618,7 @@ app.get("/metrics", async (_req, res) => {
     const registry = getMetricsRegistry();
     res.set("Content-Type", registry.contentType);
     res.end(await registry.metrics());
-  } catch (error) {
+  } catch {
     logger.error("[Metrics] Failed to expose metrics endpoint", error instanceof Error ? error : { error: String(error) });
     res.status(500).json({ erro: "Failed to generate metrics" });
   }

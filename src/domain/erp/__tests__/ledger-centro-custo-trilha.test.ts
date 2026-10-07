@@ -1,3 +1,4 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { criarBancoDeTeste } from "../../../test/fixtureDb";
 import { criarEntidadeLegal } from "../entidadeLegal";
@@ -6,7 +7,7 @@ import { registrarLancamentoContabil } from "../ledger";
 import { alocarLancamentoACentro } from "../alocacao-centros-custo";
 
 describe("Trilha de centro de custo no razão", () => {
-  let db: any;
+  let db: Database;
   let lancamento_id: number;
   let centros: number[];
 
@@ -16,7 +17,7 @@ describe("Trilha de centro de custo no razão", () => {
     if (!r.entidade_id) throw new Error(`Fixture não criou a entidade: ${r.mensagem}`);
     const entidade_id = r.entidade_id;
     db.run("INSERT INTO periodos_contabeis (entidade_id, ano, mes, status) VALUES (?, 2026, 1, 'aberto')", [entidade_id]);
-    const periodo_id = db.exec("SELECT last_insert_rowid()")[0].values[0][0];
+    const periodo_id = Number(db.exec("SELECT last_insert_rowid()")[0].values[0][0]);
     lancamento_id = registrarLancamentoContabil(db, {
       entidade_id,
       periodo_id,
@@ -31,7 +32,7 @@ describe("Trilha de centro de custo no razão", () => {
     centros = [];
     for (const codigo of ["CC-A", "CC-B"]) {
       db.run("INSERT INTO centros_custo (entidade_id, codigo, descricao, tipo, ativo) VALUES (?, ?, ?, 'imovel', 1)", [entidade_id, codigo, codigo]);
-      centros.push(db.exec("SELECT last_insert_rowid()")[0].values[0][0]);
+      centros.push(Number(db.exec("SELECT last_insert_rowid()")[0].values[0][0]));
     }
   });
 

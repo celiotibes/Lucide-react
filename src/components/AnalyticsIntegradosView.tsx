@@ -321,7 +321,11 @@ export function AnalyticsIntegradosView() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry: any) => `${entry.name}: ${entry.valor}`}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    label={(entry: any) => {
+                      if (entry.nome && entry.valor) return `${entry.nome}: ${entry.valor}`;
+                      return '';
+                    }}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="valor"
@@ -391,7 +395,11 @@ export function AnalyticsIntegradosView() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry: any) => `${entry.nome}: ${formatarMoeda(entry.valor)}`}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    label={(entry: any) => {
+                      if (entry.nome && entry.valor) return `${entry.nome}: ${formatarMoeda(entry.valor)}`;
+                      return '';
+                    }}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="valor"

@@ -33,7 +33,7 @@ interface CacheEntry<T> {
 }
 
 export class CacheService {
-  private cache = new Map<string, CacheEntry<any>>();
+  private cache = new Map<string, CacheEntry<unknown>>();
   private readonly MAX_KEYS_PER_NAMESPACE = 1000;
   private readonly MAX_MEMORY_BYTES = 50 * 1024 * 1024; // 50MB
   private readonly NAMESPACE_SEPARATOR = ':';
@@ -76,7 +76,7 @@ export class CacheService {
    * @param obj Objeto a ser medido
    * @returns Tamanho aproximado em bytes
    */
-  private estimateSize(obj: any): number {
+  private estimateSize(obj: Record<string, unknown>): number {
     const jsonStr = JSON.stringify(obj);
     return Buffer.byteLength(jsonStr, 'utf-8');
   }

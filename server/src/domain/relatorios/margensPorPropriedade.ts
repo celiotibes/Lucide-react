@@ -55,16 +55,6 @@ export interface MargemHistorico {
 }
 
 /**
- * Categorias de despesa que contam como "despesa da propriedade"
- * Mapeamento de categorias Pluggy/Asaas para tipos de despesa
- */
-const CATEGORIAS_DESPESA_PROPRIEDADE = [
-  "Impostos", // IPTU, INSS, etc
-  "Condomínio", // Taxa de condomínio
-  "Manutenção", // Consertos, reparos, pintura, reforma
-];
-
-/**
  * Calcula a margem operacional de um imóvel para um período específico
  *
  * @param db Database

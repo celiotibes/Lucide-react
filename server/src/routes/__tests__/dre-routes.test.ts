@@ -6,10 +6,10 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { AuthServiceDB } from "../../domain/auth/auth-service-db";
+import { AuditTrailServiceDB } from "../../domain/auth/audit-trail-db";
 import { gerarHashSenha } from "../../domain/auth/password";
 import { criarRotasAuth } from "../auth-routes";
 import { criarRotasRelatorios } from "../dre-routes";
-import { gravarDREPeriodo, calcularDREPeriodo } from "../../domain/relatorios/dre";
 import { tokenDoCookie } from "./token-cookie.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,15 +39,16 @@ function createTestDatabase(): Database.Database {
 }
 
 async function criarAppDeTeste(db: Database.Database) {
-  const authService = new AuthServiceDB(db);
   const app = express();
   app.use(express.json());
+  const authService = new AuthServiceDB(db);
+  const auditService = new AuditTrailServiceDB(db);
   app.use(
     "/api/auth",
     criarRotasAuth({
       authService,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
+      auditService,
+      permissoesService: { listarMatriz: () => [] } as unknown,
     }),
   );
   app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
@@ -63,7 +64,6 @@ async function login(app: express.Express, email: string): Promise<string> {
 describe("Rotas HTTP de DRE (/api/relatorios/dre)", () => {
   let db: Database.Database;
   let app: express.Express;
-  let authService: AuthServiceDB;
   let token: string;
 
   beforeEach(async () => {
@@ -78,7 +78,6 @@ describe("Rotas HTTP de DRE (/api/relatorios/dre)", () => {
 
     const resultado = await criarAppDeTeste(db);
     app = resultado.app;
-    authService = resultado.authService;
 
     token = await login(app, "testuser@example.com");
   });

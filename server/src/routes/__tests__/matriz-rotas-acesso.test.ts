@@ -165,9 +165,9 @@ interface Montagem {
 }
 interface Deps {
   db: Database.Database;
-  authService: any;
-  auditService: any;
-  permissoesService: any;
+  authService: unknown;
+  auditService: unknown;
+  permissoesService: unknown;
   eventosService: EventosExternosServiceDB;
   lembretesService: LembretesAgendadosServiceDB;
 }
@@ -204,7 +204,7 @@ function juntar(prefixo: string, rota: string): string {
 /** Lista {metodo, caminho} de todas as rotas de um router (ignora router.use de middleware). */
 function rotasDoRouter(router: express.Router, prefixo: string): Array<{ metodo: string; caminho: string }> {
   const saida: Array<{ metodo: string; caminho: string }> = [];
-  for (const camada of (router as any).stack as any[]) {
+  for (const camada of (router as unknown).stack as Record<string, unknown>[]) {
     if (!camada.route) continue;
     for (const metodo of Object.keys(camada.route.methods)) {
       if (camada.route.methods[metodo]) saida.push({ metodo: metodo.toUpperCase(), caminho: juntar(prefixo, camada.route.path) });
@@ -310,7 +310,7 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
   it("rotas internas: sem token => 401", async () => {
     for (const k of internas()) {
       const [metodo, caminho] = k.split(" ");
-      const res = await (request(app) as any)[metodo.toLowerCase()](comParametrosPreenchidos(caminho)).send({});
+      const res = await (request(app) as unknown)[metodo.toLowerCase()](comParametrosPreenchidos(caminho)).send({});
       expect(res.status, `${k} sem token`).toBe(401);
     }
   });
@@ -319,10 +319,8 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
     it(`rotas internas: ${token} recebe 401/403/404 (nunca 2xx/5xx)`, async () => {
       for (const k of internas()) {
         const [metodo, caminho] = k.split(" ");
-        const res = await (request(app) as any)
-          [metodo.toLowerCase()](comParametrosPreenchidos(caminho))
-          .set("Authorization", `Bearer ${token}`)
-          .send({});
+        const req = (request(app) as unknown)[metodo.toLowerCase()](comParametrosPreenchidos(caminho));
+        const res = await req.set("Authorization", `Bearer ${token}`).send({});
         expect([401, 403, 404], `${k} com ${token} respondeu ${res.status}`).toContain(res.status);
       }
     });
@@ -334,9 +332,8 @@ describe("Matriz de acesso das rotas: comportamento por classe", () => {
     for (const token of ["tok-inquilino", "tok-prestador"]) {
       for (const k of posse) {
         const [metodo, caminho] = k.split(" ");
-        const res = await (request(app) as any)
-          [metodo.toLowerCase()](comParametrosPreenchidos(caminho))
-          .set("Authorization", `Bearer ${token}`);
+        const req = (request(app) as unknown)[metodo.toLowerCase()](comParametrosPreenchidos(caminho));
+        const res = await req.set("Authorization", `Bearer ${token}`);
         expect(res.status, `${k} com ${token}`).toBe(404);
       }
     }

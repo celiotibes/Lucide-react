@@ -27,7 +27,6 @@ import type Database from 'better-sqlite3';
 import type { FilaRevisaoService } from './fila-revisao-service.js';
 import {
   relatarioNecessitaRevisao,
-  campoNecessitaRevisao,
   verificarMudancaThreshold,
   CAMPOS_CRITICOS_REVISAO
 } from './politicaRevisaoIA.js';
@@ -40,8 +39,8 @@ export interface VerificadorRevisaoData {
 export interface DadosParaVerificar {
   documentoId: string;
   tipoRelatorio: string;
-  dadosAntigos?: Record<string, any>;
-  dadosNovos: Record<string, any>;
+  dadosAntigos?: Record<string, unknown>;
+  dadosNovos: Record<string, unknown>;
   usuarioId: string;
   descricao?: string;
 }
@@ -144,7 +143,7 @@ export class VerificadorRevisaoIA {
 
           resultado.itemsCriados.push(item.id);
           this.invalidarCache(dados.documentoId);
-        } catch (erro) {
+        } catch {
           console.error('Erro ao criar item de revisão', erro);
         }
       }
@@ -193,8 +192,8 @@ export class VerificadorRevisaoIA {
    * Encontra campos que foram alterados entre duas versões
    */
   private encontrarCamposAlterados(
-    dadosAntigos: Record<string, any>,
-    dadosNovos: Record<string, any>
+    dadosAntigos: Record<string, unknown>,
+    dadosNovos: Record<string, unknown>
   ): string[] {
     const campos = new Set<string>();
 

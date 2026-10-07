@@ -106,7 +106,7 @@ describe("Deduplicação e revisão de documentos", () => {
       };
       const documentoId = inserirDocumento(db, doc);
 
-      const sugestaoId = registrarSugestao(db, {
+      registrarSugestao(db, {
         documento_id: documentoId,
         campo: "nome_contraparte",
         valor_sugerido: "Empresa LTDA",
@@ -318,17 +318,18 @@ describe("DocumentoDuplicadoError e imutabilidade da revisão", () => {
     try {
       inserirDocumento(db, { tipo: "nota_fiscal", arquivo_nome: "b.xml", arquivo_hash_sha256: "e".repeat(64), chave_nfe: chave });
       throw new Error("deveria ter lançado");
-    } catch (erro: any) {
-      expect(erro.name).toBe("DocumentoDuplicadoError");
-      expect(erro.documentoExistenteId).toBe(id);
-      expect(erro.motivo).toBe("chave_nfe"); // o hash era novo: a causa é a chave, não o hash
+    } catch (erro: unknown) {
+      const error = erro as Record<string, unknown>;
+      expect(error.name).toBe("DocumentoDuplicadoError");
+      expect(error.documentoExistenteId).toBe(id);
+      expect(error.motivo).toBe("chave_nfe"); // o hash era novo: a causa é a chave, não o hash
     }
   });
 
   it("sugestão revisada é imutável no banco (não só por convenção do código)", async () => {
     const db = await criarBancoDeTeste();
-    const sid = registrarSugestao(db, { campo: "tipo", valor_sugerido: "fatura", confianca: 0.9 } as any);
-    revisarSugestao(db, sid, { status: "aceita", revisado_por: "celio" } as any);
+    const sid = registrarSugestao(db, { campo: "tipo", valor_sugerido: "fatura", confianca: 0.9 });
+    revisarSugestao(db, sid, { status: "aceita", revisado_por: "celio" });
     expect(() => db.run("UPDATE sugestoes_ia_documentos SET status = 'rejeitada' WHERE id = ?", [sid])).toThrow(/já revisada/);
     expect(() => db.run("DELETE FROM sugestoes_ia_documentos WHERE id = ?", [sid])).toThrow(/já revisada/);
   });

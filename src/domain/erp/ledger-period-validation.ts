@@ -26,7 +26,7 @@ export class PeriodoFechadoError extends Error {
 export function validarPeriodoAberto(
   db: Database,
   periodo_id: number
-): { aberto: boolean; periodo?: any; erro?: string } {
+): { aberto: boolean; periodo?: { id: number; ano: number; mes: number; status: string }; erro?: string } {
   const [periodo] = consultar<{
     id: number;
     ano: number;

@@ -75,23 +75,38 @@ export function ReajustesRescisaoView() {
   }
 
   const contratos = useMemo<ContratoLocacao[]>(
-    () => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE tipo = 'residencial_fixo' ORDER BY id") : []),
+    () => {
+      void versao;
+      return db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao WHERE tipo = 'residencial_fixo' ORDER BY id") : [];
+    },
     [db, versao],
   );
   const imoveis = useMemo<Map<number, Imovel>>(
-    () => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])),
+    () => {
+      void versao;
+      return new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i]));
+    },
     [db, versao],
   );
 
   const contratoAtivo = contratos.find((c) => c.id === contratoSelecionadoId) ?? contratos[0] ?? null;
 
-  const reajustes = useMemo(() => (db && contratoAtivo ? listarReajustes(db, contratoAtivo.id) : []), [db, versao, contratoAtivo]);
+  const reajustes = useMemo(() => {
+    void versao;
+    return db && contratoAtivo ? listarReajustes(db, contratoAtivo.id) : [];
+  }, [db, versao, contratoAtivo]);
   const sugestao = useMemo(
-    () => (db && contratoAtivo ? sugerirProximoReajuste(db, contratoAtivo, hoje) : null),
+    () => {
+      void versao;
+      return db && contratoAtivo ? sugerirProximoReajuste(db, contratoAtivo, hoje) : null;
+    },
     [db, versao, contratoAtivo, hoje],
   );
   const multa = useMemo(
-    () => (db && contratoAtivo ? calcularMultaRescisoria(db, contratoAtivo, dataRescisao) : null),
+    () => {
+      void versao;
+      return db && contratoAtivo ? calcularMultaRescisoria(db, contratoAtivo, dataRescisao) : null;
+    },
     [db, versao, contratoAtivo, dataRescisao],
   );
 

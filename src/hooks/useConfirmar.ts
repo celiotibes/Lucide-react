@@ -52,12 +52,12 @@ export function useConfirmar(): UseConfirmarReturn {
   const handleConfirm = useCallback(() => {
     state.resolver?.(true);
     setState((prev) => ({ ...prev, isOpen: false }));
-  }, [state.resolver]);
+  }, [state]);
 
   const handleCancel = useCallback(() => {
     state.resolver?.(false);
     setState((prev) => ({ ...prev, isOpen: false }));
-  }, [state.resolver]);
+  }, [state]);
 
   const dialogo = React.createElement(ConfirmDialog, {
     isOpen: state.isOpen,

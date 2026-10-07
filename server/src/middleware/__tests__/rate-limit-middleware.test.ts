@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
 import {
   createRateLimitMiddleware,
   RateLimitStore,
@@ -11,18 +11,13 @@ import {
   getEndpointConfig,
 } from "../rate-limit-middleware.js";
 
-/**
- * Mock Request type for testing
- */
+// Mock types for Request and Response
 interface MockRequest extends Partial<Request> {
   ip?: string | null;
   path?: string;
   auth?: { usuario?: { id: string } | null } | undefined;
 }
 
-/**
- * Mock Response type for testing
- */
 interface MockResponse extends Partial<Response> {
   statusCode?: number;
   jsonData?: unknown;
@@ -154,10 +149,12 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
 
       // Simulate time passing by manipulating the bucket
       // This allows us to test the exponential backoff without waiting
-      const bucket = (store as unknown as { buckets: Map<string, unknown> }).buckets.get(key2);
-      const originalBlockedUntil = bucket.blockedUntil;
-      // Simulate 11 seconds passing by setting blockedUntil to past
-      bucket.blockedUntil = Date.now() - 1000;
+      const storeInternal = store as unknown as { buckets: Map<string, { blockedUntil: number }> };
+      const bucket = storeInternal.buckets.get(key2);
+      if (bucket) {
+        // Simulate 11 seconds passing by setting blockedUntil to past
+        bucket.blockedUntil = Date.now() - 1000;
+      }
 
       // Third request - should unblock and allow one more request
       result = store.check(key2, limit, windowMs);
@@ -327,6 +324,8 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
       };
 
       const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           this.statusCode = code;
           return this;
@@ -365,6 +364,8 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
 
       const headers: Record<string, string> = {};
       const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           this.statusCode = code;
           return this;
@@ -400,6 +401,8 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
 
       let statusCode = 0;
       const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           statusCode = code;
           return this;
@@ -436,6 +439,8 @@ describe("SEC-XXX: Adaptive Rate Limiting", () => {
 
       const headers: Record<string, string> = {};
       const res: MockResponse = {
+        statusCode: 0,
+        jsonData: undefined,
         status: function (code: number) {
           this.statusCode = code;
           return this;

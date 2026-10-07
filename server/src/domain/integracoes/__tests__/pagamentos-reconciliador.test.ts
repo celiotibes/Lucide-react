@@ -1,22 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { randomUUID } from "crypto";
 import {
   sincronizarStatusTaxaAsaas,
   sincronizarStatusTaxaAsaasComFiltro,
   sincronizarStatusTaxaAsaasComRetry,
-  type ResultadoReconciliacao,
   type AuditReconciliacao,
 } from "../pagamentos-reconciliador.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEST_DB_PATH = path.join(__dirname, `test-reconciliador-${process.pid}-${Date.now()}.db`);
-const SENHA_PADRAO = "senha-correta-123";
 
 function resolverSchema(nomeArquivo: string): string {
   const candidatos = [
@@ -46,13 +42,13 @@ function createTestDatabase(): Database.Database {
   // Rodar migrations
   try {
     db.exec(resolverSchema("migrations-phase2-auth.sql"));
-  } catch (e) {
+  } catch {
     console.warn("Phase 2 migration não encontrada, continuando...");
   }
 
   try {
     db.exec(resolverSchema("migrations-phase3-integracoes.sql"));
-  } catch (e) {
+  } catch {
     console.warn("Phase 3 migration não encontrada, criando schema manualmente...");
   }
 
@@ -371,23 +367,10 @@ describe("Reconciliador de Pagamentos Asaas", () => {
         VALUES (?, ?, ?, ?, ?)
       `).run(cobracaId, "charge_10", "PENDING", 0, 100);
 
-      const fetchMock = vi.fn().mockRejectedValue({
-        name: "AsaasApiError",
-        status: 404,
-        message: "Cobrança não encontrada",
-      });
-
       // Mock console para capturar logs
       const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       try {
-        // Simula AsaasApiError manualmente
-        const consultarMock = vi.fn().mockRejectedValue({
-          name: "AsaasApiError",
-          status: 404,
-          message: "Cobrança não encontrada",
-        });
-
         // Como não temos acesso direto ao consultarCobranca mockado, vamos testar com fetch
         // que simula a resposta 404
         const fetchMock404 = vi.fn().mockResolvedValue({

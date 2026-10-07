@@ -267,7 +267,7 @@ export function revertorProvisionamentoDanosVistoria(
     );
 
     return true;
-  } catch (erro) {
+  } catch {
     return false;
   }
 }
@@ -466,8 +466,7 @@ export function obterStatusProvisionamento(
  * Gerar relatório de provisões pendentes
  */
 export function gerarRelatorioProvisionoesPendentes(
-  db: Database,
-  entidadeId: number
+  db: Database
 ): {
   total_vistorias: number;
   provisionadas: number;

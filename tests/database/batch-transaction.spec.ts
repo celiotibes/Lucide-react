@@ -8,7 +8,7 @@
  * - 10000 updates sem timeout
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import path from "path";
 import { createTestDatabase, cleanupTestDatabase } from "../../server/src/db-test-helper";
@@ -39,7 +39,7 @@ describe("Batch Transaction Manager", () => {
       VALUES (?, ?, ?, ?)
     `);
 
-    const result = await manager.simple((txDb) => {
+    const result = await manager.simple(() => {
       stmt.run("user-1", "test@example.com", "hash", "Test User");
       return "success";
     });
@@ -201,7 +201,7 @@ describe("Batch Transaction Manager", () => {
     expect(result.errors).toHaveLength(0);
 
     // Verificar que updates foram aplicados
-    const updatedUser = db.prepare("SELECT * FROM usuarios WHERE id = ?").get("user-50") as any;
+    const updatedUser = db.prepare("SELECT * FROM usuarios WHERE id = ?").get("user-50") as { nome_completo: string };
     expect(updatedUser.nome_completo).toBe("Updated User 50");
   });
 
@@ -256,7 +256,7 @@ describe("Batch Transaction Manager", () => {
         `);
 
         for (const item of chunk) {
-          if ((item as any).shouldFail) {
+          if ((item as { shouldFail?: boolean }).shouldFail) {
             throw new Error("Simulated error for testing");
           }
           stmt.run(item.id, item.email, `hash-${item.id}`, `User ${item.id}`);
@@ -280,8 +280,6 @@ describe("Batch Transaction Manager", () => {
     const items = Array.from({ length: 100 }, (_, i) => ({
       id: `user-${i}`,
     }));
-
-    const startTime = Date.now();
 
     const result = await manager.processBatch(
       items,
@@ -320,7 +318,7 @@ describe("Batch Transaction Manager", () => {
         `);
 
         for (const item of chunk) {
-          if ((item as any).willFail) {
+          if ((item as { willFail?: boolean }).willFail) {
             throw new Error("Test error in last chunk");
           }
           stmt.run(item.id, `${item.id}@test.com`, "hash", `User ${item.id}`);

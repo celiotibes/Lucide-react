@@ -62,8 +62,8 @@ function criarVinculosApiClientFake(
 
 /** Fake de NotificacoesApiClient — nunca toca rede; devolve "enviado" para todo canal
  * recebido e registra as chamadas para o teste inspecionar a mensagem de confirmação. */
-function criarNotificacoesApiClientFake(): NotificacoesApiClient & { chamadas: any[] } {
-  const chamadas: any[] = [];
+function criarNotificacoesApiClientFake(): NotificacoesApiClient & { chamadas: Record<string, unknown>[] } {
+  const chamadas: Record<string, unknown>[] = [];
   return {
     chamadas,
     async disparar(dados) {

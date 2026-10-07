@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { Database } from "sql.js";
 import {
   registrarLancamentoContabil,
   obterSaldoConta,
@@ -8,7 +9,7 @@ import {
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Ledger (Razão Contábil)", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 
@@ -22,7 +23,7 @@ describe("Ledger (Razão Contábil)", () => {
   describe("registrarLancamentoContabil", () => {
     it("deve registrar lançamento de débito", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const resultado = registrarLancamentoContabil(db, {
@@ -43,7 +44,7 @@ describe("Ledger (Razão Contábil)", () => {
 
     it("deve registrar lançamento de crédito", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '5.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const resultado = registrarLancamentoContabil(db, {
@@ -64,7 +65,7 @@ describe("Ledger (Razão Contábil)", () => {
 
     it("deve rejeitar lançamento sem débito ou crédito", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         expect(() =>
@@ -86,7 +87,7 @@ describe("Ledger (Razão Contábil)", () => {
   describe("obterSaldoConta", () => {
     it("deve retornar saldo de conta", () => {
       const contas = db.exec(`SELECT id FROM contas_plano_contas WHERE codigo = '1.1.01' LIMIT 1`);
-      const conta_id = contas[0]?.values[0]?.[0];
+      const conta_id = Number(contas[0]?.values[0]?.[0]);
 
       if (conta_id) {
         const saldo = obterSaldoConta(db, periodo_id, conta_id);
@@ -104,7 +105,7 @@ describe("Ledger (Razão Contábil)", () => {
       );
 
       if (contas[0]?.values.length > 0) {
-        const conta_id = contas[0].values[0][0];
+        const conta_id = Number(contas[0].values[0][0]);
         const saldo = obterSaldoConta(db, periodo_id, conta_id);
 
         expect(saldo).toBe(0);

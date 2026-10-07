@@ -16,7 +16,7 @@ import csurf from "csurf";
 
 describe("SEC-013: CSRF Protection", () => {
   let app: express.Application;
-  let server: any;
+  let server: NodeJS.Server | undefined;
 
   beforeAll(() => {
     app = express();
@@ -39,8 +39,8 @@ describe("SEC-013: CSRF Protection", () => {
     app.use(csrfProtection);
 
     // Middleware para adicionar token ao response
-    app.use((req, res, next) => {
-      res.setHeader("XSRF-TOKEN", (req as any).csrfToken?.() || "");
+    app.use((req: express.Request & { csrfToken?: () => string }, res, next) => {
+      res.setHeader("XSRF-TOKEN", req.csrfToken?.() || "");
       next();
     });
 
@@ -54,7 +54,7 @@ describe("SEC-013: CSRF Protection", () => {
     });
 
     // CSRF error handler
-    app.use((erro: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    app.use((erro: Error & { code?: string }, req: express.Request, res: express.Response, next: express.NextFunction) => {
       if (erro.code === "EBADCSRFTOKEN") {
         res.status(403).json({ erro: "Token CSRF inválido ou expirado" });
         return;

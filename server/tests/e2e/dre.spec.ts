@@ -51,7 +51,7 @@ test.describe('DRE (Demonstração de Resultado do Exercício)', () => {
     await page.click('button:has-text("Este Período")');
     await page.waitForTimeout(300);
 
-    const initialRevenue = await page.locator('div:has-text("Receita")').first().textContent();
+    // Unused _initialRevenue await page.locator('div:has-text("Receita")').first().textContent();
 
     // Switch to another period (if available)
     const tabs = await page.locator('button[role="tab"]').count();

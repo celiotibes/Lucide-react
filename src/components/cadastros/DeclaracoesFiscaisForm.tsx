@@ -37,7 +37,10 @@ export function DeclaracoesFiscaisForm() {
   const [form, setForm] = useState<Formulario | null>(null);
 
   const declaracoes = useMemo<DeclaracaoFiscal[]>(
-    () => (db ? consultar<DeclaracaoFiscal>(db, "SELECT * FROM declaracoes_fiscais ORDER BY ano_calendario DESC, tipo, mes_referencia") : []),
+    () => {
+      void versao;
+      return db ? consultar<DeclaracaoFiscal>(db, "SELECT * FROM declaracoes_fiscais ORDER BY ano_calendario DESC, tipo, mes_referencia") : [];
+    },
     [db, versao],
   );
 

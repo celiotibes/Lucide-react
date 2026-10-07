@@ -18,6 +18,7 @@
 import type Database from "better-sqlite3";
 import { logger } from '../../services/logger-service.js';
 import { randomUUID } from "crypto";
+import { registrarDoubleEntry } from '../ledger/ledger-service.js';
 
 export interface ConciliacaoPix {
   id: string;
@@ -69,8 +70,8 @@ function listarChargesPagas(db: Database.Database): ChargeAsaas[] {
         AND deletado = 0
       ORDER BY criado_em DESC
     `);
-    return (stmt.all() as unknown[]) ?? [];
-  } catch (erro) {
+    return (stmt.all() as unknown as ChargeAsaas[]) ?? [];
+  } catch {
     // Tabela pode não existir — retorna vazio
     return [];
   }
@@ -88,7 +89,7 @@ function listarTransacoesOFX(db: Database.Database): TransacaoOFX[] {
       FROM conciliacao_ofx_cache
       ORDER BY data DESC
     `);
-    return (stmt.all() as unknown[]) ?? [];
+    return (stmt.all() as unknown as TransacaoOFX[]) ?? [];
   } catch {
     // Tabela não existe ainda — retorna vazio
     return [];
@@ -115,7 +116,7 @@ export function buscarMatchPixOfx(
     FROM cobrancas_asaas
     WHERE id = ?
   `);
-  const charge = (stmt.get(chargeId) as unknown as Record<string, unknown> | undefined);
+  const charge = (stmt.get(chargeId) as unknown as ChargeAsaas | undefined);
 
   if (!charge) {
     return { match: false, transacao: null, confianca: 0, multiplos: false };
@@ -205,7 +206,7 @@ export function gerarLancamentoContabil(
   const stmtCharge = db.prepare(`
     SELECT origem_tipo, valor FROM cobrancas_asaas WHERE id = ?
   `);
-  const charge = (stmtCharge.get(conciliacao.asaas_charge_id) as unknown as Record<string, unknown> | undefined);
+  const charge = (stmtCharge.get(conciliacao.asaas_charge_id) as unknown as { origem_tipo?: string; valor: number } | undefined);
 
   if (!charge) {
     throw new Error(`Charge não encontrada: ${conciliacao.asaas_charge_id}`);
@@ -386,6 +387,26 @@ export function conciliarPixOFX(db: Database.Database): ResultadoConciliacao {
         `);
         stmtUpdate.run(lancamentoId, conciliacaoId);
 
+        // Registra no ledger (double-entry bookkeeping)
+        // Integração contábil automática para conciliação PIX↔OFX
+        // Débito: Caixa PIX (1120) | Crédito: Receita (4110)
+        const resultadoLedger = registrarDoubleEntry(db, {
+          id: randomUUID(),
+          data: new Date(charge.data_pagamento).toISOString().split('T')[0],
+          descricao: `Recebimento PIX - ${charge.beneficiario || 'cliente'}`,
+          conta_debito: '1120', // Caixa PIX
+          conta_credito: '4110', // Receita
+          valor: charge.valor,
+          tipo: 'receita',
+          categoria: 'receita',
+          referencia_externa: `CHARGE-${charge.id}`,
+          usuario_id: 'sistema-pix-reconciliacao',
+        });
+
+        if (!resultadoLedger.sucesso) {
+          logger.warn(`[ConciliacaoPixOFX] Falha ao registrar no ledger: ${resultadoLedger.erro}`);
+        }
+
         resultado.conciliadas++;
         resultado.detalhes.push(`✓ ${charge.id}: reconciliado com confiança ${busca.confianca}%`);
       }
@@ -404,10 +425,10 @@ export function conciliarPixOFX(db: Database.Database): ResultadoConciliacao {
       WHERE status = 'pendente'
         AND datetime(criado_em) < datetime('now', '-7 days')
     `);
-    const changes = stmtExpire.run();
+    const changeResult = stmtExpire.run() as unknown as { changes?: number };
 
-    if ((changes as unknown as { changes: number }).changes > 0) {
-      resultado.expiradas = (changes as unknown as { changes: number }).changes;
+    if ((changeResult.changes ?? 0) > 0) {
+      resultado.expiradas = changeResult.changes ?? 0;
       resultado.detalhes.push(`⏱️ ${resultado.expiradas} pendência(s) expirada(s) (>7 dias)`);
     }
   } catch {

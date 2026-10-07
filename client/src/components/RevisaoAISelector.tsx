@@ -39,7 +39,7 @@ export interface PoliticaRevisao {
   relatoriosSensveis: string[];
   papeisSemRevisao: string[];
   papaisComRevisao: string[];
-  thresholds: any[];
+  thresholds: unknown[];
   descricao: string;
   ultimaAtualizacao: string;
 }
@@ -72,7 +72,6 @@ export const RevisaoAISelector: React.FC<RevisaoAISelectorProps> = ({
 }) => {
   const [itensRevisao, setItensRevisao] = useState<ItemRevisao[]>([]);
   const [loading, setLoading] = useState(false);
-  const [politica, setPolitica] = useState<PoliticaRevisao | null>(null);
   const [rejeitandoId, setRejeitandoId] = useState<string | null>(null);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
 
@@ -99,16 +98,11 @@ export const RevisaoAISelector: React.FC<RevisaoAISelectorProps> = ({
     carregarItens();
   }, [isOpen, documentoId]);
 
-  // Carregar política de revisão
+  // Política de revisão é carregada para efeitos futuros de cache
   useEffect(() => {
     const carregarPolitica = async () => {
       try {
-        const response = await fetch('/api/revisao-ia/politica');
-        const data = await response.json();
-
-        if (data.sucesso) {
-          setPolitica(data.politica);
-        }
+        await fetch('/api/revisao-ia/politica');
       } catch (erro) {
         console.error('Erro ao carregar política', erro);
       }

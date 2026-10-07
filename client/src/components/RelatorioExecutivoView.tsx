@@ -9,7 +9,7 @@
  * - Botões: Baixar PDF, Enviar Email, Imprimir
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import type { RelatorioExecutivo, RelatorioExecutivoResposta, SecaoIndisponivel } from "../types/relatorio.js";
 
 interface RelatorioExecutivoViewProps {
@@ -26,11 +26,7 @@ export function RelatorioExecutivoView({ mes, ano }: RelatorioExecutivoViewProps
   const [emailPara, setEmailPara] = useState("");
 
   // Carrega relatório ao montar
-  useEffect(() => {
-    carregarRelatorio();
-  }, [mes, ano]);
-
-  async function carregarRelatorio() {
+  const carregarRelatorio = useCallback(async () => {
     try {
       setLoading(true);
       setErro(null);
@@ -55,7 +51,11 @@ export function RelatorioExecutivoView({ mes, ano }: RelatorioExecutivoViewProps
     } finally {
       setLoading(false);
     }
-  }
+  }, [mes, ano]);
+
+  useEffect(() => {
+    carregarRelatorio();
+  }, [carregarRelatorio]);
 
   async function baixarPDF() {
     try {
@@ -92,7 +92,7 @@ export function RelatorioExecutivoView({ mes, ano }: RelatorioExecutivoViewProps
         throw new Error("Erro ao enviar email");
       }
 
-      const data = await response.json();
+      await response.json();
       alert(`Relatório enviado para ${emailPara}`);
       setEmailPara("");
     } catch (err) {

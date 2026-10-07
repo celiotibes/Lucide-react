@@ -12,6 +12,11 @@ import { criarRotasAuth } from "../auth-routes";
 import { criarRotasAcl } from "../acl-routes";
 import { tokenDoCookie } from "./token-cookie.js";
 
+// Mock types for auth route dependencies
+interface MockPermissoesService {
+  listarMatriz: () => unknown[];
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -48,7 +53,7 @@ async function criarAppDeTeste(db: Database.Database) {
     criarRotasAuth({
       authService,
       auditService,
-      permissoesService: { listarMatriz: () => [] } as any,
+      permissoesService: { listarMatriz: () => [] } as MockPermissoesService,
     }),
   );
   app.use("/api/acl", criarRotasAcl({ authService, auditService, db }));
@@ -222,7 +227,7 @@ describe("Rotas de ACL (/api/acl)", () => {
       expect(resp.body.mensagem).toContain("reativado");
 
       // Verificar que revogado_em foi limpo
-      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE usuario_id = ? AND recurso_id = ?").get("user_inquilino_1", "cob_123") as any;
+      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE usuario_id = ? AND recurso_id = ?").get("user_inquilino_1", "cob_123") as unknown as { revogado_em: string | null };
       expect(acl.revogado_em).toBeNull();
     });
 
@@ -291,7 +296,7 @@ describe("Rotas de ACL (/api/acl)", () => {
   });
 
   describe("DELETE /api/acl/:id — Revogação", () => {
-    it("revoga uma ACL ativa", async () => {
+    it("revoga uma ACL ativa com 204 No Content", async () => {
       // Inserir ACL
       const resultado = db
         .prepare(
@@ -307,15 +312,14 @@ describe("Rotas de ACL (/api/acl)", () => {
         .delete(`/api/acl/${aclId}`)
         .set("Authorization", `Bearer ${token}`);
 
-      expect(resp.status).toBe(200);
-      expect(resp.body.ok).toBe(true);
+      expect(resp.status).toBe(204);
 
       // Verificar que foi revogada
-      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE id = ?").get(aclId) as any;
+      const acl = db.prepare("SELECT revogado_em FROM acl_recursos WHERE id = ?").get(aclId) as unknown as { revogado_em: string | null };
       expect(acl.revogado_em).not.toBeNull();
     });
 
-    it("é idempotente — revogação dupla retorna 200", async () => {
+    it("é idempotente — revogação dupla retorna 204 No Content", async () => {
       // Inserir e revogar
       const resultado = db
         .prepare(
@@ -332,14 +336,13 @@ describe("Rotas de ACL (/api/acl)", () => {
       const resp1 = await request(app)
         .delete(`/api/acl/${aclId}`)
         .set("Authorization", `Bearer ${token}`);
-      expect(resp1.status).toBe(200);
+      expect(resp1.status).toBe(204);
 
-      // Segunda tentativa
+      // Segunda tentativa — idempotente, também retorna 204
       const resp2 = await request(app)
         .delete(`/api/acl/${aclId}`)
         .set("Authorization", `Bearer ${token}`);
-      expect(resp2.status).toBe(200);
-      expect(resp2.body.mensagem).toContain("já estava revogada");
+      expect(resp2.status).toBe(204);
     });
 
     it("rejeita ACL não-encontrada", async () => {
@@ -367,6 +370,44 @@ describe("Rotas de ACL (/api/acl)", () => {
         .set("Authorization", `Bearer ${token}`);
 
       expect(resp.status).toBe(403);
+    });
+  });
+
+  describe("Transaction isolation — race condition prevention", () => {
+    it("handles concurrent ACL grant requests safely", async () => {
+      const token = await login(app, "titular@example.com");
+      const usuarioId = "user_inquilino_1";
+      const tipoRecurso = "cobranca";
+      const recursoId = "cob_concurrent_123";
+
+      // Simula duas requisições concorrentes tentando criar a mesma ACL
+      // Com transaction wrapping, apenas uma deve ter sucesso (201)
+      const promiseRespostas = await Promise.all([
+        request(app)
+          .post("/api/acl")
+          .set("Authorization", `Bearer ${token}`)
+          .send({ usuarioId, tipoRecurso, recursoId }),
+        request(app)
+          .post("/api/acl")
+          .set("Authorization", `Bearer ${token}`)
+          .send({ usuarioId, tipoRecurso, recursoId }),
+      ]);
+
+      const [resp1, resp2] = promiseRespostas;
+
+      // Uma deve ser 201 (criado), outra 200 (já existe/idempotente)
+      const statuses = [resp1.status, resp2.status].sort();
+      expect(statuses).toEqual([200, 201]);
+
+      // Verificar que apenas UMA linha foi criada no banco
+      const acls = db
+        .prepare("SELECT * FROM acl_recursos WHERE usuario_id = ? AND tipo_recurso = ? AND recurso_id = ?")
+        .all(usuarioId, tipoRecurso, recursoId);
+      expect(acls).toHaveLength(1);
+
+      // E que está ativa (revogado_em = NULL)
+      const acl = acls[0] as unknown as { revogado_em: string | null };
+      expect(acl.revogado_em).toBeNull();
     });
   });
 });

@@ -11,6 +11,7 @@ function respostaJson(corpo: unknown, status = 200): Response {
  * resposta); qualquer outra rota recebe `resposta`. As chamadas reais ficam em `.mock.calls`
  * filtradas por `chamadasDaRota`. */
 function simularServidor(resposta: Response | (() => Response)) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const mock = vi.fn(async (url: string, _init?: RequestInit) => {
     if (String(url).endsWith("/api/auth/me")) return new Response("{}", { status: 401, headers: { "XSRF-TOKEN": "csrf-123" } });
     return typeof resposta === "function" ? resposta() : resposta.clone();

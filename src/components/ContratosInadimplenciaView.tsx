@@ -128,16 +128,31 @@ export function ContratosInadimplenciaView() {
     });
   }
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
-  const contasBancarias = useMemo(() => (db ? listarContasBancarias(db) : []), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
+  const contasBancarias = useMemo(() => {
+    void versao;
+    return db ? listarContasBancarias(db) : [];
+  }, [db, versao]);
 
-  const contratos = useMemo<ContratoLocacao[]>(() => (db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao ORDER BY id") : []), [db, versao]);
+  const contratos = useMemo<ContratoLocacao[]>(() => {
+    void versao;
+    return db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao ORDER BY id") : [];
+  }, [db, versao]);
   const imoveis = useMemo<Map<number, Imovel>>(
-    () => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])),
+    () => {
+      void versao;
+      return new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i]));
+    },
     [db, versao],
   );
   const partesPorContrato = useMemo(
-    () => new Map(contratos.map((c) => [c.id, db ? listarPartes(db, c.id) : []])),
+    () => {
+      void versao;
+      return new Map(contratos.map((c) => [c.id, db ? listarPartes(db, c.id) : []]));
+    },
     [db, versao, contratos],
   );
   const contratosPorId = useMemo(() => new Map(contratos.map((c) => [c.id, c])), [contratos]);
@@ -151,6 +166,7 @@ export function ContratosInadimplenciaView() {
   // TODAS as competências pendentes já vencidas — por isso em_cobranca/litigioso são estados
   // alcançáveis de verdade, e não só com_atraso.
   const statusPorContrato = useMemo<InadimplenciaPorCompetencia[]>(() => {
+    void versao;
     if (!db) return [];
     return contratos
       .filter((c) => c.tipo === "residencial_fixo")
@@ -163,6 +179,7 @@ export function ContratosInadimplenciaView() {
   // que dá a ação de Baixar uma competência específica (baixarCompetencia recebe o id de UMA
   // competência, nunca "o contrato" como um todo).
   const competenciasPendentesPorContrato = useMemo(() => {
+    void versao;
     const mapa = new Map<number, Competencia[]>();
     if (!db) return mapa;
     for (const s of statusPorContrato) {
@@ -184,6 +201,7 @@ export function ContratosInadimplenciaView() {
   // decidir, por competência, entre mostrar "Provisionar juros de mora" ou o badge +
   // "Reverter provisão".
   const competenciasProvisionadas = useMemo(() => {
+    void versao;
     if (!db) return new Set<number>();
     const ids = Array.from(competenciasPendentesPorContrato.values())
       .flat()
@@ -205,7 +223,10 @@ export function ContratosInadimplenciaView() {
   // esse tipo) — sem essa checagem dedicada, um contrato Airbnb ficava sem nenhum controle
   // além do que caía solto no DRE (achado de auditoria de completude).
   const mesesSemReceitaAirbnb = useMemo(
-    () => (db ? detectarMesesSemReceitaAirbnb(db, inicioJanela36m, hoje) : []),
+    () => {
+      void versao;
+      return db ? detectarMesesSemReceitaAirbnb(db, inicioJanela36m, hoje) : [];
+    },
     [db, versao, inicioJanela36m, hoje],
   );
 

@@ -14,11 +14,6 @@ import path from "path";
 import * as archiverModule from "archiver";
 import { google, drive_v3 } from "googleapis";
 import { createReadStream, createWriteStream } from "fs";
-import Database from "better-sqlite3";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Caminho do banco de dados
 const DB_PATH = path.join(process.cwd(), "data", "app.db");
@@ -49,7 +44,7 @@ function inicializarDriveClient(): drive_v3.Drive | null {
     });
 
     return google.drive({ version: "v3", auth });
-  } catch (erro) {
+  } catch {
     logger.error(
       "[GoogleDriveBackup] Erro ao inicializar cliente Drive:",
       erro instanceof Error ? erro.message : erro
@@ -90,7 +85,7 @@ async function encontrarOuCriarPastaBackup(drive: drive_v3.Drive): Promise<strin
 
     logger.info(`[GoogleDriveBackup] Pasta criada: ${createRes.data.id}`);
     return createRes.data.id || null;
-  } catch (erro) {
+  } catch {
     logger.error(
       "[GoogleDriveBackup] Erro ao buscar/criar pasta:",
       erro instanceof Error ? erro.message : erro
@@ -112,14 +107,14 @@ async function comprimirBanco(zipPath: string): Promise<boolean> {
       }
 
       const output = createWriteStream(zipPath);
-      const archive = (archiverModule as any)("zip", { zlib: { level: 9 } });
+      const archive = (archiverModule as unknown)("zip", { zlib: { level: 9 } });
 
       output.on("close", () => {
         logger.info(`[GoogleDriveBackup] Arquivo ZIP criado: ${zipPath} (${archive.pointer()} bytes)`);
         resolve(true);
       });
 
-      archive.on("error", (err: any) => {
+      archive.on("error", (err: unknown) => {
         logger.error("[GoogleDriveBackup] Erro ao compactar:", err.message);
         resolve(false);
       });
@@ -127,7 +122,7 @@ async function comprimirBanco(zipPath: string): Promise<boolean> {
       archive.pipe(output);
       archive.file(DB_PATH, { name: "app.db" });
       archive.finalize();
-    } catch (erro) {
+    } catch {
       logger.error(
         "[GoogleDriveBackup] Erro ao compactar banco:",
         erro instanceof Error ? erro.message : erro
@@ -176,7 +171,7 @@ async function fazerUploadParaDrive(
     }
 
     return true;
-  } catch (erro) {
+  } catch {
     logger.error(
       "[GoogleDriveBackup] Erro ao fazer upload:",
       erro instanceof Error ? erro.message : erro
@@ -205,7 +200,7 @@ function validarIntegridadeZip(zipPath: string): boolean {
 
     logger.info(`[GoogleDriveBackup] Validação: ZIP contém ${stats.size} bytes`);
     return true;
-  } catch (erro) {
+  } catch {
     logger.error(
       "[GoogleDriveBackup] Erro ao validar ZIP:",
       erro instanceof Error ? erro.message : erro
@@ -284,7 +279,7 @@ export async function backupSQLiteToGoogleDrive(): Promise<{
 
     logger.info(`[GoogleDriveBackup] Backup concluído com sucesso: ${nomeArquivo}`);
     return { sucesso: true, arquivoZip: nomeArquivo, erros };
-  } catch (erro) {
+  } catch {
     const mensagemErro = erro instanceof Error ? erro.message : String(erro);
     erros.push(mensagemErro);
     logger.error("[GoogleDriveBackup] Erro ao fazer backup:", mensagemErro);
@@ -308,7 +303,7 @@ export async function enviarArquivoParaGoogleDrive(
     if (!folderId) return { sucesso: false, erros: ["Erro ao encontrar/criar pasta no Google Drive"] };
     const ok = await fazerUploadParaDrive(drive, folderId, caminho, nomeRemoto);
     return ok ? { sucesso: true, erros: [] } : { sucesso: false, erros: ["Erro ao fazer upload para Google Drive"] };
-  } catch (erro) {
+  } catch {
     return { sucesso: false, erros: [erro instanceof Error ? erro.message : String(erro)] };
   }
 }
@@ -410,7 +405,7 @@ export async function restaurarBackupDoGoogleDrive(fileId: string): Promise<{
           logger.info(`[GoogleDriveBackup] Para restaurar completamente, descompacte o arquivo e substitua ${DB_PATH}`);
 
           resolve({ sucesso: true, erros });
-        } catch (erro) {
+        } catch {
           erros.push(erro instanceof Error ? erro.message : String(erro));
           resolve({ sucesso: false, erros });
         }
@@ -421,7 +416,7 @@ export async function restaurarBackupDoGoogleDrive(fileId: string): Promise<{
         resolve({ sucesso: false, erros });
       });
     });
-  } catch (erro) {
+  } catch {
     const mensagemErro = erro instanceof Error ? erro.message : String(erro);
     erros.push(mensagemErro);
     logger.error("[GoogleDriveBackup] Erro ao restaurar backup:", mensagemErro);

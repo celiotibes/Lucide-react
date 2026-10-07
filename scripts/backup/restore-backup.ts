@@ -10,9 +10,6 @@
 
 import "dotenv/config";
 import { restaurarBackupDoGoogleDrive } from "../../server/src/utils/googleDriveBackup.js";
-import { createReadStream, existsSync, unlinkSync } from "fs";
-import { createExtractZip } from "extract-zip";
-import path from "path";
 
 async function main() {
   const fileId = process.argv[2];

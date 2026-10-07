@@ -51,10 +51,14 @@ describe("montarPayloadPortal", () => {
   });
 
   it("não vaza campos além do necessário (minimização)", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const suja = entrada() as any;
-    suja.contrato.locatario = "Fulano";
-    suja.contrato.cpf = "999.888";
-    suja.imovel.endereco = "Rua X";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (suja.contrato as any).locatario = "Fulano";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (suja.contrato as any).cpf = "999.888";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (suja.imovel as any).endereco = "Rua X";
     const json = JSON.stringify(montarPayloadPortal(suja));
     expect(json).not.toMatch(/Fulano|999\.888|Rua X|locatario|cpf|endereco/);
   });

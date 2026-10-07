@@ -2,7 +2,7 @@
  * SEC-011B: Tests for Timing Attack Protection
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import crypto from "crypto";
 import {
   timingSafeStringEqual,
@@ -75,8 +75,8 @@ describe("SEC-011B: Security Helpers - Timing Attack Protection", () => {
     });
 
     it("should return false for non-string inputs", () => {
-      expect(validateTokenSafely(null as any, "token")).toBe(false);
-      expect(validateTokenSafely("token", undefined as any)).toBe(false);
+      expect(validateTokenSafely(null as unknown, "token")).toBe(false);
+      expect(validateTokenSafely("token", undefined as unknown)).toBe(false);
     });
   });
 
@@ -300,8 +300,8 @@ describe("SEC-011B: Security Helpers - Timing Attack Protection", () => {
     });
 
     it("should handle non-string inputs gracefully", () => {
-      expect(redactSensitive(null as any, 4)).toBe("[REDACTED]");
-      expect(redactSensitive(undefined as any, 4)).toBe("[REDACTED]");
+      expect(redactSensitive(null as unknown, 4)).toBe("[REDACTED]");
+      expect(redactSensitive(undefined as unknown, 4)).toBe("[REDACTED]");
     });
   });
 

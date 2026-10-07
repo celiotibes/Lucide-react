@@ -8,9 +8,9 @@
  * - Alertas para margens críticas
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 interface MargemRankingItem {
   rank: number;
@@ -46,11 +46,7 @@ export const MargensPropriedadesView: React.FC = () => {
   const [historicos, setHistoricos] = useState<Record<number, HistoricoCompleto>>({});
 
   // Carregar ranking
-  useEffect(() => {
-    carregarRanking();
-  }, [periodoMes]);
-
-  const carregarRanking = async () => {
+  const carregarRanking = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +70,11 @@ export const MargensPropriedadesView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodoMes]);
+
+  useEffect(() => {
+    carregarRanking();
+  }, [carregarRanking]);
 
   const carregarHistorico = async (imovelId: number) => {
     if (historicos[imovelId]) {
@@ -220,12 +220,12 @@ export const MargensPropriedadesView: React.FC = () => {
             <XAxis dataKey="periodo" />
             <YAxis />
             <Tooltip
-              formatter={((value: number) => {
+              formatter={(value: unknown) => {
                 if (typeof value === "number") {
                   return value.toFixed(2) + (value > 100 ? " R$" : "%");
                 }
                 return String(value);
-              }) as any}
+              }}
             />
             <Legend />
             <Line type="monotone" dataKey="margem" stroke="#10b981" name="Margem %" dot={{ r: 4 }} />

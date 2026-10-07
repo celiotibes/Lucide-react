@@ -25,6 +25,10 @@ import csurf from "csurf";
 import { validateCsrfTokenSafely } from "../utils/security-helpers.js";
 import { atributosCookieSessao } from "./cors-middleware.js";
 
+interface CsrfRequest extends express.Request {
+  csrfToken?: () => string;
+}
+
 /**
  * Cria middleware de sessão Express
  * Necessário para que o csurf funcione em modo session-based
@@ -69,7 +73,7 @@ export function criarMiddlewareCSRF() {
  * Deve ser aplicado ANTES das rotas que retornam formulários.
  */
 export function adicionarTokenCSRFAoResponse(
-  req: express.Request,
+  req: CsrfRequest,
   res: express.Response,
   next: express.NextFunction,
 ) {
@@ -99,7 +103,7 @@ export function adicionarTokenCSRFAoResponse(
  * Alternativa: incluir o token manualmente em cada handler GET
  */
 export function comTokenCSRF(
-  req: express.Request,
+  req: CsrfRequest,
   res: express.Response,
   next: express.NextFunction,
 ) {
@@ -118,9 +122,9 @@ export function comTokenCSRF(
  *   }));
  */
 export function retornarComToken(
-  handler: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<void> | void,
+  handler: (req: CsrfRequest, res: express.Response, next: express.NextFunction) => Promise<void> | void,
 ) {
-  return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  return async (req: CsrfRequest, res: express.Response, next: express.NextFunction) => {
     const token = req.csrfToken?.() || "";
     res.locals.csrfToken = token;
     res.setHeader("XSRF-TOKEN", token);
@@ -145,7 +149,7 @@ export function validarCSRFTokenSeguro(
  * Uses timing-safe comparison to prevent timing attacks
  */
 export function validarCSRFToken(
-  req: express.Request,
+  req: CsrfRequest,
   res: express.Response,
   next: express.NextFunction,
 ) {
@@ -207,7 +211,7 @@ export function validarCSRFToken(
  * SEC-011B: Uses timing-safe token validation
  */
 export function erroCSRF(
-  erro: any,
+  erro: unknown,
   req: express.Request,
   res: express.Response,
   next: express.NextFunction,

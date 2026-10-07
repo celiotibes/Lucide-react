@@ -42,7 +42,7 @@ function descricaoPeriodo(p: { ano: number; mes: number }) {
 }
 
 export function FechamentoPeriodo() {
-  const { db, versao, persistir } = useDb();
+  const { db, persistir } = useDb();
   const { avisar } = useToast();
 
   const [tick, setTick] = useState(0);
@@ -51,11 +51,14 @@ export function FechamentoPeriodo() {
   const [encerrando, setEncerrando] = useState(false);
   const [hashCopiado, setHashCopiado] = useState(false);
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
+  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db]);
 
   const periodos = useMemo<PeriodoContabilResumo[]>(
-    () => (db && entidade ? listarPeriodosContabeis(db, entidade.id) : []),
-    [db, entidade, versao, tick],
+    () => {
+      void tick;
+      return db && entidade ? listarPeriodosContabeis(db, entidade.id) : [];
+    },
+    [db, entidade, tick],
   );
 
   // Período selecionado por clique; sem seleção prévia, cai no mais recente da lista
@@ -67,21 +70,29 @@ export function FechamentoPeriodo() {
   );
 
   const balancete = useMemo(
-    () => (db && periodoSelecionado ? gerarBalancete(db, periodoSelecionado.id) : null),
-    [db, periodoSelecionado, versao, tick],
+    () => {
+      void tick;
+      return db && periodoSelecionado ? gerarBalancete(db, periodoSelecionado.id) : null;
+    },
+    [db, periodoSelecionado, tick],
   );
 
   const validacao = useMemo(
-    () => (db && periodoSelecionado ? validarBalanceamento(db, periodoSelecionado.id) : null),
-    [db, periodoSelecionado, versao, tick],
+    () => {
+      void tick;
+      return db && periodoSelecionado ? validarBalanceamento(db, periodoSelecionado.id) : null;
+    },
+    [db, periodoSelecionado, tick],
   );
 
   const encerramento = useMemo(
-    () =>
-      db && periodoSelecionado && periodoSelecionado.status === "fechado"
+    () => {
+      void tick;
+      return db && periodoSelecionado && periodoSelecionado.status === "fechado"
         ? obterUltimoEncerramento(db, periodoSelecionado.id)
-        : null,
-    [db, periodoSelecionado, versao, tick],
+        : null;
+    },
+    [db, periodoSelecionado, tick],
   );
 
   const selecionarPeriodo = useCallback((id: number) => {

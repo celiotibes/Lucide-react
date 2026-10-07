@@ -279,7 +279,7 @@ export class EstrategiaBackup {
       this.backupHistory.push(backup);
       return backup;
     } catch (error) {
-      throw new Error(`Falha ao executar backup ${tipo}: ${error}`);
+      throw new Error(`Falha ao executar backup ${tipo}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -327,7 +327,7 @@ export class EstrategiaBackup {
 
     // Simular restauração
     const linhasRestauradas = backup.linhas_processadas;
-    const tabelasRestauradas = this.extrairTabelasDoBackup(backup);
+    const tabelasRestauradas = this.extrairTabelasDoBackup();
 
     const status: StatusRecuperacao = {
       id: recuperacaoId,
@@ -371,7 +371,7 @@ export class EstrategiaBackup {
 
       return integro;
     } catch (error) {
-      throw new Error(`Erro ao verificar integridade: ${error}`);
+      throw new Error(`Erro ao verificar integridade: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -403,7 +403,7 @@ export class EstrategiaBackup {
         detalhes: resultadoTeste ? 'Restauração bem-sucedida' : 'Erro na restauração'
       };
     } catch (error) {
-      return { sucesso: false, detalhes: `Erro ao testar: ${error}` };
+      return { sucesso: false, detalhes: `Erro ao testar: ${error instanceof Error ? error.message : String(error)}` };
     }
   }
 
@@ -569,7 +569,7 @@ export class EstrategiaBackup {
         }
       } catch (error) {
         corrompidos++;
-        avisos.push(`Erro ao verificar ${backup.id}: ${error}`);
+        avisos.push(`Erro ao verificar ${backup.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -602,7 +602,7 @@ export class EstrategiaBackup {
   /**
    * Extrai lista de tabelas do backup
    */
-  private extrairTabelasDoBackup(backup: BackupExecution): string[] {
+  private extrairTabelasDoBackup(): string[] {
     return [
       'empresas',
       'contas',

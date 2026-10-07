@@ -57,17 +57,23 @@ function moeda(v: number | null) {
 }
 
 export function TriagemImportacao() {
-  const { db, versao, persistir } = useDb();
+  const { db, persistir } = useDb();
   const { avisar } = useToast();
   const [loteAberto, setLoteAberto] = useState<number | null>(null);
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [tick, setTick] = useState(0);
   const [hashCopiado, setHashCopiado] = useState<string | null>(null);
 
-  const lotes = useMemo<ResumoLote[]>(() => (db ? listarLotes(db) : []), [db, versao, tick]);
+  const lotes = useMemo<ResumoLote[]>(() => {
+    void tick;
+    return db ? listarLotes(db) : [];
+  }, [db, tick]);
   const linhas = useMemo<LinhaTriagem[]>(
-    () => (db && loteAberto ? listarLinhas(db, loteAberto) : []),
-    [db, loteAberto, versao, tick],
+    () => {
+      void tick;
+      return db && loteAberto ? listarLinhas(db, loteAberto) : [];
+    },
+    [db, loteAberto, tick],
   );
 
   const atualizar = useCallback(async () => {

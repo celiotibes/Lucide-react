@@ -138,8 +138,8 @@ function criarApiClientFake(
     destinatario,
     status: "enviado",
   }),
-): NotificacoesApiClient & { chamadas: any[] } {
-  const chamadas: any[] = [];
+): NotificacoesApiClient & { chamadas: Record<string, unknown>[] } {
+  const chamadas: Record<string, unknown>[] = [];
   return {
     chamadas,
     async disparar(dados) {
@@ -316,7 +316,8 @@ describe("lembretesVencimento", () => {
       expect(apiClient.chamadas[0].origemTipo).toBe("lembrete_aluguel");
       expect(apiClient.chamadas[0].origemId).toBe(id);
       expect(apiClient.chamadas[0].mensagem).toMatch(/vence em 2 dias/i);
-      expect(apiClient.chamadas[0].destinatarios.email).toBe("inquilino@example.com");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((apiClient.chamadas[0] as any).destinatarios.email).toBe("inquilino@example.com");
 
       const emailResultado = resultados[0].resultadosDisparo.find((r) => r.canal === "email");
       expect(emailResultado).toMatchObject({ status: "enviado", destinatario: "inquilino@example.com" });

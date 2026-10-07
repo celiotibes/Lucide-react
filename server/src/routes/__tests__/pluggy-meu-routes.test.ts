@@ -78,8 +78,8 @@ async function criarAppDeTeste(
     "/api/auth",
     criarRotasAuth({
       authService,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
+      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as unknown,
+      permissoesService: { listarMatriz: () => [] } as unknown,
     }),
   );
   app.use("/api/pluggy-meu", criarRotasPluggyMeu({ authService }));

@@ -28,7 +28,10 @@ export function PrestadoresForm() {
   const { db, versao, persistir } = useDb();
   const [form, setForm] = useState<Formulario | null>(null);
 
-  const prestadores = useMemo<Prestador[]>(() => (db ? consultar<Prestador>(db, "SELECT * FROM prestadores ORDER BY nome") : []), [db, versao]);
+  const prestadores = useMemo<Prestador[]>(() => {
+    void versao;
+    return db ? consultar<Prestador>(db, "SELECT * FROM prestadores ORDER BY nome") : [];
+  }, [db, versao]);
 
   function abrirEdicao(p: Prestador) {
     setForm({ id: p.id, nome: p.nome, cpf_cnpj: p.cpf_cnpj ?? "", servico: p.servico, email: p.email ?? "", telefone: p.telefone ?? "" });

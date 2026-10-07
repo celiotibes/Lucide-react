@@ -78,12 +78,10 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
   router.post("/clientes", exigirAutenticacao, async (req, res) => {
     const { nome, cpfCnpj, email, telefone } = req.body ?? {};
     if (typeof nome !== "string" || !nome.trim()) {
-      res.status(400).json({ erro: "nome é obrigatório" });
-      return;
+      return res.status(400).json({ erro: "nome é obrigatório" });
     }
     if (typeof cpfCnpj !== "string" || !cpfCnpj.trim()) {
-      res.status(400).json({ erro: "cpfCnpj é obrigatório" });
-      return;
+      return res.status(400).json({ erro: "cpfCnpj é obrigatório" });
     }
 
     try {
@@ -111,20 +109,16 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
   router.post("/cobrancas", exigirAutenticacao, async (req, res) => {
     const { customer, billingType, value, dueDate, description, fine, interest } = req.body ?? {};
     if (typeof customer !== "string" || !customer.trim()) {
-      res.status(400).json({ erro: "customer (asaasCustomerId) é obrigatório" });
-      return;
+      return res.status(400).json({ erro: "customer (asaasCustomerId) é obrigatório" });
     }
     if (typeof billingType !== "string" || !TIPOS_COBRANCA_VALIDOS.includes(billingType as TipoCobrancaAsaas)) {
-      res.status(400).json({ erro: `billingType inválido — precisa ser um de: ${TIPOS_COBRANCA_VALIDOS.join(", ")}` });
-      return;
+      return res.status(400).json({ erro: `billingType inválido — precisa ser um de: ${TIPOS_COBRANCA_VALIDOS.join(", ")}` });
     }
     if (typeof value !== "number" || !(value > 0)) {
-      res.status(400).json({ erro: "value precisa ser um número maior que zero" });
-      return;
+      return res.status(400).json({ erro: "value precisa ser um número maior que zero" });
     }
     if (typeof dueDate !== "string" || !dueDate) {
-      res.status(400).json({ erro: "dueDate é obrigatório (AAAA-MM-DD)" });
-      return;
+      return res.status(400).json({ erro: "dueDate é obrigatório (AAAA-MM-DD)" });
     }
 
     try {
@@ -174,7 +168,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
           linhaDigitavel: cobranca.identificationField ?? null,
           pixQrCode: cobranca.pixQrCodeId ?? null,
         });
-      } catch (erro) {
+      } catch {
         tratarErroAsaas(erro, res);
       }
     }
@@ -199,14 +193,12 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
 
     // Valida que pelo menos um campo foi fornecido
     if (description === undefined && dueDate === undefined) {
-      res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (description, dueDate)" });
-      return;
+      return res.status(400).json({ erro: "Forneça pelo menos um campo para atualizar (description, dueDate)" });
     }
 
     // Valida dueDate se fornecido
     if (dueDate !== undefined && (typeof dueDate !== "string" || !dueDate.match(/^\d{4}-\d{2}-\d{2}$/))) {
-      res.status(400).json({ erro: "dueDate deve estar no formato YYYY-MM-DD" });
-      return;
+      return res.status(400).json({ erro: "dueDate deve estar no formato YYYY-MM-DD" });
     }
 
     try {
@@ -214,7 +206,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
       await consultarCobranca(chargeId);
 
       // Monta payload com apenas os campos fornecidos
-      const payload: any = {};
+      const payload: unknown = {};
       if (description !== undefined) payload.description = description;
       if (dueDate !== undefined) payload.dueDate = dueDate;
 
@@ -228,10 +220,9 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         linhaDigitavel: cobrancaAtualizada.identificationField ?? null,
         pixQrCode: cobrancaAtualizada.pixQrCodeId ?? null,
       });
-    } catch (erro) {
+    } catch {
       if (erro instanceof AsaasApiError && erro.status === 404) {
-        res.status(404).json({ erro: "Cobrança não encontrada" });
-        return;
+        return res.status(404).json({ erro: "Cobrança não encontrada" });
       }
       tratarErroAsaas(erro, res);
     }
@@ -275,14 +266,12 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     // Valida formato mínimo do payload: campos obrigatórios event e payment.id
     const body = req.body ?? {};
     if (typeof body.event !== "string" || !body.event.trim()) {
-      res.status(400).json({ erro: "Campo 'event' obrigatório no payload" });
-      return;
+      return res.status(400).json({ erro: "Campo 'event' obrigatório no payload" });
     }
 
     const payment = body.payment ?? {};
     if (typeof payment.id !== "string" || !payment.id.trim()) {
-      res.status(400).json({ erro: "Campo 'payment.id' obrigatório no payload" });
-      return;
+      return res.status(400).json({ erro: "Campo 'payment.id' obrigatório no payload" });
     }
 
     // Idempotência + enfileiramento em UMA transação (padrão outbox): a marca de "já visto" e o evento
@@ -315,10 +304,14 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
       } else {
         eventosService.registrarEvento("webhook_asaas", body);
       }
-    } catch (erro) {
-      logger.error("[asaas-routes] Falha ao registrar o evento do webhook:", erro instanceof Error ? erro.message : erro);
-      res.status(500).json({ erro: "Falha ao registrar o evento; tente novamente" });
-      return;
+    } catch {
+      logger.error("[asaas-routes] Falha ao registrar o evento do webhook:", {
+        requestId: (req as unknown).id || "unknown",
+        endpoint: req.path,
+        paymentId: payment.id,
+        error: erro instanceof Error ? erro.message : String(erro),
+      });
+      return res.status(500).json({ erro: "Falha ao registrar o evento; tente novamente" });
     }
 
     res.json({ recebido: true });
@@ -343,17 +336,15 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     }
 
     if (typeof motivo !== "string" || !motivo.trim()) {
-      res.status(400).json({ erro: "motivo é obrigatório (corpo)" });
-      return;
+      return res.status(400).json({ erro: "motivo é obrigatório (corpo)" });
     }
 
     if (tipoForce && !["reversao", "devolucao"].includes(tipoForce)) {
-      res.status(400).json({ erro: "tipoForce inválido — precisa ser 'reversao' ou 'devolucao'" });
-      return;
+      return res.status(400).json({ erro: "tipoForce inválido — precisa ser 'reversao' ou 'devolucao'" });
     }
 
     try {
-      const db = (req as any).db;
+      const db = (req as unknown).db;
       const reembolso = await processarReembolsoAsaas(db, {
         chargeId,
         motivo: motivo.trim(),
@@ -393,12 +384,11 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
     const chargeId = req.params.chargeId?.trim();
 
     if (!chargeId) {
-      res.status(400).json({ erro: "chargeId é obrigatório (via URL)" });
-      return;
+      return res.status(400).json({ erro: "chargeId é obrigatório (via URL)" });
     }
 
     try {
-      const dbLocal = (req as any).db;
+      const dbLocal = (req as unknown).db;
       const reembolsos = obterReembolsosPorChargeId(dbLocal, chargeId);
 
       res.json({
@@ -413,7 +403,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
           mensagemErro: r.mensagemErro,
         })),
       });
-    } catch (erro) {
+    } catch {
       throw erro;
     }
   });
@@ -440,7 +430,7 @@ export function criarRotasAsaas({ authService, eventosService, db }: AsaasRoutes
         erros: resultado.erros,
         detalhes: resultado.detalhes,
       });
-    } catch (erro) {
+    } catch {
       logger.error("[asaas-routes] Erro ao reconciliar manualmente:", erro instanceof Error ? erro.message : erro);
       res.status(500).json({
         erro: "Erro ao reconciliar cobranças Asaas",

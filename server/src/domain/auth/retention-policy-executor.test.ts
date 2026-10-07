@@ -15,9 +15,7 @@ import path from 'path';
 import fs from 'fs';
 import { RetentionPolicyExecutor } from '../../services/retention-policy-executor';
 import {
-  migracaoRetencao,
-  inserirPoliticasRetencaoPadrao,
-} from '../../migrations/criar-politica-retencao';
+  migracaoRetencao } from '../../migrations/criar-politica-retencao';
 
 describe('RetentionPolicyExecutor', () => {
   let db: Database.Database;
@@ -59,7 +57,9 @@ describe('RetentionPolicyExecutor', () => {
       if (fs.existsSync(dbPath)) {
         fs.unlinkSync(dbPath);
       }
-    } catch {}
+    } catch {
+      // Ignore errors during cleanup
+    }
   });
 
   describe('Execução com DRY-RUN', () => {

@@ -12,7 +12,7 @@ import { criarRotasAssinaturasLGPD } from "../assinatura-lgpd-routes";
 describe("Rotas HTTP de Assinatura LGPD", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     // Cria banco de dados em memória
@@ -73,13 +73,13 @@ describe("Rotas HTTP de Assinatura LGPD", () => {
 
     // Middleware que injeta db
     app.use((req, res, next) => {
-      (req as any).db = db;
+      (req as unknown).db = db;
       next();
     });
 
     // Mock auth middleware - simula autenticação bem-sucedida
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,

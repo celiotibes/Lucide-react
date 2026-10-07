@@ -14,14 +14,12 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { RetentionPolicyExecutor } from '../services/retention-policy-executor';
-import { LoggerService } from '../services/logger-service';
 
 const args = process.argv.slice(2);
 const command = args[0] || 'help';
 
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../data/crmt.db');
 const db = new Database(dbPath);
-const logger = new LoggerService('retention-policy-cli');
 const executor = new RetentionPolicyExecutor(db);
 
 function printHelp(): void {
@@ -168,7 +166,7 @@ async function executeRetention(): Promise<void> {
     }
 
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao executar retenção:', String(error));
     process.exit(1);
   }
@@ -197,7 +195,7 @@ function listBlocked(): void {
     }
 
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao listar bloqueios:', String(error));
     process.exit(1);
   }
@@ -236,7 +234,7 @@ function listForgotten(): void {
     }
 
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao listar esquecimentos:', String(error));
     process.exit(1);
   }
@@ -272,7 +270,7 @@ function holdRecord(): void {
       console.log(`   Processo: ${numero}`);
     }
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao bloquear registro:', String(error));
     process.exit(1);
   }
@@ -293,7 +291,7 @@ function releaseRecord(): void {
       `✅ Bloqueio removido de ${tabelaNome}:${registroId}.`
     );
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao desbloquear registro:', String(error));
     process.exit(1);
   }
@@ -323,7 +321,7 @@ function forgetRecord(): void {
     );
     console.log(`   Motivo: ${motivo}`);
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao marcar para esquecimento:', String(error));
     process.exit(1);
   }
@@ -343,7 +341,7 @@ function printReport(): void {
       console.log('   Última Execução: Nenhuma');
     }
     console.log('');
-  } catch (error) {
+  } catch {
     console.error('❌ ERRO ao gerar relatório:', String(error));
     process.exit(1);
   }

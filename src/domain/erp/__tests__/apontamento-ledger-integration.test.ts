@@ -409,7 +409,10 @@ describe("Horas → Ledger Integration", () => {
     const resultado_ajustado = {
       ...resultado,
       horas_efetivas: 8,
-      memoria_calculo: { data_calculo: "2025-01-15" },
+      memoria_calculo: {
+        ...resultado.memoria_calculo,
+        data_calculo: "2025-01-15",
+      },
     };
 
     const ledger_entry = registrarApontamentoHorasNoLedger(
@@ -431,7 +434,20 @@ describe("Horas → Ledger Integration", () => {
     // Arrange
     const resultado = {
       horas_efetivas: 6,
-      memoria_calculo: { data_calculo: "2025-01-15" },
+      intervalo_desconto: 0,
+      horas_trabalhadas: 6,
+      diaria_integral: false,
+      percentual_diaria: 100,
+      memoria_calculo: {
+        data_calculo: "2025-01-15",
+        entrada: "09:00",
+        saida_intervalo: "12:00",
+        retorno_intervalo: "13:00",
+        saida_final: "18:00",
+        minutos_trabalhados: 360,
+        minutos_intervalo: 60,
+        passos_calculo: [],
+      },
     };
 
     // Act
@@ -658,7 +674,26 @@ describe("Integridade Contábil", () => {
 describe("Edge Cases e Validações", () => {
   it("deve rejeitar urgência com valor zero", () => {
     // Arrange: Valor zero
-    const resultado = { valor_final: 0 };
+    const resultado = {
+      valor_base: 0,
+      adicional_deslocamento: 0,
+      adicional_percentual: 0,
+      valor_final: 0,
+      requer_analise_manual: false,
+      memoria_calculo: {
+        data_calculo: "2025-01-15",
+        data_atendimento: "2025-01-15",
+        minutos_atendimento: 30,
+        dia_semana: 2,
+        nome_dia_semana: "terça",
+        houve_deslocamento: false,
+        eh_dia_util: true,
+        eh_domingo_feriado: false,
+        minutos_excedentes: 0,
+        taxa_excedente: 1.5,
+        passos_calculo: [],
+      },
+    };
 
     // Act & Assert
     expect(() => {

@@ -117,7 +117,7 @@ function buscarCategoriaHistorico(
 function buscarCategoriaKeywords(descricao: string): { categoria?: string; confianca: number; motivo: string } {
   const descricaoLower = descricao.toLowerCase();
 
-  for (const [chaveGrupo, { keywords, categoria_padrao, confianca_base }] of Object.entries(PADROES_KEYWORDS)) {
+  for (const [, { keywords, categoria_padrao, confianca_base }] of Object.entries(PADROES_KEYWORDS)) {
     const matches = keywords.filter((kw) => descricaoLower.includes(kw.toLowerCase()));
     if (matches.length > 0) {
       return {

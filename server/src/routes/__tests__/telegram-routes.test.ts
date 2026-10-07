@@ -12,6 +12,22 @@ import { criarRotasAuth } from "../auth-routes";
 import { criarRotasTelegram } from "../telegram-routes";
 import { tokenDoCookie } from "./token-cookie.js";
 
+// Mock types for auth route dependencies
+interface MockAuditService {
+  registrarAcao: () => void;
+  registrarAcessoNegado: () => void;
+}
+
+interface MockPermissoesService {
+  listarMatriz: () => unknown[];
+}
+
+// Mock type for Telegram payload
+interface TelegramEventPayload {
+  texto: string;
+  chatId: string;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -49,8 +65,8 @@ async function criarAppDeTeste(db: Database.Database) {
     "/api/auth",
     criarRotasAuth({
       authService,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
+      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as MockAuditService,
+      permissoesService: { listarMatriz: () => [] } as MockPermissoesService,
     }),
   );
   app.use("/api/telegram", criarRotasTelegram({ authService, eventosService, db }));
@@ -118,7 +134,7 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
       expect(resp.body.codigo).toMatch(/^\d{6}$/);
       expect(resp.body.expiraEmMinutos).toBe(15);
 
-      const linha = db.prepare("SELECT * FROM telegram_vinculos WHERE codigo_vinculo = ?").get(resp.body.codigo) as any;
+      const linha = db.prepare("SELECT * FROM telegram_vinculos WHERE codigo_vinculo = ?").get(resp.body.codigo) as unknown as { usuario_id: string; chat_id: string | null };
       expect(linha).toBeTruthy();
       expect(linha.usuario_id).toBe("user_titular_1");
       expect(linha.chat_id).toBeNull();
@@ -158,7 +174,7 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
         });
       expect(resp.status).toBe(200);
 
-      const linha = db.prepare("SELECT * FROM telegram_vinculos WHERE codigo_vinculo = ?").get(codigo) as any;
+      const linha = db.prepare("SELECT * FROM telegram_vinculos WHERE codigo_vinculo = ?").get(codigo) as unknown as { chat_id: string; vinculado_em: string | null };
       expect(linha.chat_id).toBe("555");
       expect(linha.vinculado_em).toBeTruthy();
 
@@ -190,14 +206,14 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
       expect(resp.status).toBe(200);
 
       // Nunca linkado como usuário do sistema (código expirado para esse fim)...
-      const linha = db.prepare("SELECT * FROM telegram_vinculos WHERE id = 'v1'").get() as any;
+      const linha = db.prepare("SELECT * FROM telegram_vinculos WHERE id = 'v1'").get() as unknown as { chat_id: string | null };
       expect(linha.chat_id).toBeNull();
 
       // ...mas o servidor não sabe se é inválido ou um código de contato externo legítimo —
       // só enfileira, sem tentar resolver (ver cabeçalho de telegram-routes.ts).
       const pendenteExterno = db
         .prepare("SELECT * FROM vinculos_externos_telegram_pendentes WHERE codigo_vinculo = '000111'")
-        .get() as any;
+        .get() as unknown as { chat_id: string; consumido: number };
       expect(pendenteExterno).toBeTruthy();
       expect(pendenteExterno.chat_id).toBe("777");
       expect(pendenteExterno.consumido).toBe(0);
@@ -225,7 +241,7 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
 
       const pendenteExterno = db
         .prepare("SELECT * FROM vinculos_externos_telegram_pendentes WHERE codigo_vinculo = '654321'")
-        .get() as any;
+        .get() as unknown as { chat_id: string };
       expect(pendenteExterno).toBeTruthy();
       expect(pendenteExterno.chat_id).toBe("4242");
 
@@ -261,8 +277,9 @@ describe("Rotas HTTP do bot do Telegram (/api/telegram)", () => {
       const pendentes = eventosService.listarPendentes("user_titular_1", "captura_telegram");
       expect(pendentes).toHaveLength(1);
       expect(pendentes[0].usuarioId).toBe("user_titular_1");
-      expect((pendentes[0].payload as any).texto).toContain("conserto do portão");
-      expect((pendentes[0].payload as any).chatId).toBe("999");
+      const payload = pendentes[0].payload as unknown as TelegramEventPayload;
+      expect(payload.texto).toContain("conserto do portão");
+      expect(payload.chatId).toBe("999");
     });
 
     it("does not queue anything for a message from an unlinked chat", async () => {

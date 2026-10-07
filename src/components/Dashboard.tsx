@@ -127,29 +127,48 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
   const dataInicio36m = new Date(new Date(hoje).setMonth(new Date(hoje).getMonth() - 36)).toISOString().slice(0, 10);
   const [imovelFiltroId, setImovelFiltroId] = useState<number | "">("");
 
-  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
-  const serieMensal = useMemo(() => (db ? gerarSerieMensal(db, dataInicio36m, hoje) : []), [db, versao, dataInicio36m, hoje]);
+  const imoveis = useMemo<Imovel[]>(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : [];
+  }, [db, versao]);
+  const serieMensal = useMemo(() => {
+    void versao;
+    return db ? gerarSerieMensal(db, dataInicio36m, hoje) : [];
+  }, [db, versao, dataInicio36m, hoje]);
   const linhasDre12m = useMemo(
-    () => (db ? gerarDre(db, dataInicio12m, hoje, imovelFiltroId === "" ? undefined : imovelFiltroId) : []),
+    () => {
+      void versao;
+      return db ? gerarDre(db, dataInicio12m, hoje, imovelFiltroId === "" ? undefined : imovelFiltroId) : [];
+    },
     [db, versao, dataInicio12m, hoje, imovelFiltroId],
   );
 
   const statusInadimplencia = useMemo(() => {
+    void versao;
     if (!db) return [];
     const competencias = gerarCompetencias(db, hoje);
     const excecoes = conciliar(db, competencias);
     return calcularInadimplencia(db, excecoes, hoje);
   }, [db, versao, hoje]);
 
-  const desempenhoImoveis = useMemo(() => (db ? calcularDesempenhoPorImovel(db, dataInicio12m, hoje) : []), [db, versao, dataInicio12m, hoje]);
+  const desempenhoImoveis = useMemo(() => {
+    void versao;
+    return db ? calcularDesempenhoPorImovel(db, dataInicio12m, hoje) : [];
+  }, [db, versao, dataInicio12m, hoje]);
   // Deriva de desempenhoImoveis (já calculado acima) em vez de rodar o DRE de cada
   // imóvel de novo — calcularDesempenhoPorCidade() faz exatamente essa segunda rodada.
   const desempenhoCidades = useMemo(() => agruparDesempenhoPorCidade(desempenhoImoveis), [desempenhoImoveis]);
 
-  const fluxoFinanceiro = useMemo(() => (db ? gerarFluxoFinanceiro(db, dataInicio12m, hoje) : { nodes: [], links: [] }), [db, versao, dataInicio12m, hoje]);
+  const fluxoFinanceiro = useMemo(() => {
+    void versao;
+    return db ? gerarFluxoFinanceiro(db, dataInicio12m, hoje) : { nodes: [], links: [] };
+  }, [db, versao, dataInicio12m, hoje]);
   const cascataDre = useMemo(() => gerarCascataDre(linhasDre12m), [linhasDre12m]);
   const heatmapDespesas = useMemo(
-    () => (db ? gerarHeatmapDespesas(db, dataInicio12m, hoje) : { categorias: [], meses: [], celulas: [], valorMaximo: 0 }),
+    () => {
+      void versao;
+      return db ? gerarHeatmapDespesas(db, dataInicio12m, hoje) : { categorias: [], meses: [], celulas: [], valorMaximo: 0 };
+    },
     [db, versao, dataInicio12m, hoje],
   );
   // Cruza o mapa de calor com a auditoria forense: célula que contém um lançamento fora da
@@ -157,6 +176,7 @@ export function Dashboard({ aoDrillDown }: { aoDrillDown?: (filtro: FiltroTransa
   // achado da aba Auditoria forense e o BI do Painel, sem precisar visitar a outra aba pra
   // saber que aquele mês específico tem algo fora do padrão.
   const celulasComOutlier = useMemo(() => {
+    void versao;
     if (!db) return new Set<string>();
     const outliers = detectarOutliers(db, dataInicio12m, hoje);
     return new Set(outliers.map((o) => `${o.planoContaCodigo}|${o.data.slice(0, 7)}`));

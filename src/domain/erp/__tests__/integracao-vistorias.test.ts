@@ -330,7 +330,7 @@ describe("integracao-vistorias + integracao-vistorias-provisionamento", () => {
          VALUES (30, 'dano', 'Janela quebrada', 400)`,
       );
 
-      const relatorio = gerarRelatorioProvisionoesPendentes(db, entidade_id);
+      const relatorio = gerarRelatorioProvisionoesPendentes(db);
       expect(relatorio.total_vistorias).toBe(1);
       expect(relatorio.pendentes).toBe(1);
       expect(relatorio.provisionadas).toBe(0);

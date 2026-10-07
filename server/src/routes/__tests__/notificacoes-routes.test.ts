@@ -60,8 +60,8 @@ async function criarAppDeTeste(db: Database.Database, senders: SendersNotificaca
     "/api/auth",
     criarRotasAuth({
       authService,
-      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as any,
-      permissoesService: { listarMatriz: () => [] } as any,
+      auditService: { registrarAcao: () => {}, registrarAcessoNegado: () => {} } as unknown,
+      permissoesService: { listarMatriz: () => [] } as unknown,
     }),
   );
   app.use("/api/notificacoes", criarRotasNotificacoes({ authService, senders }));
@@ -118,11 +118,11 @@ describe("Rotas HTTP de notificações (/api/notificacoes)", () => {
 
     expect(resp.status).toBe(200);
     expect(resp.body.origemId).toBe(42);
-    const resultados = resp.body.resultados;
+    const resultados = resp.body.resultados as Array<{ canal: string; status: string; destinatario: string }>;
     expect(resultados).toHaveLength(3);
-    expect(resultados.find((r: any) => r.canal === "email")).toMatchObject({ status: "enviado", destinatario: "locatario@example.com" });
-    expect(resultados.find((r: any) => r.canal === "whatsapp")).toMatchObject({ status: "enviado", destinatario: "+5511987654321" });
-    expect(resultados.find((r: any) => r.canal === "telegram")).toMatchObject({ status: "enviado", destinatario: "999888" });
+    expect(resultados.find((r) => r.canal === "email")).toMatchObject({ status: "enviado", destinatario: "locatario@example.com" });
+    expect(resultados.find((r) => r.canal === "whatsapp")).toMatchObject({ status: "enviado", destinatario: "+5511987654321" });
+    expect(resultados.find((r) => r.canal === "telegram")).toMatchObject({ status: "enviado", destinatario: "999888" });
 
     expect(senders.enviarEmail).toHaveBeenCalledWith({
       destinatario: "locatario@example.com",
@@ -148,10 +148,10 @@ describe("Rotas HTTP de notificações (/api/notificacoes)", () => {
       });
 
     expect(resp.status).toBe(200);
-    const resultados = resp.body.resultados;
-    expect(resultados.find((r: any) => r.canal === "email")).toMatchObject({ status: "enviado" });
-    expect(resultados.find((r: any) => r.canal === "whatsapp")).toMatchObject({ status: "pulado", destinatario: "(nenhum)" });
-    expect(resultados.find((r: any) => r.canal === "telegram")).toMatchObject({ status: "pulado", destinatario: "(nenhum)" });
+    const resultados = resp.body.resultados as Array<{ canal: string; status: string; destinatario?: string }>;
+    expect(resultados.find((r) => r.canal === "email")).toMatchObject({ status: "enviado" });
+    expect(resultados.find((r) => r.canal === "whatsapp")).toMatchObject({ status: "pulado", destinatario: "(nenhum)" });
+    expect(resultados.find((r) => r.canal === "telegram")).toMatchObject({ status: "pulado", destinatario: "(nenhum)" });
     expect(senders.enviarWhatsapp).not.toHaveBeenCalled();
     expect(senders.enviarTelegram).not.toHaveBeenCalled();
   });
@@ -169,14 +169,14 @@ describe("Rotas HTTP de notificações (/api/notificacoes)", () => {
       });
 
     expect(resp.status).toBe(200);
-    const resultados = resp.body.resultados;
-    expect(resultados.find((r: any) => r.canal === "email")).toMatchObject({ status: "enviado" });
-    expect(resultados.find((r: any) => r.canal === "whatsapp")).toMatchObject({
+    const resultados = resp.body.resultados as Array<{ canal: string; status: string; motivo?: string }>;
+    expect(resultados.find((r) => r.canal === "email")).toMatchObject({ status: "enviado" });
+    expect(resultados.find((r) => r.canal === "whatsapp")).toMatchObject({
       status: "falha",
       motivo: "WhatsApp Cloud API respondeu 500: fora do ar",
     });
     // Os outros 2 canais são tentados independentemente da falha do WhatsApp.
-    expect(resultados.find((r: any) => r.canal === "telegram")).toMatchObject({ status: "enviado" });
+    expect(resultados.find((r) => r.canal === "telegram")).toMatchObject({ status: "enviado" });
     expect(senders.enviarEmail).toHaveBeenCalledTimes(1);
     expect(senders.enviarTelegram).toHaveBeenCalledTimes(1);
   });

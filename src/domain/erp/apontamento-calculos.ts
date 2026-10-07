@@ -400,7 +400,7 @@ export function calcularAirbnb(
   let requer_analise = false;
   let motivo_analise = "";
   let rubrica = "";
-  let proporcional = false;
+  const proporcional = false;
 
   // Passo 1: Determinar se está dentro do comercial. Domingo e feriado nunca estão:
   // "horário comercial" pressupõe dia de expediente. Antes a checagem olhava só o

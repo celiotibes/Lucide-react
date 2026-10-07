@@ -94,7 +94,7 @@ const MovimentacoesFinanceiras: React.FC<MovimentacoesFinanceirasProps> = ({
   };
 
   const getStatusBadge = (status: StatusMovimentacao) => {
-    const variants: Record<StatusMovimentacao, string> = {
+    const variants: Record<StatusMovimentacao, "secondary" | "default" | "outline" | "success" | "destructive"> = {
       solicitado: "secondary",
       aprovado: "default",
       descontado: "outline",
@@ -110,7 +110,7 @@ const MovimentacoesFinanceiras: React.FC<MovimentacoesFinanceirasProps> = ({
       rejeitado: "Rejeitado",
     };
 
-    return <Badge variant={variants[status] as any}>{labels[status]}</Badge>;
+    return <Badge variant={variants[status]}>{labels[status]}</Badge>;
   };
 
   return (

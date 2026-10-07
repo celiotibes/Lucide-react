@@ -2,14 +2,13 @@
  * Testes: Migração de papéis (inquilino, prestador) + ACL de recursos
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { gerarHashSenha } from "../domain/auth/password.js";
 import { migrarPapeisUsuarios } from "../migrations/migrar-papeis-usuarios.js";
-import { initializeDatabase } from "../database-init.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -146,17 +145,17 @@ describe("Papéis de usuários externos + ACL", () => {
       expect(auditoriaDepois.cnt).toBe(1);
 
       // 5. Verificar que usuários específicos estão intactos
-      const titular = db.prepare("SELECT * FROM usuarios WHERE id = 'user_titular'").get() as any;
+      const titular = db.prepare("SELECT * FROM usuarios WHERE id = 'user_titular'").get() as Record<string, unknown>;
       expect(titular).toBeTruthy();
       expect(titular.email).toBe("titular@example.com");
       expect(titular.role).toBe("titular");
 
       // 6. Verificar que sessões e auditoria continuam intactas
-      const sessao = db.prepare("SELECT * FROM sessoes WHERE token = 'token_1'").get() as any;
+      const sessao = db.prepare("SELECT * FROM sessoes WHERE token = 'token_1'").get() as Record<string, unknown>;
       expect(sessao).toBeTruthy();
       expect(sessao.usuario_id).toBe("user_titular");
 
-      const audit = db.prepare("SELECT * FROM auditoria WHERE id = 'audit_1'").get() as any;
+      const audit = db.prepare("SELECT * FROM auditoria WHERE id = 'audit_1'").get() as Record<string, unknown>;
       expect(audit).toBeTruthy();
 
       // 7. Verificar view continua acessível

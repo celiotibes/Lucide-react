@@ -378,26 +378,68 @@ const aprovado = aprovarDocumento(doc, 'USER-002', 'Maria', 'gerente');
 const finalizado = aprovarDocumento(aprovado, 'USER-003', 'Carlos', 'contabilista');
 ```
 
-### Integração com Ledger (TODO)
+### Integração com Ledger (IMPLEMENTADO)
 
-Todos os módulos têm pontos de integração com `ledger.ts`:
+O sistema de lançamentos contábeis (double-entry bookkeeping) está totalmente integrado:
+
+**Módulos Integrados:**
+
+1. **PIX/OFX Reconciliação** (`conciliacao-pix-ofx.ts`)
+   - Registra débito em Caixa PIX (1120) e crédito em Receita (4110)
+   - Referência: `CHARGE-{chargeId}`
+   - Exemplo: Recebimento de R$ 2.500,00 via PIX automático no razão
+
+2. **ASAAS Pagamentos PIX** (`asaas-pagamentos-pix.ts`)
+   - Registra despesa ao pagamento completar
+   - Categoria: `comissao` (customizável por tipo)
+   - Referência: `ASAAS-PAG-{paymentId}`
+   - Exemplo: Pagamento de R$ 1.500,00 para fornecedor
+
+**Uso do Ledger:**
 
 ```typescript
-// Em cada módulo, procurar por TODO:
-// TODO: ledger.registrarLancamento(lancamento)
+import { registrarLancamento, registrarDoubleEntry } from '../ledger/ledger-service.js';
 
-// Exemplo:
-import { ledger } from '../ledger';
+// Simples (receita ou despesa)
+const resultado = registrarLancamento(db, {
+  id: randomUUID(),
+  data: '2024-10-04',
+  tipo: 'receita',
+  categoria: 'honorario',
+  valor: 1500.00,
+  descricao: 'Honorário consultoria',
+  referencia_externa: 'CONSULT-001',
+  usuario_id: 'user-123'
+});
 
-function sincronizarComERP(lancamento) {
-  try {
-    const resultado = ledger.registrarLancamento(lancamento);
-    return { sucesso: true, lancamento_id: resultado.id };
-  } catch (erro) {
-    return { sucesso: false, erro: erro.message };
-  }
-}
+// Double-entry (débito + crédito)
+const resultado = registrarDoubleEntry(db, {
+  id: randomUUID(),
+  data: '2024-10-04',
+  descricao: 'Recebimento PIX',
+  conta_debito: '1120',    // Caixa PIX
+  conta_credito: '4110',   // Receita
+  valor: 2500.00,
+  tipo: 'receita',
+  categoria: 'receita',
+  referencia_externa: 'CHARGE-123',
+  usuario_id: 'sistema'
+});
 ```
+
+**TODO Markers Implementados:**
+- ✓ `conciliacao-pix-ofx.ts` linha ~390: Registra double-entry para reconciliações
+- ✓ `asaas-pagamentos-pix.ts` linha ~510: Registra despesa para pagamentos completados
+- ⧘ `asaas-routes.ts`: Integração para rotas de contas (em desenvolvimento)
+
+**Documentação Completa:**
+Ver `server/src/domain/ledger/README.md`
+
+**Testes:**
+```bash
+npm test -- server/src/domain/ledger/__tests__/ledger-service.test.ts
+```
+28 testes cobrindo validação, auditoria, integridade e integrações
 
 ---
 

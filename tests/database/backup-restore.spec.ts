@@ -32,7 +32,7 @@ function calculateTableChecksum(
     const rows = db.prepare(`SELECT * FROM ${tableName} ORDER BY rowid`).all();
     const jsonStr = JSON.stringify(rows);
     return crypto.createHash("sha256").update(jsonStr).digest("hex");
-  } catch (e) {
+  } catch {
     // Tabela pode não existir
     return "";
   }
@@ -51,7 +51,7 @@ function backupDatabase(db: Database.Database, backupDir: string): void {
   db.exec("VACUUM");
 
   // Copiar arquivo do banco de dados
-  const dbPath = (db as any).name; // better-sqlite3 armazena o path em .name
+  const dbPath = (db as Database.Database & { name: string }).name; // better-sqlite3 armazena o path em .name
   const backupDbPath = join(backupDir, "app.db");
 
   fs.copyFileSync(dbPath, backupDbPath);
@@ -113,7 +113,7 @@ function getTableRowCounts(db: Database.Database): Record<string, number> {
         count: number;
       };
       counts[table] = result.count;
-    } catch (e) {
+    } catch {
       counts[table] = 0;
     }
   }
@@ -157,12 +157,12 @@ describe("Database Backup/Restore", () => {
   it("deve criar um backup de banco de dados com dados conhecidos", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
-    stmt.run("user-2", "outro@example.com", "hash456", "Outro User");
+    stmt.run("user-1", "Teste User", "teste@example.com", "hash123");
+    stmt.run("user-2", "Outro User", "outro@example.com", "hash456");
 
     // Criar backup
     expect(() => {
@@ -183,12 +183,12 @@ describe("Database Backup/Restore", () => {
   it("deve restaurar banco de dados em DB limpo", () => {
     // Inserir dados de teste
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
-    stmt.run("user-2", "outro@example.com", "hash456", "Outro User");
+    stmt.run("user-1", "Teste User", "teste@example.com", "hash123");
+    stmt.run("user-2", "Outro User", "outro@example.com", "hash456");
 
     // Capturar checksums originais
     const originalChecksums = getTableChecksums(db);
@@ -211,10 +211,10 @@ describe("Database Backup/Restore", () => {
 
     try {
       // Verificar que dados foram restaurados
-      const users = restoredDb.prepare("SELECT * FROM usuarios").all();
+      const users = restoredDb.prepare("SELECT * FROM usuarios").all() as Array<{ email: string }>;
       expect(users).toHaveLength(2);
-      expect((users[0] as any).email).toBe("teste@example.com");
-      expect((users[1] as any).email).toBe("outro@example.com");
+      expect(users[0].email).toBe("teste@example.com");
+      expect(users[1].email).toBe("outro@example.com");
 
       // Verificar checksums
       const restoredChecksums = getTableChecksums(restoredDb);
@@ -234,7 +234,7 @@ describe("Database Backup/Restore", () => {
   it("deve validar integridade com 1000 registros", () => {
     // Inserir 1000 registros
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
@@ -242,9 +242,9 @@ describe("Database Backup/Restore", () => {
       for (let i = 0; i < count; i++) {
         stmt.run(
           `user-${i}`,
+          `User ${i}`,
           `user${i}@example.com`,
           `hash${i}`,
-          `User ${i}`,
         );
       }
     });
@@ -282,7 +282,7 @@ describe("Database Backup/Restore", () => {
         "user-0",
         "user-500",
         "user-999",
-      ) as any[];
+      ) as Array<{ email: string }>;
       expect(spotCheck).toHaveLength(3);
       expect(spotCheck[0].email).toBe("user0@example.com");
       expect(spotCheck[1].email).toBe("user500@example.com");
@@ -298,11 +298,11 @@ describe("Database Backup/Restore", () => {
   it("deve preservar integridade referencial após restore", () => {
     // Inserir dados com relacionamentos
     const userStmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    userStmt.run("user-1", "teste@example.com", "hash123", "Teste User");
+    userStmt.run("user-1", "Teste User", "teste@example.com", "hash123");
 
     // Criar backup
     backupDatabase(db, TEST_BACKUP_PATH);
@@ -318,7 +318,7 @@ describe("Database Backup/Restore", () => {
 
     try {
       // Verificar que foreign keys estão habilitadas
-      const fkEnabled = restoredDb.pragma("foreign_keys") as any[];
+      const fkEnabled = restoredDb.pragma("foreign_keys") as Array<{ foreign_keys: number }>;
       expect(fkEnabled[0].foreign_keys).toBe(1);
 
       // Verificar dados
@@ -335,11 +335,11 @@ describe("Database Backup/Restore", () => {
   it("deve gerar metadata válida no backup", () => {
     // Inserir dados
     const stmt = db.prepare(`
-      INSERT INTO usuarios (id, email, senha_hash, nome_completo)
+      INSERT INTO usuarios (id, nome, email, senha_hash)
       VALUES (?, ?, ?, ?)
     `);
 
-    stmt.run("user-1", "teste@example.com", "hash123", "Teste User");
+    stmt.run("user-1", "Teste User", "teste@example.com", "hash123");
 
     // Criar backup
     backupDatabase(db, TEST_BACKUP_PATH);

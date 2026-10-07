@@ -114,11 +114,20 @@ export function PagamentosView() {
   const [buscaTransacao, setBuscaTransacao] = useState<RascunhoBuscaTransacao>({ valor: "", data: "", descricao: "" });
   const [transacaoSelecionadaId, setTransacaoSelecionadaId] = useState("");
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
-  const contasBancarias = useMemo(() => (db ? listarContasBancarias(db) : []), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
+  const contasBancarias = useMemo(() => {
+    void versao;
+    return db ? listarContasBancarias(db) : [];
+  }, [db, versao]);
 
   const todasContasAPagar = useMemo(
-    () => (db && entidade ? listarContasAPagar(db, entidade.id, {}) : []),
+    () => {
+      void versao;
+      return db && entidade ? listarContasAPagar(db, entidade.id, {}) : [];
+    },
     [db, versao, entidade],
   );
   const obrigacoesAbertas = useMemo(
@@ -128,14 +137,16 @@ export function PagamentosView() {
   const obrigacoesPorId = useMemo(() => new Map(todasContasAPagar.map((c) => [c.id, c])), [todasContasAPagar]);
 
   const pagamentos = useMemo(
-    () =>
-      db && entidade
+    () => {
+      void versao;
+      return db && entidade
         ? consultar<PagamentoIniciado>(
             db,
             "SELECT * FROM pagamentos_iniciados WHERE entidade_id = ? ORDER BY data_solicitacao DESC, id DESC",
             [entidade.id],
           )
-        : [],
+        : [];
+    },
     [db, versao, entidade],
   );
   const pagamentosFiltrados = useMemo(
@@ -144,7 +155,10 @@ export function PagamentosView() {
   );
 
   const pendentes = useMemo(
-    () => (db && entidade ? relatorioPagamentosPendentes(db, entidade.id) : []),
+    () => {
+      void versao;
+      return db && entidade ? relatorioPagamentosPendentes(db, entidade.id) : [];
+    },
     [db, versao, entidade],
   );
 
@@ -157,6 +171,7 @@ export function PagamentosView() {
     [pagamentos, conciliandoId],
   );
   const candidatosTransacao = useMemo(() => {
+    void versao;
     if (!db || !pagamentoEmConciliacao) return [];
     let sql = "SELECT * FROM transacoes WHERE conta_id = ?";
     const params: (string | number)[] = [pagamentoEmConciliacao.conta_bancaria_id];

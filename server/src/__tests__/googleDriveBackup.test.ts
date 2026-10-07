@@ -7,14 +7,11 @@
  * 3. Tratamento de erros quando Google Drive não está configurado
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { backupSQLiteToGoogleDrive, listarBackupsNoGoogleDrive } from "../utils/googleDriveBackup.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 describe("Google Drive Backup", () => {
   const BACKUP_DIR = path.join(process.cwd(), "data", "backups");

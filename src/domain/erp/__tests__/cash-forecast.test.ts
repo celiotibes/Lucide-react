@@ -1,9 +1,10 @@
+import type { Database } from "sql.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { gerarProjecaoCaixa } from "../cash-forecast";
 import { prepararBancoTeste } from "./test-setup";
 
 describe("Cash Forecast (12-month projection)", () => {
-  let db: any;
+  let db: Database;
   let entidade_id: number;
   let periodo_id: number;
 

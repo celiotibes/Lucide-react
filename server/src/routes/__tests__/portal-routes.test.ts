@@ -81,7 +81,7 @@ describe("Rotas do portal do inquilino (/api/portal)", () => {
     const auditService = new AuditTrailServiceDB(db);
     app = express();
     app.use(express.json());
-    app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as any }));
+    app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService: { listarMatriz: () => [] } as unknown }));
     app.use("/api/portal", criarRotasPortal({ authService, auditService, db }));
   });
 
@@ -173,14 +173,14 @@ describe("Rotas do portal do inquilino (/api/portal)", () => {
       const t1 = await login("inq1@x.com");
       const r1 = await request(app).get("/api/portal/meus-contratos").set(auth(t1));
       expect(r1.status).toBe(200);
-      expect(r1.body.itens.map((c: any) => c.contratoRef)).toEqual(["contrato-1"]);
+      expect(r1.body.itens.map((c: unknown) => c.contratoRef)).toEqual(["contrato-1"]);
       expect(r1.body.itens[0]).toMatchObject({ imovelApelido: "Kitnet 302", valorAluguelCentavos: 150050 });
       expect(Object.keys(r1.body.itens[0])).not.toContain("usuario_id");
 
       const c1 = await request(app).get("/api/portal/minhas-cobrancas").set(auth(t1));
       expect(c1.status).toBe(200);
       expect(c1.body.total).toBe(2);
-      expect(c1.body.itens.every((c: any) => c.contratoRef === "contrato-1")).toBe(true);
+      expect(c1.body.itens.every((c: unknown) => c.contratoRef === "contrato-1")).toBe(true);
 
       const alheio = await request(app).get("/api/portal/minhas-cobrancas?contratoRef=contrato-2").set(auth(t1));
       expect(alheio.status).toBe(404);
@@ -230,8 +230,8 @@ describe("Rotas do portal do inquilino (/api/portal)", () => {
       conceder("u_inq1", "contrato-1");
       const t = await login("inq1@x.com");
       const r = await request(app).get("/api/portal/minhas-cobrancas").set(auth(t));
-      const c2 = r.body.itens.find((c: any) => c.cobrancaRef === "c2");
-      const c1 = r.body.itens.find((c: any) => c.cobrancaRef === "c1");
+      const c2 = r.body.itens.find((c: unknown) => c.cobrancaRef === "c2");
+      const c1 = r.body.itens.find((c: unknown) => c.cobrancaRef === "c1");
       expect(c2).toMatchObject({ qrCodePix: "PIX-COPIA-COLA", linhaDigitavel: "0001.2345" });
       expect(c1.qrCodePix).toBeNull();
     });

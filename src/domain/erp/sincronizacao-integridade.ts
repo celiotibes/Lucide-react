@@ -205,19 +205,19 @@ export function reconciliarAlugueis(db: Database): {
   );
 
   const divergencias = (alugueisPorContrato || [])
-    .filter((r: any) => Math.abs((r.valor_esperado || 0) - (r.valor_recebido || 0)) > 10)
-    .map((r: any) => ({
+    .filter((r: { contrato_id: number; imovel_id: number; valor_esperado: number; valor_recebido: number }) => Math.abs((r.valor_esperado || 0) - (r.valor_recebido || 0)) > 10)
+    .map((r: { contrato_id: number; imovel_id: number; valor_esperado: number; valor_recebido: number }) => ({
       imovel_id: r.imovel_id,
       contrato_id: r.contrato_id,
       diferenca: (r.valor_esperado || 0) - (r.valor_recebido || 0),
     }));
 
   const valor_esperado = (alugueisPorContrato || []).reduce(
-    (sum: number, r: any) => sum + (r.valor_esperado || 0),
+    (sum: number, r: { contrato_id: number; imovel_id: number; valor_esperado: number; valor_recebido: number }) => sum + (r.valor_esperado || 0),
     0,
   );
   const valor_recebido = (alugueisPorContrato || []).reduce(
-    (sum: number, r: any) => sum + (r.valor_recebido || 0),
+    (sum: number, r: { contrato_id: number; imovel_id: number; valor_esperado: number; valor_recebido: number }) => sum + (r.valor_recebido || 0),
     0,
   );
 

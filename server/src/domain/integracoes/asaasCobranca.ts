@@ -256,7 +256,7 @@ function temBoletoAberto(db: Database.Database, aluguel_id: string): boolean {
     WHERE aluguel_id = ? AND status IN ('pendente', 'processando', 'aberta')
   `);
 
-  const resultado = stmt.get(aluguel_id) as any;
+  const resultado = stmt.get(aluguel_id) as unknown;
   return resultado.count > 0;
 }
 
@@ -751,7 +751,7 @@ export function processarWebhookCobranca(
   const stmt = db.prepare(`
     SELECT * FROM asaas_cobrancas WHERE asaas_cobranca_id = ?
   `);
-  const cobranca = stmt.get(data.id) as any;
+  const cobranca = stmt.get(data.id) as unknown;
 
   if (!cobranca) {
     logger.warn(`Cobrança com asaas_id ${data.id} não encontrada no banco`);

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { consultarSessao, entrar, sair, type DepsSessao } from "./sessao";
 
-function deps(resposta: () => Response | Promise<Response>): DepsSessao & { chamadas: [string, any][] } {
-  const chamadas: [string, any][] = [];
+function deps(resposta: () => Response | Promise<Response>): DepsSessao & { chamadas: [string, (RequestInit & { semEventoLogout?: boolean }) | undefined][] } {
+  const chamadas: [string, (RequestInit & { semEventoLogout?: boolean }) | undefined][] = [];
   return {
     chamadas,
-    apiFetch: vi.fn(async (caminho: string, init?: any) => {
+    apiFetch: vi.fn(async (caminho: string, init?: RequestInit & { semEventoLogout?: boolean }) => {
       chamadas.push([caminho, init]);
       return resposta();
     }) as unknown as DepsSessao["apiFetch"],
@@ -39,9 +39,10 @@ describe("entrar (POST /api/auth/login)", () => {
     expect(r).toEqual({ ok: true, usuario });
     const [caminho, init] = d.chamadas[0];
     expect(caminho).toBe("/api/auth/login");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toEqual({ email: "ana@x.com", senha: "s3nha" });
-    expect(init.semEventoLogout).toBe(true);
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ email: "ana@x.com", senha: "s3nha" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((init as any)?.semEventoLogout).toBe(true);
     expect(d.esquecerTokenCsrf).toHaveBeenCalled();
   });
   it("401 => mensagem do servidor, sem vazar qual campo errou", async () => {

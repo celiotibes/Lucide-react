@@ -3,7 +3,7 @@
  * 18 testes cobrindo os 3 métodos + agregação + persistência
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach} from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
@@ -18,8 +18,7 @@ import {
   obterAlerta,
   obterEstatisticasAnomalias,
   invalidarCacheTransacoes,
-  invalidarCacheAnomalias,
-} from "../detectores-anomalias.js";
+  invalidarCacheAnomalias} from "../detectores-anomalias.js";
 import { getCacheService, resetCacheService } from "../../../services/cache-service.js";
 
 describe("Sistema de Detecção de Anomalias", () => {
@@ -113,7 +112,7 @@ describe("Sistema de Detecção de Anomalias", () => {
   // TESTES 2-SIGMA (4 testes)
   // ============================================================
 
-  describe("Método A: 2-Sigma (Desvio Padrão)", () => {
+  describe("Método A: 2-Sigma (Deso Padrão)", () => {
     it("Teste 1: Transação normal não dispara alerta", () => {
       // Setup: gera 90 transações normais (média ~100, σ~10)
       for (let i = 0; i < 90; i++) {
@@ -352,7 +351,7 @@ describe("Sistema de Detecção de Anomalias", () => {
       expect(resultado.severidade).toBe("critica");
     });
 
-    it("Teste 15: Confiança agregada é a média das confianzas individuais", () => {
+    it("Teste 15: Confiança agregada é a média das confianzas indiduais", () => {
       // Setup
       for (let i = 0; i < 50; i++) {
         db.exec(
@@ -425,22 +424,22 @@ describe("Sistema de Detecção de Anomalias", () => {
       expect(limitada.length).toBeLessThanOrEqual(1);
     });
 
-    it("Teste 18: Marcar alerta como revisado + estatísticas", () => {
+    it("Teste 18: Marcar alerta como resado + estatísticas", () => {
       const resultado = avaliarAnomaliaAgregada(db, 500);
-      const alerta = registrarAlertaAnomalia(db, "tx_review", resultado, "user1");
+      const alerta = registrarAlertaAnomalia(db, "tx_reew", resultado, "user1");
 
       // Marca como revisado
       marcarAnomaliaRevisada(db, alerta.id, "user1", "falso positivo");
 
-      // Recupera diretamente via SQL para verificar UPDATE funcionou
+      // Recupera diretamentea SQL para verificar UPDATE funcionou
       const revisadoRow = db.prepare(`
         SELECT revisado, motivo_revisao FROM alertas_anomalias_registrados WHERE id = ?
-      `).get(alerta.id) as any;
+      `).get(alerta.id) as unknown;
 
       expect(revisadoRow?.revisado).toBe(1);
       expect(revisadoRow?.motivo_revisao).toBe("falso positivo");
 
-      // Também verifica via função
+      // Também verificaa função
       const revisado = obterAlerta(db, alerta.id);
       expect(revisado?.revisado).toBe(1);
 
@@ -476,7 +475,6 @@ describe("Sistema de Detecção de Anomalias", () => {
 
       // Chamada 1: 2-Sigma (cache miss)
       detectarAnomalia2Sigma(db, valor, periodo);
-      const tamanhoApos1 = cache.size();
 
       // Chamada 2: IQR (cache hit para transações)
       detectarAnomaliaIQR(db, valor, periodo);

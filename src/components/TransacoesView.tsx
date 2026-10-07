@@ -89,11 +89,23 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   const [filtroTransacaoIds, setFiltroTransacaoIds] = useState<number[] | null>(filtroInicial?.transacaoIds ?? null);
   const [filtroCategorias, setFiltroCategorias] = useState<string[] | null>(filtroInicial?.planoContaCodigos ?? null);
 
-  const planoContas = useMemo<PlanoConta[]>(() => (db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : []), [db, versao]);
+  const planoContas = useMemo<PlanoConta[]>(() => {
+    void versao;
+    return db ? consultar<PlanoConta>(db, "SELECT * FROM plano_de_contas ORDER BY codigo") : [];
+  }, [db, versao]);
   const planoContasPorCodigo = useMemo(() => new Map(planoContas.map((p) => [p.codigo, p])), [planoContas]);
-  const imoveis = useMemo<Imovel[]>(() => (db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : []), [db, versao]);
-  const contasBancarias = useMemo<ContaBancaria[]>(() => (db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : []), [db, versao]);
-  const regrasSalvas = useMemo(() => (db ? listarRegras(db) : []), [db, versao]);
+  const imoveis = useMemo<Imovel[]>(() => {
+    void versao;
+    return db ? consultar<Imovel>(db, "SELECT * FROM imoveis ORDER BY apelido") : [];
+  }, [db, versao]);
+  const contasBancarias = useMemo<ContaBancaria[]>(() => {
+    void versao;
+    return db ? consultar<ContaBancaria>(db, "SELECT * FROM contas_bancarias ORDER BY banco") : [];
+  }, [db, versao]);
+  const regrasSalvas = useMemo(() => {
+    void versao;
+    return db ? listarRegras(db) : [];
+  }, [db, versao]);
 
   // "Somente pendentes" (plano_conta_codigo IS NULL) é incompatível com um filtro de categoria
   // (plano_conta_codigo = X): toda transação categorizada já tem código preenchido, então a
@@ -114,6 +126,7 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   }
 
   const transacoes = useMemo<Transacao[]>(() => {
+    void versao;
     if (!db) return [];
     if (filtroTransacaoIds !== null) {
       if (filtroTransacaoIds.length === 0) return [];
@@ -141,7 +154,10 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   }, [db, versao, somentePendentes, filtroCategoria, filtroCategorias, filtroImovel, filtroDataInicio, filtroDataFim, filtroTransacaoIds]);
 
   const totalPendentes = useMemo(
-    () => (db ? consultar<{ total: number }>(db, "SELECT COUNT(*) as total FROM transacoes WHERE plano_conta_codigo IS NULL")[0]?.total ?? 0 : 0),
+    () => {
+      void versao;
+      return db ? consultar<{ total: number }>(db, "SELECT COUNT(*) as total FROM transacoes WHERE plano_conta_codigo IS NULL")[0]?.total ?? 0 : 0;
+    },
     [db, versao],
   );
 
@@ -153,7 +169,10 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   // lançamento manual, ou importada antes do cofre existir) é tratada explicitamente na
   // renderização — ver bloco "sem prova" abaixo.
   const provas = useMemo(
-    () => (db ? provasDasTransacoes(db, transacoes.map((t) => t.id)) : new Map()),
+    () => {
+      void versao;
+      return db ? provasDasTransacoes(db, transacoes.map((t) => t.id)) : new Map();
+    },
     [db, versao, transacoes],
   );
 
@@ -163,7 +182,10 @@ export function TransacoesView({ filtroInicial }: { filtroInicial?: FiltroTransa
   // página inteira, não uma por linha renderizada. Só têm sentido para transações ainda
   // sem categoria — uma vez aceita/rejeitada, a sugestão some da consulta (status != 'pendente').
   const sugestoesIA = useMemo(
-    () => (db ? sugestoesPendentesPorTransacao(db, transacoes.filter((t) => !t.plano_conta_codigo).map((t) => t.id)) : new Map()),
+    () => {
+      void versao;
+      return db ? sugestoesPendentesPorTransacao(db, transacoes.filter((t) => !t.plano_conta_codigo).map((t) => t.id)) : new Map();
+    },
     [db, versao, transacoes],
   );
 

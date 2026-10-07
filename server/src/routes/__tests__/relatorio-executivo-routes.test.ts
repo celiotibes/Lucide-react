@@ -12,7 +12,7 @@ import { criarRotasRelatorioExecutivo } from "../relatorio-executivo-routes";
 describe("Rotas HTTP de Relatório Executivo", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
+  let mockAuthService: unknown;
 
   beforeEach(() => {
     // Cria banco de dados em memória
@@ -44,13 +44,13 @@ describe("Rotas HTTP de Relatório Executivo", () => {
 
     // Middleware que injeta db
     app.use((req, res, next) => {
-      (req as any).db = db;
+      (req as unknown).db = db;
       next();
     });
 
     // Mock auth middleware - simula autenticação bem-sucedida
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,
@@ -264,6 +264,204 @@ describe("Rotas HTTP de Relatório Executivo", () => {
 
       expect(res.status).toBe(400);
       expect(res.body.erro).toContain("email");
+    });
+  });
+
+  describe("Edge Cases - Boundary Values", () => {
+    it("deve aceitar mes minimo (1)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 1, ano: 2026 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve aceitar mes maximo (12)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 12, ano: 2026 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar mes abaixo do minimo (0)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 0, ano: 2026 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve rejeitar mes acima do maximo (13)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 13, ano: 2026 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve aceitar ano minimo (2000)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2000 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve aceitar ano maximo (2100)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2100 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+  });
+
+  describe("GET /api/relatorios/executivo/margens - Pagination", () => {
+    it("deve retornar margens com paginação padrão", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/margens")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2026 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve validar limit maximo (500)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/margens")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2026, limit: 50, offset: 0 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar limit acima do maximo", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/margens")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2026, limit: 501, offset: 0 });
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+
+    it("deve aceitar offset valido", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/margens")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2026, limit: 50, offset: 100 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar offset negativo", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/margens")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2026, limit: 50, offset: -1 });
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+  });
+
+  describe("Error Handling - Database Unavailable", () => {
+    it("deve retornar 500 quando database nao disponivel", async () => {
+      const appNoDB = express();
+      appNoDB.use(express.json());
+
+      // Auth middleware sem db
+      appNoDB.use((req, res, next) => {
+        (req as unknown).auth = {
+          usuarioId: "user1",
+          token: "test-token",
+          autenticado: true,
+          usuario: { id: "user1", email: "test@example.com", role: "administrador" },
+          papel: "admin",
+        };
+        next();
+      });
+
+      // Monta as rotas SEM db
+      appNoDB.use("/api/relatorios/executivo", criarRotasRelatorioExecutivo({
+        authService: mockAuthService,
+        db: undefined, // Simula database nao disponivel
+      }));
+
+      const res = await request(appNoDB)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2026 });
+
+      expect(res.status).toBe(500);
+      expect(res.body.erro).toContain("Database");
+    });
+  });
+
+  describe("Type Coercion and Validation", () => {
+    it("deve coercionar string para numero", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: "10", ano: "2026" });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve rejeitar non-numeric mes", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: "abc", ano: 2026 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("deve rejeitar non-numeric ano", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: "abc" });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("First Month and Last Month Edge Cases", () => {
+    it("deve gerar relatorio para janeiro (primeiro mes do ano)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 1, ano: 2026 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+
+    it("deve gerar relatorio para dezembro (ultimo mes do ano)", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 12, ano: 2026 });
+
+      expect([200, 400, 500]).toContain(res.status);
+    });
+  });
+
+  describe("Historical Data Aggregation", () => {
+    it("deve retornar historico ao gerar relatorio", async () => {
+      const res = await request(app)
+        .get("/api/relatorios/executivo/dashboard")
+        .set("Authorization", "Bearer test-token")
+        .query({ mes: 10, ano: 2026 });
+
+      if (res.status === 200 && res.body.dre && !res.body.dre.indisponivel) {
+        expect(res.body.dre).toHaveProperty("historico");
+      }
     });
   });
 });

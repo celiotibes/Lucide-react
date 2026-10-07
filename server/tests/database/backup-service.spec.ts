@@ -11,7 +11,7 @@
  * - Row counts conferem
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import BackupService, { BackupManifest } from "../../src/services/backup-service.js";
 import Database from "better-sqlite3";
 import fs from "fs";
@@ -62,7 +62,7 @@ function cleanupDatabase(dbPath: string) {
     const shmPath = `${dbPath}-shm`;
     if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
     if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
-  } catch (e) {
+  } catch {
     // ignorar
   }
 }
@@ -110,7 +110,7 @@ describe("BackupService", () => {
       const newDir = path.join(os.tmpdir(), `backup-new-${Date.now()}`);
       process.env.BACKUP_LOCAL_DIR = newDir;
 
-      const service = new BackupService(TEST_DB_PATH);
+      new BackupService(TEST_DB_PATH);
       expect(fs.existsSync(newDir)).toBe(true);
 
       fs.rmSync(newDir, { recursive: true, force: true });

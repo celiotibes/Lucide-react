@@ -58,8 +58,8 @@ function criarApiClientFake(
     destinatario,
     status: "enviado",
   }),
-): NotificacoesApiClient & { chamadas: any[] } {
-  const chamadas: any[] = [];
+): NotificacoesApiClient & { chamadas: Record<string, unknown>[] } {
+  const chamadas: Record<string, unknown>[] = [];
   return {
     chamadas,
     async disparar(dados) {
@@ -92,7 +92,8 @@ describe("despachoCliente", () => {
 
       // apiClient só recebeu os 2 canais com destinatário — nunca telegram vazio.
       expect(apiClient.chamadas).toHaveLength(1);
-      expect(apiClient.chamadas[0].destinatarios.telegramChatId).toBeUndefined();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((apiClient.chamadas[0] as any).destinatarios.telegramChatId).toBeUndefined();
 
       const historico = listarPorOrigem(db, "comunicado_generico", null);
       expect(historico).toHaveLength(2); // só email+whatsapp foram registrados — telegram pulado não gera tentativa

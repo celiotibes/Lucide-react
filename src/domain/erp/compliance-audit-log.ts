@@ -4,6 +4,8 @@
  * Conformidade com LGPD, Lei 6404/76, retenção de 7 anos
  */
 
+import type { Database } from "sql.js";
+
 /** Segredo de assinatura HMAC.
  *
  * Aqui havia `process.env.AUDIT_LOG_SECRET`. Este app roda no navegador, onde `process`
@@ -60,8 +62,8 @@ export interface RegistroAuditoria {
   entidade_afetada: string; // 'ledger_entry', 'pagamento', 'banco_transacao', etc
   id_entidade: number;
   descricao_alteracao: string;
-  valor_anterior?: any;
-  valor_novo?: any;
+  valor_anterior?: unknown;
+  valor_novo?: unknown;
   campos_acessados?: string[]; // Array de nomes de campos lidos em operações SELECT (LGPD - auditoria de leitura)
   hash_sha256: string; // Hash SHA-256 do registro (para imutabilidade)
   hash_anterior?: string; // Hash do registro anterior (para cadeia)
@@ -99,7 +101,7 @@ export interface VerificacaoIntegridade {
  * Registra chamada de API externa no log de auditoria
  */
 export async function registrarChamadaAPI(
-  db: any,
+  db: Database,
   // `retencao_ate` entrou no Omit: a própria função calcula os 7 anos logo abaixo, e
   // exigi-la do chamador era o que fazia TODA chamada deste módulo não compilar — o
   // campo era pedido na assinatura e ignorado no corpo.
@@ -130,7 +132,7 @@ export async function registrarChamadaAPI(
       `SELECT hash_sha256 FROM auditoria_log ORDER BY id DESC LIMIT 1`
     );
 
-    const hashAnterior = resultAnterior[0]?.values[0]?.[0] || '';
+    const hashAnterior = String(resultAnterior[0]?.values[0]?.[0] || '');
     registroComHash.hash_anterior = hashAnterior;
 
     // Calcular hash SHA-256 deste registro
@@ -179,7 +181,7 @@ export async function registrarChamadaAPI(
     );
 
     const resultId = db.exec('SELECT last_insert_rowid() as id');
-    registroComHash.id = resultId[0]?.values[0]?.[0];
+    registroComHash.id = Number(resultId[0]?.values[0]?.[0]);
   } catch (erro) {
     console.error('Erro ao registrar chamada API:', erro);
   }
@@ -193,7 +195,7 @@ export async function registrarChamadaAPI(
  * Verifica integridade da cadeia de registros de auditoria
  */
 export async function verificarIntegridade(
-  db: any,
+  db: Database,
   dataInicio?: string,
   dataFim?: string,
   opcoes: OpcoesAssinatura = {},
@@ -232,7 +234,7 @@ export async function verificarIntegridade(
 
     let hashAnterior = '';
 
-    for (const [id, timestamp, modulo, operacao, entidade, idEntidade, descricao, hashRegistro, hashAnteriorArmazenado, assinatura] of result[0].values) {
+    for (const [id, timestamp, modulo, operacao, entidade, idEntidade, descricao, hashRegistro, , assinatura] of result[0].values) {
       // Recalcular hash
       const conteudo = JSON.stringify({
         timestamp,
@@ -262,7 +264,7 @@ export async function verificarIntegridade(
         }
       }
 
-      hashAnterior = hashRegistro;
+      hashAnterior = String(hashRegistro);
     }
 
     return {
@@ -290,7 +292,7 @@ export async function verificarIntegridade(
  * Gera relatório de auditoria completo
  */
 export function gerarRelatorioAuditoria(
-  db: any,
+  db: Database,
   periodo_inicio: string,
   periodo_fim: string
 ): RelatorioAuditoria {
@@ -304,7 +306,7 @@ export function gerarRelatorioAuditoria(
       `SELECT COUNT(*) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
-    const total_registros = resultTotal[0]?.values[0]?.[0] || 0;
+    const total_registros = (resultTotal[0]?.values[0]?.[0] as number) || 0;
 
     // Por tipo de operação
     const resultPorTipo = db.exec(
@@ -314,7 +316,7 @@ export function gerarRelatorioAuditoria(
     const operacoes_por_tipo: Record<string, number> = {};
     if (resultPorTipo[0]?.values) {
       for (const [tipo, count] of resultPorTipo[0].values) {
-        operacoes_por_tipo[tipo] = count;
+        operacoes_por_tipo[String(tipo)] = Number(count);
       }
     }
 
@@ -326,7 +328,7 @@ export function gerarRelatorioAuditoria(
     const operacoes_por_modulo: Record<string, number> = {};
     if (resultPorModulo[0]?.values) {
       for (const [modulo, count] of resultPorModulo[0].values) {
-        operacoes_por_modulo[modulo] = count;
+        operacoes_por_modulo[String(modulo)] = Number(count);
       }
     }
 
@@ -335,21 +337,21 @@ export function gerarRelatorioAuditoria(
       `SELECT COUNT(DISTINCT usuario_id) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim} AND usuario_id IS NOT NULL`
     );
 
-    const usuarios_ativos = resultUsuarios[0]?.values[0]?.[0] || 0;
+    const usuarios_ativos = (resultUsuarios[0]?.values[0]?.[0] as number) || 0;
 
     // IPs diferentes
     const resultIPs = db.exec(
       `SELECT COUNT(DISTINCT ip_origem) FROM auditoria_log WHERE timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
-    const ips_diferentes = resultIPs[0]?.values[0]?.[0] || 0;
+    const ips_diferentes = (resultIPs[0]?.values[0]?.[0] as number) || 0;
 
     // Erros
     const resultErros = db.exec(
       `SELECT COUNT(*) FROM auditoria_log WHERE status = 'erro' AND timestamp BETWEEN ${escapedInicio} AND ${escapedFim}`
     );
 
-    const erros_registrados = resultErros[0]?.values[0]?.[0] || 0;
+    const erros_registrados = (resultErros[0]?.values[0]?.[0] as number) || 0;
 
     // Últimas alterações
     const resultUltimas = db.exec(
@@ -360,27 +362,27 @@ export function gerarRelatorioAuditoria(
     if (resultUltimas[0]?.values) {
       for (const row of resultUltimas[0].values) {
         ultimas_alteracoes.push({
-          id: row[0],
-          timestamp: row[1],
-          usuario_id: row[2],
-          usuario_nome: row[3],
-          ip_origem: row[4],
-          modulo_chamador: row[5],
-          tipo_operacao: row[6] as any,
-          entidade_afetada: row[7],
-          id_entidade: row[8],
-          descricao_alteracao: row[9],
-          valor_anterior: row[10] ? JSON.parse(row[10]) : undefined,
-          valor_novo: row[11] ? JSON.parse(row[11]) : undefined,
-          hash_sha256: row[12],
-          hash_anterior: row[13],
-          status: row[14] as any,
-          mensagem_erro: row[15],
-          tempo_processamento_ms: row[16],
-          retencao_ate: row[17],
+          id: row[0] as number,
+          timestamp: String(row[1]),
+          usuario_id: row[2] ? Number(row[2]) : undefined,
+          usuario_nome: row[3] ? String(row[3]) : undefined,
+          ip_origem: String(row[4]),
+          modulo_chamador: String(row[5]),
+          tipo_operacao: String(row[6]) as 'leitura' | 'escrita' | 'delecao' | 'alteracao' | 'autenticacao' | 'configuracao',
+          entidade_afetada: String(row[7]),
+          id_entidade: Number(row[8]),
+          descricao_alteracao: String(row[9]),
+          valor_anterior: row[10] ? JSON.parse(String(row[10])) : undefined,
+          valor_novo: row[11] ? JSON.parse(String(row[11])) : undefined,
+          hash_sha256: String(row[12]),
+          hash_anterior: String(row[13]),
+          status: String(row[14]) as 'sucesso' | 'erro' | 'pendente',
+          mensagem_erro: row[15] ? String(row[15]) : undefined,
+          tempo_processamento_ms: Number(row[16]),
+          retencao_ate: String(row[17]),
           assinado: row[18] === 1,
-          assinatura_digital: row[19],
-          criado_em: row[20],
+          assinatura_digital: row[19] ? String(row[19]) : undefined,
+          criado_em: String(row[20]),
         });
       }
     }
@@ -480,7 +482,7 @@ export function extrairCamposSelect(query: string): string[] {
  * Registra acesso de leitura no ledger com campos acessados
  */
 export function registrarAcessoLeitura(
-  db: any,
+  db: Database,
   usuario_id: number,
   usuario_nome: string,
   ip_origem: string,
@@ -511,7 +513,7 @@ export function registrarAcessoLeitura(
  * Exemplo: usuario 123 acessou CPF de cliente 456 em 2026-10-03 14:30
  */
 export function registrarAcessoCampos(
-  db: any,
+  db: Database,
   usuario_id: number,
   usuario_nome: string,
   ip_origem: string,
@@ -546,7 +548,7 @@ export function registrarAcessoCampos(
  * Registra erro de operação
  */
 export function registrarErro(
-  db: any,
+  db: Database,
   usuario_id: number,
   modulo: string,
   entidade: string,
@@ -573,7 +575,7 @@ export function registrarErro(
  * Exporta log de auditoria para arquivo
  */
 export function exportarLogAuditoria(
-  db: any,
+  db: Database,
   dataInicio: string,
   dataFim: string,
   formato: 'json' | 'csv' = 'json'
@@ -607,7 +609,7 @@ export function exportarLogAuditoria(
  * Lista todos os acessos de um usuário
  */
 export function listarAcessosUsuario(
-  db: any,
+  db: Database,
   usuario_id: number,
   limite: number = 100
 ): RegistroAuditoria[] {
@@ -628,26 +630,25 @@ export function listarAcessosUsuario(
     if (result[0]?.values) {
       for (const row of result[0].values) {
         registros.push({
-          id: row[0],
-          timestamp: row[1],
-          usuario_id: row[2],
-          usuario_nome: row[3],
-          ip_origem: row[4],
-          modulo_chamador: row[5],
-          tipo_operacao: row[6] as RegistroAuditoria['tipo_operacao'],
-          entidade_afetada: row[7],
-          id_entidade: row[8],
-          descricao_alteracao: row[9],
-          hash_sha256: row[10],
-          hash_anterior: row[11],
-          status: row[12] as RegistroAuditoria['status'],
-          mensagem_erro: row[13],
-          tempo_processamento_ms: row[14],
-          // Faltava: `retencao_ate` é obrigatório no tipo e não era preenchido aqui.
-          retencao_ate: row[15],
+          id: Number(row[0]),
+          timestamp: String(row[1]),
+          usuario_id: row[2] ? Number(row[2]) : undefined,
+          usuario_nome: row[3] ? String(row[3]) : undefined,
+          ip_origem: String(row[4]),
+          modulo_chamador: String(row[5]),
+          tipo_operacao: String(row[6]) as RegistroAuditoria['tipo_operacao'],
+          entidade_afetada: String(row[7]),
+          id_entidade: Number(row[8]),
+          descricao_alteracao: String(row[9]),
+          hash_sha256: String(row[10]),
+          hash_anterior: String(row[11]),
+          status: String(row[12]) as RegistroAuditoria['status'],
+          mensagem_erro: row[13] ? String(row[13]) : undefined,
+          tempo_processamento_ms: Number(row[14]),
+          retencao_ate: String(row[15]),
           assinado: row[16] === 1,
-          assinatura_digital: row[17],
-          criado_em: row[18],
+          assinatura_digital: row[17] ? String(row[17]) : undefined,
+          criado_em: String(row[18]),
         });
       }
     }

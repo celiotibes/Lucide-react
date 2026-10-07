@@ -14,7 +14,7 @@ export function criarCobrancaCriadaEvent(
   imovelId: number,
   valor: number,
   dataVencimento: string,
-  metadados?: Record<string, any>
+  metadados?: Record<string, unknown>
 ): DomainEvent {
   return criarDomainEvent(
     'CobrancaCriada',
@@ -37,8 +37,8 @@ export function criarCobrancaCriadaEvent(
  */
 export function criarCobrancaAtualizadaEvent(
   cobrancaId: number,
-  alteracoes: Record<string, any>,
-  metadados?: Record<string, any>
+  alteracoes: Record<string, unknown>,
+  metadados?: Record<string, unknown>
 ): DomainEvent {
   return criarDomainEvent(
     'CobrancaAtualizada',
@@ -59,7 +59,7 @@ export function criarCobrancaReconciliadaEvent(
   cobrancaId: number,
   novoStatus: 'pago' | 'cancelado' | 'atrasado',
   dataPagamento: string,
-  metadados?: Record<string, any>
+  metadados?: Record<string, unknown>
 ): DomainEvent {
   return criarDomainEvent(
     'CobrancaReconciliada',
@@ -81,7 +81,7 @@ export function criarCobrancaVencidaEvent(
   cobrancaId: number,
   dataVencimento: string,
   diasAtrasado: number,
-  metadados?: Record<string, any>
+  metadados?: Record<string, unknown>
 ): DomainEvent {
   return criarDomainEvent(
     'CobrancaVencida',
@@ -102,7 +102,7 @@ export function criarCobrancaVencidaEvent(
 export function criarCobrancaDeletadaEvent(
   cobrancaId: number,
   motivo?: string,
-  metadados?: Record<string, any>
+  metadados?: Record<string, unknown>
 ): DomainEvent {
   return criarDomainEvent(
     'CobrancaDeletada',

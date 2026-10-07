@@ -33,13 +33,13 @@ export interface ResultadoLogin {
 }
 
 export interface DepsSessao {
-  apiFetch: typeof apiFetchPadrao;
+  apiFetch: (url: string, init?: RequestInit & { semEventoLogout?: boolean }) => Promise<Response>;
   esquecerTokenCsrf: () => void;
 }
 
 const DEPS_PADRAO: DepsSessao = { apiFetch: apiFetchPadrao, esquecerTokenCsrf: esquecerPadrao };
 
-async function lerJson(resposta: Response): Promise<any | null> {
+async function lerJson(resposta: Response): Promise<unknown> {
   try {
     return await resposta.json();
   } catch {
@@ -62,7 +62,9 @@ export async function consultarSessao(deps: DepsSessao = DEPS_PADRAO): Promise<R
   if (resposta.status === 401) return { status: "anonimo" };
   if (resposta.ok) {
     const corpo = await lerJson(resposta);
-    if (usuarioValido(corpo?.usuario)) return { status: "autenticado", usuario: corpo.usuario };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const usuarioObj = (corpo && typeof corpo === 'object' && 'usuario' in corpo) ? (corpo as any).usuario : undefined;
+    if (usuarioValido(usuarioObj)) return { status: "autenticado", usuario: usuarioObj };
     return { status: "indisponivel", motivo: "A resposta do servidor não é a esperada (API não encontrada neste endereço)." };
   }
   return { status: "indisponivel", motivo: `O servidor respondeu com erro (HTTP ${resposta.status}).` };
@@ -81,18 +83,23 @@ export async function entrar(email: string, senha: string, deps: DepsSessao = DE
     return { ok: false, tipo: "indisponivel", mensagem: "Não foi possível alcançar o servidor. Verifique a conexão e tente novamente." };
   }
   const corpo = await lerJson(resposta);
-  if (resposta.ok && usuarioValido(corpo?.usuario)) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const usuarioObj = (corpo && typeof corpo === 'object' && 'usuario' in corpo) ? (corpo as any).usuario : undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const erroMsg = (corpo && typeof corpo === 'object' && 'erro' in corpo && typeof (corpo as any).erro === 'string') ? (corpo as any).erro : null;
+
+  if (resposta.ok && usuarioValido(usuarioObj)) {
     deps.esquecerTokenCsrf(); // a sessão mudou: o próximo token vem junto das próximas respostas
-    return { ok: true, usuario: corpo.usuario };
+    return { ok: true, usuario: usuarioObj };
   }
   if (resposta.status === 401) {
-    return { ok: false, tipo: "credenciais", mensagem: typeof corpo?.erro === "string" ? corpo.erro : "E-mail ou senha incorretos." };
+    return { ok: false, tipo: "credenciais", mensagem: erroMsg || "E-mail ou senha incorretos." };
   }
   if (resposta.status === 429) {
-    return { ok: false, tipo: "limite", mensagem: typeof corpo?.erro === "string" ? corpo.erro : "Muitas tentativas. Aguarde alguns minutos." };
+    return { ok: false, tipo: "limite", mensagem: erroMsg || "Muitas tentativas. Aguarde alguns minutos." };
   }
-  if (resposta.status === 400 && typeof corpo?.erro === "string") {
-    return { ok: false, tipo: "erro", mensagem: corpo.erro };
+  if (resposta.status === 400 && erroMsg) {
+    return { ok: false, tipo: "erro", mensagem: erroMsg };
   }
   if (resposta.status === 404 || resposta.status >= 500 || corpo === null) {
     return { ok: false, tipo: "indisponivel", mensagem: "O servidor não está disponível neste endereço." };

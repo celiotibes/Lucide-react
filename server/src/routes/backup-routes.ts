@@ -18,7 +18,6 @@ import { logger } from '../services/logger-service.js';
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
 import { backupSQLiteToGoogleDrive, listarBackupsNoGoogleDrive, restaurarBackupDoGoogleDrive } from "../utils/googleDriveBackup.js";
-import type { AuthenticatedRequest } from "../types/express.js";
 
 export interface BackupRoutesOptions {
   authService: AuthServiceDB;

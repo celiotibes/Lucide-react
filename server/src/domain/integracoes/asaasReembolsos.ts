@@ -29,6 +29,15 @@ import { randomUUID } from "crypto";
 
 export type FetchLike = typeof fetch;
 
+// Union type for db objects that could be either better-sqlite3 or sql.js
+// Used to support both production (better-sqlite3) and test (sql.js) databases
+interface SqlJsDatabase {
+  exec(sql: string): Array<{ columns: string[]; values: unknown[][] }>;
+  run(sql: string): void;
+}
+
+type DatabasePolymorphic = Database.Database | SqlJsDatabase;
+
 /**
  * Status possíveis para um reembolso
  */
@@ -595,18 +604,16 @@ export interface ReembolsoInputCobranca {
  * SEC-003: Previne SQL Injection usando parameterized queries.
  * @internal
  */
-function isSqlJsDatabase(db: unknown): db is { exec: (sql: string) => Array<{ columns: string[]; values: unknown[][] }> } {
-  return db !== null && typeof db === "object" && typeof (db as Record<string, unknown>).exec === "function";
-}
-
-function consultarSeguro(db: Database.Database, sql: string, param: string): unknown {
+function consultarSeguro(db: DatabasePolymorphic, sql: string, param: string): unknown {
   // Detecta db type: sql.js tem .exec(), melhor-sqlite3 não
-  if (isSqlJsDatabase(db)) {
+  const isSqlJs = typeof (db as unknown as SqlJsDatabase).exec === "function";
+
+  if (isSqlJs) {
     // sql.js - usa exec() com escaping seguro
     const escapedParam = escapeParamSql(param);
     const sqlSeguro = sql.replace("?", `'${escapedParam}'`);
     try {
-      const resultado = db.exec(sqlSeguro);
+      const resultado = (db as unknown as SqlJsDatabase).exec(sqlSeguro);
       if (resultado && resultado.length > 0) {
         const { columns, values } = resultado[0];
         if (values && values.length > 0) {
@@ -625,7 +632,7 @@ function consultarSeguro(db: Database.Database, sql: string, param: string): unk
     }
   } else {
     // melhor-sqlite3 - usa prepared statements com parameter binding
-    const stmt = (db as Database.Database).prepare(sql);
+    const stmt = (db as unknown as Database.Database).prepare(sql);
     const result = stmt.get(param);
     return result;
   }
@@ -646,9 +653,11 @@ function escapeParamSql(param: string): string {
  * SEC-003: Previne SQL Injection usando parameterized queries.
  * @internal
  */
-function executarSeguro(db: Database.Database, sql: string, params: unknown[]): void {
+function executarSeguro(db: DatabasePolymorphic, sql: string, params: unknown[]): void {
   // Detecta db type: sql.js tem .exec(), melhor-sqlite3 não
-  if (isSqlJsDatabase(db)) {
+  const isSqlJs = typeof (db as unknown as SqlJsDatabase).exec === "function";
+
+  if (isSqlJs) {
     // sql.js - constrói SQL com escaping seguro
     let sqlSeguro = sql;
     params.forEach((param) => {
@@ -656,15 +665,15 @@ function executarSeguro(db: Database.Database, sql: string, params: unknown[]): 
       sqlSeguro = sqlSeguro.replace("?", escapedParam, 1);
     });
     try {
-      db.run(sqlSeguro);
+      (db as unknown as SqlJsDatabase).run(sqlSeguro);
     } catch (err) {
       logger.error("Erro ao executar com sql.js:", err);
       throw err;
     }
   } else {
     // melhor-sqlite3 - usa prepared statements com parameter binding
-    const stmt = (db as Database.Database).prepare(sql);
-    stmt.run(...params);
+    const stmt = (db as unknown as Database.Database).prepare(sql);
+    stmt.run(...(params as Parameters<typeof stmt.run>));
   }
 }
 
@@ -673,7 +682,7 @@ function executarSeguro(db: Database.Database, sql: string, params: unknown[]): 
  * Detecta tipo e escapa apropriadamente.
  * @internal
  */
-function escapeParamSeguro(param: any): string {
+function escapeParamSeguro(param: Record<string, unknown>): string {
   if (param === null || param === undefined) {
     return "NULL";
   }
@@ -816,7 +825,7 @@ export async function processarReembolsoAsaas(
  * Detecta se é reembolso tipo "reversao" (< 24h) ou "devolucao" (≥ 24h)
  * quando a cobrança foi criada.
  */
-function detectarTipoReembolsoAoAgora(agora: string, cobranca: any): boolean {
+function detectarTipoReembolsoAoAgora(agora: string, cobranca: Record<string, unknown>): boolean {
   // Se cobrança não tem data de criação, assume > 24h (devolucao)
   if (!cobranca.criado_em) return false;
 
@@ -830,22 +839,23 @@ function detectarTipoReembolsoAoAgora(agora: string, cobranca: any): boolean {
 /**
  * Mapeia reembolso do modelo interno para modelo de cobrança
  */
-function mapeiaReembolsoCobranca(r: any, tipoOverride?: string): ReembolsoCobranca {
+function mapeiaReembolsoCobranca(r: unknown, tipoOverride?: string): ReembolsoCobranca {
   // Extrai origemTipo e origemId do banco (colunas origem_tipo, origem_id)
-  const origemTipo = r.origem_tipo || "";
-  const origemId = parseInt(r.origem_id || "0", 10);
+  const row = r as Record<string, unknown>;
+  const origemTipo = (row.origem_tipo as string) || "";
+  const origemId = parseInt((row.origem_id as string) || "0", 10);
 
   return {
-    id: r.id as string,
-    asaasChargeId: r.asaas_charge_id || "",
-    motivo: r.motivo || "",
-    tipo: (tipoOverride || r.tipo || "devolucao") as "devolucao" | "cancelamento",
-    status: r.status || "processando",
-    dataProcessamento: r.data_processamento?.split("T")[0] || "",
-    criadoEm: r.criado_em || "",
+    id: (row.id as number) || 0,
+    asaasChargeId: (row.asaas_charge_id as string) || "",
+    motivo: (row.motivo as string) || "",
+    tipo: (tipoOverride || (row.tipo as string) || "devolucao") as "reversao" | "devolucao",
+    status: (row.status as string) || "processando" as "processando" | "sucesso" | "erro",
+    dataProcessamento: (row.data_processamento as string)?.split("T")[0] || "",
+    criadoEm: (row.criado_em as string) || "",
     origemTipo,
     origemId,
-    mensagemErro: r.mensagem_erro || null,
+    mensagemErro: (row.mensagem_erro as string | null) || null,
   };
 }
 
@@ -854,18 +864,18 @@ function mapeiaReembolsoCobranca(r: any, tipoOverride?: string): ReembolsoCobran
  * SEC-003: Usa prepared statements (melhor-sqlite3) ou safe escaping (sql.js testes)
  * para prevenir SQL Injection
  */
-export function obterReembolsosPorChargeId(db: Database.Database, chargeId: string): ReembolsoCobranca[] {
+export function obterReembolsosPorChargeId(db: DatabasePolymorphic, chargeId: string): ReembolsoCobranca[] {
   try {
     // Tenta usar prepared statement
-    const stmt = (db as Database.Database).prepare(`
+    const stmt = (db as unknown as Database.Database).prepare(`
       SELECT * FROM reembolsos_asaas
       WHERE asaas_charge_id = ?
       ORDER BY criado_em DESC
     `);
     // melhor-sqlite3 tem método all()
-    if (typeof stmt.all === "function") {
-      const reembolsos = stmt.all(chargeId) as unknown[];
-      return reembolsos.map((r) => mapeiaReembolsoCobranca(r as Record<string, unknown>));
+    if (typeof (stmt as unknown as { all?: (...args: unknown[]) => unknown[] }).all === "function") {
+      const reembolsos = (stmt as unknown as { all: (chargeId: string) => unknown[] }).all(chargeId);
+      return reembolsos.map((r) => mapeiaReembolsoCobranca(r));
     }
   } catch {
     // Fallback para sql.js
@@ -873,31 +883,29 @@ export function obterReembolsosPorChargeId(db: Database.Database, chargeId: stri
 
   // Fallback para sql.js - usa exec com escaping seguro
   try {
-    if (isSqlJsDatabase(db)) {
-      const escapedChargeId = escapeParamSql(chargeId);
-      const resultado = db.exec(`
-        SELECT * FROM reembolsos_asaas
-        WHERE asaas_charge_id = '${escapedChargeId}'
-        ORDER BY criado_em DESC
-      `) as Array<{ columns: string[]; values: unknown[][] }>;
+    const escapedChargeId = escapeParamSql(chargeId);
+    const resultado = (db as unknown as SqlJsDatabase).exec(`
+      SELECT * FROM reembolsos_asaas
+      WHERE asaas_charge_id = '${escapedChargeId}'
+      ORDER BY criado_em DESC
+    `);
 
-      if (!resultado || resultado.length === 0) {
-        return [];
-      }
-
-      const { columns, values } = resultado[0];
-      if (!values || values.length === 0) {
-        return [];
-      }
-
-      return values.map((row: unknown[]) => {
-        const obj: Record<string, unknown> = {};
-        columns.forEach((col: string, idx: number) => {
-          obj[col] = row[idx];
-        });
-        return mapeiaReembolsoCobranca(obj);
-      });
+    if (!resultado || resultado.length === 0) {
+      return [];
     }
+
+    const { columns, values } = resultado[0];
+    if (!values || values.length === 0) {
+      return [];
+    }
+
+    return values.map((row: unknown[]) => {
+      const obj: Record<string, unknown> = {};
+      columns.forEach((col: string, idx: number) => {
+        obj[col] = row[idx];
+      });
+      return mapeiaReembolsoCobranca(obj);
+    });
   } catch {
     // Se tudo falhar, retorna array vazio
     return [];

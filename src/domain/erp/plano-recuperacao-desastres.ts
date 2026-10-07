@@ -533,7 +533,7 @@ export class PlanoRecuperacaoDesastres {
     this.execucoes.push(execucao);
 
     // Notificar contatos de escalação
-    this.notificarEscalacao(cenario, execucao);
+    this.notificarEscalacao(cenario);
 
     return execucao;
   }
@@ -588,8 +588,6 @@ export class PlanoRecuperacaoDesastres {
     if (!cenario) {
       throw new Error(`Cenário ${cenarioId} não encontrado`);
     }
-
-    const inicio = Date.now();
 
     // Simular execução do teste
     const passos = cenario.passos_recuperacao.length;
@@ -747,7 +745,7 @@ export class PlanoRecuperacaoDesastres {
   /**
    * Notifica contatos de escalação
    */
-  private notificarEscalacao(cenario: CenarioDesastre, execucao: ExecucaoDRP): void {
+  private notificarEscalacao(cenario: CenarioDesastre): void {
     for (const contato of cenario.contatos_escalacao) {
       // Simular envio de notificação
       console.log(`[DRP] Notificando ${contato.nome} (${contato.email}) sobre ${cenario.nome}`);

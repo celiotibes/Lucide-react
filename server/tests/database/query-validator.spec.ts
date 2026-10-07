@@ -270,7 +270,7 @@ describe("Query Validator", () => {
   it("deve remover queries antigas quando histórico fica muito grande", () => {
     // Criar validator com histórico pequeno
     const validator = createQueryValidator(db);
-    (validator as any).maxTrackedQueries = 5; // Limitar para teste
+    (validator as unknown).maxTrackedQueries = 5; // Limitar para teste
 
     // Gerar mais de 5 queries diferentes
     for (let i = 0; i < 10; i++) {

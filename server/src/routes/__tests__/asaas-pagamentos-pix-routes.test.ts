@@ -12,8 +12,8 @@ import { criarRotasAsaasPixProativo } from "../asaas-pagamentos-pix-routes";
 describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
   let app: express.Application;
   let db: Database.Database;
-  let mockAuthService: any;
-  let mockFetch: any;
+  let mockAuthService: unknown;
+  let mockFetch: unknown;
 
   beforeEach(() => {
     // Define variáveis de ambiente necessárias
@@ -89,13 +89,13 @@ describe("Rotas HTTP de Pagamentos PIX Asaas", () => {
 
     // Middleware que injeta db
     app.use((req, res, next) => {
-      (req as any).db = db;
+      (req as unknown).db = db;
       next();
     });
 
     // Mock auth middleware - simula autenticação bem-sucedida
     app.use((req, res, next) => {
-      (req as any).auth = {
+      (req as unknown).auth = {
         usuarioId: "user1",
         token: "test-token",
         autenticado: true,

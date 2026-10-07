@@ -8,8 +8,6 @@ import { gerarDRE, gerarBalanco, gerarFluxoCaixa, type LinhasDRE, type LinhasBal
 import { CONTA_CAIXA_ERP } from "../mapeamentoPlanoApp";
 import { historicoRazaoDaTransacao, reclassificarTransacao } from "../../reclassificacao/reclassificarTransacao";
 
-const TOLERANCIA = 0.01; // mesma margem usada em conciliacao.ts e ledger.ts
-
 /**
  * TESTE PONTA A PONTA: reconstituição contábil de um ano inteiro de movimento, simulando o
  * critério de sucesso do produto ("para qualquer valor, dizer de onde veio, qual regra o

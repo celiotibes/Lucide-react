@@ -71,7 +71,7 @@ export async function waitForElement(
 export async function mockApiResponse(
   page: Page,
   urlPattern: string,
-  responseData: Record<string, any>,
+  responseData: Record<string, string | number | boolean | null>,
   statusCode = 200
 ) {
   await page.route(urlPattern, (route) => {
@@ -80,7 +80,7 @@ export async function mockApiResponse(
 
   await page.route(urlPattern, (route) => {
     route.continue();
-    route.fetch().then((response) => {
+    route.fetch().then(() => {
       route.fulfill({
         status: statusCode,
         contentType: 'application/json',

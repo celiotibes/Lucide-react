@@ -10,7 +10,7 @@
  * 6. Scheduler (2 testes)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
@@ -20,25 +20,12 @@ import {
   gerarPDFRelatorioExecutivo,
   enviarRelatorioEmailMensal,
   secaoIndisponivel,
-  type RelatorioExecutivo,
 } from "../relatorio-executivo.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const TEST_DB_PATH = path.join(__dirname, `test-relatorio-${process.pid}.db`);
-
-function resolverSchema(nomeArquivo: string): string {
-  const candidatos = [
-    path.join(__dirname, `../../../../${nomeArquivo}`),
-    path.join(process.cwd(), `server/src/${nomeArquivo}`),
-    path.join(process.cwd(), `src/${nomeArquivo}`),
-  ];
-  const encontrado = candidatos.find((p) => fs.existsSync(p));
-  if (!encontrado)
-    throw new Error(`Schema não encontrado: ${nomeArquivo} (tentei ${candidatos.join(", ")})`);
-  return fs.readFileSync(encontrado, "utf-8");
-}
 
 function criarTestDatabase(): Database.Database {
   if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
@@ -262,7 +249,7 @@ describe("Relatório Executivo - Testes", () => {
       // Assert
       const registro = db
         .prepare("SELECT * FROM relatorios_executivos_gerados WHERE mes = ? AND ano = ?")
-        .get(mes, ano) as any;
+        .get(mes, ano) as unknown;
 
       expect(registro).toBeDefined();
       expect(registro.mes).toBe(mes);
@@ -286,7 +273,7 @@ describe("Relatório Executivo - Testes", () => {
       // Act
       const registros = db
         .prepare("SELECT * FROM relatorios_executivos_gerados ORDER BY ano, mes DESC LIMIT 12")
-        .all() as any[];
+        .all() as Record<string, unknown>[];
 
       // Assert
       expect(registros.length).toBeGreaterThanOrEqual(2);
@@ -329,7 +316,7 @@ describe("Relatório Executivo - Testes", () => {
     it("Teste 13: Deve calcular próximo disparo como 1º dia útil do mês", () => {
       // Test helper: cálculo de próximo 1º dia útil
       const calcularProxima1oDiaUtil = () => {
-        let data = new Date();
+        const data = new Date();
         data.setMonth(data.getMonth() + 1);
         data.setDate(1);
         data.setHours(8, 0, 0, 0);
@@ -380,6 +367,140 @@ describe("Relatório Executivo - Testes", () => {
 
       expect(relatorio.sumario).toHaveProperty("indisponivel", true);
       expect(relatorio.sumario).toHaveProperty("motivo");
+    });
+  });
+
+  describe("Edge Cases - Boundary Values", () => {
+    it("Deve gerar relatorio para mes 1 (Janeiro)", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 1, 2026);
+
+      expect(relatorio.mes).toBe(1);
+      expect(relatorio.periodo).toBe("2026-01");
+    });
+
+    it("Deve gerar relatorio para mes 12 (Dezembro)", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 12, 2026);
+
+      expect(relatorio.mes).toBe(12);
+      expect(relatorio.periodo).toBe("2026-12");
+    });
+
+    it("Deve gerar relatorio para ano 2000", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 10, 2000);
+
+      expect(relatorio.ano).toBe(2000);
+      expect(relatorio.periodo).toBe("2000-10");
+    });
+
+    it("Deve gerar relatorio para ano 2100", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 10, 2100);
+
+      expect(relatorio.ano).toBe(2100);
+      expect(relatorio.periodo).toBe("2100-10");
+    });
+  });
+
+  describe("Month Transitions", () => {
+    it("Deve calcular periodo corretamente para mes 1", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 1, 2026);
+
+      expect(relatorio.periodo).toBe("2026-01");
+      expect(relatorio.mes).toBe(1);
+      expect(relatorio.ano).toBe(2026);
+    });
+
+    it("Deve calcular periodo corretamente para mes 6", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 6, 2026);
+
+      expect(relatorio.periodo).toBe("2026-06");
+    });
+
+    it("Deve calcular periodo corretamente para mes 12", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 12, 2026);
+
+      expect(relatorio.periodo).toBe("2026-12");
+    });
+  });
+
+  describe("Validation of Estrutura Completa", () => {
+    it("Deve conter todas as propriedades obrigatorias", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 10, 2026);
+
+      expect(relatorio).toHaveProperty("periodo");
+      expect(relatorio).toHaveProperty("mes");
+      expect(relatorio).toHaveProperty("ano");
+      expect(relatorio).toHaveProperty("dre");
+      expect(relatorio).toHaveProperty("fluxo");
+      expect(relatorio).toHaveProperty("margens");
+      expect(relatorio).toHaveProperty("alertas");
+      expect(relatorio).toHaveProperty("contas");
+      expect(relatorio).toHaveProperty("razaoServidor");
+      expect(relatorio).toHaveProperty("sumario");
+      expect(relatorio).toHaveProperty("secoesIndisponiveis");
+      expect(relatorio).toHaveProperty("completo");
+      expect(relatorio).toHaveProperty("criadoEm");
+    });
+
+    it("Deve ter alertas como array", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 10, 2026);
+
+      expect(Array.isArray(relatorio.alertas)).toBe(true);
+    });
+
+    it("Deve ter secoesIndisponiveis como array", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 10, 2026);
+
+      expect(Array.isArray(relatorio.secoesIndisponiveis)).toBe(true);
+    });
+
+    it("Deve ter completo como boolean", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 10, 2026);
+
+      expect(typeof relatorio.completo).toBe("boolean");
+    });
+
+    it("Deve ter criadoEm como ISO string", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 10, 2026);
+
+      expect(typeof relatorio.criadoEm).toBe("string");
+      expect(relatorio.criadoEm).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+  });
+
+  describe("Empty Database Handling", () => {
+    it("Deve retornar estrutura valida mesmo com banco vazio", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 1, 2026);
+
+      expect(relatorio).toBeDefined();
+      expect(relatorio.periodo).toBe("2026-01");
+      expect(Array.isArray(relatorio.alertas)).toBe(true);
+    });
+
+    it("Deve marcar secoes como indisponiveis quando banco esta vazio", () => {
+      const relatorio = gerarRelatorioExecutivo(db, 1, 2026);
+
+      expect(relatorio.secoesIndisponiveis.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("PDF Generation", () => {
+    it("Deve gerar HTML com DOCTYPE valido", () => {
+      const html = gerarPDFRelatorioExecutivo(db, 10, 2026);
+
+      expect(html).toContain("<!DOCTYPE html>");
+    });
+
+    it("Deve conter meta tags obrigatorias", () => {
+      const html = gerarPDFRelatorioExecutivo(db, 10, 2026);
+
+      expect(html).toContain("charset");
+      expect(html).toContain("viewport");
+    });
+
+    it("Deve conter estilos CSS", () => {
+      const html = gerarPDFRelatorioExecutivo(db, 10, 2026);
+
+      expect(html).toContain("<style");
     });
   });
 });

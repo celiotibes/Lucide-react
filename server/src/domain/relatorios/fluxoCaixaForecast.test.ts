@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { forecastMediaMovel, forecastRegressao, type ProjecaoFluxo } from "./fluxoCaixaForecast";
+import { forecastMediaMovel, forecastRegressao } from "./fluxoCaixaForecast";
 import type Database from "better-sqlite3";
 import SQLite from "better-sqlite3";
 

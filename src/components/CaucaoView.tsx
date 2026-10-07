@@ -172,18 +172,31 @@ export function CaucaoView() {
     });
   }
 
-  const entidade = useMemo(() => (db ? obterEntidadeAtiva(db) : null), [db, versao]);
-  const caucoes = useMemo<Caucao[]>(() => (db ? consultar<Caucao>(db, "SELECT * FROM caucoes ORDER BY data_deposito DESC") : []), [db, versao]);
+  const entidade = useMemo(() => {
+    void versao;
+    return db ? obterEntidadeAtiva(db) : null;
+  }, [db, versao]);
+  const caucoes = useMemo<Caucao[]>(() => {
+    void versao;
+    return db ? consultar<Caucao>(db, "SELECT * FROM caucoes ORDER BY data_deposito DESC") : [];
+  }, [db, versao]);
   const contratos = useMemo(
-    () => new Map((db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao") : []).map((c) => [c.id, c])),
+    () => {
+      void versao;
+      return new Map((db ? consultar<ContratoLocacao>(db, "SELECT * FROM contratos_locacao") : []).map((c) => [c.id, c]));
+    },
     [db, versao],
   );
-  const imoveis = useMemo(() => new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i])), [db, versao]);
+  const imoveis = useMemo(() => {
+    void versao;
+    return new Map((db ? consultar<Imovel>(db, "SELECT * FROM imoveis") : []).map((i) => [i.id, i]));
+  }, [db, versao]);
 
   // Avaliação RAD vigente (obterRadAvaliacaoAtual: maior versão que não esteja 'superado') de
   // cada contrato que aparece nesta tela — recalculado a cada nova versão do banco (persistir()
   // muda `versao`), mesmo padrão de recomputação dos demais mapas acima.
   const radAtualPorContrato = useMemo(() => {
+    void versao;
     const mapa = new Map<number, RadAvaliacaoComItens | null>();
     if (!db) return mapa;
     for (const c of caucoes) {
@@ -203,8 +216,9 @@ export function CaucaoView() {
   // contrato de cada caução — mesmas tabelas reais (`vistoria_item`/`vistorias`) já lidas
   // por integracao-vistorias.ts, sem inventar coluna nem tabela nova.
   const itensVistoriaDano = useMemo<ItemVistoriaDanoRow[]>(
-    () =>
-      db
+    () => {
+      void versao;
+      return db
         ? consultar<ItemVistoriaDanoRow>(
             db,
             `SELECT vi.id AS item_id, vi.vistoria_id, vi.descricao, vi.severidade, vi.valor_estimado,
@@ -214,7 +228,8 @@ export function CaucaoView() {
              WHERE vi.tipo IN ('dano', 'necessidade_reparo') AND v.contrato_id IS NOT NULL
              ORDER BY v.data_realizada DESC, vi.id`,
           )
-        : [],
+        : [];
+    },
     [db, versao],
   );
 
@@ -244,6 +259,7 @@ export function CaucaoView() {
   // Valor já provisionado no razão por vistoria — lido direto do razão (ledger_entries),
   // via o mesmo relatório de integracao-vistorias.ts, não recalculado aqui.
   const valorProvisionadoPorVistoria = useMemo(() => {
+    void versao;
     const relatorio = db ? relatorioVistoriasComProvisionamento(db) : [];
     return new Map(relatorio.map((r) => [r.vistoria_id, r.valor_provisionado]));
   }, [db, versao]);
@@ -380,7 +396,10 @@ export function CaucaoView() {
 
   const caucoesRetidas = caucoes.filter((c) => !c.data_devolucao);
   const passivoCaucaoRetido = caucoes.reduce((acc, c, indice) => (c.data_devolucao ? acc : acc + calculos[indice].valorADevolver), 0);
-  const saldoCaixaAtual = useMemo(() => (db ? calcularSaldoCaixaAtual(db) : 0), [db, versao]);
+  const saldoCaixaAtual = useMemo(() => {
+    void versao;
+    return db ? calcularSaldoCaixaAtual(db) : 0;
+  }, [db, versao]);
   const caucaoCobertaPeloCaixa = saldoCaixaAtual >= passivoCaucaoRetido;
 
   async function gerarRad(caucao: Caucao, resultado: (typeof calculos)[number]) {
