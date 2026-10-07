@@ -348,11 +348,9 @@ describe('E2E Import Workflow', () => {
 
       const MAX_SIZE = 52428800; // 50MB
       if (file.length > MAX_SIZE) {
-        console.error(`[UPLOAD BOUNDARY] File size: ${file.length}, max: ${MAX_SIZE}, rejected: ${file.length > MAX_SIZE}`);
         return res.status(413).json({ error: `File too large (${file.length} bytes, max ${MAX_SIZE} bytes)` });
       }
       if (file.length === MAX_SIZE) {
-        console.error(`[UPLOAD BOUNDARY] File size: ${file.length}, max: ${MAX_SIZE}, accepted: true`);
       }
 
       const loteId = `lote_${Date.now()}`;
