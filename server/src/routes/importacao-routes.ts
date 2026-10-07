@@ -92,7 +92,7 @@ export function criarRotasImportacao({
 
       // Construir query dinâmica
       let query = `SELECT * FROM importacao_linhas WHERE lote_id = ?`;
-      const params: any[] = [loteId];
+      const params: (string | number | undefined)[] = [loteId];
 
       if (status) {
         query += ` AND status = ?`;
