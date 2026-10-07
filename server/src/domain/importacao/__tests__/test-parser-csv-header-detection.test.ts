@@ -11,7 +11,6 @@
 
 import { describe, it, expect } from "vitest";
 import { parseCSV } from "../parsers/csv-parser.js";
-import type { ParserResult } from "../tipos.js";
 
 describe("CSV Parser - Header Detection", () => {
   it("Teste 1: Detecta headers em português com alta confiança", () => {

@@ -189,7 +189,7 @@ export async function parsePDF(
 
   try {
     // Extrair texto do PDF
-    let texto = await extrairTextoPDF(buffer);
+    const texto = await extrairTextoPDF(buffer);
 
     if (!texto || texto.length === 0) {
       resultado.avisos?.push("Não foi possível extrair texto do PDF");

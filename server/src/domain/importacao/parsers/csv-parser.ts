@@ -10,18 +10,13 @@
  */
 
 import { parse as csvParse } from "papaparse";
-import { parseISO, parse as dateParse, isValid, format } from "date-fns";
+import { parseISO, parse, isValid, format } from "date-fns";
 import { pt } from "date-fns/locale";
 import type {
   TransacaoBruta,
   ParserResult,
   ParserOptions,
-  ParseError,
 } from "../tipos.js";
-
-interface CSVRow {
-  [key: string]: string | undefined;
-}
 
 /**
  * Detecta headers automaticamente analisando a primeira linha
@@ -29,7 +24,6 @@ interface CSVRow {
  */
 function detectarHeaders(
   primeiraLinha: string[],
-  confianca: number = 80,
 ): { indices: Record<string, number>; confianca: number } {
   const indices: Record<string, number> = {};
 
@@ -137,7 +131,7 @@ function normalizarData(
 
   for (const fmt of formatos) {
     try {
-      const data = dateParse(valor_trim, fmt, new Date(), { locale: pt });
+      const data = parse(valor_trim, fmt, new Date(), { locale: pt });
       if (isValid(data)) {
         return format(data, "yyyy-MM-dd");
       }

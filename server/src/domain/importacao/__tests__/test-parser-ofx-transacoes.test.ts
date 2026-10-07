@@ -11,7 +11,6 @@
 
 import { describe, it, expect } from "vitest";
 import { parseOFX } from "../parsers/ofx-parser.js";
-import type { ParserResult } from "../tipos.js";
 
 describe("OFX Parser - Transações Bancárias", () => {
   it("Teste 1: Parse OFX 1.x básico", () => {

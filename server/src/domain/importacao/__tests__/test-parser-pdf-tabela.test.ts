@@ -11,7 +11,6 @@
 
 import { describe, it, expect } from "vitest";
 import { parsePDF } from "../parsers/pdf-parser.js";
-import type { ParserResult } from "../tipos.js";
 
 describe("PDF Parser - Tabela e Padrões", () => {
   it("Teste 1: Extrai dados básicos de texto simulado", async () => {
