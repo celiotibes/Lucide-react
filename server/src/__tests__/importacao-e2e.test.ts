@@ -346,9 +346,13 @@ describe('E2E Import Workflow', () => {
         return res.status(400).json({ error: 'Missing file data' });
       }
 
-      if (file.length > 52428800) {
-        // 50MB
-        return res.status(413).json({ error: 'File too large' });
+      const MAX_SIZE = 52428800; // 50MB
+      if (file.length > MAX_SIZE) {
+        console.error(`[UPLOAD BOUNDARY] File size: ${file.length}, max: ${MAX_SIZE}, rejected: ${file.length > MAX_SIZE}`);
+        return res.status(413).json({ error: `File too large (${file.length} bytes, max ${MAX_SIZE} bytes)` });
+      }
+      if (file.length === MAX_SIZE) {
+        console.error(`[UPLOAD BOUNDARY] File size: ${file.length}, max: ${MAX_SIZE}, accepted: true`);
       }
 
       const loteId = `lote_${Date.now()}`;
@@ -418,6 +422,11 @@ describe('E2E Import Workflow', () => {
         }
 
         if (parsed.errors.length > 0) {
+          db.prepare('UPDATE importacao_lotes SET status = ?, erro_mensagem = ? WHERE id = ?').run(
+            'ERRO',
+            parsed.errors.join('; '),
+            loteId
+          );
           return res.status(400).json({ error: 'Parse error', details: parsed.errors });
         }
 
@@ -916,6 +925,9 @@ describe('E2E Import Workflow', () => {
         .get(loteId) as unknown;
       expect(lote).toBeDefined();
       expect(lote.usuario_id).toBe('test-user');
+
+      // Parse the file to create linhas
+      await request(app).post(`/api/import/${loteId}/parse`);
 
       // Verify linhas are linked to lote
       const linhas = db
