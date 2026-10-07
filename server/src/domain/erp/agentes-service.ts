@@ -15,14 +15,11 @@ import { z } from "zod";
 import { logger } from "../../services/logger-service.js";
 import {
   AgenteEconomico,
-  AgenteEconomicoSchema,
   CriarAgenteEconomicoSchema,
   AtualizarAgenteEconomicoSchema,
   calculateDuplicataScore,
   cleanCPFCNPJ,
   calculateSimilarity,
-  TipoEntidade,
-  MotivoDuplicata,
   StatusDuplicata,
 } from "./agentes-tipos.js";
 
@@ -178,9 +175,6 @@ export class AgenteService {
       query += " AND ativo = ?";
       params.push(ativo ? 1 : 0);
     }
-
-    // Convert to numbers for SQLite compatibility
-    const finalParams = params.map(p => typeof p === 'boolean' ? (p ? 1 : 0) : p);
 
     if (papel) {
       query += " AND papel = ?";
