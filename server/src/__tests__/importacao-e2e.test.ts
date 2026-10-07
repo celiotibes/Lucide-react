@@ -364,11 +364,11 @@ describe('E2E Import Workflow', () => {
           .update(file)
           .digest('hex');
 
-        console.error('[UPLOAD] Inserting lote into DB:', { loteId, fileName, hash, fileType });
+        console.error('[UPLOAD] Inserting lote into DB:', { loteId, fileName, hash, fileType, tamanhoBytes: file.length });
         db.prepare(`
           INSERT INTO importacao_lotes (id, usuario_id, arquivo_nome, arquivo_hash, tipo, tamanho_bytes, status)
           VALUES (?, ?, ?, ?, ?, ?, 'RECEBIDO')
-        `).run(loteId, 'test-user', fileName, hash, fileType);
+        `).run(loteId, 'test-user', fileName, hash, fileType, file.length);
         console.error('[UPLOAD] Successfully inserted lote');
 
         // Store file with loteId as key so it can be retrieved later
@@ -542,19 +542,22 @@ describe('E2E Import Workflow', () => {
       }
 
       try {
+        console.error('[APPROVE] Looking for linhas with loteId:', loteId);
         const linhas = db
           .prepare(
-            'SELECT * FROM importacao_linhas WHERE lote_id = ? AND status IN ("VALIDADA", "IGNORADA") ORDER BY numero_linha'
+            'SELECT * FROM importacao_linhas WHERE lote_id = ? AND status IN (?, ?) ORDER BY numero_linha'
           )
-          .all(loteId) as unknown[];
+          .all(loteId, 'VALIDADA', 'IGNORADA') as unknown[];
 
+        console.error('[APPROVE] Found', linhas.length, 'linhas to process');
         let successCount = 0;
 
-        linhas.forEach((linha) => {
+        linhas.forEach((linha: any) => {
           try {
             const data = JSON.parse(linha.dados_brutos);
             const ledgerId = `ledger_${loteId}_${linha.numero_linha}`;
 
+            console.error('[APPROVE] Inserting ledger entry:', { ledgerId, data });
             db.prepare(`
               INSERT INTO ledger_entries (id, data, tipo, categoria, valor, descricao, referencia_externa, usuario_id)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -571,14 +574,13 @@ describe('E2E Import Workflow', () => {
 
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('PROCESSADA', linha.id);
             successCount++;
-          } catch (
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            _error
-          ) {
+          } catch (error: unknown) {
+            console.error('[APPROVE] Error processing linha:', error instanceof Error ? error.message : String(error));
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('ERRO', linha.id);
           }
         });
 
+        console.error('[APPROVE] Updating lote status to PROCESSADO');
         db.prepare('UPDATE importacao_lotes SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(
           'PROCESSADO',
           loteId
@@ -591,7 +593,8 @@ describe('E2E Import Workflow', () => {
           totalLines: linhas.length,
         });
       } catch (error: unknown) {
-        res.status(500).json({ error: error.message });
+        console.error('[APPROVE] Outer error:', error instanceof Error ? error.message : String(error));
+        res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
       }
     });
   });

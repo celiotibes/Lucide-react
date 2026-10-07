@@ -240,13 +240,16 @@ export class MT940Parser extends ParserBase {
     while (i < linhas.length) {
       const linha = linhas[i];
 
-      // Detectar tag (formato :XX: ou :XXX:)
-      const tagMatch = linha.match(/^:(\d+[A-Z]*)[a-z]?:/);
+      // Detectar tag (formato :XX: ou :XXX: ou :XXa: ou :XXF:)
+      const tagMatch = linha.match(/^:([a-zA-Z0-9]+):/);
       if (tagMatch) {
         ultimaTag = tagMatch[1];
         const conteudo = linha.substring(tagMatch[0].length).trim();
 
-        switch (ultimaTag) {
+        // Extrair apenas a parte numérica para comparação simplificada
+        const tagNumerico = ultimaTag.match(/\d+/)?.[0] || "";
+
+        switch (tagNumerico) {
           case "20":
             stmt.referencia = conteudo;
             break;
@@ -255,12 +258,12 @@ export class MT940Parser extends ParserBase {
             stmt.conta = conteudo;
             break;
 
-          case "28C":
+          case "28":
             stmt.numeroExtrato = conteudo;
             break;
 
-          case "60a":
-          case "60F": {
+          case "60": {
+            // Pode ser :60a: ou :60F:
             const saldoAb = this.parsarSaldo(conteudo);
             stmt.saldoAbertura = saldoAb;
             break;
@@ -271,18 +274,19 @@ export class MT940Parser extends ParserBase {
             const trn = this.parsarLinhaTransacao(conteudo);
             // Procurar por :86: na próxima linha
             if (i + 1 < linhas.length && linhas[i + 1].startsWith(":86:")) {
-              i++;
-              trn.descricao = linhas[i]
+              const proximaLinha = linhas[i + 1];
+              trn.descricao = proximaLinha
                 .substring(4)
                 .trim()
                 .replace(/\s+/g, " ");
+              i++; // Pular a linha :86: que já foi processada
             }
             stmt.transacoes!.push(trn);
             break;
           }
 
-          case "62a":
-          case "62F": {
+          case "62": {
+            // Pode ser :62a: ou :62F:
             const saldoFech = this.parsarSaldo(conteudo);
             stmt.saldoFechamento = saldoFech;
             break;
@@ -332,7 +336,7 @@ export class MT940Parser extends ParserBase {
 
     let offset = 6;
 
-    // Verificar data de valor (se houver 6 dígitos antes do tipo)
+    // Verificar data de valor (se houver 6 dígitos antes do tipo C/D)
     if (/^[0-9]{6}[DC]/.test(linha.substring(offset))) {
       const dataValor = linha.substring(offset, offset + 6);
       trn.dataValor = this.normalizarData(dataValor) || dataValor;
@@ -346,10 +350,15 @@ export class MT940Parser extends ParserBase {
     trn.tipo = (tipo === "D" || tipo === "C" ? tipo : "D") as "D" | "C";
     offset += 1;
 
-    // Moeda (3 caracteres)
-    const moeda = linha.substring(offset, offset + 3);
-    trn.moeda = moeda.match(/^[A-Z]{3}/) ? moeda : "BRL";
-    offset += 3;
+    // Moeda (3 caracteres, opcional)
+    // Se os próximos 3 caracteres são letras maiúsculas, é a moeda
+    const possibleMoeda = linha.substring(offset, offset + 3);
+    if (/^[A-Z]{3}/.test(possibleMoeda)) {
+      trn.moeda = possibleMoeda;
+      offset += 3;
+    } else {
+      trn.moeda = "BRL"; // Default
+    }
 
     // Valor (restante até referência)
     // Formato: XXXXX,XX (pode ter ponto de milhar)

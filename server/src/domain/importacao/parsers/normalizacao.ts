@@ -26,6 +26,15 @@ export enum TipoTransacao {
  */
 export class NormalizadorTransacao {
   /**
+   * Remove acentos e caracteres especiais para comparação
+   */
+  private static normalizarAcentos(texto: string): string {
+    return texto
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "");
+  }
+
+  /**
    * Normaliza uma data para ISO 8601
    */
   static normalizarData(data: string | undefined): string | null {
@@ -99,8 +108,7 @@ export class NormalizadorTransacao {
    */
   static normalizarValor(
     valor: number | string | undefined,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _separadorDecimal: string = ".",
+    separadorDecimal: string = ".",
   ): number | null {
     if (valor === undefined || valor === null || valor === "") return null;
 
@@ -119,16 +127,31 @@ export class NormalizadorTransacao {
     v = v.replace(/^-/, "");
 
     // Normalizar separadores
-    // Substituir último ponto por decimal se houver vírgula depois
     const ultimaPontoIdx = v.lastIndexOf(".");
     const ultimaVirgulaIdx = v.lastIndexOf(",");
 
+    // Determinar qual é o separador decimal
     if (ultimaVirgulaIdx > ultimaPontoIdx) {
-      // Vírgula é decimal
+      // Vírgula é decimal (formato brasileiro: 1.500,50)
       v = v.replace(/\./g, "").replace(",", ".");
     } else if (ultimaPontoIdx > -1) {
-      // Ponto é decimal
-      v = v.replace(/,/g, "");
+      // Ponto pode ser decimal ou thousands separator
+      // Se há exatamente 2 dígitos após o último ponto, é decimal (ex: 1500.50)
+      // Se há mais de 2 dígitos ou o ponto é seguido de mais pontos, é thousands separator
+      const aposUltimoPonto = v.substring(ultimaPontoIdx + 1);
+
+      if (aposUltimoPonto.length === 2 && /^\d{2}$/.test(aposUltimoPonto)) {
+        // Parece ser decimal: remover outros pontos
+        const antes = v.substring(0, ultimaPontoIdx);
+        v = antes.replace(/\./g, "") + "." + aposUltimoPonto;
+      } else if (aposUltimoPonto.length === 3 && /^\d{3}$/.test(aposUltimoPonto)) {
+        // Ponto é thousands separator (ex: 1.500): remover todos os pontos
+        v = v.replace(/\./g, "");
+      } else {
+        // Outras cases: trata o último ponto como decimal
+        const antes = v.substring(0, ultimaPontoIdx);
+        v = antes.replace(/\./g, "") + "." + aposUltimoPonto;
+      }
     }
 
     const num = parseFloat(v);
@@ -215,6 +238,7 @@ export class NormalizadorTransacao {
     valorOriginal?: number,
   ): TipoTransacao {
     const lower = desc.toLowerCase();
+    const normalizado = this.normalizarAcentos(lower);
 
     // Palavras-chave para entrada
     const palavrasEntrada = [
@@ -227,7 +251,7 @@ export class NormalizadorTransacao {
       "doc recebido",
       "transferencia recebida",
       "saque negado",
-      "devolução",
+      "devolucao",
       "reembolso",
       "juros",
       "rendimento",
@@ -253,13 +277,13 @@ export class NormalizadorTransacao {
     ];
 
     for (const palavra of palavrasEntrada) {
-      if (lower.includes(palavra)) {
+      if (normalizado.includes(palavra)) {
         return TipoTransacao.ENTRADA;
       }
     }
 
     for (const palavra of palavrasSaida) {
-      if (lower.includes(palavra)) {
+      if (normalizado.includes(palavra)) {
         return TipoTransacao.SAIDA;
       }
     }
@@ -278,6 +302,7 @@ export class NormalizadorTransacao {
    */
   static extrairCategoria(desc: string): string | null {
     const lower = desc.toLowerCase();
+    const normalizado = this.normalizarAcentos(lower);
 
     const categorias: Record<string, string[]> = {
       "Alimentação": [
@@ -287,22 +312,21 @@ export class NormalizadorTransacao {
         "lanchonete",
         "mercado",
         "supermercado",
-        "açougue",
+        "acougue",
       ],
       "Transporte": [
         "uber",
         "taxi",
-        "ônibus",
-        "metrô",
-        "táxi",
+        "onibus",
+        "metro",
         "gasolina",
-        "combustível",
+        "combustivel",
         "estacionamento",
-        "pedágio",
+        "pedagio",
       ],
       "Moradia": [
         "aluguel",
-        "condomínio",
+        "condominio",
         "agua",
         "energia",
         "luz",
@@ -310,9 +334,9 @@ export class NormalizadorTransacao {
         "internet",
       ],
       "Saúde": [
-        "farmácia",
+        "farmacia",
         "medicamento",
-        "médico",
+        "medico",
         "hospital",
         "dentista",
         "clinica",
@@ -337,7 +361,7 @@ export class NormalizadorTransacao {
     };
 
     for (const [categoria, palavras] of Object.entries(categorias)) {
-      if (palavras.some((p) => lower.includes(p))) {
+      if (palavras.some((p) => normalizado.includes(p))) {
         return categoria;
       }
     }
