@@ -98,7 +98,6 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase13-acl-recursos.sql",
       "migrations-phase14-portal-inquilino.sql",
       "migrations-phase15-prestador-apontamentos.sql",
-      "migrations-phase16-ledger-entries.sql",
       "migrations-phase17-importacao.sql",
       "migrations-phase18-agentes-economicos-sqlite.sql",
       "migrations-phase18-ocr-extraction.sql",

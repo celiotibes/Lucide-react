@@ -142,22 +142,18 @@ function converterOFX1xParaXML(conteudo: string): string {
 
 /**
  * Extrai transações usando regex para OFX 1.x
+ * Retorna TODAS as transações encontradas (inclusive as inválidas)
+ * O processamento e validação acontece em parseOFX
  */
 function extrairTransacoesOFX1x(conteudo: string): OFXTransaction[] {
   const transacoes: OFXTransaction[] = [];
-
-  if (!conteudo.includes("STMTTRN")) {
-    throw new Error("extrairTransacoesOFX1x: conteúdo não contém STMTTRN!");
-  }
 
   // Regex para encontrar blocos STMTTRN
   // OFX 1.x usa <STMTTRN>.....</STMTTRN>
   const regexSTMTTRN = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
   let match;
-  let regexMatches = 0;
 
   while ((match = regexSTMTTRN.exec(conteudo)) !== null) {
-    regexMatches++;
     const blocoSTMTTRN = match[1];
 
     // Extrair campos específicos do bloco
@@ -168,16 +164,16 @@ function extrairTransacoesOFX1x(conteudo: string): OFXTransaction[] {
     const name = extrairCampoOFX(blocoSTMTTRN, "NAME");
     const memo = extrairCampoOFX(blocoSTMTTRN, "MEMO");
 
-    if (dtposted && trnamt) {
-      transacoes.push({
-        TRNTYPE: trntype,
-        DTPOSTED: dtposted,
-        TRNAMT: trnamt,
-        FITID: fitid,
-        NAME: name,
-        MEMO: memo,
-      });
-    }
+    // Adicionar transação mesmo que esteja incompleta
+    // A validação ocorre em parseOFX
+    transacoes.push({
+      TRNTYPE: trntype,
+      DTPOSTED: dtposted,
+      TRNAMT: trnamt,
+      FITID: fitid,
+      NAME: name,
+      MEMO: memo,
+    });
   }
 
   return transacoes;
@@ -198,30 +194,12 @@ function extrairCampoOFX(conteudo: string, nomeCampo: string): string | undefine
 }
 
 /**
- * Extrai transações do XML parseado
+ * Extrai transações do XML parseado via navegação de estrutura
  */
 function extrairTransacoesDoXML(
   xmlObj: Record<string, unknown>,
-  conteudoOriginal?: string,
 ): OFXTransaction[] {
   const transacoes: OFXTransaction[] = [];
-
-  // Se temos conteúdo original e contém STMTTRN, tenta parsing por regex (OFX 1.x)
-  if (conteudoOriginal) {
-    const temSTMTTRN = /<STMTTRN>[\s\S]*?<\/STMTTRN>/i.test(conteudoOriginal);
-    if (temSTMTTRN) {
-      try {
-        const resultado = extrairTransacoesOFX1x(conteudoOriginal);
-        if (resultado.length > 0) {
-          return resultado;
-        }
-        // Se não encontrou por regex, continua para tentar parse por navegação XML
-      } catch (erro) {
-        // Se erro no parsing OFX 1.x, relança para o chamador
-        throw erro;
-      }
-    }
-  }
 
   // Navegar na estrutura do XML (para OFX 2.x/XML puro)
   const navegar = (obj: unknown, chaves: string[]): OFXTransaction[] => {
@@ -394,25 +372,34 @@ export function parseOFX(
     const versao = detectarVersaoOFX(conteudo);
     resultado.avisos?.push(`Processando OFX versão ${versao}`);
 
-    let xml = conteudo;
+    let transacoesOFX: OFXTransaction[] = [];
 
-    // Se OFX 1.x, converter para XML bem-formado
-    if (versao === "1.x") {
-      xml = converterOFX1xParaXML(conteudo);
+    // Se OFX 1.x, tentar parsing direto por regex primeiro
+    if (versao === "1.x" && conteudo.includes("<STMTTRN>")) {
+      transacoesOFX = extrairTransacoesOFX1x(conteudo);
     }
 
-    // Parse XML
-    const parser = new XMLParser({
-      ignoreAttributes: true,
-      parseTagValue: true,
-    });
-    const xmlObj = parser.parse(xml);
+    // Se não encontrou por regex, tentar por XML parsing
+    if (transacoesOFX.length === 0) {
+      let xml = conteudo;
 
-    // Extrair transações - passar conteúdo original para permitir parsing OFX 1.x por regex
-    const transacoesOFX = extrairTransacoesDoXML(
-      xmlObj as Record<string, unknown>,
-      conteudo,
-    );
+      // Se OFX 1.x, converter para XML bem-formado
+      if (versao === "1.x") {
+        xml = converterOFX1xParaXML(conteudo);
+      }
+
+      // Parse XML
+      const parser = new XMLParser({
+        ignoreAttributes: true,
+        parseTagValue: true,
+      });
+      const xmlObj = parser.parse(xml);
+
+      // Extrair transações via navegação XML
+      transacoesOFX = extrairTransacoesDoXML(
+        xmlObj as Record<string, unknown>,
+      );
+    }
 
     if (transacoesOFX.length === 0) {
       resultado.avisos?.push(

@@ -67,12 +67,9 @@ CREATE INDEX IF NOT EXISTS idx_agentes_audit_trail_usuario
 -- ALTER TABLE agentes_duplicatas_suspeitas ADD COLUMN ledger_1_id UUID;
 -- ALTER TABLE agentes_duplicatas_suspeitas ADD COLUMN ledger_2_id UUID;
 
--- Adicionar coluna de revisão_data e revisão_notas
-ALTER TABLE agentes_duplicatas_suspeitas
-ADD COLUMN IF NOT EXISTS revisao_notas TEXT;
-
-ALTER TABLE agentes_duplicatas_suspeitas
-ADD COLUMN IF NOT EXISTS merge_data TIMESTAMP;
+-- Adicionar colunas de revisão_notas e merge_data
+-- Nota: Usando PRAGMA table_info para idempotência em tempo de execução (database-init.ts)
+-- A aplicação verifica se as colunas existem antes de executar ALTER TABLE
 
 -- Índice para buscar duplicatas não revisadas
 CREATE INDEX IF NOT EXISTS idx_agentes_duplicatas_nao_revisadas
@@ -84,7 +81,8 @@ CREATE INDEX IF NOT EXISTS idx_agentes_duplicatas_nao_revisadas
 -- View: Histórico completo de operações em agentes
 -- =====================================================================
 
-CREATE OR REPLACE VIEW agentes_operacoes_completo AS
+DROP VIEW IF EXISTS agentes_operacoes_completo;
+CREATE VIEW agentes_operacoes_completo AS
 SELECT
   'merge' as tipo_evento,
   d.id as evento_id,
@@ -126,7 +124,8 @@ ORDER BY evento_data DESC;
 -- View: Estatísticas de duplicatas por status
 -- =====================================================================
 
-CREATE OR REPLACE VIEW agentes_duplicatas_stats AS
+DROP VIEW IF EXISTS agentes_duplicatas_stats;
+CREATE VIEW agentes_duplicatas_stats AS
 SELECT
   status,
   COUNT(*) as total,
@@ -141,7 +140,8 @@ GROUP BY status;
 -- View: Agentes que foram mesclados (histórico)
 -- =====================================================================
 
-CREATE OR REPLACE VIEW agentes_merges_historico AS
+DROP VIEW IF EXISTS agentes_merges_historico;
+CREATE VIEW agentes_merges_historico AS
 SELECT
   d.id as merge_id,
   d.agente_id_1 as agente_primario_id,
@@ -167,7 +167,8 @@ ORDER BY d.analisado_em DESC;
 -- View: Duplicatas com dados dos agentes
 -- =====================================================================
 
-CREATE OR REPLACE VIEW agentes_duplicatas_detalhadas AS
+DROP VIEW IF EXISTS agentes_duplicatas_detalhadas;
+CREATE VIEW agentes_duplicatas_detalhadas AS
 SELECT
   d.id,
   d.agente_id_1,

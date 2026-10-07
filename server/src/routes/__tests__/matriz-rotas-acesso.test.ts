@@ -244,8 +244,18 @@ function rotasDiretasDoIndex(): string[] {
 }
 
 function montadosNoIndex(): { fabricas: string[]; prefixos: string[] } {
-  // Extract factory functions from app.use() calls using dotall mode for multiline support
-  const fabricas = [...INDEX_TS.matchAll(/app\.use\([^)]*?(criarRotas\w+)\(/gms)].map((m) => m[1]);
+  // Find all app.use() statements (may span multiple lines until semicolon)
+  // Then extract factory functions from them
+  const fabricas: string[] = [];
+  const useStatements = [...INDEX_TS.matchAll(/app\.use\([^;]*?;/gms)];
+  for (const stmt of useStatements) {
+    const matches = [...stmt[0].matchAll(/(criarRotas\w+)\(/g)];
+    for (const m of matches) {
+      if (!fabricas.includes(m[1])) {
+        fabricas.push(m[1]);
+      }
+    }
+  }
   const prefixos = [...INDEX_TS.matchAll(/^app\.use\(\s*"([^"]+)"/gm)].map((m) => m[1]);
   return { fabricas, prefixos };
 }
