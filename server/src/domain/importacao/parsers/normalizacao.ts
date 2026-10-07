@@ -108,7 +108,6 @@ export class NormalizadorTransacao {
    */
   static normalizarValor(
     valor: number | string | undefined,
-    separadorDecimal: string = ".",
   ): number | null {
     if (valor === undefined || valor === null || valor === "") return null;
 

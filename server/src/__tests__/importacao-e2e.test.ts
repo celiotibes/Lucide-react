@@ -350,8 +350,6 @@ describe('E2E Import Workflow', () => {
       if (file.length > MAX_SIZE) {
         return res.status(413).json({ error: `File too large (${file.length} bytes, max ${MAX_SIZE} bytes)` });
       }
-      if (file.length === MAX_SIZE) {
-      }
 
       const loteId = `lote_${Date.now()}`;
 
@@ -550,9 +548,9 @@ describe('E2E Import Workflow', () => {
 
         let successCount = 0;
 
-        linhas.forEach((linha: any) => {
+        linhas.forEach((linha: Record<string, unknown>) => {
           try {
-            const data = JSON.parse(linha.dados_brutos);
+            const data = JSON.parse(linha.dados_brutos as string);
             const ledgerId = `ledger_${loteId}_${linha.numero_linha}`;
 
             db.prepare(`
@@ -571,7 +569,7 @@ describe('E2E Import Workflow', () => {
 
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('PROCESSADA', linha.id);
             successCount++;
-          } catch (error: unknown) {
+          } catch {
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('ERRO', linha.id);
           }
         });

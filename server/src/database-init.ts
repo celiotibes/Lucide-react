@@ -326,7 +326,7 @@ function ensurePhase19Columns(db: Database.Database): void {
       .prepare("PRAGMA table_info(ledger_entries)")
       .all() as Array<{ name: string }>;
 
-    const columnNames = columns.map((c: any) => c.name);
+    const columnNames = columns.map((c: { name: string }) => c.name);
 
     // Adicionar coluna agente_id se não existir
     if (!columnNames.includes("agente_id")) {
@@ -419,7 +419,7 @@ function ensurePhase20Columns(db: Database.Database): void {
       .prepare("PRAGMA table_info(agentes_duplicatas_suspeitas)")
       .all() as Array<{ name: string }>;
 
-    const columnNames = columns.map((c: any) => c.name);
+    const columnNames = columns.map((c: { name: string }) => c.name);
 
     // Adicionar coluna revisao_notas se não existir
     if (!columnNames.includes("revisao_notas")) {
