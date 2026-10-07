@@ -179,6 +179,9 @@ export class AgenteService {
       params.push(ativo ? 1 : 0);
     }
 
+    // Convert to numbers for SQLite compatibility
+    const finalParams = params.map(p => typeof p === 'boolean' ? (p ? 1 : 0) : p);
+
     if (papel) {
       query += " AND papel = ?";
       params.push(papel);

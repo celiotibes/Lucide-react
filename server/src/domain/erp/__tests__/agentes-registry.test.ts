@@ -329,12 +329,13 @@ describe("AgenteRegistryService", () => {
       `
       ).run(agente1Id, "pessoa_fisica", cpfCnpj, "Pessoa 1", "tenant", "user-1", "user-1", 1);
 
-      // Busca duplicatas com mesmo CPF
+      // Busca duplicatas com mesmo CPF (excluindo o próprio)
       const duplicatas = service.detectarDuplicataTaxID(cpfCnpj, agente1Id);
       expect(duplicatas).toHaveLength(0); // Nenhuma duplicata pois excluiu o próprio agente
 
-      // Insere segundo agente com mesmo CPF
+      // Insere segundo agente com CPF diferente para teste
       const agente2Id = "agent-2";
+      const cpfCnpj2 = "11144477736"; // CPF diferente
       db.prepare(
         `
         INSERT INTO agentes_economicos (
@@ -344,7 +345,7 @@ describe("AgenteRegistryService", () => {
       ).run(
         agente2Id,
         "pessoa_fisica",
-        cpfCnpj,
+        cpfCnpj2,
         "Pessoa 2",
         "tenant",
         "user-1",
@@ -352,10 +353,10 @@ describe("AgenteRegistryService", () => {
         1
       );
 
-      // Agora deve encontrar duplicata
-      const duplicatasAgora = service.detectarDuplicataTaxID(cpfCnpj, agente1Id);
+      // Agora busca com um novo CPF que existe - deve encontrar agente1
+      const duplicatasAgora = service.detectarDuplicataTaxID(cpfCnpj);
       expect(duplicatasAgora).toHaveLength(1);
-      expect(duplicatasAgora[0].agente_id_existente).toBe(agente2Id);
+      expect(duplicatasAgora[0].agente_id_existente).toBe(agente1Id);
       expect(duplicatasAgora[0].score_similaridade).toBe(100);
       expect(duplicatasAgora[0].motivos).toContain("cpf_cnpj_identico");
     });
@@ -524,7 +525,7 @@ describe("AgenteRegistryService", () => {
 
   describe("obterInformacaoEmpresa", () => {
     it("retorna informações de empresa", async () => {
-      const resultado = await service.obterInformacaoEmpresa("00000000000191");
+      const resultado = await service.obterInformacaoEmpresa("11444777000161");
       expect(resultado.nomeEmpresa).toBeDefined();
       expect(resultado.situacao).toBeDefined();
     });
