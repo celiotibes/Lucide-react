@@ -542,7 +542,7 @@ export function isValidCNPJ(cnpj: string): boolean {
   // Calcula primeiro dígito verificador
   let size = cleaned.length - 2;
   let numbers = cleaned.substring(0, size);
-  let digits = cleaned.substring(size);
+  const digits = cleaned.substring(size);
   let sum = 0;
   let pos = size - 7;
 

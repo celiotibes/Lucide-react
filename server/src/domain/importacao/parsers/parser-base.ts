@@ -183,7 +183,7 @@ export abstract class ParserBase implements IParser {
     const match = num.match(/\d+\.?\d*/);
     if (!match) return null;
 
-    let resultado = parseFloat(match[0]);
+    const resultado = parseFloat(match[0]);
     if (isNaN(resultado)) return null;
 
     return negativo ? -resultado : resultado;

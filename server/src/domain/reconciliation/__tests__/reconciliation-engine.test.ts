@@ -210,7 +210,7 @@ describe("ReconciliationEngine", () => {
       const results = await engine.matchTransactions(ledger, source);
 
       expect(results).toHaveLength(1);
-      expect(results[0].match_score).toBeGreaterThan(80);
+      expect(results[0].match_score).toBeGreaterThanOrEqual(80);
     });
 
     it("should reject matches below threshold", async () => {

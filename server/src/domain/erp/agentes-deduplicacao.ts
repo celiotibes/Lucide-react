@@ -538,7 +538,7 @@ export class AgentesDeduplicacaoService {
         };
 
         // 2. Contar referências antes da migração
-        let totalAgentsMigrados = 1;
+        const totalAgentsMigrados = 1;
         let totalTransacoesMigradas = 0;
 
         // Migrar referências em ledger_entries (se houver coluna agente_id)

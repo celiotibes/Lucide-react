@@ -659,7 +659,7 @@ describe('Agentes E2E Workflow Tests', () => {
       });
 
       insertAgente(db, agent);
-      let created = db.prepare(
+      const created = db.prepare(
         'SELECT * FROM agentes_economicos WHERE id = ?'
       ).get(agent.id) as any;
       expect(created).toBeDefined();
@@ -673,7 +673,7 @@ describe('Agentes E2E Workflow Tests', () => {
         agent.id,
       );
 
-      let validated = db.prepare(
+      const validated = db.prepare(
         'SELECT validado FROM agentes_economicos WHERE id = ?'
       ).get(agent.id) as any;
       expect(validated.validado).toBe(1);
@@ -696,7 +696,7 @@ describe('Agentes E2E Workflow Tests', () => {
         TEST_ADMIN_USER.id,
       );
 
-      let linked = db.prepare(
+      const linked = db.prepare(
         'SELECT COUNT(*) as count FROM agentes_vinculacoes WHERE agente_id = ?'
       ).get(agent.id) as any;
       expect(linked.count).toBe(1);
@@ -711,7 +711,7 @@ describe('Agentes E2E Workflow Tests', () => {
         agent.id,
       );
 
-      let updated = db.prepare(
+      const updated = db.prepare(
         'SELECT regime_tributario FROM agentes_economicos WHERE id = ?'
       ).get(agent.id) as any;
       expect(updated.regime_tributario).toBe('simples');
@@ -725,7 +725,7 @@ describe('Agentes E2E Workflow Tests', () => {
         agent.id,
       );
 
-      let deleted = db.prepare(
+      const deleted = db.prepare(
         'SELECT ativo FROM agentes_economicos WHERE id = ?'
       ).get(agent.id) as any;
       expect(deleted.ativo).toBe(0);
@@ -739,7 +739,7 @@ describe('Agentes E2E Workflow Tests', () => {
         agent.id,
       );
 
-      let restored = db.prepare(
+      const restored = db.prepare(
         'SELECT ativo FROM agentes_economicos WHERE id = ?'
       ).get(agent.id) as any;
       expect(restored.ativo).toBe(1);

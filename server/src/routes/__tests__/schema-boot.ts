@@ -35,6 +35,11 @@ export const MIGRACOES_BOOT = [
   "migrations-phase13-acl-recursos.sql",
   "migrations-phase14-portal-inquilino.sql",
   "migrations-phase15-prestador-apontamentos.sql",
+  "migrations-phase18-agentes-economicos-sqlite.sql",
+  "migrations-phase18-ocr-extraction.sql",
+  "migrations-phase19-reconciliation.sql",
+  "migrations-phase19-ledger-agentes-fk.sql",
+  "migrations-phase20-agentes-deduplicacao.sql",
 ];
 
 export function criarBancoDoServidor(): Database.Database {

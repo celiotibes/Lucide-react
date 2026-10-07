@@ -72,7 +72,7 @@ export const TEST_ADMIN_USER: Usuario = {
   id: uuidv4(),
   nome: 'Admin Test User',
   email: 'admin@test.example.com',
-  role: 'admin',
+  role: 'administrador',
   ativo: true,
   data_criacao: new Date().toISOString().split('T')[0],
 };
@@ -84,7 +84,7 @@ export const TEST_REGULAR_USER: Usuario = {
   id: uuidv4(),
   nome: 'Regular Test User',
   email: 'user@test.example.com',
-  role: 'user',
+  role: 'perito',
   ativo: true,
   data_criacao: new Date().toISOString().split('T')[0],
 };
@@ -95,7 +95,7 @@ export const TEST_REGULAR_USER: Usuario = {
 export const TEST_ADMIN_CONTEXT: ContextoAutenticacao = {
   usuario: TEST_ADMIN_USER,
   autenticado: true,
-  role: 'admin',
+  role: 'administrador',
 };
 
 /**
@@ -104,7 +104,7 @@ export const TEST_ADMIN_CONTEXT: ContextoAutenticacao = {
 export const TEST_USER_CONTEXT: ContextoAutenticacao = {
   usuario: TEST_REGULAR_USER,
   autenticado: true,
-  role: 'user',
+  role: 'perito',
 };
 
 /**

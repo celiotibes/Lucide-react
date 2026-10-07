@@ -101,7 +101,7 @@ describe("NormalizadorTransacao", () => {
     });
 
     it("deve limitar a 500 caracteres", () => {
-      let longDesc = "a".repeat(600);
+      const longDesc = "a".repeat(600);
       const desc = NormalizadorTransacao.normalizarDescricao(longDesc);
       expect(desc.length).toBeLessThanOrEqual(500);
       expect(desc).toContain("...");
