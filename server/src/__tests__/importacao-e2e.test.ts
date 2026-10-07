@@ -364,10 +364,12 @@ describe('E2E Import Workflow', () => {
           .update(file)
           .digest('hex');
 
+        console.error('[UPLOAD] Inserting lote into DB:', { loteId, fileName, hash, fileType });
         db.prepare(`
           INSERT INTO importacao_lotes (id, usuario_id, arquivo_nome, arquivo_hash, tipo, tamanho_bytes, status)
           VALUES (?, ?, ?, ?, ?, ?, 'RECEBIDO')
         `).run(loteId, 'test-user', fileName, hash, fileType);
+        console.error('[UPLOAD] Successfully inserted lote');
 
         // Store file with loteId as key so it can be retrieved later
         uploadService.uploadFile(file, fileName);
@@ -381,10 +383,12 @@ describe('E2E Import Workflow', () => {
           status: 'RECEBIDO',
         });
       } catch (error: unknown) {
-        if (error.message.includes('UNIQUE constraint failed')) {
+        console.error('[UPLOAD] Error:', error instanceof Error ? error.message : String(error));
+        if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
           return res.status(409).json({ error: 'File already uploaded' });
         }
-        res.status(500).json({ error: error.message });
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: errorMsg });
       }
     });
 
@@ -614,7 +618,6 @@ describe('E2E Import Workflow', () => {
           type: 'CSV',
         });
 
-      console.error('[TEST] Upload Response:', uploadRes.status, uploadRes.body);
       expect(uploadRes.status).toBe(201);
       expect(uploadRes.body.loteId).toBeDefined();
       const loteId = uploadRes.body.loteId;

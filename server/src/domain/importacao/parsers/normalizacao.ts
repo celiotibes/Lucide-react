@@ -36,23 +36,27 @@ export class NormalizadorTransacao {
     // YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
       const partes = d.split("-");
+      const mes = parseInt(partes[1]);
+      const dia = parseInt(partes[2]);
       const date = new Date(
         parseInt(partes[0]),
-        parseInt(partes[1]) - 1,
-        parseInt(partes[2]),
+        mes - 1,
+        dia,
       );
-      return this.dataValida(date) ? d : null;
+      return this.dataValida(date, mes, dia) ? d : null;
     }
 
     // DD/MM/YYYY
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
       const partes = d.split("/");
+      const dia = parseInt(partes[0]);
+      const mes = parseInt(partes[1]);
       const date = new Date(
         parseInt(partes[2]),
-        parseInt(partes[1]) - 1,
-        parseInt(partes[0]),
+        mes - 1,
+        dia,
       );
-      return this.dataValida(date)
+      return this.dataValida(date, mes, dia)
         ? `${partes[2]}-${partes[1].padStart(2, "0")}-${partes[0].padStart(2, "0")}`
         : null;
     }
@@ -60,21 +64,21 @@ export class NormalizadorTransacao {
     // YYYYMMDD
     if (/^\d{8}$/.test(d)) {
       const ano = d.substring(0, 4);
-      const mes = d.substring(4, 6);
-      const dia = d.substring(6, 8);
-      const date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-      return this.dataValida(date) ? `${ano}-${mes}-${dia}` : null;
+      const mes = parseInt(d.substring(4, 6));
+      const dia = parseInt(d.substring(6, 8));
+      const date = new Date(parseInt(ano), mes - 1, dia);
+      return this.dataValida(date, mes, dia) ? `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}` : null;
     }
 
     // YYMMDD (assumir 20XX)
     if (/^\d{6}$/.test(d)) {
       const yy = parseInt(d.substring(0, 2));
       const ano = yy > 50 ? 1900 + yy : 2000 + yy;
-      const mes = d.substring(2, 4);
-      const dia = d.substring(4, 6);
-      const date = new Date(ano, parseInt(mes) - 1, parseInt(dia));
-      return this.dataValida(date)
-        ? `${ano}-${mes}-${dia}`
+      const mes = parseInt(d.substring(2, 4));
+      const dia = parseInt(d.substring(4, 6));
+      const date = new Date(ano, mes - 1, dia);
+      return this.dataValida(date, mes, dia)
+        ? `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`
         : null;
     }
 
@@ -84,8 +88,10 @@ export class NormalizadorTransacao {
   /**
    * Valida se data é válida
    */
-  private static dataValida(date: Date): boolean {
-    return date instanceof Date && !isNaN(date.getTime());
+  private static dataValida(date: Date, mes: number, dia: number): boolean {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return false;
+    // Verificar se o mês e dia são válidos (evitar overflow de data como 2023-13-45)
+    return mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31;
   }
 
   /**
