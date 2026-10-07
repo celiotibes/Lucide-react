@@ -7,33 +7,26 @@
  * POST   /api/importacao/rejeitar-linha/:linhaId        — Rejeita uma linha
  */
 
-import express from "express";
-import { z } from "zod";
+import express, { type Request } from "express";
 import Database from "better-sqlite3";
 import { logger } from "../services/logger-service.js";
 import type { AuthServiceDB } from "../domain/auth/auth-service-db.js";
 import { criarMiddlewareAutenticacao } from "./auth-routes.js";
-import {
-  validarLinha,
-  registrarValidacao,
-  obterResumoValidacoes,
-} from "../domain/importacao/validacao.js";
-import {
-  detectarDuplicata,
-  registrarDuplicata,
-} from "../domain/importacao/deduplicacao.js";
-import type {
-  LinhaImportacao,
-  ListarLinhasQuerySchema,
-  AprovarLinhaSchema,
-  RejeitarLinhaSchema,
-  RespostaListaLinhas,
-} from "../domain/importacao/tipos.js";
+import { validarLinha } from "../domain/importacao/validacao.js";
+import type { LinhaImportacao } from "../domain/importacao/tipos.js";
 import {
   ListarLinhasQuerySchema as QuerySchema,
   AprovarLinhaSchema as AprovSchema,
   RejeitarLinhaSchema as RejSchema,
 } from "../domain/importacao/tipos.js";
+
+interface AuthRequest extends Request {
+  auth?: {
+    usuario?: {
+      id: string;
+    };
+  };
+}
 
 export interface ImportacaoRoutesDeps {
   db: Database.Database;
@@ -60,7 +53,7 @@ export function criarRotasImportacao({
    *
    * Resposta: RespostaListaLinhas
    */
-  router.get("/:loteId/linhas", exigirAutenticacao, (req, res) => {
+  router.get("/:loteId/linhas", exigirAutenticacao, (req: AuthRequest, res) => {
     try {
       const { loteId } = req.params;
 
@@ -90,7 +83,7 @@ export function criarRotasImportacao({
         return res.status(404).json({ erro: "Lote não encontrado" });
       }
 
-      const userId = (req.auth as any)?.usuario?.id;
+      const userId = req.auth?.usuario?.id;
       if (lote.usuario_id !== userId) {
         return res.status(403).json({
           erro: "Acesso negado",
@@ -177,7 +170,7 @@ export function criarRotasImportacao({
    *   aprovadoPor: string
    * }
    */
-  router.post("/aprovar-linha/:linhaId", exigirAutenticacao, (req, res) => {
+  router.post("/aprovar-linha/:linhaId", exigirAutenticacao, (req: AuthRequest, res) => {
     try {
       const { linhaId } = req.params;
 
@@ -193,7 +186,7 @@ export function criarRotasImportacao({
       const { usuarioId } = parseResult.data;
 
       // Verificar permissão
-      const userId = (req.auth as any)?.usuario?.id;
+      const userId = req.auth?.usuario?.id;
       if (userId !== usuarioId) {
         return res.status(403).json({
           erro: "Acesso negado",
@@ -290,7 +283,7 @@ export function criarRotasImportacao({
    *   rejeitadoPor: string
    * }
    */
-  router.post("/rejeitar-linha/:linhaId", exigirAutenticacao, (req, res) => {
+  router.post("/rejeitar-linha/:linhaId", exigirAutenticacao, (req: AuthRequest, res) => {
     try {
       const { linhaId } = req.params;
 
@@ -306,7 +299,7 @@ export function criarRotasImportacao({
       const { usuarioId, motivo } = parseResult.data;
 
       // Verificar permissão
-      const userId = (req.auth as any)?.usuario?.id;
+      const userId = req.auth?.usuario?.id;
       if (userId !== usuarioId) {
         return res.status(403).json({
           erro: "Acesso negado",

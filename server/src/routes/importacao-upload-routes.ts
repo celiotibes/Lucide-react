@@ -29,10 +29,17 @@ import {
   VALIDACAO_CONSTANTES,
 } from "../domain/importacao/tipos.js";
 
+interface AuthRequest extends Request {
+  auth?: {
+    usuario?: {
+      id: string;
+    };
+  };
+}
+
 export interface ImportacaoUploadRoutesOptions {
   authService: AuthServiceDB;
   db: Database.Database;
-  multer?: any;
 }
 
 /**
@@ -250,7 +257,7 @@ export function criarRotasImportacaoUpload(options: ImportacaoUploadRoutesOption
    * - 409: Arquivo duplicado (mesmo SHA-256)
    * - 500: Erro interno do servidor
    */
-  router.post("/upload", exigirAutenticacao, async (req: Request, res: Response) => {
+  router.post("/upload", exigirAutenticacao, async (req: AuthRequest, res: Response) => {
     try {
       const usuarioId = req.auth?.usuario?.id;
 
