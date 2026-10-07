@@ -124,15 +124,21 @@ export class ParserRegistry {
 
     try {
       // Importações dinâmicas dos parsers
+      console.log("[ParserRegistry] Starting async parser initialization...");
       const [
-        { parseCSV },
-        { parseOFX },
-        { MT940Parser },
+        csvModule,
+        ofxModule,
+        mt940Module,
       ] = await Promise.all([
-        import("./csv-parser.js"),
-        import("./ofx-parser.js"),
-        import("./mt940-parser.js"),
+        import("./csv-parser"),
+        import("./ofx-parser"),
+        import("./mt940-parser"),
       ]);
+      console.log("[ParserRegistry] Imports successful, registering parsers...");
+
+      const { parseCSV } = csvModule;
+      const { parseOFX } = ofxModule;
+      const { MT940Parser } = mt940Module;
 
       // Limpar e re-registrar parsers reais
       this.parsers.clear();
@@ -168,10 +174,14 @@ export class ParserRegistry {
       });
 
       this.registrarParser("mt940", new MT940Parser());
+      console.log("[ParserRegistry] All parsers registered successfully");
 
       this.inicializado = true;
     } catch (erro) {
-      console.error("Erro ao inicializar parsers:", erro);
+      console.error("[ParserRegistry] Error during initialization:", erro instanceof Error ? erro.message : erro);
+      if (erro instanceof Error) {
+        console.error("[ParserRegistry] Error stack:", erro.stack);
+      }
       this.inicializado = true; // Marcar como tentado, mesmo com erro
     }
   }
