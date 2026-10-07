@@ -104,7 +104,6 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase18-agentes-economicos-sqlite.sql",
       "migrations-phase18-ocr-extraction.sql",
       "migrations-phase19-reconciliation.sql",
-      "migrations-phase19-ledger-agentes-fk-sqlite.sql",
       "migrations-phase20-agentes-deduplicacao-sqlite.sql",
     ]);
 
