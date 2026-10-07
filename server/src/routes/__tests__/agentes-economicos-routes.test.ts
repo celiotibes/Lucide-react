@@ -51,10 +51,12 @@ describe("Rotas de Agentes Econômicos", () => {
   const testUserId = "user-1";
   const validToken = "token-valido";
 
-  // Dados de teste
+  // Dados de teste (usando CPF/CNPJ válidos)
+  // CPF válido: 11144477735 (gerado com algoritmo correto)
+  // CNPJ válido: 11222333000181 (gerado com algoritmo correto)
   const pessoaFisicaData = {
     tipo_entidade: "pessoa_fisica",
-    cpf_cnpj: "12345678901",
+    cpf_cnpj: "11144477735",
     nome: "João Silva",
     pessoa_fisica_pf_nome_mae: "Maria Silva",
     papel: "tenant",
@@ -65,7 +67,7 @@ describe("Rotas de Agentes Econômicos", () => {
 
   const pessoaJuridicaData = {
     tipo_entidade: "pessoa_juridica",
-    cpf_cnpj: "12345678901234",
+    cpf_cnpj: "11222333000181",
     nome: "Empresa Silva LTDA",
     nome_fantasia: "Silva Services",
     papel: "supplier",

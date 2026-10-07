@@ -11,8 +11,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { ImportUpload } from '../ImportUpload.js';
+import type { UploadResult } from '../types.js';
 import * as api from '../api.js';
 
 /**
@@ -71,13 +71,14 @@ describe('ImportUpload', () => {
       const file = new File(['test,data'], 'test.csv', { type: 'text/csv' });
 
       // Mock upload bem-sucedido
-      vi.mocked(api.uploadArquivo).mockResolvedValueOnce({
+      const mockResult: UploadResult = {
         sucesso: true,
         lote_id: 'lote-123',
         arquivo_nome: 'test.csv',
-        tipo: 'CSV' as any,
+        tipo: 'CSV',
         tamanho_bytes: 9,
-      });
+      };
+      vi.mocked(api.uploadArquivo).mockResolvedValueOnce(mockResult);
 
       fireEvent.change(input, { target: { files: [file] } });
 
@@ -170,11 +171,11 @@ describe('ImportUpload', () => {
       const input = screen.getByLabelText(/Seletor de arquivo para importação/i);
       const file = new File(['test'], 'test.csv', { type: 'text/csv' });
 
-      const resultadoEsperado = {
+      const resultadoEsperado: UploadResult = {
         sucesso: true,
         lote_id: 'lote-123',
         arquivo_nome: 'test.csv',
-        tipo: 'CSV' as any,
+        tipo: 'CSV',
         tamanho_bytes: 4,
       };
 
@@ -222,21 +223,17 @@ describe('ImportUpload', () => {
 
       const file = new File(['test'], 'test.csv', { type: 'text/csv' });
 
-      vi.mocked(api.uploadArquivo).mockResolvedValueOnce({
+      const mockResponse: UploadResult = {
         sucesso: true,
         lote_id: 'lote-123',
         arquivo_nome: 'test.csv',
-        tipo: 'CSV' as any,
+        tipo: 'CSV',
         tamanho_bytes: 4,
-      });
+      };
+      vi.mocked(api.uploadArquivo).mockResolvedValueOnce(mockResponse);
 
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(file);
-
-      const dropEvent = new DragEvent('drop', {
-        dataTransfer,
-        bubbles: true,
-      });
 
       fireEvent.drop(dropZone, { dataTransfer });
 
@@ -264,13 +261,14 @@ describe('ImportUpload', () => {
       const input = screen.getByLabelText(/Seletor de arquivo para importação/i);
       const file = new File(['test'], 'test.csv', { type: 'text/csv' });
 
-      vi.mocked(api.uploadArquivo).mockResolvedValueOnce({
+      const successResponse: UploadResult = {
         sucesso: true,
         lote_id: 'lote-123',
         arquivo_nome: 'test.csv',
-        tipo: 'CSV' as any,
+        tipo: 'CSV',
         tamanho_bytes: 4,
-      });
+      };
+      vi.mocked(api.uploadArquivo).mockResolvedValueOnce(successResponse);
 
       fireEvent.change(input, { target: { files: [file] } });
 

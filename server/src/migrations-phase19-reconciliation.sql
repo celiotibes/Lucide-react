@@ -184,6 +184,7 @@ CREATE INDEX IF NOT EXISTS idx_reconciliation_status_status
 
 CREATE TABLE IF NOT EXISTS reconciliation_cache (
   id TEXT PRIMARY KEY,
+  agente_id TEXT,
 
   -- Chave de cache (hash de agente_id + período)
   cache_key TEXT NOT NULL UNIQUE,

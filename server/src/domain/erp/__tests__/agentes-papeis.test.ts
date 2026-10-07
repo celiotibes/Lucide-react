@@ -27,6 +27,7 @@ import {
   obterNivelRisco,
   PapelUsuario,
   AcaoPermissao,
+  MATRIZ_PERMISSOES,
 } from "../agentes-papeis.js";
 
 // =====================================================================

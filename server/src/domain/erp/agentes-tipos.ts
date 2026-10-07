@@ -189,48 +189,52 @@ export const EnderecoSchema = z.object({
 });
 
 /**
- * Schema para validação de agente econômico
+ * Base schema para validação de agente econômico (antes de refinements)
  */
-export const AgenteEconomicoSchema = z
-  .object({
-    id: z.string().uuid().optional(),
+const AgenteEconomicoBaseSchema = z.object({
+  id: z.string().uuid().optional(),
 
-    // Identificação
-    tipo_entidade: z.nativeEnum(TipoEntidade),
-    cpf_cnpj: CPFCNPJSchema,
-    nome: z.string().min(1).max(255),
-    nome_fantasia: z.string().max(255).optional().nullable(),
+  // Identificação
+  tipo_entidade: z.nativeEnum(TipoEntidade),
+  cpf_cnpj: CPFCNPJSchema,
+  nome: z.string().min(1).max(255),
+  nome_fantasia: z.string().max(255).optional().nullable(),
 
-    // Dados PF
-    pessoa_fisica_pf_nome_mae: z.string().max(255).optional().nullable(),
+  // Dados PF
+  pessoa_fisica_pf_nome_mae: z.string().max(255).optional().nullable(),
 
-    // Papel
-    papel: z.nativeEnum(PapelAgente),
+  // Papel
+  papel: z.nativeEnum(PapelAgente),
 
-    // Informações fiscais
-    regime_tributario: z.nativeEnum(RegimeTributario).optional().nullable(),
-    inscricao_estadual: z.string().max(20).optional().nullable(),
-    inscricao_municipal: z.string().max(20).optional().nullable(),
-    classificacao_nfse: z.string().max(20).optional().nullable(),
+  // Informações fiscais
+  regime_tributario: z.nativeEnum(RegimeTributario).optional().nullable(),
+  inscricao_estadual: z.string().max(20).optional().nullable(),
+  inscricao_municipal: z.string().max(20).optional().nullable(),
+  classificacao_nfse: z.string().max(20).optional().nullable(),
 
-    // Contato
-    email: EmailSchema,
-    telefone: TelefoneSchema,
-    celular: TelefoneSchema,
+  // Contato
+  email: EmailSchema,
+  telefone: TelefoneSchema,
+  celular: TelefoneSchema,
 
-    // Endereço
-    endereco: EnderecoSchema.optional(),
+  // Endereço
+  endereco: EnderecoSchema.optional(),
 
-    // Status
-    ativo: z.boolean().default(true),
+  // Status
+  ativo: z.boolean().default(true),
 
-    // Metadados
-    observacoes: z.string().optional().nullable(),
-    tags: z.string().optional().nullable(), // Separado por vírgula
+  // Metadados
+  observacoes: z.string().optional().nullable(),
+  tags: z.string().optional().nullable(), // Separado por vírgula
 
-    // Validação
-    validado: z.boolean().default(false),
-  })
+  // Validação
+  validado: z.boolean().default(false),
+});
+
+/**
+ * Schema para validação de agente econômico (com refinements)
+ */
+export const AgenteEconomicoSchema = AgenteEconomicoBaseSchema
   .refine(
     (data) => {
       if (data.tipo_entidade === TipoEntidade.PESSOA_JURIDICA) {
@@ -262,14 +266,39 @@ export const AgenteEconomicoSchema = z
 /**
  * Schema para criação de agente (sem ID)
  */
-export const CriarAgenteEconomicoSchema = AgenteEconomicoSchema.omit({
+export const CriarAgenteEconomicoSchema = AgenteEconomicoBaseSchema.omit({
   id: true,
-});
+}).refine(
+  (data) => {
+    if (data.tipo_entidade === TipoEntidade.PESSOA_JURIDICA) {
+      return data.nome_fantasia !== undefined && data.nome_fantasia !== null;
+    }
+    return true;
+  },
+  {
+    message: "Pessoa jurídica deve ter nome fantasia",
+    path: ["nome_fantasia"],
+  }
+).refine(
+  (data) => {
+    if (data.tipo_entidade === TipoEntidade.PESSOA_FISICA) {
+      return (
+        data.pessoa_fisica_pf_nome_mae !== undefined &&
+        data.pessoa_fisica_pf_nome_mae !== null
+      );
+    }
+    return true;
+  },
+  {
+    message: "Pessoa física deve ter nome da mãe",
+    path: ["pessoa_fisica_pf_nome_mae"],
+  }
+);
 
 /**
  * Schema para atualização de agente (todos os campos opcionais)
  */
-export const AtualizarAgenteEconomicoSchema = CriarAgenteEconomicoSchema.partial();
+export const AtualizarAgenteEconomicoSchema = AgenteEconomicoBaseSchema.partial();
 
 /**
  * Schema para validação de agente

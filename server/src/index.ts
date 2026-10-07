@@ -40,6 +40,7 @@ import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
 import { criarRotasNotificacoes } from "../src/routes/notificacoes-routes.js";
 import { criarRotasImportacaoUpload } from "../src/routes/importacao-upload-routes.js";
+import { criarRotasOCRDocumento } from "../src/routes/ocr-document-routes.js";
 import { LembretesAgendadosServiceDB } from "../src/domain/notificacoes/lembretes-agendados-db.js";
 import { criarRotasLembretesAgendados } from "../src/routes/lembretes-agendados-routes.js";
 import { iniciarDisparoLembretesAgendados } from "./lembretes-dispatcher.js";
@@ -425,6 +426,13 @@ app.use("/api/v1/agentes-economicos", criarRotasAgentesEconomicos({
  * - Status RECEBIDO após validação */
 const uploadMiddleware = multer({ storage: multer.memoryStorage() });
 app.use("/api/importacao", uploadMiddleware.single("arquivo"), criarRotasImportacaoUpload({ authService, db }));
+
+/** OCR Document Extraction (fase 18)
+ * GET /api/documentos/:id/extraction — fetch OCR results with confidence scores
+ * POST /api/documentos/:id/approve — bulk approve extraction
+ * POST /api/documentos/:id/reject — reject extraction with reason
+ * POST /api/documentos/:id/fields/:fieldName/correct — correct individual field */
+app.use("/api", criarRotasOCRDocumento({ authService, db }));
 
 /** Backup automático para Google Drive (backup horário)
  * GET /api/backup/listar — lista backups no Google Drive
