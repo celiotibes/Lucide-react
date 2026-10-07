@@ -179,6 +179,9 @@ export class AgenteService {
       params.push(ativo ? 1 : 0);
     }
 
+    // Convert to numbers for SQLite compatibility
+    const finalParams = params.map(p => typeof p === 'boolean' ? (p ? 1 : 0) : p);
+
     if (papel) {
       query += " AND papel = ?";
       params.push(papel);
@@ -360,9 +363,9 @@ export class AgenteService {
     const agora = new Date().toISOString();
     this.db
       .prepare(
-        `UPDATE agentes_economicos SET ativo = 0, atualizado_em = ?, atualizado_por = ? WHERE id = ?`,
+        `UPDATE agentes_economicos SET ativo = ?, atualizado_em = ?, atualizado_por = ? WHERE id = ?`,
       )
-      .run(agora, usuarioId, id);
+      .run(0, agora, usuarioId, id);
 
     logger.info(`Agente desativado: ${id}`, { usuarioId });
 
@@ -408,8 +411,8 @@ export class AgenteService {
 
     // Buscar todos os outros agentes ativos
     const outros = this.db
-      .prepare("SELECT * FROM agentes_economicos WHERE id != ? AND ativo = 1")
-      .all(novoAgenteId) as any[];
+      .prepare("SELECT * FROM agentes_economicos WHERE id != ? AND ativo = ?")
+      .all(novoAgenteId, 1) as any[];
 
     const agora = new Date().toISOString();
 

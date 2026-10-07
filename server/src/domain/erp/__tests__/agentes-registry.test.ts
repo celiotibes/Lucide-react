@@ -557,7 +557,7 @@ describe("Mensagens de erro específicas", () => {
     ).run(
       "agent-1",
       "pessoa_juridica",
-      "00000000000191",
+      "11444777000161",
       "Empresa 1",
       "supplier",
       "user-1",
@@ -565,21 +565,14 @@ describe("Mensagens de erro específicas", () => {
       1
     );
 
-    const duplicatas = service.detectarDuplicataTaxID("00000000000191");
-    expect(duplicatas).toHaveLength(0); // Nenhuma duplicata pois é a primeira
+    // Busca com o mesmo CNPJ - deve encontrar
+    const duplicatas = service.detectarDuplicataTaxID("11444777000161");
+    expect(duplicatas).toHaveLength(1);
+    expect(duplicatas[0].agente_id_existente).toBe("agent-1");
 
     db.close();
-    const testPath = path.join(
-      __dirname,
-      `test-registry-*-${process.pid}*.db`
-    );
-    const files = require("glob").sync(testPath);
-    files.forEach((file: string) => {
-      try {
-        fs.unlinkSync(file);
-      } catch (e) {
-        // ignore
-      }
-    });
+    if (fs.existsSync(TEST_DB_PATH)) {
+      fs.unlinkSync(TEST_DB_PATH);
+    }
   });
 });
