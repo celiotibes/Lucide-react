@@ -15,7 +15,6 @@ import { Router, Request, Response } from "express";
 import Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
 import {
-  AgenteEconomicoSchema,
   CriarAgenteEconomicoSchema,
   AtualizarAgenteEconomicoSchema,
   cpfValido,
@@ -23,11 +22,9 @@ import {
   cleanCPFCNPJ,
   TipoValidacao,
   ResultadoValidacao,
-  AgenteEconomico,
 } from "../domain/erp/agentes-tipos";
 import {
   AgenteRegistryService,
-  DuplicataDetectada,
 } from "../domain/erp/agentes-registry";
 
 export function createAgentesRoutes(db: Database.Database): Router {
