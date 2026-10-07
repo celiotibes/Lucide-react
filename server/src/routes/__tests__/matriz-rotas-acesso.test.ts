@@ -43,6 +43,9 @@ import { criarRotasBackup } from "../backup-routes";
 import { criarRotasAssinaturasLGPD } from "../assinatura-lgpd-routes";
 import { criarRotasPortal } from "../portal-routes";
 import { criarRotasPrestadorApontamentos } from "../prestador-apontamentos-routes";
+import { criarRotasAgentesEconomicos } from "../agentes-economicos-routes";
+import { criarRotasImportacaoUpload } from "../importacao-upload-routes";
+import { criarRotasOCRDocumento } from "../ocr-document-routes";
 
 type Classe = "interna" | "externa-propria" | "externa-posse" | "publica" | "chave-api";
 
@@ -138,6 +141,20 @@ const CLASSIFICACAO: Record<string, Classe> = {
   "POST /api/anonimizar-pessoa": "interna",
   "GET /api/exportar-dados": "interna",
   "GET /api/log-lgpd": "interna",
+  // router montado em /api (OCR extraction)
+  "GET /api/documentos/:id/extraction": "interna",
+  "POST /api/documentos/:id/approve": "interna",
+  "POST /api/documentos/:id/reject": "interna",
+  "POST /api/documentos/:id/fields/:fieldName/correct": "interna",
+  // /api/v1/agentes-economicos
+  "GET /api/v1/agentes-economicos": "interna",
+  "POST /api/v1/agentes-economicos": "interna",
+  "GET /api/v1/agentes-economicos/:id": "interna",
+  "PUT /api/v1/agentes-economicos/:id": "interna",
+  "DELETE /api/v1/agentes-economicos/:id": "interna",
+  "GET /api/v1/agentes-economicos/:id/duplicatas": "interna",
+  // /api/importacao
+  "POST /api/importacao/upload": "interna",
   // declaradas direto em app (index.ts)
   "POST /api/connect-token": "chave-api",
   "GET /api/accounts": "chave-api",
@@ -193,6 +210,9 @@ const MONTAGENS: Montagem[] = [
   { prefixo: "/api/conciliacao", fabrica: "criarRotasConciliacaoPixOFX", criar: (d) => criarRotasConciliacaoPixOFX({ db: d.db, authService: d.authService }) },
   { prefixo: "/api/anomalias", fabrica: "criarRotasAnomalias", criar: (d) => criarRotasAnomalias({ db: d.db, authService: d.authService }) },
   { prefixo: "/api/backup", fabrica: "criarRotasBackup", criar: (d) => criarRotasBackup({ authService: d.authService }) },
+  { prefixo: "/api/v1/agentes-economicos", fabrica: "criarRotasAgentesEconomicos", criar: (d) => criarRotasAgentesEconomicos({ db: d.db, authService: d.authService, auditService: d.auditService }) },
+  { prefixo: "/api/importacao", fabrica: "criarRotasImportacaoUpload", criar: (d) => criarRotasImportacaoUpload({ authService: d.authService, db: d.db }) },
+  { prefixo: "/api", fabrica: "criarRotasOCRDocumento", criar: (d) => criarRotasOCRDocumento({ authService: d.authService, db: d.db }) },
   { prefixo: "/api", fabrica: "criarRotasAssinaturasLGPD", criar: (d) => criarRotasAssinaturasLGPD({ authService: d.authService, db: d.db, certisignApiKey: "k", serProIdApiKey: "k" }) },
 ];
 
@@ -224,7 +244,18 @@ function rotasDiretasDoIndex(): string[] {
 }
 
 function montadosNoIndex(): { fabricas: string[]; prefixos: string[] } {
-  const fabricas = [...INDEX_TS.matchAll(/^app\.use\(\s*(?:"[^"]+"\s*,\s*)?(criarRotas\w+)\(/gm)].map((m) => m[1]);
+  // Find all app.use() statements (may span multiple lines until semicolon)
+  // Then extract factory functions from them
+  const fabricas: string[] = [];
+  const useStatements = [...INDEX_TS.matchAll(/app\.use\([^;]*?;/gms)];
+  for (const stmt of useStatements) {
+    const matches = [...stmt[0].matchAll(/(criarRotas\w+)\(/g)];
+    for (const m of matches) {
+      if (!fabricas.includes(m[1])) {
+        fabricas.push(m[1]);
+      }
+    }
+  }
   const prefixos = [...INDEX_TS.matchAll(/^app\.use\(\s*"([^"]+)"/gm)].map((m) => m[1]);
   return { fabricas, prefixos };
 }
@@ -289,13 +320,14 @@ describe("Matriz de acesso das rotas: cobertura da classificação", () => {
     for (const p of MONTAGENS.map((m) => m.prefixo)) expect(prefixos, `index.ts não monta ${p}`).toContain(p);
   });
 
-  it("a lista de migrações do schema de teste é a mesma de database-init.ts (até phase 15, excluindo phase 16)", () => {
+  it("a lista de migrações do schema de teste é a mesma de database-init.ts (até phase 15, excluindo phase 16 revisao-ia)", () => {
     const init = fs.readFileSync(path.join(SRC_DIR, "database-init.ts"), "utf-8");
     const bloco = init.slice(init.indexOf("runMigracoesIdempotentes(db, ["));
     const arquivos = [...bloco.slice(0, bloco.indexOf("]);")).matchAll(/"(migrations-[^"]+\.sql)"/g)].map((m) => m[1]);
-    // Filtrar fora as migrações phase 16, que usam SQL complexo incompatível com o parser do test helper
-    const arquivosAtePhase15 = arquivos.filter((a) => !a.includes("phase16"));
-    expect(MIGRACOES_BOOT).toEqual(["migrations-phase2-auth.sql", ...arquivosAtePhase15]);
+    // Filtrar fora apenas phase 16 revisao-ia (que usam SQL complexo incompatível com o parser do test helper).
+    // Mantém ledger-entries pois é necessária para as migrações posteriores
+    const arquivosComLedger = arquivos.filter((a) => !a.includes("revisao-ia"));
+    expect(MIGRACOES_BOOT).toEqual(["migrations-phase2-auth.sql", ...arquivosComLedger]);
   });
 
   it("toda classificação usa um valor válido", () => {

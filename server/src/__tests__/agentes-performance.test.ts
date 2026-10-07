@@ -34,7 +34,7 @@ function createTestDatabase(): Database.Database {
 
   let authSchemaPath = path.join(__dirname, '../../migrations-phase2-auth.sql');
   if (!fs.existsSync(authSchemaPath)) {
-    authSchemaPath = path.join(process.cwd(), 'server/src/migrations-phase2-auth.sql');
+    authSchemaPath = path.join(process.cwd(), 'src/migrations-phase2-auth.sql');
   }
 
   const authSchema = fs.readFileSync(authSchemaPath, 'utf-8');
@@ -42,7 +42,7 @@ function createTestDatabase(): Database.Database {
 
   let agentesSchemaPath = path.join(__dirname, '../../migrations-phase18-agentes-economicos-sqlite.sql');
   if (!fs.existsSync(agentesSchemaPath)) {
-    agentesSchemaPath = path.join(process.cwd(), 'server/src/migrations-phase18-agentes-economicos-sqlite.sql');
+    agentesSchemaPath = path.join(process.cwd(), 'src/migrations-phase18-agentes-economicos-sqlite.sql');
   }
 
   const agentesSchema = fs.readFileSync(agentesSchemaPath, 'utf-8');
@@ -51,7 +51,7 @@ function createTestDatabase(): Database.Database {
   db.prepare(
     `INSERT INTO usuarios (id, nome, email, senha_hash, role, ativo, data_criacao)
      VALUES (?, ?, ?, 'hash_test', ?, true, '2026-01-01')`
-  ).run(TEST_ADMIN_USER.id, TEST_ADMIN_USER.nome, TEST_ADMIN_USER.email, 'admin');
+  ).run(TEST_ADMIN_USER.id, TEST_ADMIN_USER.nome, TEST_ADMIN_USER.email, TEST_ADMIN_USER.role);
 
   return db;
 }
@@ -68,7 +68,7 @@ function insertAgente(db: Database.Database, agente: unknown) {
       ativo, criado_em, criado_por, atualizado_em, atualizado_por,
       validado, validado_em, validado_por,
       observacoes, tags
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   return db.prepare(sql).run(

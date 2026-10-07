@@ -15,8 +15,15 @@ import sharp from "sharp";
 import { logger } from "./logger-service.js";
 
 // Configure pdfjs worker
-const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.mjs");
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+try {
+  const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.mjs");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+} catch (e) {
+  // Worker not available in test environment, skip configuration
+  if (process.env.NODE_ENV !== "test") {
+    logger.warn("Failed to configure pdfjs worker:", e);
+  }
+}
 
 /**
  * Invoice field types

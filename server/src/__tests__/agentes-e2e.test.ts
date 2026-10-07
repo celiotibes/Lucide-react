@@ -44,7 +44,7 @@ function createTestDatabase(): Database.Database {
   // Load and execute auth schema first (for usuarios table)
   let authSchemaPath = path.join(__dirname, '../../migrations-phase2-auth.sql');
   if (!fs.existsSync(authSchemaPath)) {
-    authSchemaPath = path.join(process.cwd(), 'server/src/migrations-phase2-auth.sql');
+    authSchemaPath = path.join(process.cwd(), 'src/migrations-phase2-auth.sql');
   }
   if (!fs.existsSync(authSchemaPath)) {
     authSchemaPath = path.join(process.cwd(), 'src/migrations-phase2-auth.sql');
@@ -60,7 +60,7 @@ function createTestDatabase(): Database.Database {
   // Load and execute agentes schema
   let agentesSchemaPath = path.join(__dirname, '../../migrations-phase18-agentes-economicos-sqlite.sql');
   if (!fs.existsSync(agentesSchemaPath)) {
-    agentesSchemaPath = path.join(process.cwd(), 'server/src/migrations-phase18-agentes-economicos-sqlite.sql');
+    agentesSchemaPath = path.join(process.cwd(), 'src/migrations-phase18-agentes-economicos-sqlite.sql');
   }
   if (!fs.existsSync(agentesSchemaPath)) {
     agentesSchemaPath = path.join(process.cwd(), 'src/migrations-phase18-agentes-economicos-sqlite.sql');

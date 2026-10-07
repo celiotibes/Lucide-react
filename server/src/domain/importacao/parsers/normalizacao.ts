@@ -26,6 +26,15 @@ export enum TipoTransacao {
  */
 export class NormalizadorTransacao {
   /**
+   * Remove acentos e caracteres especiais para comparação
+   */
+  private static normalizarAcentos(texto: string): string {
+    return texto
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "");
+  }
+
+  /**
    * Normaliza uma data para ISO 8601
    */
   static normalizarData(data: string | undefined): string | null {
@@ -36,23 +45,27 @@ export class NormalizadorTransacao {
     // YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
       const partes = d.split("-");
+      const mes = parseInt(partes[1]);
+      const dia = parseInt(partes[2]);
       const date = new Date(
         parseInt(partes[0]),
-        parseInt(partes[1]) - 1,
-        parseInt(partes[2]),
+        mes - 1,
+        dia,
       );
-      return this.dataValida(date) ? d : null;
+      return this.dataValida(date, mes, dia) ? d : null;
     }
 
     // DD/MM/YYYY
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
       const partes = d.split("/");
+      const dia = parseInt(partes[0]);
+      const mes = parseInt(partes[1]);
       const date = new Date(
         parseInt(partes[2]),
-        parseInt(partes[1]) - 1,
-        parseInt(partes[0]),
+        mes - 1,
+        dia,
       );
-      return this.dataValida(date)
+      return this.dataValida(date, mes, dia)
         ? `${partes[2]}-${partes[1].padStart(2, "0")}-${partes[0].padStart(2, "0")}`
         : null;
     }
@@ -60,21 +73,21 @@ export class NormalizadorTransacao {
     // YYYYMMDD
     if (/^\d{8}$/.test(d)) {
       const ano = d.substring(0, 4);
-      const mes = d.substring(4, 6);
-      const dia = d.substring(6, 8);
-      const date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-      return this.dataValida(date) ? `${ano}-${mes}-${dia}` : null;
+      const mes = parseInt(d.substring(4, 6));
+      const dia = parseInt(d.substring(6, 8));
+      const date = new Date(parseInt(ano), mes - 1, dia);
+      return this.dataValida(date, mes, dia) ? `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}` : null;
     }
 
     // YYMMDD (assumir 20XX)
     if (/^\d{6}$/.test(d)) {
       const yy = parseInt(d.substring(0, 2));
       const ano = yy > 50 ? 1900 + yy : 2000 + yy;
-      const mes = d.substring(2, 4);
-      const dia = d.substring(4, 6);
-      const date = new Date(ano, parseInt(mes) - 1, parseInt(dia));
-      return this.dataValida(date)
-        ? `${ano}-${mes}-${dia}`
+      const mes = parseInt(d.substring(2, 4));
+      const dia = parseInt(d.substring(4, 6));
+      const date = new Date(ano, mes - 1, dia);
+      return this.dataValida(date, mes, dia)
+        ? `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`
         : null;
     }
 
@@ -84,8 +97,10 @@ export class NormalizadorTransacao {
   /**
    * Valida se data é válida
    */
-  private static dataValida(date: Date): boolean {
-    return date instanceof Date && !isNaN(date.getTime());
+  private static dataValida(date: Date, mes: number, dia: number): boolean {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return false;
+    // Verificar se o mês e dia são válidos (evitar overflow de data como 2023-13-45)
+    return mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31;
   }
 
   /**
@@ -93,8 +108,6 @@ export class NormalizadorTransacao {
    */
   static normalizarValor(
     valor: number | string | undefined,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _separadorDecimal: string = ".",
   ): number | null {
     if (valor === undefined || valor === null || valor === "") return null;
 
@@ -113,16 +126,31 @@ export class NormalizadorTransacao {
     v = v.replace(/^-/, "");
 
     // Normalizar separadores
-    // Substituir último ponto por decimal se houver vírgula depois
     const ultimaPontoIdx = v.lastIndexOf(".");
     const ultimaVirgulaIdx = v.lastIndexOf(",");
 
+    // Determinar qual é o separador decimal
     if (ultimaVirgulaIdx > ultimaPontoIdx) {
-      // Vírgula é decimal
+      // Vírgula é decimal (formato brasileiro: 1.500,50)
       v = v.replace(/\./g, "").replace(",", ".");
     } else if (ultimaPontoIdx > -1) {
-      // Ponto é decimal
-      v = v.replace(/,/g, "");
+      // Ponto pode ser decimal ou thousands separator
+      // Se há exatamente 2 dígitos após o último ponto, é decimal (ex: 1500.50)
+      // Se há mais de 2 dígitos ou o ponto é seguido de mais pontos, é thousands separator
+      const aposUltimoPonto = v.substring(ultimaPontoIdx + 1);
+
+      if (aposUltimoPonto.length === 2 && /^\d{2}$/.test(aposUltimoPonto)) {
+        // Parece ser decimal: remover outros pontos
+        const antes = v.substring(0, ultimaPontoIdx);
+        v = antes.replace(/\./g, "") + "." + aposUltimoPonto;
+      } else if (aposUltimoPonto.length === 3 && /^\d{3}$/.test(aposUltimoPonto)) {
+        // Ponto é thousands separator (ex: 1.500): remover todos os pontos
+        v = v.replace(/\./g, "");
+      } else {
+        // Outras cases: trata o último ponto como decimal
+        const antes = v.substring(0, ultimaPontoIdx);
+        v = antes.replace(/\./g, "") + "." + aposUltimoPonto;
+      }
     }
 
     const num = parseFloat(v);
@@ -209,6 +237,7 @@ export class NormalizadorTransacao {
     valorOriginal?: number,
   ): TipoTransacao {
     const lower = desc.toLowerCase();
+    const normalizado = this.normalizarAcentos(lower);
 
     // Palavras-chave para entrada
     const palavrasEntrada = [
@@ -221,7 +250,7 @@ export class NormalizadorTransacao {
       "doc recebido",
       "transferencia recebida",
       "saque negado",
-      "devolução",
+      "devolucao",
       "reembolso",
       "juros",
       "rendimento",
@@ -247,13 +276,13 @@ export class NormalizadorTransacao {
     ];
 
     for (const palavra of palavrasEntrada) {
-      if (lower.includes(palavra)) {
+      if (normalizado.includes(palavra)) {
         return TipoTransacao.ENTRADA;
       }
     }
 
     for (const palavra of palavrasSaida) {
-      if (lower.includes(palavra)) {
+      if (normalizado.includes(palavra)) {
         return TipoTransacao.SAIDA;
       }
     }
@@ -272,6 +301,7 @@ export class NormalizadorTransacao {
    */
   static extrairCategoria(desc: string): string | null {
     const lower = desc.toLowerCase();
+    const normalizado = this.normalizarAcentos(lower);
 
     const categorias: Record<string, string[]> = {
       "Alimentação": [
@@ -281,22 +311,21 @@ export class NormalizadorTransacao {
         "lanchonete",
         "mercado",
         "supermercado",
-        "açougue",
+        "acougue",
       ],
       "Transporte": [
         "uber",
         "taxi",
-        "ônibus",
-        "metrô",
-        "táxi",
+        "onibus",
+        "metro",
         "gasolina",
-        "combustível",
+        "combustivel",
         "estacionamento",
-        "pedágio",
+        "pedagio",
       ],
       "Moradia": [
         "aluguel",
-        "condomínio",
+        "condominio",
         "agua",
         "energia",
         "luz",
@@ -304,9 +333,9 @@ export class NormalizadorTransacao {
         "internet",
       ],
       "Saúde": [
-        "farmácia",
+        "farmacia",
         "medicamento",
-        "médico",
+        "medico",
         "hospital",
         "dentista",
         "clinica",
@@ -331,7 +360,7 @@ export class NormalizadorTransacao {
     };
 
     for (const [categoria, palavras] of Object.entries(categorias)) {
-      if (palavras.some((p) => lower.includes(p))) {
+      if (palavras.some((p) => normalizado.includes(p))) {
         return categoria;
       }
     }

@@ -326,17 +326,29 @@ describe('E2E Import Workflow', () => {
 
     // Upload endpoint
     app.post('/api/import/upload', (req, res) => {
-      const file = req.body.file as Buffer;
+      let file: Buffer;
       const fileName = req.body.fileName as string;
       const fileType = req.body.type as string;
+
+      // Convert incoming file data to Buffer if needed
+      if (Buffer.isBuffer(req.body.file)) {
+        file = req.body.file;
+      } else if (req.body.file && typeof req.body.file === 'object' && req.body.file.type === 'Buffer' && Array.isArray(req.body.file.data)) {
+        // Handle JSON-serialized Buffer format from supertest
+        file = Buffer.from(req.body.file.data);
+      } else if (typeof req.body.file === 'string') {
+        file = Buffer.from(req.body.file, 'utf-8');
+      } else {
+        return res.status(400).json({ error: 'Invalid file format' });
+      }
 
       if (!file || !fileName || !fileType) {
         return res.status(400).json({ error: 'Missing file data' });
       }
 
-      if (file.length > 52428800) {
-        // 50MB
-        return res.status(413).json({ error: 'File too large' });
+      const MAX_SIZE = 52428800; // 50MB
+      if (file.length > MAX_SIZE) {
+        return res.status(413).json({ error: `File too large (${file.length} bytes, max ${MAX_SIZE} bytes)` });
       }
 
       const loteId = `lote_${Date.now()}`;
@@ -351,7 +363,7 @@ describe('E2E Import Workflow', () => {
         db.prepare(`
           INSERT INTO importacao_lotes (id, usuario_id, arquivo_nome, arquivo_hash, tipo, tamanho_bytes, status)
           VALUES (?, ?, ?, ?, ?, ?, 'RECEBIDO')
-        `).run(loteId, 'test-user', fileName, hash, fileType);
+        `).run(loteId, 'test-user', fileName, hash, fileType, file.length);
 
         // Store file with loteId as key so it can be retrieved later
         uploadService.uploadFile(file, fileName);
@@ -365,10 +377,11 @@ describe('E2E Import Workflow', () => {
           status: 'RECEBIDO',
         });
       } catch (error: unknown) {
-        if (error.message.includes('UNIQUE constraint failed')) {
+        if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
           return res.status(409).json({ error: 'File already uploaded' });
         }
-        res.status(500).json({ error: error.message });
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: errorMsg });
       }
     });
 
@@ -405,6 +418,11 @@ describe('E2E Import Workflow', () => {
         }
 
         if (parsed.errors.length > 0) {
+          db.prepare('UPDATE importacao_lotes SET status = ?, erro_mensagem = ? WHERE id = ?').run(
+            'ERRO',
+            parsed.errors.join('; '),
+            loteId
+          );
           return res.status(400).json({ error: 'Parse error', details: parsed.errors });
         }
 
@@ -524,15 +542,15 @@ describe('E2E Import Workflow', () => {
       try {
         const linhas = db
           .prepare(
-            'SELECT * FROM importacao_linhas WHERE lote_id = ? AND status IN ("VALIDADA", "IGNORADA") ORDER BY numero_linha'
+            'SELECT * FROM importacao_linhas WHERE lote_id = ? AND status IN (?, ?) ORDER BY numero_linha'
           )
-          .all(loteId) as unknown[];
+          .all(loteId, 'VALIDADA', 'IGNORADA') as unknown[];
 
         let successCount = 0;
 
-        linhas.forEach((linha) => {
+        linhas.forEach((linha: Record<string, unknown>) => {
           try {
-            const data = JSON.parse(linha.dados_brutos);
+            const data = JSON.parse(linha.dados_brutos as string);
             const ledgerId = `ledger_${loteId}_${linha.numero_linha}`;
 
             db.prepare(`
@@ -551,10 +569,7 @@ describe('E2E Import Workflow', () => {
 
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('PROCESSADA', linha.id);
             successCount++;
-          } catch (
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            _error
-          ) {
+          } catch {
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('ERRO', linha.id);
           }
         });
@@ -571,7 +586,7 @@ describe('E2E Import Workflow', () => {
           totalLines: linhas.length,
         });
       } catch (error: unknown) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
       }
     });
   });
@@ -906,6 +921,9 @@ describe('E2E Import Workflow', () => {
         .get(loteId) as unknown;
       expect(lote).toBeDefined();
       expect(lote.usuario_id).toBe('test-user');
+
+      // Parse the file to create linhas
+      await request(app).post(`/api/import/${loteId}/parse`);
 
       // Verify linhas are linked to lote
       const linhas = db

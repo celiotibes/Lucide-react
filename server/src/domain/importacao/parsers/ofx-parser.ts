@@ -51,45 +51,67 @@ function detectarVersaoOFX(conteudo: string): "1.x" | "2.x" {
 }
 
 /**
- * Converte OFX 1.x (formato texto) para XML bem-formado
- * Remove headers OFXHEADER e converte tags
+ * Extrai transações usando regex para OFX 1.x
+ * Retorna TODAS as transações encontradas (inclusive as inválidas)
+ * O processamento e validação acontece em parseOFX
  */
-function converterOFX1xParaXML(conteudo: string): string {
-  let xml = conteudo;
+function extrairTransacoesOFX1x(conteudo: string): OFXTransaction[] {
+  const transacoes: OFXTransaction[] = [];
 
-  // Remover header OFX
-  xml = xml.replace(/^OFXHEADER:.*$/m, "");
-  xml = xml.replace(/^OFXVERSION:.*$/m, "");
-  xml = xml.replace(/^SECURITY:.*$/m, "");
-  xml = xml.replace(/^ENCODING:.*$/m, "");
-  xml = xml.replace(/^CHARSET:.*$/m, "");
-  xml = xml.replace(/^COMPRESSION:.*$/m, "");
-  xml = xml.replace(/^OLDFILEFORMAT:.*$/m, "");
-  xml = xml.replace(/^NEWFILEFORMAT:.*$/m, "");
+  // Regex para encontrar blocos STMTTRN
+  // OFX 1.x usa <STMTTRN>.....</STMTTRN>
+  const regexSTMTTRN = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
+  let match;
 
-  // Remover linhas em branco extras
-  xml = xml.replace(/\n\n+/g, "\n");
+  while ((match = regexSTMTTRN.exec(conteudo)) !== null) {
+    const blocoSTMTTRN = match[1];
 
-  // Envolver em tags raiz se não tiver
-  if (!xml.includes("<OFX>") && !xml.includes("<ofx>")) {
-    xml = `<OFX>\n${xml}\n</OFX>`;
+    // Extrair campos específicos do bloco
+    const trntype = extrairCampoOFX(blocoSTMTTRN, "TRNTYPE");
+    const dtposted = extrairCampoOFX(blocoSTMTTRN, "DTPOSTED");
+    const trnamt = extrairCampoOFX(blocoSTMTTRN, "TRNAMT");
+    const fitid = extrairCampoOFX(blocoSTMTTRN, "FITID");
+    const name = extrairCampoOFX(blocoSTMTTRN, "NAME");
+    const memo = extrairCampoOFX(blocoSTMTTRN, "MEMO");
+
+    // Adicionar transação mesmo que esteja incompleta
+    // A validação ocorre em parseOFX
+    transacoes.push({
+      TRNTYPE: trntype,
+      DTPOSTED: dtposted,
+      TRNAMT: trnamt,
+      FITID: fitid,
+      NAME: name,
+      MEMO: memo,
+    });
   }
 
-  return xml;
+  return transacoes;
 }
 
 /**
- * Extrai transações do XML parseado
+ * Extrai um campo específico do formato OFX 1.x
+ * Formato: <CAMPO>valor ou <CAMPO>valor\n<OUTROCAMPO>
+ */
+function extrairCampoOFX(conteudo: string, nomeCampo: string): string | undefined {
+  // Procurar por <NOMECAMPO>valor e capturar até nova tag ou fim
+  const regex = new RegExp(`<${nomeCampo}>\\s*([^<\\n]*)`, "i");
+  const match = conteudo.match(regex);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return undefined;
+}
+
+/**
+ * Extrai transações do XML parseado via navegação de estrutura
  */
 function extrairTransacoesDoXML(
   xmlObj: Record<string, unknown>,
 ): OFXTransaction[] {
   const transacoes: OFXTransaction[] = [];
 
-  // Navegar na estrutura do XML
-  // OFX 2.x: ofx -> bankmsgsrsv1 -> stmttrs -> stmtrs -> banktranlist -> stmttrn
-  // OFX 1.x: ofx -> bankmsgsrsv1 -> stmttrs -> stmtrs -> banktranlist -> stmttrn
-
+  // Navegar na estrutura do XML (para OFX 2.x/XML puro)
   const navegar = (obj: unknown, chaves: string[]): OFXTransaction[] => {
     let atual = obj as Record<string, unknown>;
 
@@ -141,6 +163,8 @@ function extrairTransacoesDoXML(
       "banktranlist",
       "stmttrn",
     ],
+    ["OFX", "STMTTRN"],
+    ["ofx", "stmttrn"],
     ["stmttrn"],
     ["STMTTRN"],
   ];
@@ -258,24 +282,27 @@ export function parseOFX(
     const versao = detectarVersaoOFX(conteudo);
     resultado.avisos?.push(`Processando OFX versão ${versao}`);
 
-    let xml = conteudo;
+    let transacoesOFX: OFXTransaction[] = [];
 
-    // Se OFX 1.x, converter para XML bem-formado
-    if (versao === "1.x") {
-      xml = converterOFX1xParaXML(conteudo);
+    // Tentar parsing direto por regex primeiro (funciona para OFX 1.x e 2.x com tags STMTTRN)
+    if (conteudo.includes("<STMTTRN>")) {
+      transacoesOFX = extrairTransacoesOFX1x(conteudo);
     }
 
-    // Parse XML
-    const parser = new XMLParser({
-      ignoreAttributes: true,
-      parseTagValue: true,
-    });
-    const xmlObj = parser.parse(xml);
+    // Se não encontrou por regex, tentar por XML parsing
+    if (transacoesOFX.length === 0) {
+      // Parse XML
+      const parser = new XMLParser({
+        ignoreAttributes: true,
+        parseTagValue: true,
+      });
+      const xmlObj = parser.parse(conteudo);
 
-    // Extrair transações
-    const transacoesOFX = extrairTransacoesDoXML(
-      xmlObj as Record<string, unknown>,
-    );
+      // Extrair transações via navegação XML
+      transacoesOFX = extrairTransacoesDoXML(
+        xmlObj as Record<string, unknown>,
+      );
+    }
 
     if (transacoesOFX.length === 0) {
       resultado.avisos?.push(
