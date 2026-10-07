@@ -189,12 +189,12 @@ export async function parsePDF(
           /(\d{1,2})\/(\d{1,2})\/(\d{4})|(\d{1,2})\.(\d{1,2})\.(\d{4})/,
         );
         const valores = linha.match(
-          /R\$\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?)|([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?)/,
+          /R\$\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?)/,
         );
 
         if (datas && valores) {
           const dataStr = datas[0];
-          const valorStr = valores[1] || valores[2];
+          const valorStr = valores[1];
 
           const dataNormalizada = normalizarData(dataStr);
           const valorNormalizado = normalizarValor(valorStr);
