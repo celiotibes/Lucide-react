@@ -141,6 +141,8 @@ function extrairTransacoesDoXML(
       "banktranlist",
       "stmttrn",
     ],
+    ["OFX", "STMTTRN"],
+    ["ofx", "stmttrn"],
     ["stmttrn"],
     ["STMTTRN"],
   ];
