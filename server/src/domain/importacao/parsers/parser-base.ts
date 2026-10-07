@@ -8,7 +8,7 @@
  * - PDF (tabulação)
  */
 
-import type { TransacaoBruta, ParserResult, ParserOptions } from "../tipos.js";
+import type { ParserResult, ParserOptions } from "../tipos.js";
 
 /**
  * Interface base que todo parser deve implementar

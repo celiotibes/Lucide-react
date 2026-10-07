@@ -21,7 +21,6 @@ import Fuse from "fuse.js";
 import { differenceInDays } from "date-fns";
 import { logger } from "../../services/logger-service.js";
 import type {
-  ReconciliationMatch,
   SourceTransaction,
   LedgerEntryForReconciliation,
   MatchingResult,
@@ -56,7 +55,7 @@ export class ReconciliationEngine {
   async matchTransactions(
     ledgerEntries: LedgerEntryForReconciliation[],
     sourceTransactions: SourceTransaction[],
-    agenteId?: string
+    _agenteId?: string
   ): Promise<MatchingResult[]> {
     const results: MatchingResult[] = [];
 
@@ -227,7 +226,7 @@ export class ReconciliationEngine {
     endDate: string,
     userId?: string
   ): Promise<ReconciliationStatus> {
-    const matchId = randomUUID();
+    const _matchId = randomUUID();
     const startTime = Date.now();
 
     try {

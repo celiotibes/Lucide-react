@@ -393,7 +393,7 @@ export interface ValidacaoAgente {
   tipo_validacao: TipoValidacao;
   resultado: ResultadoValidacao;
   motivo?: string | null;
-  detalhes?: Record<string, any>;
+  detalhes?: Record<string, unknown>;
   executado_em: Date;
   executado_por: string; // UUID
 }

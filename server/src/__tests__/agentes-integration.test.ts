@@ -19,7 +19,6 @@ import {
   createSamplePessoaJuridicaSupplier,
   createDuplicateAgentsPair,
   generateBulkPessoasFisicas,
-  generateBulkPessoasJuridicas,
   VALID_CPFS,
   VALID_CNPJS,
   INVALID_DOCUMENTS,

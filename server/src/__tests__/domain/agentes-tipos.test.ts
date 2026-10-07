@@ -25,7 +25,6 @@ import {
   CriarAgenteEconomicoSchema,
   TipoEntidade,
   PapelAgente,
-  RegimeTributario,
 } from "../../domain/erp/agentes-tipos";
 
 describe("Validação de CPF", () => {

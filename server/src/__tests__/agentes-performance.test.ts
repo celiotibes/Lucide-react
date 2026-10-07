@@ -16,10 +16,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import {
   generateBulkPessoasFisicas,
-  generateBulkPessoasJuridicas,
   TEST_ADMIN_USER,
 } from './fixtures/agentes-fixtures.js';
-import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

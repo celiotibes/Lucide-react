@@ -260,12 +260,13 @@ export class MT940Parser extends ParserBase {
             break;
 
           case "60a":
-          case "60F":
+          case "60F": {
             const saldoAb = this.parsarSaldo(conteudo);
             stmt.saldoAbertura = saldoAb;
             break;
+          }
 
-          case "61":
+          case "61": {
             // Transação pode ter continuação em :86:
             const trn = this.parsarLinhaTransacao(conteudo);
             // Procurar por :86: na próxima linha
@@ -278,12 +279,14 @@ export class MT940Parser extends ParserBase {
             }
             stmt.transacoes!.push(trn);
             break;
+          }
 
           case "62a":
-          case "62F":
+          case "62F": {
             const saldoFech = this.parsarSaldo(conteudo);
             stmt.saldoFechamento = saldoFech;
             break;
+          }
 
           case "86":
             // Detalhes da transação anterior

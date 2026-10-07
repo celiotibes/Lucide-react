@@ -40,7 +40,7 @@ export interface MergeAgentRequest {
   agente_primario_id: string;
   agente_duplicado_id: string;
   motivo: string;
-  detalhes?: Record<string, any>;
+  detalhes?: Record<string, unknown>;
 }
 
 export interface MergeResult {
@@ -59,8 +59,8 @@ export interface DuplicataAuditTrail {
   tipo_operacao: "MERGE" | "UNMERGE" | "REVIEW";
   agente_primario_id: string;
   agente_secundario_id: string;
-  estado_anterior: Record<string, any>;
-  estado_posterior: Record<string, any>;
+  estado_anterior: Record<string, unknown>;
+  estado_posterior: Record<string, unknown>;
   criado_em: string;
   criado_por: string;
   descricao: string;
@@ -210,7 +210,8 @@ export class AgentesDeduplicacaoService {
    */
   detectarDuplicatasAgente(
     agenteId: string,
-    usuarioId: string
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _usuarioId: string
   ): DuplicateAgentCandidate[] {
     try {
       // Buscar agente principal
@@ -557,7 +558,7 @@ export class AgentesDeduplicacaoService {
             "SELECT changes() as count"
           ) as unknown;
           totalTransacoesMigradas = changesLedger[0]?.count || 0;
-        } catch (e) {
+        } catch (_e) {
           // Se a coluna não existir, ignorar
           console.log(
             "Nota: ledger_entries não possui coluna agente_id"
@@ -682,7 +683,7 @@ export class AgentesDeduplicacaoService {
             registroMerge.agente_id_2,
             registroMerge.agente_id_1
           );
-        } catch (e) {
+        } catch (_e) {
           // Ignorar se coluna não existir
         }
 
@@ -816,8 +817,8 @@ export class AgentesDeduplicacaoService {
     tipo: "MERGE" | "UNMERGE" | "REVIEW",
     agentePrimarIoId: string,
     agenteSecundarioId: string,
-    estadoAnterior: Record<string, any>,
-    estadoPosterior: Record<string, any>,
+    estadoAnterior: Record<string, unknown>,
+    estadoPosterior: Record<string, unknown>,
     usuarioId: string,
     descricao: string
   ): string {

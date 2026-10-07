@@ -35,7 +35,7 @@ class MockAuthService implements Partial<AuthServiceDB> {
 }
 
 class MockAuditService implements Partial<AuditTrailServiceDB> {
-  registrarAcao = (contexto: unknown, acao: string, recurso: string, id: string, dados: unknown) => {
+  registrarAcao = (_contexto: unknown, _acao: string, _recurso: string, _id: string, _dados: unknown) => {
     // Mock implementation
   };
 }
@@ -43,7 +43,7 @@ class MockAuditService implements Partial<AuditTrailServiceDB> {
 describe("Rotas de Agentes Econômicos", () => {
   let app: express.Application;
   let db: Database.Database;
-  let agenteService: AgenteService;
+  let _agenteService: AgenteService;
   let mockAuthService: MockAuthService;
   let mockAuditService: MockAuditService;
 
@@ -179,7 +179,7 @@ describe("Rotas de Agentes Econômicos", () => {
 
     app.use("/api/v1/agentes-economicos", router);
 
-    agenteService = new AgenteService(db);
+    _agenteService = new AgenteService(db);
   });
 
   afterEach(() => {
@@ -255,7 +255,7 @@ describe("Rotas de Agentes Econômicos", () => {
     });
 
     it("deve rejeitar pessoa jurídica sem nome fantasia", async () => {
-      const { nome_fantasia, ...data } = pessoaJuridicaData;
+      const { nome_fantasia: _nome_fantasia, ...data } = pessoaJuridicaData;
       const res = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
@@ -265,7 +265,7 @@ describe("Rotas de Agentes Econômicos", () => {
     });
 
     it("deve rejeitar pessoa física sem nome da mãe", async () => {
-      const { pessoa_fisica_pf_nome_mae, ...data } = pessoaFisicaData;
+      const { pessoa_fisica_pf_nome_mae: _pessoa_fisica_pf_nome_mae, ...data } = pessoaFisicaData;
       const res = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
@@ -551,7 +551,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .set("Authorization", `Bearer ${validToken}`)
         .send(pessoaFisicaData);
 
-      const agente2 = await request(app)
+      const _agente2 = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
         .send({
@@ -677,7 +677,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .send({ ...pessoaFisicaData, cpf_cnpj: "11144477735" });
 
       // Criar segundo agente com nome similar
-      const agente2 = await request(app)
+      const _agente2 = await request(app)
         .post("/api/v1/agentes-economicos")
         .set("Authorization", `Bearer ${validToken}`)
         .send({

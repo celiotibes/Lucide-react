@@ -29,7 +29,6 @@ import { logger } from "../../services/logger-service.js";
 import type { AgenteEconomico } from "./agentes-tipos.js";
 import {
   calculateSimilarity,
-  cleanCPFCNPJ,
   isValidCPF,
   isValidCNPJ,
 } from "./agentes-tipos.js";

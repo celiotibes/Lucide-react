@@ -30,7 +30,7 @@ export interface ResultadoVerificacao {
   situacao?: string; // ativo, cancelado, inapto, etc
   dataConstituicao?: string;
   dataUltimaAtualizacao?: string;
-  detalhes?: Record<string, any>;
+  detalhes?: Record<string, unknown>;
   erro?: string;
   fonte?: string;
 }
@@ -349,7 +349,7 @@ export class AgenteRegistryService {
     resultado_validacao: ResultadoValidacao,
     usuario_id: string,
     motivo?: string,
-    detalhes?: Record<string, any>
+    detalhes?: Record<string, unknown>
   ): ValidacaoAgente {
     const id = uuidv4();
 
@@ -483,7 +483,7 @@ export class AgenteRegistryService {
   /**
    * Simula consulta a lista OFAC
    */
-  private async consultarOFAC(cpf_cnpj: string, nome: string): Promise<boolean> {
+  private async consultarOFAC(cpf_cnpj: string, _nome: string): Promise<boolean> {
     // Simula delay de rede
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -503,7 +503,7 @@ export class AgenteRegistryService {
     tipo: string;
     cnpj_cnpj: string;
     resultado: string;
-    detalhes?: Record<string, any>;
+    detalhes?: Record<string, unknown>;
     erro?: string;
   }): void {
     // Pode ser estendido para logging em banco de dados

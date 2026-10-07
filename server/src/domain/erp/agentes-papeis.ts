@@ -646,7 +646,7 @@ export function obterDefinicaoPapel(papelAgente: PapelAgente): DefinicaoPapel {
  * @returns Array de campos faltantes (vazio se tudo OK)
  */
 export function validarCamposObrigatorios(
-  agente: Record<string, any>,
+  agente: Record<string, unknown>,
   papel: PapelAgente
 ): string[] {
   const definicao = obterDefinicaoPapel(papel);

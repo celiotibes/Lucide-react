@@ -21,9 +21,6 @@ import type {
   TipoLancamento,
   CategoriaLancamento,
 } from "./ledger-types.js";
-import { registrarLancamento, registrarAuditoria } from "./ledger-service.js";
-import type { AgenteEconomico } from "../erp/agentes-tipos.js";
-import { PapelAgente } from "../erp/agentes-tipos.js";
 
 /**
  * Interface para entrada de ledger com dados do agente denormalizado
@@ -529,9 +526,9 @@ export function getAgentAging(
   agenteId: string
 ): AgingAnalysis[] {
   try {
-    const dataAtual = new Date().toISOString().split('T')[0];
+    const _dataAtual = new Date().toISOString().split('T')[0];
 
-    const sql = `
+    const _sql = `
       SELECT
         ? as faixa_dias,
         COUNT(*) as quantidade,
@@ -553,7 +550,7 @@ export function getAgentAging(
     `;
 
     // Implementação alternativa mais simples
-    const faixas = [
+    const _faixas = [
       { dias: '0-30', dataLimite: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
       { dias: '31-60', dataLimite: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
       { dias: '61-90', dataLimite: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },

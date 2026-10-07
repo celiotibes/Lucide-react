@@ -33,10 +33,6 @@ interface PDFTable {
   [key: string]: string | number;
 }
 
-interface ValidationSchema {
-  [key: string]: string;
-}
-
 /**
  * Mock upload service - simulates file handling
  */
@@ -555,7 +551,7 @@ describe('E2E Import Workflow', () => {
 
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('PROCESSADA', linha.id);
             successCount++;
-          } catch (error) {
+          } catch (_error) {
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('ERRO', linha.id);
           }
         });

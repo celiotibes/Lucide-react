@@ -8,7 +8,6 @@ import {
   normalizarData,
   normalizarValor,
   normalizarDescricao,
-  extrairDocumento,
   detectarTipo,
   extrairCategoria,
 } from "../normalizacao.js";

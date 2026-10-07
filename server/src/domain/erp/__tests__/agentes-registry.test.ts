@@ -24,7 +24,6 @@ import {
 } from "../agentes-tipos";
 import {
   AgenteRegistryService,
-  ResultadoVerificacao,
 } from "../agentes-registry";
 
 // Teste de banco de dados

@@ -13,7 +13,6 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
-import path from "path";
 import {
   AgentesDeduplicacaoService,
   TransacoesDeduplicacaoService,
@@ -234,6 +233,7 @@ describe("AgentesDeduplicacaoService", () => {
     it("deve detectar CNPJ idêntico com score 100", () => {
       const cpfCnpj = "11222333000181";
       const agente1 = inserirAgente(criarAgenteTeste({ cpf_cnpj: cpfCnpj }));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({
           cpf_cnpj: cpfCnpj,
@@ -253,6 +253,7 @@ describe("AgentesDeduplicacaoService", () => {
 
     it("deve ignorar CPF/CNPJ já mesclado", () => {
       const agente1 = inserirAgente(criarAgenteTeste({ cpf_cnpj: "11111111000111" }));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({ cpf_cnpj: "22222222000222" })
       );
@@ -295,6 +296,8 @@ describe("AgentesDeduplicacaoService", () => {
           nome: "EMPRESA XYZ LTDA",
         })
       );
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({
           cpf_cnpj: "22222222000222",
@@ -319,6 +322,7 @@ describe("AgentesDeduplicacaoService", () => {
       );
 
       // 85% similar
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({
           cpf_cnpj: "22222222000222",
@@ -327,6 +331,7 @@ describe("AgentesDeduplicacaoService", () => {
       );
 
       // 75% similar
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente3 = inserirAgente(
         criarAgenteTeste({
           cpf_cnpj: "33333333000333",
@@ -361,6 +366,7 @@ describe("AgentesDeduplicacaoService", () => {
         })
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({
           cpf_cnpj: "22222222000222",
@@ -385,6 +391,7 @@ describe("AgentesDeduplicacaoService", () => {
       const agente1 = inserirAgente(
         criarAgenteTeste({ cpf_cnpj: "11111111000111" })
       );
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({ cpf_cnpj: "22222222000222" })
       );
@@ -412,6 +419,7 @@ describe("AgentesDeduplicacaoService", () => {
       const agente1 = inserirAgente(
         criarAgenteTeste({ cpf_cnpj: "11111111000111" })
       );
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({ cpf_cnpj: "22222222000222" })
       );
@@ -444,6 +452,7 @@ describe("AgentesDeduplicacaoService", () => {
       const agente1 = inserirAgente(
         criarAgenteTeste({ cpf_cnpj: "11111111000111" })
       );
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const agente2 = inserirAgente(
         criarAgenteTeste({ cpf_cnpj: "22222222000222" })
       );
@@ -601,6 +610,7 @@ describe("AgentesDeduplicacaoService", () => {
           })
         );
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const agente2 = inserirAgente(
           criarAgenteTeste({
             cpf_cnpj: teste.similar_cpf,
