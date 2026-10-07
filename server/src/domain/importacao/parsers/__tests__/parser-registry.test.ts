@@ -2,14 +2,14 @@
  * Testes para Parser Registry
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { ParserRegistry } from "../parser-registry.js";
 
 describe("ParserRegistry", () => {
   let registry: ParserRegistry;
 
-  beforeEach(() => {
-    registry = ParserRegistry.getInstance();
+  beforeAll(async () => {
+    registry = await ParserRegistry.getInstanceAsync();
   });
 
   describe("detectarTipo", () => {
