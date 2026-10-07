@@ -51,96 +51,6 @@ function detectarVersaoOFX(conteudo: string): "1.x" | "2.x" {
 }
 
 /**
- * Converte OFX 1.x (formato texto) para XML bem-formado
- * Remove headers OFXHEADER e converte tags com fechamento automático
- */
-function converterOFX1xParaXML(conteudo: string): string {
-  let xml = conteudo;
-
-  // Remover header OFX
-  xml = xml.replace(/^OFXHEADER:.*$/m, "");
-  xml = xml.replace(/^OFXVERSION:.*$/m, "");
-  xml = xml.replace(/^SECURITY:.*$/m, "");
-  xml = xml.replace(/^ENCODING:.*$/m, "");
-  xml = xml.replace(/^CHARSET:.*$/m, "");
-  xml = xml.replace(/^COMPRESSION:.*$/m, "");
-  xml = xml.replace(/^OLDFILEFORMAT:.*$/m, "");
-  xml = xml.replace(/^NEWFILEFORMAT:.*$/m, "");
-
-  // Remover linhas em branco extras
-  xml = xml.replace(/\n\n+/g, "\n");
-
-  // Processar tags OFX 1.x: adicionar fechamento de tags
-  // OFX 1.x tem formato: <TAG>value seguido de nova tag ou </TAG>
-  const linhas = xml.split("\n");
-  const resultado: string[] = [];
-  const stack: string[] = [];
-
-  for (let i = 0; i < linhas.length; i++) {
-    const linha = linhas[i].trim();
-
-    if (!linha) {
-      continue;
-    }
-
-    // Detectar tags de abertura e fechamento
-    if (linha.startsWith("</")) {
-      // Tag de fechamento
-      resultado.push(linha);
-      const nomeTags = linha.match(/<\/([^>]+)>/);
-      if (nomeTags && stack.length > 0 && stack[stack.length - 1] === nomeTags[1]) {
-        stack.pop();
-      }
-    } else if (linha.startsWith("<") && linha.endsWith(">")) {
-      // Tag sem valor
-      const nomeTag = linha.match(/<([^>]+)>/)?.[1];
-      if (nomeTag) {
-        resultado.push(linha);
-        // Se é tag de abertura (não auto-fechada)
-        if (!nomeTag.startsWith("/") && !nomeTag.endsWith("/")) {
-          stack.push(nomeTag.split(/\s/)[0]);
-        }
-      }
-    } else if (linha.includes("<") && linha.includes(">")) {
-      // Tag com valor: <TAG>value
-      const match = linha.match(/<([^/>]+)>(.*)$/);
-      if (match) {
-        const nomeTag = match[1].trim();
-        const valor = match[2];
-
-        // Fechar tags abertas que podem estar terminando
-        while (stack.length > 0) {
-          const tagTopo = stack[stack.length - 1];
-          // Se a próxima linha é uma tag diferente ou fechamento, fechar
-          if (i + 1 < linhas.length) {
-            const proximaLinha = linhas[i + 1].trim();
-            if (
-              proximaLinha.startsWith("</") ||
-              (proximaLinha.startsWith("<") && !proximaLinha.includes(tagTopo))
-            ) {
-              resultado.push(`</${stack.pop()}>`);
-            } else {
-              break;
-            }
-          } else {
-            break;
-          }
-        }
-
-        resultado.push(`<${nomeTag}>${valor}</${nomeTag}>`);
-      }
-    }
-  }
-
-  // Fechar todas as tags abertas
-  while (stack.length > 0) {
-    resultado.push(`</${stack.pop()}>`);
-  }
-
-  return resultado.join("\n");
-}
-
-/**
  * Extrai transações usando regex para OFX 1.x
  * Retorna TODAS as transações encontradas (inclusive as inválidas)
  * O processamento e validação acontece em parseOFX
@@ -374,26 +284,19 @@ export function parseOFX(
 
     let transacoesOFX: OFXTransaction[] = [];
 
-    // Se OFX 1.x, tentar parsing direto por regex primeiro
-    if (versao === "1.x" && conteudo.includes("<STMTTRN>")) {
+    // Tentar parsing direto por regex primeiro (funciona para OFX 1.x e 2.x com tags STMTTRN)
+    if (conteudo.includes("<STMTTRN>")) {
       transacoesOFX = extrairTransacoesOFX1x(conteudo);
     }
 
     // Se não encontrou por regex, tentar por XML parsing
     if (transacoesOFX.length === 0) {
-      let xml = conteudo;
-
-      // Se OFX 1.x, converter para XML bem-formado
-      if (versao === "1.x") {
-        xml = converterOFX1xParaXML(conteudo);
-      }
-
       // Parse XML
       const parser = new XMLParser({
         ignoreAttributes: true,
         parseTagValue: true,
       });
-      const xmlObj = parser.parse(xml);
+      const xmlObj = parser.parse(conteudo);
 
       // Extrair transações via navegação XML
       transacoesOFX = extrairTransacoesDoXML(
