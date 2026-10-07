@@ -159,12 +159,14 @@ export class ReconciliationEngine {
    */
   private calculateAmountScore(ledgerAmount: number, sourceAmount: number): number {
     const tolerance = (this.config.amount_tolerance_percent || 5) / 100;
-    const threshold = ledgerAmount * tolerance;
+    const maxDiff = ledgerAmount * tolerance;
+    const actualDiff = Math.abs(ledgerAmount - sourceAmount);
 
-    if (Math.abs(ledgerAmount - sourceAmount) <= threshold) {
-      const diff = Math.abs(ledgerAmount - sourceAmount) / ledgerAmount;
+    if (actualDiff <= maxDiff) {
+      // Perfect match = 40 points, degrading to 0 at tolerance boundary
+      const percentOfTolerance = actualDiff / maxDiff;
       return Math.round(
-        (this.config.score_thresholds!.amount || 40) * (1 - diff / (tolerance + 0.01))
+        (this.config.score_thresholds!.amount || 40) * (1 - percentOfTolerance * 0.5)
       );
     }
     return 0;
