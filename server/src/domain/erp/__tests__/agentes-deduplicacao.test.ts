@@ -30,7 +30,7 @@ let transacoesService: TransacoesDeduplicacaoService;
 const USUARIO_TESTE_ID = "550e8400-e29b-41d4-a716-446655440000";
 
 // Helpers para criar dados de teste
-function criarAgenteTeste(sobrescrita: Partial<any> = {}): any {
+function criarAgenteTeste(sobrescrita: Partial<unknown> = {}): unknown {
   return {
     tipo_entidade: "pessoa_juridica",
     cpf_cnpj: "11222333000181",
@@ -54,7 +54,7 @@ function criarAgenteTeste(sobrescrita: Partial<any> = {}): any {
   };
 }
 
-function inserirAgente(dados: any): string {
+function inserirAgente(dados: unknown): string {
   const stmt = db.prepare(
     `INSERT INTO agentes_economicos (
       tipo_entidade, cpf_cnpj, nome, nome_fantasia, papel,
@@ -429,7 +429,7 @@ describe("AgentesDeduplicacaoService", () => {
       const stmt = db.prepare(
         `SELECT * FROM agentes_duplicatas_suspeitas WHERE status = 'mesclada'`
       );
-      const merges = stmt.all() as any[];
+      const merges = stmt.all() as unknown[];
 
       expect(merges.length).toBeGreaterThan(0);
     });

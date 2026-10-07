@@ -420,7 +420,7 @@ describe("AgenteRegistryService", () => {
         .prepare(
           `SELECT * FROM agentes_validacoes WHERE agente_id = ? AND tipo_validacao = ?`
         )
-        .get(agentId, TipoValidacao.CPF_CNPJ) as any;
+        .get(agentId, TipoValidacao.CPF_CNPJ) as unknown;
 
       expect(registro).toBeDefined();
       expect(registro.resultado).toBe(ResultadoValidacao.APROVADO);

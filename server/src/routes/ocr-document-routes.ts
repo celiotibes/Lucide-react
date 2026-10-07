@@ -66,7 +66,7 @@ function getFileBufferFromLote(db: Database.Database, loteId: string): Buffer | 
     const stmt = db.prepare(`
       SELECT arquivo_nome, tipo FROM importacao_lotes WHERE id = ?
     `);
-    const lote = stmt.get(loteId) as any;
+    const lote = stmt.get(loteId) as unknown;
     if (!lote) {
       logger.warn(`[OCR] Lote not found: ${loteId}`);
       return null;
@@ -85,7 +85,7 @@ function storeExtractionResults(
   db: Database.Database,
   loteId: string,
   usuarioId: string,
-  invoice: any
+  invoice: unknown
 ): string {
   const extractionId = gerarUUID();
   const agora = new Date().toISOString();
@@ -120,11 +120,11 @@ function storeExtractionResults(
       invoice.requiresManualReview
         ? `Low confidence: ${invoice.overallConfidence}% < 75% threshold`
         : null,
-      invoice.fields.find((f: any) => f.field === "supplier_cnpj")?.value || null,
-      invoice.fields.find((f: any) => f.field === "buyer_cpf")?.value || null,
-      invoice.fields.find((f: any) => f.field === "invoice_number")?.value || null,
-      invoice.fields.find((f: any) => f.field === "invoice_date")?.value || null,
-      invoice.fields.find((f: any) => f.field === "total_amount")?.value || null,
+      invoice.fields.find((f: unknown) => f.field === "supplier_cnpj")?.value || null,
+      invoice.fields.find((f: unknown) => f.field === "buyer_cpf")?.value || null,
+      invoice.fields.find((f: unknown) => f.field === "invoice_number")?.value || null,
+      invoice.fields.find((f: unknown) => f.field === "invoice_date")?.value || null,
+      invoice.fields.find((f: unknown) => f.field === "total_amount")?.value || null,
       agora,
       agora
     );
@@ -230,7 +230,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
       const loteStmt = db.prepare(
         "SELECT * FROM importacao_lotes WHERE id = ? AND usuario_id = ?"
       );
-      const lote = loteStmt.get(loteId) as any;
+      const lote = loteStmt.get(loteId) as unknown;
 
       if (!lote) {
         return res.status(404).json({
@@ -243,7 +243,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
       const extractionStmt = db.prepare(
         "SELECT * FROM document_extractions WHERE lote_id = ? LIMIT 1"
       );
-      const extraction = extractionStmt.get(loteId) as any;
+      const extraction = extractionStmt.get(loteId) as unknown;
 
       if (!extraction) {
         return res.status(404).json({
@@ -256,7 +256,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
       const fieldsStmt = db.prepare(
         "SELECT * FROM extraction_fields WHERE extraction_id = ? ORDER BY field_name"
       );
-      const fields = fieldsStmt.all(extraction.id) as any[];
+      const fields = fieldsStmt.all(extraction.id) as unknown[];
 
       const confidenceScores = extraction.confidence_scores
         ? JSON.parse(extraction.confidence_scores)
@@ -272,7 +272,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
           confianca_geral: extraction.overall_confidence,
           requer_revisao: extraction.requires_manual_review === 1,
           texto_extraido_tamanho: extraction.extracted_text_length,
-          campos: fields.map((f: any) => ({
+          campos: fields.map((f: unknown) => ({
             nome: f.field_name,
             valor: f.field_value,
             confianca: f.field_confidence,
@@ -325,7 +325,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
         const extractionStmt = db.prepare(
           "SELECT * FROM document_extractions WHERE lote_id = ?"
         );
-        const extraction = extractionStmt.get(loteId) as any;
+        const extraction = extractionStmt.get(loteId) as unknown;
 
         if (!extraction) {
           return res.status(404).json({
@@ -424,7 +424,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
         const extractionStmt = db.prepare(
           "SELECT * FROM document_extractions WHERE lote_id = ?"
         );
-        const extraction = extractionStmt.get(loteId) as any;
+        const extraction = extractionStmt.get(loteId) as unknown;
 
         if (!extraction) {
           return res.status(404).json({
@@ -527,7 +527,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
         const extractionStmt = db.prepare(
           "SELECT id FROM document_extractions WHERE lote_id = ? LIMIT 1"
         );
-        const extraction = extractionStmt.get(loteId) as any;
+        const extraction = extractionStmt.get(loteId) as unknown;
 
         if (!extraction) {
           return res.status(404).json({
@@ -540,7 +540,7 @@ export function criarRotasOCRDocumento(options: OCRDocumentRoutesOptions): Route
         const fieldStmt = db.prepare(
           "SELECT * FROM extraction_fields WHERE extraction_id = ? AND field_name = ? LIMIT 1"
         );
-        const field = fieldStmt.get(extraction.id, fieldName) as any;
+        const field = fieldStmt.get(extraction.id, fieldName) as unknown;
 
         if (!field) {
           return res.status(404).json({

@@ -172,7 +172,7 @@ export class AgenteService {
     const { papel, ativo, tipo_entidade, offset, limit, busca } = parsed.data;
 
     let query = "SELECT * FROM agentes_economicos WHERE 1=1";
-    const params: any[] = [];
+    const params: unknown[] = [];
 
     if (ativo !== undefined) {
       query += " AND ativo = ?";
@@ -209,7 +209,7 @@ export class AgenteService {
     params.push(limit, offset);
 
     const listStmt = this.db.prepare(query);
-    const rows = listStmt.all(...params) as any[];
+    const rows = listStmt.all(...params) as unknown[];
 
     const agentes = rows.map((row) => this.mapearLinha(row));
 
@@ -221,7 +221,7 @@ export class AgenteService {
    */
   obterPorId(id: string): AgenteEconomico | null {
     const stmt = this.db.prepare("SELECT * FROM agentes_economicos WHERE id = ?");
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as unknown;
     return row ? this.mapearLinha(row) : null;
   }
 
@@ -261,7 +261,7 @@ export class AgenteService {
 
     const agora = new Date().toISOString();
     const campos: string[] = [];
-    const valores: any[] = [];
+    const valores: unknown[] = [];
 
     // Montar UPDATE dinâmico
     if (parsed.data.nome !== undefined) {
@@ -382,7 +382,7 @@ export class AgenteService {
       ORDER BY score DESC
     `);
 
-    const rows = stmt.all(agenteId, agenteId) as any[];
+    const rows = stmt.all(agenteId, agenteId) as unknown[];
 
     return rows.map((row) => {
       const agente1 = this.obterPorId(row.agente_id_1);
@@ -412,7 +412,7 @@ export class AgenteService {
     // Buscar todos os outros agentes ativos
     const outros = this.db
       .prepare("SELECT * FROM agentes_economicos WHERE id != ? AND ativo = ?")
-      .all(novoAgenteId, 1) as any[];
+      .all(novoAgenteId, 1) as unknown[];
 
     const agora = new Date().toISOString();
 
@@ -497,7 +497,7 @@ export class AgenteService {
   /**
    * Mapear linha do banco para objeto AgenteEconomico
    */
-  private mapearLinha(row: any): AgenteEconomico {
+  private mapearLinha(row: unknown): AgenteEconomico {
     return {
       id: row.id,
       tipo_entidade: row.tipo_entidade,

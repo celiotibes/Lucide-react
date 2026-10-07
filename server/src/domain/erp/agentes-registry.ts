@@ -190,7 +190,7 @@ export class AgenteRegistryService {
       WHERE cpf_cnpj = ?
         AND ativo = 1
     `;
-    const params: any[] = [limpo];
+    const params: unknown[] = [limpo];
 
     if (excluir_agente_id) {
       query += " AND id != ?";
@@ -320,7 +320,7 @@ export class AgenteRegistryService {
       LIMIT 1
     `
       )
-      .get(agente_id, tipo_validacao) as any;
+      .get(agente_id, tipo_validacao) as unknown;
 
     if (!resultado) {
       return null;

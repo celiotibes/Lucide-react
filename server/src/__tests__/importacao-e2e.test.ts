@@ -324,7 +324,7 @@ describe('E2E Import Workflow', () => {
 
     // Mock auth middleware
     app.use((req, res, next) => {
-      (req as any).userId = 'test-user';
+      (req as unknown).userId = 'test-user';
       next();
     });
 
@@ -359,7 +359,7 @@ describe('E2E Import Workflow', () => {
 
         // Store file with loteId as key so it can be retrieved later
         uploadService.uploadFile(file, fileName);
-        (uploadService as any).uploads.set(loteId, file);
+        (uploadService as unknown).uploads.set(loteId, file);
 
         res.status(201).json({
           loteId,
@@ -368,7 +368,7 @@ describe('E2E Import Workflow', () => {
           fileType,
           status: 'RECEBIDO',
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error.message.includes('UNIQUE constraint failed')) {
           return res.status(409).json({ error: 'File already uploaded' });
         }
@@ -381,7 +381,7 @@ describe('E2E Import Workflow', () => {
       const { loteId } = req.params;
       const lote = db
         .prepare('SELECT * FROM importacao_lotes WHERE id = ? AND usuario_id = ?')
-        .get(loteId, 'test-user') as any;
+        .get(loteId, 'test-user') as unknown;
 
       if (!lote) {
         return res.status(404).json({ error: 'Import batch not found' });
@@ -392,8 +392,8 @@ describe('E2E Import Workflow', () => {
         return res.status(404).json({ error: 'File not found' });
       }
 
-      let parsed: any;
-      let lines: any[] = [];
+      let parsed: unknown;
+      let lines: unknown[] = [];
 
       try {
         if (lote.tipo === 'CSV') {
@@ -431,7 +431,7 @@ describe('E2E Import Workflow', () => {
           lineCount: lines.length,
           status: 'PROCESSANDO',
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         db.prepare('UPDATE importacao_lotes SET status = ?, erro_mensagem = ? WHERE id = ?').run(
           'ERRO',
           error.message,
@@ -446,7 +446,7 @@ describe('E2E Import Workflow', () => {
       const { loteId } = req.params;
       const lote = db
         .prepare('SELECT * FROM importacao_lotes WHERE id = ? AND usuario_id = ?')
-        .get(loteId, 'test-user') as any;
+        .get(loteId, 'test-user') as unknown;
 
       if (!lote) {
         return res.status(404).json({ error: 'Import batch not found' });
@@ -454,7 +454,7 @@ describe('E2E Import Workflow', () => {
 
       const linhas = db
         .prepare('SELECT * FROM importacao_linhas WHERE lote_id = ? ORDER BY numero_linha')
-        .all(loteId) as any[];
+        .all(loteId) as unknown[];
 
       const validationResults = {
         total: linhas.length,
@@ -480,7 +480,7 @@ describe('E2E Import Workflow', () => {
             validationResults.invalid++;
             validationResults.errors.push(`Row ${linha.numero_linha}: ${validation.errors.join('; ')}`);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           db.prepare('UPDATE importacao_linhas SET status = ?, erro_mensagem = ? WHERE id = ?').run(
             'ERRO',
             error.message,
@@ -498,7 +498,7 @@ describe('E2E Import Workflow', () => {
       const { loteId } = req.params;
       const lote = db
         .prepare('SELECT * FROM importacao_lotes WHERE id = ? AND usuario_id = ?')
-        .get(loteId, 'test-user') as any;
+        .get(loteId, 'test-user') as unknown;
 
       if (!lote) {
         return res.status(404).json({ error: 'Import batch not found' });
@@ -506,7 +506,7 @@ describe('E2E Import Workflow', () => {
 
       const linhas = db
         .prepare('SELECT dados_brutos FROM importacao_linhas WHERE lote_id = ?')
-        .all(loteId) as any[];
+        .all(loteId) as unknown[];
 
       const data = linhas.map((l) => JSON.parse(l.dados_brutos));
       const duplicates = await duplicateDetector.detectDuplicates(db, 'test-user', data, lote.arquivo_hash);
@@ -519,7 +519,7 @@ describe('E2E Import Workflow', () => {
       const { loteId } = req.params;
       const lote = db
         .prepare('SELECT * FROM importacao_lotes WHERE id = ? AND usuario_id = ?')
-        .get(loteId, 'test-user') as any;
+        .get(loteId, 'test-user') as unknown;
 
       if (!lote) {
         return res.status(404).json({ error: 'Import batch not found' });
@@ -530,7 +530,7 @@ describe('E2E Import Workflow', () => {
           .prepare(
             'SELECT * FROM importacao_linhas WHERE lote_id = ? AND status IN ("VALIDADA", "IGNORADA") ORDER BY numero_linha'
           )
-          .all(loteId) as any[];
+          .all(loteId) as unknown[];
 
         let successCount = 0;
 
@@ -571,7 +571,7 @@ describe('E2E Import Workflow', () => {
           successCount,
           totalLines: linhas.length,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         res.status(500).json({ error: error.message });
       }
     });
@@ -642,7 +642,7 @@ describe('E2E Import Workflow', () => {
 
       const entries = db
         .prepare('SELECT COUNT(*) as count FROM ledger_entries WHERE referencia_externa = ?')
-        .get(loteId) as any;
+        .get(loteId) as unknown;
 
       expect(entries.count).toBeGreaterThan(0);
     });
@@ -861,7 +861,7 @@ describe('E2E Import Workflow', () => {
 
       const lote = db
         .prepare('SELECT status FROM importacao_lotes WHERE id = ?')
-        .get(loteId) as any;
+        .get(loteId) as unknown;
 
       expect(lote.status).toBe('ERRO');
     });
@@ -904,14 +904,14 @@ describe('E2E Import Workflow', () => {
       // Verify lote exists
       const lote = db
         .prepare('SELECT * FROM importacao_lotes WHERE id = ?')
-        .get(loteId) as any;
+        .get(loteId) as unknown;
       expect(lote).toBeDefined();
       expect(lote.usuario_id).toBe('test-user');
 
       // Verify linhas are linked to lote
       const linhas = db
         .prepare('SELECT COUNT(*) as count FROM importacao_linhas WHERE lote_id = ?')
-        .get(loteId) as any;
+        .get(loteId) as unknown;
       expect(linhas.count).toBeGreaterThan(0);
     });
 
@@ -933,7 +933,7 @@ describe('E2E Import Workflow', () => {
       // Check linhas are also deleted
       const linhas = db
         .prepare('SELECT COUNT(*) as count FROM importacao_linhas WHERE lote_id = ?')
-        .get(loteId) as any;
+        .get(loteId) as unknown;
 
       expect(linhas.count).toBe(0);
     });
@@ -1004,7 +1004,7 @@ describe('E2E Import Workflow', () => {
 
       const entry = db
         .prepare('SELECT * FROM ledger_entries WHERE referencia_externa = ? LIMIT 1')
-        .get(loteId) as any;
+        .get(loteId) as unknown;
 
       expect(entry).toBeDefined();
       expect(entry.tipo).toBe('receita');
@@ -1030,7 +1030,7 @@ describe('E2E Import Workflow', () => {
 
       const entries = db
         .prepare('SELECT COUNT(*) as count FROM ledger_entries WHERE referencia_externa = ?')
-        .get(loteId) as any;
+        .get(loteId) as unknown;
 
       expect(entries.count).toBeGreaterThan(0);
     });

@@ -68,7 +68,7 @@ function createTestDatabase(): Database.Database {
   return db;
 }
 
-function insertAgente(db: Database.Database, agente: any) {
+function insertAgente(db: Database.Database, agente: unknown) {
   const sql = `
     INSERT INTO agentes_economicos (
       id, tipo_entidade, cpf_cnpj, nome, nome_fantasia,
@@ -133,7 +133,7 @@ describe('Agentes Integration Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(2);
     });
@@ -162,7 +162,7 @@ describe('Agentes Integration Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(1);  // Only first agent was inserted
     });
@@ -197,7 +197,7 @@ describe('Agentes Integration Tests', () => {
 
       const vinculacoes = db.prepare(
         'SELECT * FROM agentes_vinculacoes WHERE agente_id = ?'
-      ).all(agent.id) as any[];
+      ).all(agent.id) as unknown[];
 
       expect(vinculacoes.length).toBe(1);
     });
@@ -212,7 +212,7 @@ describe('Agentes Integration Tests', () => {
 
       const duplicates = db.prepare(
         'SELECT * FROM agentes_economicos WHERE cpf_cnpj = ?'
-      ).all(agent1.cpf_cnpj) as any[];
+      ).all(agent1.cpf_cnpj) as unknown[];
 
       expect(duplicates.length).toBe(2);
     });
@@ -299,7 +299,7 @@ describe('Agentes Integration Tests', () => {
 
       const duplicata = db.prepare(
         'SELECT * FROM agentes_duplicatas_suspeitas WHERE agente_id_1 = ?'
-      ).get(agent1.id) as any;
+      ).get(agent1.id) as unknown;
 
       expect(duplicata).toBeDefined();
       expect(duplicata.score).toBe(75);
@@ -381,14 +381,14 @@ describe('Agentes Integration Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(10);
 
       // Verify no duplicates by CPF
       const cpfs = db.prepare(
         'SELECT cpf_cnpj, COUNT(*) as count FROM agentes_economicos GROUP BY cpf_cnpj'
-      ).all() as any[];
+      ).all() as unknown[];
 
       cpfs.forEach(row => {
         expect(row.count).toBe(1);
@@ -427,7 +427,7 @@ describe('Agentes Integration Tests', () => {
 
       const initialCreatedBy = db.prepare(
         'SELECT criado_por FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(initialCreatedBy.criado_por).toBe(TEST_ADMIN_USER.id);
 
@@ -453,7 +453,7 @@ describe('Agentes Integration Tests', () => {
       // criado_por should remain unchanged
       const finalCreatedBy = db.prepare(
         'SELECT criado_por, nome FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(finalCreatedBy.criado_por).toBe(TEST_ADMIN_USER.id);
       expect(finalCreatedBy.nome).toBe('Update 3');
@@ -489,7 +489,7 @@ describe('Agentes Integration Tests', () => {
 
       const record = db.prepare(
         'SELECT criado_em, atualizado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       const created = new Date(record.criado_em);
       const updated = new Date(record.atualizado_em);
@@ -507,7 +507,7 @@ describe('Agentes Integration Tests', () => {
 
       const agentRecord = db.prepare(
         'SELECT criado_por, atualizado_por FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       const user = db.prepare(
         'SELECT * FROM usuarios WHERE id = ?'
@@ -543,7 +543,7 @@ describe('Agentes Integration Tests', () => {
       // Verify vinculação exists
       let vinculacoes = db.prepare(
         'SELECT * FROM agentes_vinculacoes WHERE agente_id = ?'
-      ).all(agent.id) as any[];
+      ).all(agent.id) as unknown[];
       expect(vinculacoes.length).toBe(1);
 
       // Delete agent (should cascade)
@@ -552,7 +552,7 @@ describe('Agentes Integration Tests', () => {
       // Verify vinculações were cascaded deleted
       vinculacoes = db.prepare(
         'SELECT * FROM agentes_vinculacoes WHERE agente_id = ?'
-      ).all(agent.id) as any[];
+      ).all(agent.id) as unknown[];
       expect(vinculacoes.length).toBe(0);
     });
 
@@ -572,7 +572,7 @@ describe('Agentes Integration Tests', () => {
 
       agents.forEach(a => insertAgente(db, a));
 
-      const allAgents = db.prepare('SELECT * FROM agentes_economicos').all() as any[];
+      const allAgents = db.prepare('SELECT * FROM agentes_economicos').all() as unknown[];
 
       allAgents.forEach(agent => {
         const isCPF = agent.cpf_cnpj.length === 11;
@@ -639,7 +639,7 @@ describe('Agentes Integration Tests', () => {
          LEFT JOIN agentes_vinculacoes avl ON ae.id = avl.agente_id
          WHERE ae.id = ?
          GROUP BY ae.id`
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(agentWithData).toBeDefined();
       expect(agentWithData.validacoes_count).toBe(1);

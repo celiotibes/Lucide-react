@@ -348,7 +348,7 @@ export function criarRotasAgentesPapeis({
       const agrupado: Record<PapelAgente, Array<{
         papel_usuario: PapelUsuario;
         acoes: AcaoPermissao[];
-      }>> = {} as any;
+      }>> = {} as unknown;
 
       resultado.forEach((p) => {
         if (!agrupado[p.papel_agente]) {

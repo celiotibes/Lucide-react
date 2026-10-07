@@ -103,7 +103,7 @@ function createTestApp(): { app: Express; db: Database.Database } {
 
   // Middleware para adicionar usuário
   app.use((req, res, next) => {
-    (req as any).usuario = { id: "user-1" };
+    (req as unknown).usuario = { id: "user-1" };
     next();
   });
 
@@ -308,7 +308,7 @@ describe("POST /api/agentes", () => {
       expect(res.status).toBe(201);
       const agente = db
         .prepare("SELECT tags FROM agentes_economicos WHERE id = ?")
-        .get(res.body.id) as any;
+        .get(res.body.id) as unknown;
       expect(agente.tags).toBe("ativo,prioritario");
     });
   });
@@ -385,7 +385,7 @@ describe("POST /api/agentes/:id/validar", () => {
     // Verifica registro
     const validacoes = db
       .prepare("SELECT * FROM agentes_validacoes WHERE agente_id = ?")
-      .all(agenteId) as any[];
+      .all(agenteId) as unknown[];
 
     expect(validacoes.length).toBeGreaterThan(0);
   });
@@ -589,7 +589,7 @@ describe("GET /api/agentes", () => {
 
     expect(res.status).toBe(200);
     expect(
-      res.body.agentes.every((a: any) => a.tipo_entidade === "pessoa_fisica")
+      res.body.agentes.every((a: unknown) => a.tipo_entidade === "pessoa_fisica")
     ).toBe(true);
   });
 
@@ -597,7 +597,7 @@ describe("GET /api/agentes", () => {
     const res = await request(app).get("/api/agentes?papel=supplier");
 
     expect(res.status).toBe(200);
-    res.body.agentes.forEach((a: any) => {
+    res.body.agentes.forEach((a: unknown) => {
       expect(a.papel).toContain("supplier");
     });
   });
@@ -646,7 +646,7 @@ describe("PUT /api/agentes/:id", () => {
     // Verifica atualização
     const agente = db
       .prepare("SELECT * FROM agentes_economicos WHERE id = ?")
-      .get(id) as any;
+      .get(id) as unknown;
     expect(agente.email).toBe("novo@example.com");
   });
 

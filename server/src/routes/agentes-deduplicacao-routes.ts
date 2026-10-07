@@ -292,7 +292,7 @@ export function setupAgentesDeduplicacaoRoutes(
         GROUP BY status`
       );
 
-      const stats = stmt.all() as any[];
+      const stats = stmt.all() as unknown[];
 
       // Total de agentes
       const totalAgentes = db
@@ -445,7 +445,7 @@ export function setupAgentesDeduplicacaoRoutes(
           LIMIT ?`
         );
 
-        const duplicatas = stmt.all(usuarioId, limite) as any[];
+        const duplicatas = stmt.all(usuarioId, limite) as unknown[];
 
         return res.json({
           usuario_id: usuarioId,

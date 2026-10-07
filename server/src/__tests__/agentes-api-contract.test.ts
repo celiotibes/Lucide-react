@@ -17,8 +17,6 @@ import {
   ValidacaoAgenteSchema,
   DuplicataSchema,
   VinculacaoSchema,
-  TipoEntidade,
-  PapelAgente,
   TipoValidacao,
   ResultadoValidacao,
   MotivoDuplicata,
@@ -26,11 +24,9 @@ import {
 } from '../domain/erp/agentes-tipos.js';
 import {
   createSamplePessoaFisicaTenant,
-  createSamplePessoaJuridicaSupplier,
   VALID_CPFS,
   VALID_CNPJS,
   INVALID_DOCUMENTS,
-  TEST_ADMIN_USER,
 } from './fixtures/agentes-fixtures.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -77,7 +73,7 @@ describe('Agentes API Contract Tests', () => {
     it('should return 201 with location header for successful creation', () => {
       const agent = createSamplePessoaFisicaTenant();
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 201,
         data: {
           id: agent.id,
@@ -95,7 +91,7 @@ describe('Agentes API Contract Tests', () => {
     it('should return agent with complete data', () => {
       const agent = createSamplePessoaFisicaTenant();
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 200,
         data: agent,
       };
@@ -109,7 +105,7 @@ describe('Agentes API Contract Tests', () => {
     it('should return list of agents with pagination metadata', () => {
       const agents = Array(3).fill(null).map(() => createSamplePessoaFisicaTenant());
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 200,
         data: {
           items: agents,
@@ -146,7 +142,7 @@ describe('Agentes API Contract Tests', () => {
         email: 'updated@test.com',
       });
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 200,
         data: updated,
       };
@@ -158,7 +154,7 @@ describe('Agentes API Contract Tests', () => {
 
   describe('Delete Agent - Happy Path (204)', () => {
     it('should return 204 on successful soft delete', () => {
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 204,
       };
 
@@ -179,7 +175,7 @@ describe('Agentes API Contract Tests', () => {
       expect(result.success).toBe(false);
 
       if (!result.success) {
-        const response: ApiResponse<any> = {
+        const response: ApiResponse<unknown> = {
           status: 400,
           errors: {
             tipo_entidade: ['tipo_entidade is required'],
@@ -214,7 +210,7 @@ describe('Agentes API Contract Tests', () => {
       expect(result.success).toBe(false);
 
       if (!result.success) {
-        const response: ApiResponse<any> = {
+        const response: ApiResponse<unknown> = {
           status: 400,
           errors: {
             cpf_cnpj: ['CPF com dígitos verificadores inválidos'],
@@ -300,7 +296,7 @@ describe('Agentes API Contract Tests', () => {
 
   describe('Authorization Failures (403)', () => {
     it('should reject creation without admin role', () => {
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 403,
         message: 'Insufficient permissions to create agent',
       };
@@ -312,7 +308,7 @@ describe('Agentes API Contract Tests', () => {
     it('should reject deletion by non-admin user', () => {
       const agentId = uuidv4();
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 403,
         message: `User does not have permission to delete agent ${agentId}`,
       };
@@ -321,7 +317,7 @@ describe('Agentes API Contract Tests', () => {
     });
 
     it('should reject update of another user\'s agent by non-owner', () => {
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 403,
         message: 'User does not have permission to update this agent',
       };
@@ -330,7 +326,7 @@ describe('Agentes API Contract Tests', () => {
     });
 
     it('should reject unauthenticated request', () => {
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 403,
         message: 'Authentication required',
       };
@@ -341,7 +337,7 @@ describe('Agentes API Contract Tests', () => {
 
   describe('Conflict Responses (409)', () => {
     it('should return 409 for duplicate CPF', () => {
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 409,
         message: 'Agent with this CPF/CNPJ already exists',
         data: {
@@ -355,7 +351,7 @@ describe('Agentes API Contract Tests', () => {
     });
 
     it('should return 409 for duplicate CNPJ', () => {
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 409,
         message: 'Agent with this CPF/CNPJ already exists',
         data: {
@@ -370,7 +366,7 @@ describe('Agentes API Contract Tests', () => {
     it('should include existing agent ID in conflict response', () => {
       const existingId = uuidv4();
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 409,
         message: 'Agent with this CPF/CNPJ already exists',
         data: {
@@ -383,7 +379,7 @@ describe('Agentes API Contract Tests', () => {
     });
 
     it('should return 409 for constraint violation', () => {
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 409,
         message: 'UNIQUE constraint violation: cpf_cnpj',
       };
@@ -396,7 +392,7 @@ describe('Agentes API Contract Tests', () => {
     it('should return 404 for non-existent agent', () => {
       const nonExistentId = uuidv4();
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 404,
         message: `Agent with ID ${nonExistentId} not found`,
       };
@@ -407,7 +403,7 @@ describe('Agentes API Contract Tests', () => {
     it('should return 404 for deleted agent (soft delete)', () => {
       const agentId = uuidv4();
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 404,
         message: `Agent with ID ${agentId} not found or is inactive`,
       };
@@ -418,7 +414,7 @@ describe('Agentes API Contract Tests', () => {
     it('should include requested ID in 404 response', () => {
       const requestedId = uuidv4();
 
-      const response: ApiResponse<any> = {
+      const response: ApiResponse<unknown> = {
         status: 404,
         message: `Agent ${requestedId} not found`,
       };

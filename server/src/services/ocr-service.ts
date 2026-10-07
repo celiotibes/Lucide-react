@@ -52,9 +52,9 @@ const INVOICE_PATTERNS = {
   cpf: /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g,
 
   // Invoice numbers and dates
-  invoiceNumber: /(?:nf|nota|invoice|fatura)[\s\-:]*[#]?[\s]*(\d{1,8})/gi,
-  invoiceDate: /(?:data|date|emissão)[\s\-:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-  dueDate: /(?:vencimento|due|vence)[\s\-:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+  invoiceNumber: /(?:nf|nota|invoice|fatura)[\s-:]*[#]?[\s]*(\d{1,8})/gi,
+  invoiceDate: /(?:data|date|emissão)[\s-:]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/gi,
+  dueDate: /(?:vencimento|due|vence)[\s-:]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/gi,
 
   // Amount patterns
   amount: /(?:total|valor|amount|R\$|€|£|\$)[\s]*([0-9]{1,3}(?:[.,][0-9]{3})*[.,][0-9]{2})/gi,
@@ -122,7 +122,7 @@ export async function extractTextFromPDF(pdfBuffer: Buffer): Promise<OCRExtracti
       const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
-        .map((item: any) => item.str || "")
+        .map((item: unknown) => item.str || "")
         .join(" ");
       fullText += `[PAGE ${pageNum}]\n${pageText}\n\n`;
     }

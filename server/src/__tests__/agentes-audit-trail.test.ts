@@ -17,7 +17,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import {
   createSamplePessoaFisicaTenant,
-  createSamplePessoaJuridicaSupplier,
   TEST_ADMIN_USER,
   TEST_REGULAR_USER,
 } from './fixtures/agentes-fixtures.js';
@@ -64,7 +63,7 @@ function createTestDatabase(): Database.Database {
   return db;
 }
 
-function insertAgente(db: Database.Database, agente: any) {
+function insertAgente(db: Database.Database, agente: unknown) {
   const sql = `
     INSERT INTO agentes_economicos (
       id, tipo_entidade, cpf_cnpj, nome, nome_fantasia,
@@ -119,7 +118,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const record = db.prepare(
         'SELECT criado_por FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(record.criado_por).toBe(TEST_ADMIN_USER.id);
     });
@@ -138,7 +137,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const record = db.prepare(
         'SELECT criado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       const createdAt = new Date(record.criado_em);
 
@@ -156,7 +155,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const record = db.prepare(
         'SELECT criado_por, atualizado_por FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(record.criado_por).toBe(record.atualizado_por);
     });
@@ -187,7 +186,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const validation = db.prepare(
         'SELECT * FROM agentes_validacoes WHERE id = ?'
-      ).get(validacaoId) as any;
+      ).get(validacaoId) as unknown;
 
       expect(validation).toBeDefined();
       expect(validation.agente_id).toBe(agent.id);
@@ -217,7 +216,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const record = db.prepare(
         'SELECT criado_por, atualizado_por, nome FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(record.criado_por).toBe(TEST_ADMIN_USER.id);
       expect(record.atualizado_por).toBe(TEST_REGULAR_USER.id);
@@ -231,10 +230,6 @@ describe('Agentes Audit Trail Tests', () => {
       });
 
       insertAgente(db, agent);
-
-      const originalUpdated = db.prepare(
-        'SELECT atualizado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
 
       // Wait a bit
       const delay = () => new Promise(resolve => setTimeout(resolve, 10));
@@ -255,7 +250,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const updatedRecord = db.prepare(
         'SELECT atualizado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       const updatedAt = new Date(updatedRecord.atualizado_em);
 
@@ -273,7 +268,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const originalCriado = db.prepare(
         'SELECT criado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       db.prepare(
         'UPDATE agentes_economicos SET nome = ?, atualizado_em = ?, atualizado_por = ? WHERE id = ?'
@@ -286,7 +281,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const afterUpdate = db.prepare(
         'SELECT criado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(afterUpdate.criado_em).toBe(originalCriado.criado_em);
     });
@@ -310,7 +305,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const record = db.prepare(
         'SELECT criado_por FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(record.criado_por).toBe(TEST_ADMIN_USER.id);
     });
@@ -342,7 +337,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const finalRecord = db.prepare(
         'SELECT nome, atualizado_por, criado_por FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(finalRecord.nome).toBe('Update 3');
       expect(finalRecord.atualizado_por).toBe(TEST_ADMIN_USER.id);
@@ -370,7 +365,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const record = db.prepare(
         'SELECT ativo, atualizado_por FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(record.ativo).toBe(0);
       expect(record.atualizado_por).toBe(TEST_REGULAR_USER.id);
@@ -384,10 +379,6 @@ describe('Agentes Audit Trail Tests', () => {
 
       insertAgente(db, agent);
 
-      const originalCriado = db.prepare(
-        'SELECT criado_by, criado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
-
       db.prepare(
         'UPDATE agentes_economicos SET ativo = 0, atualizado_em = ?, atualizado_por = ? WHERE id = ?'
       ).run(
@@ -398,7 +389,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const afterDelete = db.prepare(
         'SELECT criado_por, criado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(afterDelete.criado_por).toBeDefined();
       expect(afterDelete.criado_em).toBeDefined();
@@ -438,7 +429,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const records = db.prepare(
         'SELECT tipo_validacao, resultado FROM agentes_validacoes WHERE agente_id = ? ORDER BY executado_em'
-      ).all(agent.id) as any[];
+      ).all(agent.id) as unknown[];
 
       expect(records.length).toBe(3);
       expect(records[0].tipo_validacao).toBe('cpf_cnpj');
@@ -470,7 +461,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const validation = db.prepare(
         'SELECT executado_por FROM agentes_validacoes WHERE agente_id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(validation.executado_por).toBe(TEST_REGULAR_USER.id);
     });
@@ -512,7 +503,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const duplicata = db.prepare(
         'SELECT criado_por FROM agentes_duplicatas_suspeitas WHERE id = ?'
-      ).get(duplicataId) as any;
+      ).get(duplicataId) as unknown;
 
       expect(duplicata.criado_por).toBe(TEST_ADMIN_USER.id);
     });
@@ -563,7 +554,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const analyzed = db.prepare(
         'SELECT status, analisado_por, decisao FROM agentes_duplicatas_suspeitas WHERE id = ?'
-      ).get(duplicataId) as any;
+      ).get(duplicataId) as unknown;
 
       expect(analyzed.status).toBe('refutada');
       expect(analyzed.analisado_por).toBe(TEST_REGULAR_USER.id);
@@ -600,7 +591,7 @@ describe('Agentes Audit Trail Tests', () => {
 
       const vinculacao = db.prepare(
         'SELECT criado_por FROM agentes_vinculacoes WHERE id = ?'
-      ).get(vinculacaoId) as any;
+      ).get(vinculacaoId) as unknown;
 
       expect(vinculacao.criado_por).toBe(TEST_REGULAR_USER.id);
     });
@@ -619,7 +610,7 @@ describe('Agentes Audit Trail Tests', () => {
         `SELECT criado_em, criado_por, atualizado_em, atualizado_por,
                 validado, validado_em, validado_por
          FROM agentes_economicos WHERE id = ?`
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(record.criado_em).toBeDefined();
       expect(record.criado_por).toBeDefined();

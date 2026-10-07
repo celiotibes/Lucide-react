@@ -60,7 +60,7 @@ function createTestDatabase(): Database.Database {
   return db;
 }
 
-function insertAgente(db: Database.Database, agente: any) {
+function insertAgente(db: Database.Database, agente: unknown) {
   const sql = `
     INSERT INTO agentes_economicos (
       id, tipo_entidade, cpf_cnpj, nome, nome_fantasia,
@@ -143,7 +143,7 @@ describe('Agentes Database Constraints Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(2);
     });
@@ -299,7 +299,7 @@ describe('Agentes Database Constraints Tests', () => {
       validPapeis.forEach((papel, index) => {
         const agent = createSamplePessoaFisicaTenant({
           cpf_cnpj: VALID_CPFS[`cpf_${index + 1}` as keyof typeof VALID_CPFS],
-          papel: papel as any,
+          papel: papel as unknown,
           criado_por: TEST_ADMIN_USER.id,
           atualizado_por: TEST_ADMIN_USER.id,
         });
@@ -311,7 +311,7 @@ describe('Agentes Database Constraints Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(validPapeis.length);
     });
@@ -474,7 +474,7 @@ describe('Agentes Database Constraints Tests', () => {
 
       expect(db.prepare(
         'SELECT COUNT(*) as count FROM agentes_vinculacoes WHERE agente_id = ?'
-      ).get(agent.id) as any).toHaveProperty('count', 1);
+      ).get(agent.id) as unknown).toHaveProperty('count', 1);
 
       // Delete agent
       db.prepare('DELETE FROM agentes_economicos WHERE id = ?').run(agent.id);
@@ -482,7 +482,7 @@ describe('Agentes Database Constraints Tests', () => {
       // Verify vinculações were cascade deleted
       expect(db.prepare(
         'SELECT COUNT(*) as count FROM agentes_vinculacoes WHERE agente_id = ?'
-      ).get(agent.id) as any).toHaveProperty('count', 0);
+      ).get(agent.id) as unknown).toHaveProperty('count', 0);
     });
 
     it('should cascade delete validações when agent is deleted', () => {
@@ -506,7 +506,7 @@ describe('Agentes Database Constraints Tests', () => {
 
       expect(db.prepare(
         'SELECT COUNT(*) as count FROM agentes_validacoes WHERE agente_id = ?'
-      ).get(agent.id) as any).toHaveProperty('count', 1);
+      ).get(agent.id) as unknown).toHaveProperty('count', 1);
 
       // Delete agent
       db.prepare('DELETE FROM agentes_economicos WHERE id = ?').run(agent.id);
@@ -514,7 +514,7 @@ describe('Agentes Database Constraints Tests', () => {
       // Verify validações were cascade deleted
       expect(db.prepare(
         'SELECT COUNT(*) as count FROM agentes_validacoes WHERE agente_id = ?'
-      ).get(agent.id) as any).toHaveProperty('count', 0);
+      ).get(agent.id) as unknown).toHaveProperty('count', 0);
     });
 
     it('should cascade delete duplicatas when agent is deleted', () => {
@@ -549,7 +549,7 @@ describe('Agentes Database Constraints Tests', () => {
       // Verify duplicata record was cascade deleted
       const remaining = db.prepare(
         'SELECT COUNT(*) as count FROM agentes_duplicatas_suspeitas WHERE agente_id_1 = ?'
-      ).get(agent1.id) as any;
+      ).get(agent1.id) as unknown;
 
       expect(remaining.count).toBe(0);
     });

@@ -10,20 +10,14 @@
  * - Query agent balance and transactions
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  TEST_ADMIN_CONTEXT,
-  TEST_USER_CONTEXT,
-  TEST_UNAUTHENTICATED_CONTEXT,
   createSamplePessoaFisicaTenant,
   createSamplePessoaJuridicaSupplier,
-  createDuplicateAgentsPair,
-  generateBulkPessoasFisicas,
-  generateBulkPessoasJuridicas,
   VALID_CPFS,
   VALID_CNPJS,
   TEST_ADMIN_USER,
@@ -91,7 +85,7 @@ function createTestDatabase(): Database.Database {
 /**
  * Helper to insert an agent into database
  */
-function insertAgente(db: Database.Database, agente: any) {
+function insertAgente(db: Database.Database, agente: unknown) {
   const sql = `
     INSERT INTO agentes_economicos (
       id, tipo_entidade, cpf_cnpj, nome, nome_fantasia,
@@ -168,7 +162,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const retrieved = db.prepare(
         'SELECT * FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(retrieved).toBeDefined();
       expect(retrieved.tipo_entidade).toBe('pessoa_fisica');
@@ -187,7 +181,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const retrieved = db.prepare(
         'SELECT * FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(retrieved.tipo_entidade).toBe('pessoa_juridica');
       expect(retrieved.nome_fantasia).toBe(agent.nome_fantasia);
@@ -223,14 +217,14 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const validated = db.prepare(
         'SELECT validado, validado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(validated.validado).toBe(1);
       expect(validated.validado_em).toBeDefined();
 
       const validation = db.prepare(
         'SELECT * FROM agentes_validacoes WHERE agente_id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(validation.resultado).toBe('aprovado');
     });
@@ -246,7 +240,7 @@ describe('Agentes E2E Workflow Tests', () => {
       // Agent has papel field that stores a single role
       const retrieved = db.prepare(
         'SELECT * FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(retrieved.papel).toBe('supplier');
     });
@@ -279,7 +273,7 @@ describe('Agentes E2E Workflow Tests', () => {
     it('should list all active agents', () => {
       const agents = db.prepare(
         'SELECT * FROM agentes_economicos WHERE ativo = 1'
-      ).all() as any[];
+      ).all() as unknown[];
 
       expect(agents.length).toBeGreaterThanOrEqual(3);
     });
@@ -287,7 +281,7 @@ describe('Agentes E2E Workflow Tests', () => {
     it('should filter agents by papel', () => {
       const suppliers = db.prepare(
         'SELECT * FROM agentes_economicos WHERE papel = ?'
-      ).all('supplier') as any[];
+      ).all('supplier') as unknown[];
 
       expect(suppliers.length).toBeGreaterThanOrEqual(2);
       suppliers.forEach(s => expect(s.papel).toBe('supplier'));
@@ -296,7 +290,7 @@ describe('Agentes E2E Workflow Tests', () => {
     it('should filter agents by tipo_entidade', () => {
       const pj = db.prepare(
         'SELECT * FROM agentes_economicos WHERE tipo_entidade = ?'
-      ).all('pessoa_juridica') as any[];
+      ).all('pessoa_juridica') as unknown[];
 
       expect(pj.length).toBeGreaterThanOrEqual(2);
       pj.forEach(p => expect(p.tipo_entidade).toBe('pessoa_juridica'));
@@ -305,7 +299,7 @@ describe('Agentes E2E Workflow Tests', () => {
     it('should filter agents by regime_tributario', () => {
       const lucroReal = db.prepare(
         'SELECT * FROM agentes_economicos WHERE regime_tributario = ?'
-      ).all('lucro_real') as any[];
+      ).all('lucro_real') as unknown[];
 
       expect(lucroReal.length).toBeGreaterThanOrEqual(1);
     });
@@ -313,7 +307,7 @@ describe('Agentes E2E Workflow Tests', () => {
     it('should combine multiple filters', () => {
       const filtered = db.prepare(
         'SELECT * FROM agentes_economicos WHERE tipo_entidade = ? AND papel = ? AND ativo = 1'
-      ).all('pessoa_juridica', 'supplier') as any[];
+      ).all('pessoa_juridica', 'supplier') as unknown[];
 
       expect(filtered.length).toBeGreaterThanOrEqual(2);
       filtered.forEach(f => {
@@ -327,11 +321,11 @@ describe('Agentes E2E Workflow Tests', () => {
       const pageSize = 2;
       const page1 = db.prepare(
         'SELECT * FROM agentes_economicos ORDER BY criado_em DESC LIMIT ? OFFSET ?'
-      ).all(pageSize, 0) as any[];
+      ).all(pageSize, 0) as unknown[];
 
       const page2 = db.prepare(
         'SELECT * FROM agentes_economicos ORDER BY criado_em DESC LIMIT ? OFFSET ?'
-      ).all(pageSize, pageSize) as any[];
+      ).all(pageSize, pageSize) as unknown[];
 
       expect(page1.length).toBeLessThanOrEqual(pageSize);
       expect(page2.length).toBeLessThanOrEqual(pageSize);
@@ -362,7 +356,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const updated = db.prepare(
         'SELECT nome, email FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(updated.nome).toBe(newName);
       expect(updated.email).toBe(newEmail);
@@ -386,7 +380,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const updated = db.prepare(
         'SELECT ativo FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(updated.ativo).toBe(0);
     });
@@ -411,7 +405,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const updated = db.prepare(
         'SELECT regime_tributario FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(updated.regime_tributario).toBe('simples');
     });
@@ -426,7 +420,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const originalCreated = db.prepare(
         'SELECT criado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       // Update after delay
       db.prepare(
@@ -440,7 +434,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const afterUpdate = db.prepare(
         'SELECT criado_em FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(afterUpdate.criado_em).toBe(originalCreated.criado_em);
     });
@@ -467,7 +461,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const deleted = db.prepare(
         'SELECT ativo FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(deleted.ativo).toBe(0);
     });
@@ -492,7 +486,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const restored = db.prepare(
         'SELECT ativo FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(restored.ativo).toBe(1);
     });
@@ -517,7 +511,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const active = db.prepare(
         'SELECT * FROM agentes_economicos WHERE ativo = 1'
-      ).all() as any[];
+      ).all() as unknown[];
 
       expect(active.every(a => a.ativo === 1)).toBe(true);
     });
@@ -554,7 +548,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const vinculacao = db.prepare(
         'SELECT * FROM agentes_vinculacoes WHERE id = ?'
-      ).get(vinculacaoId) as any;
+      ).get(vinculacaoId) as unknown;
 
       expect(vinculacao).toBeDefined();
       expect(vinculacao.agente_id).toBe(agent.id);
@@ -591,7 +585,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const vinculacoes = db.prepare(
         'SELECT * FROM agentes_vinculacoes WHERE agente_id = ? AND ativo = 1'
-      ).all(agent.id) as any[];
+      ).all(agent.id) as unknown[];
 
       expect(vinculacoes.length).toBe(3);
     });
@@ -608,7 +602,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const retrieved = db.prepare(
         'SELECT * FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(retrieved).toBeDefined();
       expect(retrieved.id).toBe(agent.id);
@@ -644,7 +638,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_vinculacoes WHERE agente_id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
 
       expect(count.total).toBe(5);
     });
@@ -661,7 +655,7 @@ describe('Agentes E2E Workflow Tests', () => {
       insertAgente(db, agent);
       const created = db.prepare(
         'SELECT * FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
       expect(created).toBeDefined();
 
       // 2. Validate
@@ -675,7 +669,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const validated = db.prepare(
         'SELECT validado FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
       expect(validated.validado).toBe(1);
 
       // 3. Link to ledger
@@ -698,7 +692,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const linked = db.prepare(
         'SELECT COUNT(*) as count FROM agentes_vinculacoes WHERE agente_id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
       expect(linked.count).toBe(1);
 
       // 4. Update
@@ -713,7 +707,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const updated = db.prepare(
         'SELECT regime_tributario FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
       expect(updated.regime_tributario).toBe('simples');
 
       // 5. Delete
@@ -727,7 +721,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const deleted = db.prepare(
         'SELECT ativo FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
       expect(deleted.ativo).toBe(0);
 
       // 6. Restore
@@ -741,7 +735,7 @@ describe('Agentes E2E Workflow Tests', () => {
 
       const restored = db.prepare(
         'SELECT ativo FROM agentes_economicos WHERE id = ?'
-      ).get(agent.id) as any;
+      ).get(agent.id) as unknown;
       expect(restored.ativo).toBe(1);
     });
   });

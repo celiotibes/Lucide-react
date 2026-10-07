@@ -55,7 +55,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
       }
 
       const dados = validacao.data;
-      const usuarioId = (req as any).usuario?.id || "sistema";
+      const usuarioId = (req as unknown).usuario?.id || "sistema";
 
       // Normaliza CPF/CNPJ
       const cpfCnpj = cleanCPFCNPJ(dados.cpf_cnpj);
@@ -188,12 +188,12 @@ export function createAgentesRoutes(db: Database.Database): Router {
   router.post("/:id/validar", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const usuarioId = (req as any).usuario?.id || "sistema";
+      const usuarioId = (req as unknown).usuario?.id || "sistema";
 
       // Obtém agente
       const agente = db
         .prepare("SELECT * FROM agentes_economicos WHERE id = ?")
-        .get(id) as any;
+        .get(id) as unknown;
 
       if (!agente) {
         return res.status(404).json({
@@ -264,7 +264,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
       // Obtém agente
       const agente = db
         .prepare("SELECT * FROM agentes_economicos WHERE id = ?")
-        .get(id) as any;
+        .get(id) as unknown;
 
       if (!agente) {
         return res.status(404).json({
@@ -324,7 +324,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
           ORDER BY executado_em DESC
         `
         )
-        .all(id) as any[];
+        .all(id) as unknown[];
 
       const validacoesFormatadas = validacoes.map((v) => ({
         id: v.id,
@@ -362,7 +362,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
 
       const agente = db
         .prepare("SELECT * FROM agentes_economicos WHERE id = ?")
-        .get(id) as any;
+        .get(id) as unknown;
 
       if (!agente) {
         return res.status(404).json({
@@ -405,12 +405,12 @@ export function createAgentesRoutes(db: Database.Database): Router {
   router.put("/:id", (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const usuarioId = (req as any).usuario?.id || "sistema";
+      const usuarioId = (req as unknown).usuario?.id || "sistema";
 
       // Verifica se agente existe
       const agente = db
         .prepare("SELECT * FROM agentes_economicos WHERE id = ?")
-        .get(id) as any;
+        .get(id) as unknown;
 
       if (!agente) {
         return res.status(404).json({
@@ -432,7 +432,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
 
       // Prepara UPDATE dinâmico
       const campos: string[] = [];
-      const valores: any[] = [];
+      const valores: unknown[] = [];
 
       Object.entries(dados).forEach(([chave, valor]) => {
         if (valor !== undefined) {
@@ -483,7 +483,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
 
       // Monta WHERE dinamicamente
       const conditions: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (tipo) {
         conditions.push("tipo_entidade = ?");
@@ -510,7 +510,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
       // Total
       const total = db
         .prepare(`SELECT COUNT(*) as count FROM agentes_economicos ${where}`)
-        .get(...params) as any;
+        .get(...params) as unknown;
 
       // Paginação
       const agentes = db
@@ -522,7 +522,7 @@ export function createAgentesRoutes(db: Database.Database): Router {
           LIMIT ? OFFSET ?
         `
         )
-        .all(...params, limit, offset) as any[];
+        .all(...params, limit, offset) as unknown[];
 
       return res.json({
         total: total.count,

@@ -35,7 +35,7 @@ class MockAuthService implements Partial<AuthServiceDB> {
 }
 
 class MockAuditService implements Partial<AuditTrailServiceDB> {
-  registrarAcao = (contexto: any, acao: string, recurso: string, id: string, dados: any) => {
+  registrarAcao = (contexto: unknown, acao: string, recurso: string, id: string, dados: unknown) => {
     // Mock implementation
   };
 }
@@ -173,8 +173,8 @@ describe("Rotas de Agentes Econômicos", () => {
 
     const router = criarRotasAgentesEconomicos({
       db,
-      authService: mockAuthService as any,
-      auditService: mockAuditService as any,
+      authService: mockAuthService as unknown,
+      auditService: mockAuditService as unknown,
     });
 
     app.use("/api/v1/agentes-economicos", router);
@@ -366,7 +366,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .set("Authorization", `Bearer ${validToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.agentes.every((a: any) => a.papel === "tenant")).toBe(true);
+      expect(res.body.agentes.every((a: unknown) => a.papel === "tenant")).toBe(true);
     });
 
     it("deve filtrar por tipo de entidade", async () => {
@@ -380,7 +380,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .set("Authorization", `Bearer ${validToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.agentes.every((a: any) => a.tipo_entidade === "pessoa_fisica")).toBe(true);
+      expect(res.body.agentes.every((a: unknown) => a.tipo_entidade === "pessoa_fisica")).toBe(true);
     });
 
     it("deve filtrar por status ativo", async () => {
@@ -399,7 +399,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .set("Authorization", `Bearer ${validToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.agentes.every((a: any) => a.ativo === true)).toBe(true);
+      expect(res.body.agentes.every((a: unknown) => a.ativo === true)).toBe(true);
     });
 
     it("deve buscar por nome", async () => {
@@ -640,7 +640,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .get("/api/v1/agentes-economicos?ativo=true")
         .set("Authorization", `Bearer ${validToken}`);
 
-      expect(res.body.agentes.every((a: any) => a.id !== agenteId)).toBe(true);
+      expect(res.body.agentes.every((a: unknown) => a.id !== agenteId)).toBe(true);
     });
   });
 

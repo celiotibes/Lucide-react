@@ -27,24 +27,6 @@ const TIPOS_ACEITOS_PADRAO = [
 ];
 
 /**
- * Obter tipo de arquivo a partir da extensão
- */
-function obterTipoArquivo(nomeArquivo: string): FileType | null {
-  const extensao = nomeArquivo.split('.').pop()?.toLowerCase();
-  const mapa: Record<string, FileType> = {
-    ofx: 'OFX' as FileType,
-    qbo: 'OFX' as FileType,
-    csv: 'CSV' as FileType,
-    txt: 'CSV' as FileType,
-    pdf: 'PDF' as FileType,
-    jpg: 'JPEG' as FileType,
-    jpeg: 'JPEG' as FileType,
-    png: 'PNG' as FileType,
-  };
-  return mapa[extensao || ''] || null;
-}
-
-/**
  * Formatar tamanho de arquivo para exibição
  */
 function formatarTamanho(bytes: number): string {

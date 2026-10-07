@@ -92,7 +92,7 @@ export function criarRotasAgentesEconomicos({
       });
 
       res.json(resultado);
-    } catch (erro: any) {
+    } catch (erro: unknown) {
       logger.error("Erro ao listar agentes", { erro });
       res.status(500).json({ erro: "Erro ao listar agentes" });
     }
@@ -141,7 +141,7 @@ export function criarRotasAgentesEconomicos({
         });
 
         res.status(201).json({ agente });
-      } catch (erro: any) {
+      } catch (erro: unknown) {
         if (erro.message.includes("já existe")) {
           auditService.registrarAcao(req.auth, "criar_agente", "agentes_economicos", "falha", {
             descricao: `Tentativa de criar agente com CPF/CNPJ duplicado`,
@@ -153,7 +153,7 @@ export function criarRotasAgentesEconomicos({
 
         throw erro;
       }
-    } catch (erro: any) {
+    } catch (erro: unknown) {
       logger.error("Erro ao criar agente", { erro });
       res.status(500).json({ erro: "Erro ao criar agente" });
     }
@@ -185,7 +185,7 @@ export function criarRotasAgentesEconomicos({
       });
 
       res.json({ agente });
-    } catch (erro: any) {
+    } catch (erro: unknown) {
       logger.error("Erro ao obter agente", { erro });
       res.status(500).json({ erro: "Erro ao obter agente" });
     }
@@ -245,7 +245,7 @@ export function criarRotasAgentesEconomicos({
         });
 
         res.json({ agente: agenteAtualizado });
-      } catch (erro: any) {
+      } catch (erro: unknown) {
         if (erro.message.includes("não encontrado")) {
           return res.status(404).json({ erro: erro.message });
         }
@@ -261,7 +261,7 @@ export function criarRotasAgentesEconomicos({
 
         throw erro;
       }
-    } catch (erro: any) {
+    } catch (erro: unknown) {
       logger.error("Erro ao atualizar agente", { erro });
       res.status(500).json({ erro: "Erro ao atualizar agente" });
     }
@@ -300,7 +300,7 @@ export function criarRotasAgentesEconomicos({
       });
 
       res.json({ agente: agenteDesativado });
-    } catch (erro: any) {
+    } catch (erro: unknown) {
       logger.error("Erro ao desativar agente", { erro });
       res.status(500).json({ erro: "Erro ao desativar agente" });
     }
@@ -336,7 +336,7 @@ export function criarRotasAgentesEconomicos({
       });
 
       res.json({ duplicatas });
-    } catch (erro: any) {
+    } catch (erro: unknown) {
       logger.error("Erro ao listar duplicatas", { erro });
       res.status(500).json({ erro: "Erro ao listar duplicatas" });
     }

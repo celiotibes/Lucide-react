@@ -132,8 +132,8 @@ function normalizarCPFCNPJ(cpfCnpj: string): string {
  * Calcula score para endereços (match de componentes principais)
  */
 function calcularScoreEndereco(
-  endereco1: any,
-  endereco2: any
+  endereco1: unknown,
+  endereco2: unknown
 ): { score: number; diferenca: string | null } {
   if (!endereco1 || !endereco2) {
     return { score: 0, diferenca: "Endereço ausente em um dos agentes" };
@@ -217,7 +217,7 @@ export class AgentesDeduplicacaoService {
       const stmt = this.db.prepare(
         `SELECT * FROM agentes_economicos WHERE id = ?`
       );
-      const agente1 = stmt.get(agenteId) as any;
+      const agente1 = stmt.get(agenteId) as unknown;
 
       if (!agente1) {
         throw new Error(`Agente ${agenteId} não encontrado`);
@@ -252,7 +252,7 @@ export class AgentesDeduplicacaoService {
         agenteId,
         agenteId,
         agenteId
-      ) as any[];
+      ) as unknown[];
 
       const candidatos: DuplicateAgentCandidate[] = [];
 
@@ -303,7 +303,7 @@ export class AgentesDeduplicacaoService {
          ORDER BY tipo_entidade, nome`
       );
 
-      const agentes = stmtAgentes.all() as any[];
+      const agentes = stmtAgentes.all() as unknown[];
 
       // Para cada agente, buscar duplicatas
       for (let i = 0; i < agentes.length; i++) {
@@ -345,8 +345,8 @@ export class AgentesDeduplicacaoService {
    * 4. Email/Telefone = até 15 pontos
    */
   private _calcularScoreDuplicata(
-    agente1: any,
-    agente2: any
+    agente1: unknown,
+    agente2: unknown
   ): DuplicateAgentCandidate {
     const motivos: string[] = [];
     let score = 0;
@@ -523,10 +523,10 @@ export class AgentesDeduplicacaoService {
         );
         const agentePrimario = stmtGet.get(
           request.agente_primario_id
-        ) as any;
+        ) as unknown;
         const agenteDuplicado = stmtGet.get(
           request.agente_duplicado_id
-        ) as any;
+        ) as unknown;
 
         if (!agentePrimario || !agenteDuplicado) {
           throw new Error("Um ou ambos os agentes não encontrados");
@@ -555,7 +555,7 @@ export class AgentesDeduplicacaoService {
 
           const changesLedger = this.db.exec(
             "SELECT changes() as count"
-          ) as any;
+          ) as unknown;
           totalTransacoesMigradas = changesLedger[0]?.count || 0;
         } catch (e) {
           // Se a coluna não existir, ignorar
@@ -638,7 +638,7 @@ export class AgentesDeduplicacaoService {
         const stmtGet = this.db.prepare(
           "SELECT * FROM agentes_duplicatas_suspeitas WHERE id = ? AND status = 'mesclada'"
         );
-        const registroMerge = stmtGet.get(idMerge) as any;
+        const registroMerge = stmtGet.get(idMerge) as unknown;
 
         if (!registroMerge) {
           throw new Error("Merge não encontrado ou já desfeito");
@@ -774,7 +774,7 @@ export class AgentesDeduplicacaoService {
   buscarDuplicatasParaRevisao(
     status: "pendente" | "confirmada" = "pendente",
     limite: number = 50
-  ): any[] {
+  ): unknown[] {
     try {
       const stmt = this.db.prepare(
         `SELECT
@@ -802,7 +802,7 @@ export class AgentesDeduplicacaoService {
         LIMIT ?`
       );
 
-      return stmt.all(status, limite) as any[];
+      return stmt.all(status, limite) as unknown[];
     } catch (erro) {
       console.error("Erro ao buscar duplicatas para revisão:", erro);
       throw erro;
@@ -899,7 +899,7 @@ export class TransacoesDeduplicacaoService {
         novaTransacao.valor,
         novaTransacao.data,
         novaTransacao.valor
-      ) as any[];
+      ) as unknown[];
 
       if (candidatos.length === 0) {
         return {

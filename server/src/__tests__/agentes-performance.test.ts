@@ -58,7 +58,7 @@ function createTestDatabase(): Database.Database {
   return db;
 }
 
-function insertAgente(db: Database.Database, agente: any) {
+function insertAgente(db: Database.Database, agente: unknown) {
   const sql = `
     INSERT INTO agentes_economicos (
       id, tipo_entidade, cpf_cnpj, nome, nome_fantasia,
@@ -126,7 +126,7 @@ describe('Agentes Performance Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(100);
     });
@@ -154,7 +154,7 @@ describe('Agentes Performance Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(500);
     });
@@ -182,7 +182,7 @@ describe('Agentes Performance Tests', () => {
 
       const count = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       expect(count.total).toBe(1000);
     });
@@ -241,7 +241,7 @@ describe('Agentes Performance Tests', () => {
 
       const result = db.prepare(
         'SELECT COUNT(*) as total FROM agentes_economicos'
-      ).get() as any;
+      ).get() as unknown;
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -260,14 +260,14 @@ describe('Agentes Performance Tests', () => {
 
       let items = db.prepare(
         'SELECT * FROM agentes_economicos ORDER BY criado_em DESC LIMIT ? OFFSET ?'
-      ).all(pageSize, currentPage * pageSize) as any[];
+      ).all(pageSize, currentPage * pageSize) as unknown[];
 
       while (items.length > 0) {
         totalPages++;
         currentPage++;
         items = db.prepare(
           'SELECT * FROM agentes_economicos ORDER BY criado_em DESC LIMIT ? OFFSET ?'
-        ).all(pageSize, currentPage * pageSize) as any[];
+        ).all(pageSize, currentPage * pageSize) as unknown[];
       }
 
       const endTime = performance.now();
@@ -298,7 +298,7 @@ describe('Agentes Performance Tests', () => {
 
       const items = db.prepare(
         'SELECT * FROM agentes_economicos WHERE papel = ? LIMIT 100'
-      ).all('tenant') as any[];
+      ).all('tenant') as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -311,7 +311,7 @@ describe('Agentes Performance Tests', () => {
 
       const items = db.prepare(
         'SELECT * FROM agentes_economicos WHERE ativo = 1 LIMIT 100'
-      ).all() as any[];
+      ).all() as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -324,7 +324,7 @@ describe('Agentes Performance Tests', () => {
 
       const items = db.prepare(
         'SELECT * FROM agentes_economicos WHERE tipo_entidade = ? AND ativo = 1 AND papel = ? LIMIT 100'
-      ).all('pessoa_fisica', 'tenant') as any[];
+      ).all('pessoa_fisica', 'tenant') as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -351,13 +351,13 @@ describe('Agentes Performance Tests', () => {
     it('should find duplicates by cpf_cnpj efficiently', () => {
       const cpf = db.prepare(
         'SELECT cpf_cnpj FROM agentes_economicos LIMIT 1'
-      ).get() as any;
+      ).get() as unknown;
 
       const startTime = performance.now();
 
       const duplicates = db.prepare(
         'SELECT * FROM agentes_economicos WHERE cpf_cnpj = ?'
-      ).all(cpf.cpf_cnpj) as any[];
+      ).all(cpf.cpf_cnpj) as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -373,7 +373,7 @@ describe('Agentes Performance Tests', () => {
          FROM agentes_economicos ae1
          JOIN agentes_economicos ae2 ON ae1.tipo_entidade = ae2.tipo_entidade
          WHERE ae1.id < ae2.id LIMIT 1000`
-      ).all() as any[];
+      ).all() as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -400,7 +400,7 @@ describe('Agentes Performance Tests', () => {
     it('should update single agent efficiently', () => {
       const agent = db.prepare(
         'SELECT id FROM agentes_economicos LIMIT 1'
-      ).get() as any;
+      ).get() as unknown;
 
       const startTime = performance.now();
 
@@ -422,7 +422,7 @@ describe('Agentes Performance Tests', () => {
     it('should batch update multiple agents efficiently', () => {
       const agents = db.prepare(
         'SELECT id FROM agentes_economicos LIMIT 50'
-      ).all() as any[];
+      ).all() as unknown[];
 
       const startTime = performance.now();
 
@@ -465,7 +465,7 @@ describe('Agentes Performance Tests', () => {
     it('should soft delete single agent efficiently', () => {
       const agent = db.prepare(
         'SELECT id FROM agentes_economicos LIMIT 1'
-      ).get() as any;
+      ).get() as unknown;
 
       const startTime = performance.now();
 
@@ -486,7 +486,7 @@ describe('Agentes Performance Tests', () => {
     it('should hard delete single agent efficiently', () => {
       const agent = db.prepare(
         'SELECT id FROM agentes_economicos LIMIT 1'
-      ).get() as any;
+      ).get() as unknown;
 
       const startTime = performance.now();
 
@@ -525,7 +525,7 @@ describe('Agentes Performance Tests', () => {
            SUM(CASE WHEN ativo = 1 THEN 1 ELSE 0 END) as active_count
          FROM agentes_economicos
          GROUP BY tipo_entidade, papel`
-      ).all() as any[];
+      ).all() as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -545,7 +545,7 @@ describe('Agentes Performance Tests', () => {
          AND validado = 1
          ORDER BY criado_em DESC
          LIMIT 50`
-      ).all('pessoa_fisica', 'tenant') as any[];
+      ).all('pessoa_fisica', 'tenant') as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -572,7 +572,7 @@ describe('Agentes Performance Tests', () => {
     it('should use cpf_cnpj index efficiently', () => {
       const cpf = db.prepare(
         'SELECT cpf_cnpj FROM agentes_economicos LIMIT 1'
-      ).get() as any;
+      ).get() as unknown;
 
       const startTime = performance.now();
 
@@ -594,7 +594,7 @@ describe('Agentes Performance Tests', () => {
       // This query should use idx_agentes_economicos_papel index
       const results = db.prepare(
         'SELECT * FROM agentes_economicos WHERE papel = ? LIMIT 100'
-      ).all('supplier') as any[];
+      ).all('supplier') as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;
@@ -608,7 +608,7 @@ describe('Agentes Performance Tests', () => {
       // This query should use idx_agentes_economicos_ativos index
       const results = db.prepare(
         'SELECT * FROM agentes_economicos WHERE ativo = 1 LIMIT 100'
-      ).all() as any[];
+      ).all() as unknown[];
 
       const endTime = performance.now();
       const duration = endTime - startTime;

@@ -500,7 +500,7 @@ describe("ReconciliationEngine", () => {
 
       const match = db
         .prepare(`SELECT * FROM reconciliation_matches WHERE id = ?`)
-        .get(matchId) as any;
+        .get(matchId) as unknown;
 
       expect(match.status).toBe("APPROVED");
       expect(match.approved_by).toBe(userId);
@@ -536,7 +536,7 @@ describe("ReconciliationEngine", () => {
 
       const match = db
         .prepare(`SELECT * FROM reconciliation_matches WHERE id = ?`)
-        .get(matchId) as any;
+        .get(matchId) as unknown;
 
       expect(match.status).toBe("REJECTED");
       expect(match.rejection_reason).toBe("Amount mismatch");
