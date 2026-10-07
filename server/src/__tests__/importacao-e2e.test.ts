@@ -330,8 +330,6 @@ describe('E2E Import Workflow', () => {
       const fileName = req.body.fileName as string;
       const fileType = req.body.type as string;
 
-      console.error('[UPLOAD] Received file type:', typeof req.body.file, 'fileName:', fileName);
-
       // Convert incoming file data to Buffer if needed
       if (Buffer.isBuffer(req.body.file)) {
         file = req.body.file;
@@ -341,7 +339,6 @@ describe('E2E Import Workflow', () => {
       } else if (typeof req.body.file === 'string') {
         file = Buffer.from(req.body.file, 'utf-8');
       } else {
-        console.error('[UPLOAD] Invalid file format:', req.body.file);
         return res.status(400).json({ error: 'Invalid file format' });
       }
 
@@ -358,18 +355,15 @@ describe('E2E Import Workflow', () => {
 
       try {
         // Calculate hash for duplicate detection
-        console.error('[UPLOAD] Hashing file of size:', file.length);
         const hash = crypto
           .createHash('sha256')
           .update(file)
           .digest('hex');
 
-        console.error('[UPLOAD] Inserting lote into DB:', { loteId, fileName, hash, fileType, tamanhoBytes: file.length });
         db.prepare(`
           INSERT INTO importacao_lotes (id, usuario_id, arquivo_nome, arquivo_hash, tipo, tamanho_bytes, status)
           VALUES (?, ?, ?, ?, ?, ?, 'RECEBIDO')
         `).run(loteId, 'test-user', fileName, hash, fileType, file.length);
-        console.error('[UPLOAD] Successfully inserted lote');
 
         // Store file with loteId as key so it can be retrieved later
         uploadService.uploadFile(file, fileName);
@@ -383,7 +377,6 @@ describe('E2E Import Workflow', () => {
           status: 'RECEBIDO',
         });
       } catch (error: unknown) {
-        console.error('[UPLOAD] Error:', error instanceof Error ? error.message : String(error));
         if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
           return res.status(409).json({ error: 'File already uploaded' });
         }
@@ -542,14 +535,12 @@ describe('E2E Import Workflow', () => {
       }
 
       try {
-        console.error('[APPROVE] Looking for linhas with loteId:', loteId);
         const linhas = db
           .prepare(
             'SELECT * FROM importacao_linhas WHERE lote_id = ? AND status IN (?, ?) ORDER BY numero_linha'
           )
           .all(loteId, 'VALIDADA', 'IGNORADA') as unknown[];
 
-        console.error('[APPROVE] Found', linhas.length, 'linhas to process');
         let successCount = 0;
 
         linhas.forEach((linha: any) => {
@@ -557,7 +548,6 @@ describe('E2E Import Workflow', () => {
             const data = JSON.parse(linha.dados_brutos);
             const ledgerId = `ledger_${loteId}_${linha.numero_linha}`;
 
-            console.error('[APPROVE] Inserting ledger entry:', { ledgerId, data });
             db.prepare(`
               INSERT INTO ledger_entries (id, data, tipo, categoria, valor, descricao, referencia_externa, usuario_id)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -575,12 +565,10 @@ describe('E2E Import Workflow', () => {
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('PROCESSADA', linha.id);
             successCount++;
           } catch (error: unknown) {
-            console.error('[APPROVE] Error processing linha:', error instanceof Error ? error.message : String(error));
             db.prepare('UPDATE importacao_linhas SET status = ? WHERE id = ?').run('ERRO', linha.id);
           }
         });
 
-        console.error('[APPROVE] Updating lote status to PROCESSADO');
         db.prepare('UPDATE importacao_lotes SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(
           'PROCESSADO',
           loteId
@@ -593,7 +581,6 @@ describe('E2E Import Workflow', () => {
           totalLines: linhas.length,
         });
       } catch (error: unknown) {
-        console.error('[APPROVE] Outer error:', error instanceof Error ? error.message : String(error));
         res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
       }
     });
