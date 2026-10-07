@@ -13,15 +13,11 @@
 import Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
 import {
-  TipoEntidade,
   TipoValidacao,
   ResultadoValidacao,
   cpfValido,
   cnpjValido,
   cleanCPFCNPJ,
-  formatCPF,
-  formatCNPJ,
-  AgenteEconomico,
   ValidacaoAgente,
 } from "./agentes-tipos";
 
