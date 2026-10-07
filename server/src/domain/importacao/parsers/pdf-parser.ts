@@ -14,7 +14,7 @@ import type {
   ParserResult,
   ParserOptions,
 } from "../tipos.js";
-import { parseISO, parse as dateParse, isValid, format } from "date-fns";
+import { parseISO, isValid, format } from "date-fns";
 
 /**
  * Extrai texto bruto do PDF
@@ -39,42 +39,6 @@ async function extrairTextoPDF(buffer: Buffer): Promise<string> {
   return text;
 }
 
-/**
- * Detecta padrões de datas em texto
- */
-function detectarDatas(texto: string): RegExpMatchArray | null {
-  const padroesData = [
-    /(\d{1,2})\/(\d{1,2})\/(\d{4})/g, // DD/MM/YYYY
-    /(\d{4})-(\d{1,2})-(\d{1,2})/g, // YYYY-MM-DD
-    /(\d{1,2})-(\d{1,2})-(\d{4})/g, // DD-MM-YYYY
-    /(\d{1,2})\.(\d{1,2})\.(\d{4})/g, // DD.MM.YYYY (formato europeu)
-  ];
-
-  for (const padrao of padroesData) {
-    const matches = texto.match(padrao);
-    if (matches) return matches;
-  }
-
-  return null;
-}
-
-/**
- * Detecta valores monetários em texto
- */
-function detectarValores(texto: string): RegExpMatchArray | null {
-  const padroesValor = [
-    /R\$\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?)/g, // R$ 1.234,56
-    /\$\s*([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?)/g, // $ 1,234.56
-    /([0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]{2})?)$/gm, // 1.234,56 ou 1234,56
-  ];
-
-  for (const padrao of padroesValor) {
-    const matches = texto.match(padrao);
-    if (matches) return matches;
-  }
-
-  return null;
-}
 
 /**
  * Extrai tabelas simples do texto em formato de linhas/colunas

@@ -439,7 +439,7 @@ describe('Database Importacao Integrity', () => {
       `).run(loteId, 'user1', 'file.csv', 'hash-idx-status', 'CSV', 1000, 'PROCESSADO');
 
       const start = performance.now();
-      const result = db
+      db
         .prepare('SELECT * FROM importacao_lotes WHERE status = ?')
         .all('PROCESSADO') as ImportLote[];
       const duration = performance.now() - start;
@@ -711,7 +711,7 @@ describe('Database Importacao Integrity', () => {
       const start = performance.now();
 
       // Query for duplicates (scaled from 1K check)
-      const results = db
+      db
         .prepare(
           'SELECT arquivo_hash, COUNT(*) as count FROM importacao_lotes GROUP BY arquivo_hash HAVING count > 1'
         )

@@ -31,6 +31,7 @@
     "date-fns": "^3.0.0",
     "dotenv": "^18.0.5",
     "fast-xml-parser": "^4.3.6",
+    "fuse.js": "^7.0.0",
     "googleapis": "^182.0.0",
     "idb-keyval": "^6.2.6",
     "jspdf": "^4.2.1",

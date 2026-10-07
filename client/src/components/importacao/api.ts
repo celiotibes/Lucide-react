@@ -99,7 +99,7 @@ export async function uploadArquivo(
         try {
           const response = JSON.parse(xhr.responseText);
           resolve(response as UploadResult);
-        } catch (error) {
+        } catch {
           reject(
             new ApiError(xhr.status, 'Erro ao parsear resposta do servidor')
           );

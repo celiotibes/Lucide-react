@@ -34,10 +34,6 @@ interface OFXTransaction {
   MEMO?: string;
 }
 
-interface OFXStatement {
-  STMTTRN?: OFXTransaction | OFXTransaction[];
-}
-
 /**
  * Detecta se é OFX 1.x (texto) ou OFX 2.x (XML)
  */

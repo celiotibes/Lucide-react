@@ -7,11 +7,6 @@ import Database from "better-sqlite3";
 import type { ValidacaoLinha, LinhaImportacao, DuplicataResult } from "./tipos.js";
 import { detectarDuplicata } from "./deduplicacao.js";
 
-interface ErroValidacao {
-  tipo: "data_futura" | "valor_invalido" | "campo_obrigatorio" | "formato";
-  mensagem: string;
-}
-
 /**
  * Valida completamente uma linha de importação
  * Retorna objeto com resultado detalhado

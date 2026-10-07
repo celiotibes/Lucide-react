@@ -49,6 +49,7 @@ import { criarRotasTransacoes } from "../src/routes/transacoes-routes.js";
 import { criarRotasConciliacaoPixOFX } from "../src/routes/conciliacao-pix-ofx-routes.js";
 import { criarRotasAnomalias } from "../src/routes/anomalias-routes.js";
 import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-routes.js";
+import { criarRotasAgentesEconomicos } from "../src/routes/agentes-economicos-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 import { criarRotasBackup } from "../src/routes/backup-routes.js";
 // Phase 13: Backup Scheduler — agendamento periódico de backups
@@ -391,6 +392,23 @@ app.use("/api/conciliacao", criarRotasConciliacaoPixOFX({ db, authService }));
  * GET /api/anomalias/estatisticas — estatísticas agregadas de anomalias
  * PATCH /api/anomalias/alertas/:id/revisar — marca alerta como revisado (auditoria) */
 app.use("/api/anomalias", criarRotasAnomalias({ db, authService }));
+
+/** Sistema de Agentes Econômicos - Fase 18 (CRUD de PF/PJ)
+ * GET    /api/v1/agentes-economicos — lista agentes (paginado, filtrado)
+ * POST   /api/v1/agentes-economicos — criar novo agente
+ * GET    /api/v1/agentes-economicos/:id — buscar agente específico
+ * PUT    /api/v1/agentes-economicos/:id — atualizar agente
+ * DELETE /api/v1/agentes-economicos/:id — desativar agente (soft delete)
+ * GET    /api/v1/agentes-economicos/:id/duplicatas — listar suspeitas de duplicata
+ *
+ * Suporta pessoas físicas (CPF) e jurídicas (CNPJ), com validação de duplicatas
+ * usando Levenshtein distance. Incluição de agentes como tenants, fornecedores,
+ * prestadores, partes legais, co-proprietários, devedores e credores. */
+app.use("/api/v1/agentes-economicos", criarRotasAgentesEconomicos({
+  db,
+  authService,
+  auditService,
+}));
 
 /** Importação de Documentos - Fase 1 (UPLOAD)
  * POST /api/importacao/upload — upload e validação de arquivo (PDF, CSV, OFX, JPEG, PNG)

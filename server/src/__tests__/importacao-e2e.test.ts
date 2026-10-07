@@ -11,7 +11,7 @@
  * Coverage: 90+ test cases across upload, parsing, validation, and approval stages
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
@@ -21,12 +21,29 @@ import { tmpdir } from 'os';
 import Database from 'better-sqlite3';
 
 /**
+ * Type definitions for mock services
+ */
+interface OFXTransaction {
+  date: string;
+  amount: number;
+  description: string;
+}
+
+interface PDFTable {
+  [key: string]: string | number;
+}
+
+interface ValidationSchema {
+  [key: string]: string;
+}
+
+/**
  * Mock upload service - simulates file handling
  */
 class MockUploadService {
   private uploads: Map<string, Buffer> = new Map();
 
-  uploadFile(fileContent: Buffer, fileName: string): { hash: string; id: string } {
+  uploadFile(fileContent: Buffer): { hash: string; id: string } {
     const hash = crypto.createHash('sha256').update(fileContent).digest('hex');
     const id = `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     this.uploads.set(id, fileContent);
@@ -81,7 +98,7 @@ class MockParserService {
     return { lines: parsedLines, errors };
   }
 
-  parseOFX(content: Buffer): { transactions: Array<any>; errors: string[] } {
+  parseOFX(content: Buffer): { transactions: Array<OFXTransaction>; errors: string[] } {
     // Simplified OFX parsing
     const text = content.toString('utf-8');
     if (!text.includes('<STMTRS>') && !text.includes('<STMTRN>')) {
@@ -89,7 +106,7 @@ class MockParserService {
     }
 
     // Extract basic transaction info
-    const transactions: Array<any> = [];
+    const transactions: Array<OFXTransaction> = [];
     const regex = /<STMTRN>[\s\S]*?<\/STMTRN>/g;
     let match;
 
@@ -111,7 +128,7 @@ class MockParserService {
     return { transactions, errors: transactions.length === 0 ? ['No transactions found'] : [] };
   }
 
-  parsePDF(content: Buffer): { text: string; tables: any[]; errors: string[] } {
+  parsePDF(content: Buffer): { text: string; tables: PDFTable[]; errors: string[] } {
     // Simplified PDF parsing (in real scenario, would use pdfparse)
     const text = content.toString('utf-8', 0, Math.min(1000, content.length));
     const isPDF = content.toString('hex', 0, 4) === '25504446'; // %PDF
@@ -135,7 +152,7 @@ class MockParserService {
  * Mock validator service - validates parsed data
  */
 class MockValidatorService {
-  validateCSVRow(row: Record<string, string>, schema: any): { valid: boolean; errors: string[] } {
+  validateCSVRow(row: Record<string, string>): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
     if (!row.data || !/^\d{4}-\d{2}-\d{2}$/.test(row.data)) {
@@ -157,7 +174,7 @@ class MockValidatorService {
     return { valid: errors.length === 0, errors };
   }
 
-  validateOFXTransaction(tx: any): { valid: boolean; errors: string[] } {
+  validateOFXTransaction(tx: OFXTransaction): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
     if (!tx.date || tx.date.length !== 8) {
@@ -183,7 +200,7 @@ class MockDuplicateDetector {
   async detectDuplicates(
     db: Database.Database,
     userId: string,
-    data: Array<any>,
+    data: Array<PDFTable>,
     fileHash: string
   ): Promise<{ duplicates: string[]; potentialDuplicates: string[] }> {
     // Check if exact file was already imported
@@ -201,7 +218,7 @@ class MockDuplicateDetector {
     // Check for hash-based duplicates in data
     for (let i = 0; i < data.length; i++) {
       const record = data[i];
-      const recordHash = crypto
+      crypto
         .createHash('sha256')
         .update(JSON.stringify(record))
         .digest('hex');

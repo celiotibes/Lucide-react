@@ -12,8 +12,7 @@
  */
 
 import React, { useCallback, useState, useRef } from 'react';
-import type { ImportUploadProps, UploadState, FileType } from './types.js';
-import type { UploadResult } from './types.js';
+import type { ImportUploadProps, UploadState } from './types.js';
 import { uploadArquivo, ApiError } from './api.js';
 
 const TAMANHO_MAXIMO_PADRAO = 50 * 1024 * 1024; // 50 MB
@@ -102,9 +101,9 @@ export const ImportUpload: React.FC<ImportUploadProps> = ({
     error: null,
     result: null,
   });
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const dragOverRef = useRef(false);
 
   /**
    * Processar arquivo selecionado/dropado
@@ -186,7 +185,7 @@ export const ImportUpload: React.FC<ImportUploadProps> = ({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    dragOverRef.current = true;
+    setIsDragOver(true);
   };
 
   /**
@@ -195,7 +194,7 @@ export const ImportUpload: React.FC<ImportUploadProps> = ({
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    dragOverRef.current = false;
+    setIsDragOver(false);
   };
 
   /**
@@ -204,7 +203,7 @@ export const ImportUpload: React.FC<ImportUploadProps> = ({
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    dragOverRef.current = false;
+    setIsDragOver(false);
 
     const { files } = e.dataTransfer;
     if (files.length > 0) {
@@ -245,15 +244,13 @@ export const ImportUpload: React.FC<ImportUploadProps> = ({
     }
   };
 
-  const tipoArquivo = state.file ? obterTipoArquivo(state.file.name) : null;
-
   return (
     <div className="w-full max-w-2xl mx-auto">
       {/* Zona de Drop */}
       {!state.result && (
         <div
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-            dragOverRef.current
+            isDragOver
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-300 bg-gray-50 hover:border-gray-400'
           }`}

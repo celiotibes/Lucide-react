@@ -712,3 +712,154 @@ export function detectTipoEntidade(cpfCnpj: string): TipoEntidade {
   }
   throw new Error("CPF ou CNPJ com formato inválido");
 }
+
+/**
+ * Valida o formato de um CPF
+ * Verifica formato e calcula dígitos verificadores
+ * @param cpf - CPF com ou sem formatação
+ * @returns Objeto com validação
+ */
+export function cpfValido(cpf: string): {
+  valido: boolean;
+  erro?: string;
+  cpfLimpo?: string;
+} {
+  const limpo = cleanCPFCNPJ(cpf);
+
+  // Verifica comprimento
+  if (limpo.length !== 11) {
+    return {
+      valido: false,
+      erro: "CPF deve conter exatamente 11 dígitos",
+    };
+  }
+
+  // Verifica se são apenas números
+  if (!/^\d{11}$/.test(limpo)) {
+    return {
+      valido: false,
+      erro: "CPF deve conter apenas dígitos",
+    };
+  }
+
+  // Rejeita CPF com todos os dígitos iguais (caso extremo)
+  if (/^(\d)\1{10}$/.test(limpo)) {
+    return {
+      valido: false,
+      erro: "CPF com padrão inválido (todos os dígitos iguais)",
+    };
+  }
+
+  // Valida dígitos verificadores
+  if (!isValidCPF(limpo)) {
+    return {
+      valido: false,
+      erro: "CPF inválido: erro no dígito verificador",
+      cpfLimpo: limpo,
+    };
+  }
+
+  return {
+    valido: true,
+    cpfLimpo: limpo,
+  };
+}
+
+/**
+ * Valida o formato de um CNPJ
+ * Verifica formato e calcula dígitos verificadores
+ * @param cnpj - CNPJ com ou sem formatação
+ * @returns Objeto com validação
+ */
+export function cnpjValido(cnpj: string): {
+  valido: boolean;
+  erro?: string;
+  cnpjLimpo?: string;
+} {
+  const limpo = cleanCPFCNPJ(cnpj);
+
+  // Verifica comprimento
+  if (limpo.length !== 14) {
+    return {
+      valido: false,
+      erro: "CNPJ deve conter exatamente 14 dígitos",
+    };
+  }
+
+  // Verifica se são apenas números
+  if (!/^\d{14}$/.test(limpo)) {
+    return {
+      valido: false,
+      erro: "CNPJ deve conter apenas dígitos",
+    };
+  }
+
+  // Rejeita CNPJ com todos os dígitos iguais
+  if (/^(\d)\1{13}$/.test(limpo)) {
+    return {
+      valido: false,
+      erro: "CNPJ com padrão inválido (todos os dígitos iguais)",
+    };
+  }
+
+  // Valida dígitos verificadores
+  if (!isValidCNPJ(limpo)) {
+    return {
+      valido: false,
+      erro: "CNPJ inválido: erro no dígito verificador",
+      cnpjLimpo: limpo,
+    };
+  }
+
+  return {
+    valido: true,
+    cnpjLimpo: limpo,
+  };
+}
+
+/**
+ * Normaliza CPF removendo caracteres especiais
+ * @param cpf - CPF com ou sem formatação
+ * @returns CPF normalizado (11 dígitos) ou null se inválido
+ */
+export function normalizarCPF(cpf: string): string | null {
+  const limpo = cleanCPFCNPJ(cpf);
+  if (limpo.length !== 11) {
+    return null;
+  }
+  return limpo;
+}
+
+/**
+ * Normaliza CNPJ removendo caracteres especiais
+ * @param cnpj - CNPJ com ou sem formatação
+ * @returns CNPJ normalizado (14 dígitos) ou null se inválido
+ */
+export function normalizarCNPJ(cnpj: string): string | null {
+  const limpo = cleanCPFCNPJ(cnpj);
+  if (limpo.length !== 14) {
+    return null;
+  }
+  return limpo;
+}
+
+/**
+ * Obtém o tipo de pessoa a partir do ID (CPF/CNPJ)
+ * @param id - CPF ou CNPJ
+ * @returns TipoEntidade ou null se inválido
+ */
+export function obterTipoPorID(id: string): TipoEntidade | null {
+  try {
+    const limpo = cleanCPFCNPJ(id);
+    if (limpo.length === 11) {
+      const validacao = cpfValido(limpo);
+      return validacao.valido ? TipoEntidade.PESSOA_FISICA : null;
+    } else if (limpo.length === 14) {
+      const validacao = cnpjValido(limpo);
+      return validacao.valido ? TipoEntidade.PESSOA_JURIDICA : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

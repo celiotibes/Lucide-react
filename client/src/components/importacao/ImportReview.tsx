@@ -27,6 +27,19 @@ import {
 import { LinhaStatus } from './types.js';
 
 /**
+ * Interface for duplicata details
+ */
+interface DuplicataDetails {
+  score: number;
+  linha_original: {
+    dados_brutos: string;
+  };
+  linha_duplicada: {
+    dados_brutos: string;
+  };
+}
+
+/**
  * Status options para filtro
  */
 const STATUS_OPTIONS = Object.values(LinhaStatus);
@@ -72,7 +85,7 @@ export const ImportReview: React.FC<ImportReviewProps> = ({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedLinhas, setSelectedLinhas] = useState<Set<string>>(new Set());
   const [showDuplicataDetails, setShowDuplicataDetails] = useState<string | null>(null);
-  const [duplicataDetails, setDuplicataDetails] = useState<any>(null);
+  const [duplicataDetails, setDuplicataDetails] = useState<DuplicataDetails | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 

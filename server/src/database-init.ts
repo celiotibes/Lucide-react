@@ -101,6 +101,9 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase16-ledger-entries.sql",
       "migrations-phase16-revisao-ia.sql",
       "migrations-phase17-importacao.sql",
+      "migrations-phase18-agentes-economicos-sqlite.sql",
+      "migrations-phase18-ocr-extraction.sql",
+      "migrations-phase19-reconciliation.sql",
     ]);
 
     // Setup periodic cleanup of expired sessions
