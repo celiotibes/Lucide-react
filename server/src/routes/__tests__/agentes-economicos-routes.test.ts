@@ -329,7 +329,7 @@ describe("Rotas de Agentes Econômicos", () => {
   describe("Leitura de Agentes (GET)", () => {
     it("deve listar agentes paginados", async () => {
       // Criar 3 agentes com CPFs válidos diferentes
-      const cpfs = ["11144477735", "12345678909", "98765432100"];
+      const cpfs = ["11144477735", "29375063800", "61885262100"];
       for (let i = 0; i < 3; i++) {
         await request(app)
           .post("/api/v1/agentes-economicos")
@@ -360,7 +360,7 @@ describe("Rotas de Agentes Econômicos", () => {
         .set("Authorization", `Bearer ${validToken}`)
         .send({
           ...pessoaJuridicaData,
-          cpf_cnpj: "12345678901235",
+          cpf_cnpj: "11555666000161",
           papel: "supplier",
         });
 

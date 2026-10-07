@@ -63,12 +63,18 @@ function createTestApp(db: Database.Database) {
   // Configurar multer para upload em memória
   const upload = multer({ storage: multer.memoryStorage() });
 
+  const mockPermissoesService: Partial<PermissoesServiceDB> = {
+    listarMatriz: () => [],
+    obterMatriz: () => ({}),
+    atualizarMatriz: () => ({ sucesso: true }),
+  };
+
   app.use(
     "/api/auth",
     criarRotasAuth({
       authService,
       auditService,
-      permissoesService: { listarMatriz: () => [] } as any,
+      permissoesService: mockPermissoesService as PermissoesServiceDB,
     }),
   );
 
