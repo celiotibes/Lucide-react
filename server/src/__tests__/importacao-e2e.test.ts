@@ -326,9 +326,24 @@ describe('E2E Import Workflow', () => {
 
     // Upload endpoint
     app.post('/api/import/upload', (req, res) => {
-      const file = req.body.file as Buffer;
+      let file: Buffer;
       const fileName = req.body.fileName as string;
       const fileType = req.body.type as string;
+
+      console.error('[UPLOAD] Received file type:', typeof req.body.file, 'fileName:', fileName);
+
+      // Convert incoming file data to Buffer if needed
+      if (Buffer.isBuffer(req.body.file)) {
+        file = req.body.file;
+      } else if (req.body.file && typeof req.body.file === 'object' && req.body.file.type === 'Buffer' && Array.isArray(req.body.file.data)) {
+        // Handle JSON-serialized Buffer format from supertest
+        file = Buffer.from(req.body.file.data);
+      } else if (typeof req.body.file === 'string') {
+        file = Buffer.from(req.body.file, 'utf-8');
+      } else {
+        console.error('[UPLOAD] Invalid file format:', req.body.file);
+        return res.status(400).json({ error: 'Invalid file format' });
+      }
 
       if (!file || !fileName || !fileType) {
         return res.status(400).json({ error: 'Missing file data' });
@@ -343,6 +358,7 @@ describe('E2E Import Workflow', () => {
 
       try {
         // Calculate hash for duplicate detection
+        console.error('[UPLOAD] Hashing file of size:', file.length);
         const hash = crypto
           .createHash('sha256')
           .update(file)
