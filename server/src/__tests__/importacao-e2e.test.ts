@@ -598,6 +598,7 @@ describe('E2E Import Workflow', () => {
           type: 'CSV',
         });
 
+      console.error('[TEST] Upload Response:', uploadRes.status, uploadRes.body);
       expect(uploadRes.status).toBe(201);
       expect(uploadRes.body.loteId).toBeDefined();
       const loteId = uploadRes.body.loteId;
