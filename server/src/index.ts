@@ -59,6 +59,9 @@ import BackupService from "../src/services/backup-service.js";
 import BackupScheduler from "../src/services/backup-scheduler.js";
 // Phase 10: Assinatura Digital + LGPD
 import { criarRotasAssinaturasLGPD } from "../src/routes/assinatura-lgpd-routes.js";
+// Phase 22.20: Anthropic AI Integration
+import { criarRotasAI } from "../src/routes/ai-routes.js";
+import { initializeAnthropicService } from "../src/ai/anthropic-service.js";
 // Phase 9: Cache, Alertas, Health Check
 import { cache } from "../src/utils/cache-memoria.js";
 import { enviarAlertaEmail } from "../src/utils/email-alertas.js";
@@ -99,6 +102,8 @@ const envSchema = z.object({
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   // SEC-012: Sentry Error Tracking
   SENTRY_DSN: z.string().optional(),
+  // Phase 22.20: Anthropic AI Integration
+  ANTHROPIC_API_KEY: z.string().optional(),
   // Fase 13: Backup Scheduler — variáveis opcionais (backup automático)
   BACKUP_LOCAL_DIR: z.string().optional(),
   BACKUP_ENCRYPTION_KEY: z.string().optional(),
@@ -165,6 +170,18 @@ try {
 } catch (error) {
   logger.error("[Server] Failed to initialize credential encryption service:", error);
   throw error;
+}
+
+// Phase 22.20: Initialize Anthropic AI Service
+let aiService: any = null;
+if (envVars.ANTHROPIC_API_KEY) {
+  try {
+    aiService = initializeAnthropicService(envVars.ANTHROPIC_API_KEY);
+    logger.info("[Server] Anthropic AI service initialized");
+  } catch (error) {
+    logger.warn("[Server] Failed to initialize Anthropic AI service:", error instanceof Error ? error.message : error);
+    // Non-fatal: AI features will be disabled but server continues
+  }
 }
 
 // Create singleton service instances
@@ -397,6 +414,19 @@ app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
  * POST /api/relatorios/executivo/gerar?mes=10&ano=2026 — trigger manual
  * POST /api/relatorios/executivo/enviar-email?mes=10&ano=2026&email=user@example.com — enviar por email */
 app.use("/api/relatorios/executivo", criarRotasRelatorioExecutivo({ authService, db }));
+
+/** Phase 22.20: Anthropic AI Integration — análise contábil com Claude
+ * POST /api/ai/analyze-transaction — categoriza transação
+ * POST /api/ai/categorize-receipt — analisa recibo com visão
+ * POST /api/ai/detect-anomaly — detecta anomalias estatísticas
+ * POST /api/ai/analyze-cash-flow — análise de fluxo de caixa
+ * POST /api/ai/chat — chat interativo sobre finanças */
+if (aiService) {
+  app.use("/api/ai", criarRotasAI({ db, authService, aiService }));
+  logger.info("[Server] AI routes mounted at /api/ai");
+} else {
+  logger.warn("[Server] AI service not available; /api/ai routes disabled");
+}
 
 /** Sugestão inteligente de categorias para transações (fase 2.3) — baseada em
  * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria
