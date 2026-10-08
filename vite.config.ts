@@ -68,6 +68,7 @@ function securityHeadersMiddleware(): Connect.NextHandleFunction {
 
 export default defineConfig({
   base: './',
+  assetsInclude: ['**/*.wasm'],
   plugins: [
     react(),
     VitePWA({
