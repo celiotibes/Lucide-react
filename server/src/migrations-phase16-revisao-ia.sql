@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS regras_revisao_ia (
   nome TEXT NOT NULL UNIQUE,
   descricao TEXT,
   tipo TEXT NOT NULL CHECK(tipo IN ('relatorio', 'campo', 'lancamento')),
-  ativa BOOLEAN NOT NULL DEFAULT 1,
+  ativa INTEGER NOT NULL DEFAULT 1,
 
   -- Campos ou relatórios aos quais se aplica (JSON array)
   alvos TEXT,

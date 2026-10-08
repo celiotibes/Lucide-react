@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS certificados_digitais (
   -- Validação e status
   valido_ate                  DATETIME NOT NULL,              -- Data de expiração
   emissor_nome                TEXT NOT NULL,                  -- Ex: "Certisign"
-  ativo                       BOOLEAN NOT NULL DEFAULT 1,
+  ativo                       INTEGER NOT NULL DEFAULT 1,
 
   -- Auditoria
   criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS assinaturas_digitais (
   timestamp_assinatura        DATETIME NOT NULL,              -- Quando foi assinado
 
   -- 2FA Validation (Ser Pro ID)
-  validado_2fa                BOOLEAN NOT NULL DEFAULT 0,
+  validado_2fa                INTEGER NOT NULL DEFAULT 0,
   timestamp_validacao_2fa     DATETIME,                       -- Quando foi validado via SMS
   nonce_2fa                   TEXT,                           -- Nonce do desafio 2FA
 
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS audit_log_lgpd (
   endpoint                    TEXT,                           -- Endpoint da API acessado
 
   -- Dados sensíveis acessados (para rastreamento de LGPD)
-  contem_dados_sensveis       BOOLEAN NOT NULL DEFAULT 0,     -- TRUE se contém CPF/email/telefone
+  contem_dados_sensveis       INTEGER NOT NULL DEFAULT 0,     -- TRUE se contém CPF/email/telefone
   tipo_dado_sensvel           TEXT,                           -- CPF, EMAIL, TELEFONE, ENDERECO, etc
 
   -- Consentimento
@@ -167,8 +167,8 @@ CREATE TABLE IF NOT EXISTS pessoas_anonimizadas (
   versao_anonimizacao         TEXT NOT NULL DEFAULT '1.0',
 
   -- Compliance
-  gdpr_compliant              BOOLEAN NOT NULL DEFAULT 1,     -- True se seguiu diretrizes GDPR
-  auditado                    BOOLEAN NOT NULL DEFAULT 0,
+  gdpr_compliant              INTEGER NOT NULL DEFAULT 1,     -- True se seguiu diretrizes GDPR
+  auditado                    INTEGER NOT NULL DEFAULT 0,
 
   FOREIGN KEY (usuario_id_solicitante) REFERENCES usuarios(id)
 );
@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS consentimentos_lgpd (
   descricao                   TEXT,
 
   -- Status
-  consentido                  BOOLEAN NOT NULL,
+  consentido                  INTEGER NOT NULL,
   data_consentimento          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   validade_ate                DATETIME,                       -- NULL = indefinido
 
