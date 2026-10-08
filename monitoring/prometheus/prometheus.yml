@@ -1,0 +1,167 @@
+# ============================================================================
+# Prometheus Configuration
+# Phase 22.22: Advanced Monitoring & Observability
+# ============================================================================
+
+global:
+  scrape_interval: 15s        # How often to scrape targets by default
+  evaluation_interval: 15s    # How often to evaluate rules
+  external_labels:
+    monitor: 'lucide-crmt-monitor'
+    environment: 'production'
+
+# Alert manager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/rules/alert_rules.yml'
+  - '/etc/prometheus/rules/recording_rules.yml'
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================================
+  # Prometheus Self-Monitoring
+  # ============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # ============================================================================
+  # Node Exporter (Infrastructure Metrics)
+  # ============================================================================
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'node_textfile_.*'
+        action: drop
+
+  # ============================================================================
+  # Application Metrics (Express.js Backend)
+  # ============================================================================
+  - job_name: 'lucide-app'
+    static_configs:
+      - targets: ['app:9091']  # Custom metrics port
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: 'app:.*'
+        replacement: 'lucide-app'
+
+  # ============================================================================
+  # PostgreSQL Exporter (if using PostgreSQL)
+  # ============================================================================
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'pg_stat_.*'
+        action: keep
+
+  # ============================================================================
+  # Docker Container Metrics (cAdvisor)
+  # ============================================================================
+  - job_name: 'docker-cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # ============================================================================
+  # Redis Exporter (if using Redis for caching)
+  # ============================================================================
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 15s
+
+  # ============================================================================
+  # Elasticsearch Exporter (if using Elasticsearch for logging)
+  # ============================================================================
+  - job_name: 'elasticsearch-exporter'
+    static_configs:
+      - targets: ['elasticsearch-exporter:9114']
+    scrape_interval: 30s
+
+  # ============================================================================
+  # JMX Exporter (for Java services, if needed)
+  # ============================================================================
+  # - job_name: 'jmx-exporter'
+  #   static_configs:
+  #     - targets: ['jmx-exporter:5556']
+
+  # ============================================================================
+  # Blackbox Exporter (Endpoint Monitoring & Health Checks)
+  # ============================================================================
+  - job_name: 'blackbox-exporter'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - 'http://app:8787/api/health'
+          - 'http://app:8787/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 'blackbox-exporter:9115'
+
+  # ============================================================================
+  # Pushgateway (Batch Job Metrics)
+  # ============================================================================
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+    scrape_interval: 30s
+
+  # ============================================================================
+  # Custom Business Metrics (Application-Level Metrics)
+  # ============================================================================
+  - job_name: 'lucide-business-metrics'
+    static_configs:
+      - targets: ['app:9091']
+    metrics_path: '/business-metrics'
+    scrape_interval: 30s
+    params:
+      collect_service_metrics: ['true']
+
+  # ============================================================================
+  # Database Query Performance Metrics
+  # ============================================================================
+  - job_name: 'lucide-db-performance'
+    static_configs:
+      - targets: ['app:9091']
+    metrics_path: '/db-metrics'
+    scrape_interval: 30s
+
+  # ============================================================================
+  # Cache Performance Metrics
+  # ============================================================================
+  - job_name: 'lucide-cache-metrics'
+    static_configs:
+      - targets: ['app:9091']
+    metrics_path: '/cache-metrics'
+    scrape_interval: 30s
+
+  # ============================================================================
+  # API Gateway Metrics (if using reverse proxy)
+  # ============================================================================
+  - job_name: 'nginx-exporter'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+    scrape_interval: 30s

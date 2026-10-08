@@ -1,0 +1,19 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "lucide-crmt.fullname" . }}
+  namespace: {{ include "lucide-crmt.namespace" . }}
+  labels:
+    {{- include "lucide-crmt.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "lucide-crmt.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+      path: /metrics
+      scheme: http
+{{- end }}
