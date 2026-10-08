@@ -1,0 +1,275 @@
+.budget-tracker {
+  padding: 1.5rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.budget-tracker--light {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #1f2937;
+}
+
+.budget-tracker--dark {
+  background-color: #1f2937;
+  border: 1px solid #374151;
+  color: #f3f4f6;
+}
+
+.budget-tracker__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.budget-tracker__summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+}
+
+.budget-tracker__summary-item {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.budget-tracker--light .budget-tracker__summary-item {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.budget-tracker--dark .budget-tracker__summary-item {
+  background-color: #111827;
+  border: 1px solid #374151;
+}
+
+.budget-tracker__summary-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.budget-tracker--light .budget-tracker__summary-label {
+  color: #6b7280;
+}
+
+.budget-tracker--dark .budget-tracker__summary-label {
+  color: #9ca3af;
+}
+
+.budget-tracker__summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 0.5rem;
+}
+
+.budget-tracker--light .budget-tracker__summary-value {
+  color: #1f2937;
+}
+
+.budget-tracker--dark .budget-tracker__summary-value {
+  color: #f3f4f6;
+}
+
+.budget-tracker__summary-value.over-budget,
+.budget-tracker__summary-value.negative {
+  color: #ef4444;
+}
+
+.budget-tracker__overview {
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.budget-tracker--light .budget-tracker__overview {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.budget-tracker--dark .budget-tracker__overview {
+  background-color: #111827;
+  border: 1px solid #374151;
+}
+
+.budget-tracker__progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.budget-tracker__progress-bar {
+  width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.budget-tracker--light .budget-tracker__progress-bar {
+  background-color: #e5e7eb;
+}
+
+.budget-tracker--dark .budget-tracker__progress-bar {
+  background-color: #374151;
+}
+
+.budget-tracker__progress-fill {
+  height: 100%;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.budget-tracker__progress-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.budget-tracker--light .budget-tracker__progress-text {
+  color: #6b7280;
+}
+
+.budget-tracker--dark .budget-tracker__progress-text {
+  color: #9ca3af;
+}
+
+.budget-tracker__over-budget-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.budget-tracker__categories {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.budget-tracker__category {
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid;
+}
+
+.budget-tracker--light .budget-tracker__category {
+  background-color: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.budget-tracker--dark .budget-tracker__category {
+  background-color: #111827;
+  border-color: #374151;
+}
+
+.budget-tracker__category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.budget-tracker__category-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.budget-tracker__category-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.budget-tracker__category-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.budget-tracker__category-percentage {
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.budget-tracker--light .budget-tracker__category-percentage {
+  color: #6b7280;
+}
+
+.budget-tracker--dark .budget-tracker__category-percentage {
+  color: #9ca3af;
+}
+
+.budget-tracker__category-percentage.over {
+  color: #ef4444;
+}
+
+.budget-tracker__category-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.budget-tracker--light .budget-tracker__category-bar {
+  background-color: #e5e7eb;
+}
+
+.budget-tracker--dark .budget-tracker__category-bar {
+  background-color: #374151;
+}
+
+.budget-tracker__category-fill {
+  height: 100%;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.budget-tracker__category-values {
+  font-size: 0.75rem;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.budget-tracker--light .budget-tracker__category-values {
+  color: #6b7280;
+}
+
+.budget-tracker--dark .budget-tracker__category-values {
+  color: #9ca3af;
+}
+
+.budget-tracker__category-spent {
+  font-weight: 600;
+}
+
+.budget-tracker__category-budgeted {
+  font-weight: 400;
+}
+
+.budget-tracker__category-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .budget-tracker {
+    padding: 1rem;
+  }
+
+  .budget-tracker__summary {
+    grid-template-columns: 1fr;
+  }
+}
