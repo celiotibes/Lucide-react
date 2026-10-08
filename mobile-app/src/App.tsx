@@ -3,7 +3,7 @@
  * Sets up navigation, providers, and global app structure
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -12,6 +12,10 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 import { AuthProvider } from '@/store/auth-context';
 import { useAuth } from '@/hooks';
+import { DatabaseProvider, useDatabaseInstance } from '@/providers/DatabaseProvider';
+import { SyncService } from '@/services/sync/SyncService';
+import { SyncScheduler, DEFAULT_SYNC_CONFIG } from '@/services/sync/SyncScheduler';
+import { logger } from '@/utils/logger';
 
 // Screens
 import { SetupWizardScreen, LoginScreen } from '@/screens/auth';
@@ -114,6 +118,44 @@ const MainNavigator = () => {
 };
 
 /**
+ * Sync Initializer Component
+ * Starts background sync when user is authenticated
+ */
+const SyncInitializer: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { status } = useAuth();
+  const database = useDatabaseInstance();
+  const schedulerRef = useRef<SyncScheduler | null>(null);
+
+  useEffect(() => {
+    if (status === 'authenticated' && database) {
+      try {
+        logger.info('Initializing sync scheduler...');
+
+        // Create sync service and scheduler
+        const syncService = new SyncService(database);
+        const scheduler = new SyncScheduler(syncService, DEFAULT_SYNC_CONFIG);
+
+        schedulerRef.current = scheduler;
+
+        // Start background sync
+        scheduler.start();
+
+        return () => {
+          // Stop scheduler on cleanup
+          scheduler.stop();
+        };
+      } catch (error) {
+        logger.error('Failed to initialize sync scheduler', error);
+      }
+    }
+  }, [status, database]);
+
+  return <>{children}</>;
+};
+
+/**
  * Root Navigator Component
  */
 const RootNavigator = () => {
@@ -179,11 +221,15 @@ const RootNavigator = () => {
 const App: React.FC = () => {
   return (
     <PaperProvider>
-      <AuthProvider>
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
-      </AuthProvider>
+      <DatabaseProvider>
+        <AuthProvider>
+          <SyncInitializer>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </SyncInitializer>
+        </AuthProvider>
+      </DatabaseProvider>
     </PaperProvider>
   );
 };
