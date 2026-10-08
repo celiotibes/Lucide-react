@@ -1,0 +1,50 @@
+{
+  "appId": "com.lucidereact.crmt",
+  "productName": "CRMT - Gestão Imobiliária",
+  "directories": {
+    "buildResources": "assets",
+    "output": "dist/dmg"
+  },
+  "files": [
+    "dist/app/**/*",
+    "server/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "target": [
+      "dmg",
+      "zip"
+    ],
+    "icon": "assets/crmt-icon-512.png",
+    "artifactName": "${productName}-${version}.${ext}",
+    "category": "public.app-category.business",
+    "certificateFile": "${MACOS_CERTIFICATE_FILE}",
+    "certificatePassword": "${MACOS_CERTIFICATE_PASSWORD}",
+    "notarize": {
+      "teamId": "${MACOS_TEAM_ID}"
+    }
+  },
+  "dmg": {
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 330,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ],
+    "sign": false,
+    "artifactName": "${productName}-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "${productName}"
+  }
+}
