@@ -53,6 +53,8 @@ export class SPEDReportGenerator {
   generateECF(startDate: Date, endDate: Date): string {
     const cnpj = process.env.COMPANY_CNPJ || '00000000000191';
     const records: string[] = [];
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
 
     // File header
     records.push(`|0|0|${cnpj}|01|2.0|1|0|0|0|0|0|0|0|0|0|0|`);
@@ -63,14 +65,14 @@ export class SPEDReportGenerator {
       FROM transactions
       WHERE data_transacao BETWEEN ? AND ?
       ORDER BY data_transacao
-    `).all(startDate, endDate) as any[];
+    `).all(startDateStr, endDateStr) as any[];
 
     // Record D100 (opening balance)
     const openingBalance = this.db.prepare(`
       SELECT COALESCE(SUM(valor), 0) as total
       FROM transactions
       WHERE data_transacao < ?
-    `).get(startDate) as any;
+    `).get(startDateStr) as any;
 
     records.push(`|D|1|00|${cnpj}|${openingBalance.total}|BRL|`);
 
@@ -87,7 +89,7 @@ export class SPEDReportGenerator {
       SELECT COALESCE(SUM(valor), 0) as total
       FROM transactions
       WHERE data_transacao <= ?
-    `).get(endDate) as any;
+    `).get(endDateStr) as any;
 
     records.push(`|D|9|90|${cnpj}|${closingBalance.total}|`);
 
@@ -107,10 +109,13 @@ export class SPEDReportGenerator {
     xml.push('<?xml version="1.0" encoding="UTF-8"?>');
     xml.push('<CFe>');
 
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
     const transactions = this.db.prepare(`
       SELECT * FROM transactions
       WHERE data_transacao BETWEEN ? AND ?
-    `).all(startDate, endDate) as any[];
+    `).all(startDateStr, endDateStr) as any[];
 
     transactions.forEach((tx) => {
       xml.push(`  <Transacao>`);
@@ -215,20 +220,23 @@ export class LGPDComplianceManager {
    * Generate LGPD audit report
    */
   generateLGPDAuditReport(period: { start: Date; end: Date }): object {
+    const startStr = period.start.toISOString().split('T')[0];
+    const endStr = period.end.toISOString().split('T')[0];
+
     const consentRecords = this.db.prepare(`
       SELECT * FROM lgpd_consent_log
       WHERE concedido_em BETWEEN ? AND ?
-    `).all(period.start, period.end);
+    `).all(startStr, endStr);
 
     const deletionRequests = this.db.prepare(`
       SELECT * FROM lgpd_deletion_requests
       WHERE criado_em BETWEEN ? AND ?
-    `).all(period.start, period.end);
+    `).all(startStr, endStr);
 
     const dataBreaches = this.db.prepare(`
       SELECT * FROM lgpd_incident_log
       WHERE data_incidente BETWEEN ? AND ?
-    `).all(period.start, period.end);
+    `).all(startStr, endStr);
 
     return {
       period,
@@ -410,11 +418,11 @@ export class AuditTrailManager {
     }
     if (filters.startDate) {
       query += ' AND timestamp >= ?';
-      params.push(filters.startDate);
+      params.push(filters.startDate.toISOString().split('T')[0]);
     }
     if (filters.endDate) {
       query += ' AND timestamp <= ?';
-      params.push(filters.endDate);
+      params.push(filters.endDate.toISOString().split('T')[0]);
     }
     if (filters.action) {
       query += ' AND acao = ?';
@@ -469,12 +477,15 @@ export class TaxComplianceManager {
    * Calculate tax obligations
    */
   calculateTaxObligations(period: { start: Date; end: Date }): object {
+    const startStr = period.start.toISOString().split('T')[0];
+    const endStr = period.end.toISOString().split('T')[0];
+
     const transactions = this.db.prepare(`
       SELECT tipo, SUM(valor) as total
       FROM transactions
       WHERE data_transacao BETWEEN ? AND ?
       GROUP BY tipo
-    `).all(period.start, period.end) as any[];
+    `).all(startStr, endStr) as any[];
 
     const income = transactions.find((t) => t.tipo === 'INCOME')?.total || 0;
     const expenses = transactions.find((t) => t.tipo === 'EXPENSE')?.total || 0;

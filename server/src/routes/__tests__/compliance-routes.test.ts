@@ -21,12 +21,14 @@ describe('Compliance Routes - Phase 22.18', () => {
         id TEXT PRIMARY KEY,
         nome TEXT NOT NULL,
         email TEXT NOT NULL,
+        telefone TEXT,
         criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE transactions (
         id TEXT PRIMARY KEY,
         usuario_id TEXT,
+        propriedade_id TEXT,
         data_transacao DATE,
         tipo TEXT,
         valor REAL,
@@ -160,9 +162,9 @@ describe('Compliance Routes - Phase 22.18', () => {
       );
 
       db.prepare(
-        `INSERT INTO transactions (id, usuario_id, data_transacao, tipo, valor, descricao)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).run('tx1', 'user1', '2026-01-15', 'INCOME', 1000, 'Test transaction');
+        `INSERT INTO transactions (id, usuario_id, propriedade_id, data_transacao, tipo, valor, descricao)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run('tx1', 'user1', 'prop1', '2026-01-15', 'INCOME', 1000, 'Test transaction');
 
       const res = await request(app)
         .post('/api/compliance/sped-report')
@@ -243,6 +245,12 @@ describe('Compliance Routes - Phase 22.18', () => {
 
   describe('Audit Trail', () => {
     it('should retrieve audit trail', async () => {
+      db.prepare(`INSERT INTO usuarios (id, nome, email) VALUES (?, ?, ?)`).run(
+        'user1',
+        'Test User',
+        'test@example.com'
+      );
+
       db.prepare(`
         INSERT INTO audit_log
         (id, usuario_id, acao, tipo_recurso, id_recurso, timestamp, status)
@@ -258,6 +266,12 @@ describe('Compliance Routes - Phase 22.18', () => {
     });
 
     it('should filter audit trail by userId', async () => {
+      db.prepare(`INSERT INTO usuarios (id, nome, email) VALUES (?, ?, ?)`).run(
+        'user1',
+        'Test User',
+        'test@example.com'
+      );
+
       db.prepare(`
         INSERT INTO audit_log
         (id, usuario_id, acao, tipo_recurso, id_recurso, timestamp, status)
