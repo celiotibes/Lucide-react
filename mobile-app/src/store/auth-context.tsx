@@ -1,11 +1,14 @@
 /**
  * Authentication Context
  * Manages global authentication state and token management
+ * Phase 22.14 Security Hardening: All tokens route through TokenManager + SecureStorageService
  */
 
 import React, { createContext, useCallback, useEffect, useReducer } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi, apiClient, formatApiError } from '@/api';
+import { TokenManager, JWTToken } from '@/utils/security/tokenManager';
 import {
   AuthContextType,
   AuthStatus,
@@ -77,59 +80,84 @@ export interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const tokenManagerRef = React.useRef<TokenManager | null>(null);
+  const appStateSubscriptionRef = React.useRef<any | null>(null);
 
-  // Load stored auth state on mount
+  // Initialize TokenManager
+  useEffect(() => {
+    tokenManagerRef.current = new TokenManager();
+    console.log('[TokenManager] Instance created for auth context');
+  }, []);
+
+  // Load stored auth state on mount and setup AppState listener for auto-refresh
   useEffect(() => {
     const loadAuthState = async () => {
       try {
-        const [token, refreshToken, apiEndpoint, userJson, expiresAtStr] =
-          await AsyncStorage.multiGet([
-            'authToken',
-            'refreshToken',
-            'apiEndpoint',
-            'user',
-            'tokenExpiresAt',
-          ]);
-
-        if (apiEndpoint[1]) {
-          dispatch({ type: 'SET_API_ENDPOINT', payload: apiEndpoint[1] });
-          apiClient.setBaseURL(apiEndpoint[1]);
+        const tokenManager = tokenManagerRef.current;
+        if (!tokenManager) {
+          console.warn('[TokenManager] TokenManager not initialized');
+          return;
         }
 
-        if (token[1] && refreshToken[1] && userJson[1]) {
-          const user = JSON.parse(userJson[1]);
-          const expiresAt = expiresAtStr[1] ? parseInt(expiresAtStr[1], 10) : Date.now();
+        // Load API endpoint from AsyncStorage (not sensitive, no change needed)
+        const apiEndpoint = await AsyncStorage.getItem('apiEndpoint');
+        if (apiEndpoint) {
+          console.log('[Auth] Restoring API endpoint from storage');
+          dispatch({ type: 'SET_API_ENDPOINT', payload: apiEndpoint });
+          apiClient.setBaseURL(apiEndpoint);
+        }
+
+        // Retrieve tokens from TokenManager (secure storage)
+        const token = tokenManager.getToken();
+        const refreshToken = tokenManager.getRefreshToken();
+
+        // Load user from AsyncStorage (non-sensitive metadata)
+        const userJson = await AsyncStorage.getItem('user');
+
+        if (token && refreshToken && userJson) {
+          const user = JSON.parse(userJson);
+          console.log('[TokenManager] Retrieved stored tokens from secure storage');
 
           // Check if token is still valid
-          if (expiresAt > Date.now()) {
+          if (tokenManager.isTokenValid()) {
+            console.log('[TokenManager] Token is valid, restoring authenticated state');
+            const expiryMs = tokenManager.getTokenExpiry();
+            const expiresAt = expiryMs ? Date.now() + expiryMs : Date.now();
+
             dispatch({ type: 'SET_USER', payload: user });
             dispatch({
               type: 'SET_TOKEN',
               payload: {
-                token: token[1],
-                refreshToken: refreshToken[1],
+                token,
+                refreshToken,
                 expiresAt,
-                expiresIn: Math.round((expiresAt - Date.now()) / 1000),
+                expiresIn: Math.round(expiryMs ? expiryMs / 1000 : 0),
               },
             });
             dispatch({ type: 'SET_AUTHENTICATED' });
-            apiClient.setAuthToken(token[1]);
+            apiClient.setAuthToken(token);
           } else {
-            // Token expired, try to refresh
+            // Token expired or invalid, attempt refresh
+            console.log('[TokenManager] Token is expired or invalid, attempting refresh');
             try {
-              const response = await authApi.refreshToken({
-                refreshToken: refreshToken[1],
-              });
-              await AsyncStorage.setItem('authToken', response.token);
-              const newExpiresAt = Date.now() + response.expiresIn * 1000;
-              await AsyncStorage.setItem('tokenExpiresAt', newExpiresAt.toString());
+              const response = await authApi.refreshToken({ refreshToken });
+              const jwtToken: JWTToken = {
+                accessToken: response.token,
+                refreshToken: response.refreshToken,
+                expiresIn: response.expiresIn,
+                tokenType: 'Bearer',
+                issuedAt: Date.now(),
+              };
+              tokenManager.setToken(jwtToken);
+              console.log('[TokenManager] Token refreshed and stored securely');
 
+              const newExpiresAt = Date.now() + response.expiresIn * 1000;
               dispatch({ type: 'SET_USER', payload: user });
               dispatch({
                 type: 'SET_TOKEN',
                 payload: {
                   token: response.token,
-                  refreshToken: refreshToken[1],
+                  refreshToken: response.refreshToken,
                   expiresAt: newExpiresAt,
                   expiresIn: response.expiresIn,
                 },
@@ -137,38 +165,101 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               dispatch({ type: 'SET_AUTHENTICATED' });
               apiClient.setAuthToken(response.token);
             } catch (error) {
-              await AsyncStorage.multiRemove([
-                'authToken',
-                'refreshToken',
-                'user',
-                'tokenExpiresAt',
-              ]);
+              console.log('[TokenManager] Token refresh failed, clearing all stored tokens');
+              tokenManager.clearTokens();
+              await AsyncStorage.multiRemove(['user', 'apiEndpoint']);
               dispatch({ type: 'SET_UNAUTHENTICATED' });
             }
           }
+        } else {
+          console.log('[TokenManager] No stored tokens found');
         }
       } catch (error) {
-        console.warn('Failed to load auth state:', error);
+        console.warn('[TokenManager] Failed to load auth state:', error);
         dispatch({ type: 'SET_UNAUTHENTICATED' });
       }
     };
 
     loadAuthState();
-  }, []);
+
+    // Setup AppState listener for automatic token refresh on app resume
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        console.log('[TokenManager] App resumed, checking token expiration');
+        const tokenManager = tokenManagerRef.current;
+        if (tokenManager && state.token?.refreshToken) {
+          if (tokenManager.shouldRefreshToken()) {
+            console.log('[TokenManager] Token needs refresh on app resume, refreshing...');
+            try {
+              const response = await authApi.refreshToken({
+                refreshToken: state.token.refreshToken,
+              });
+              const jwtToken: JWTToken = {
+                accessToken: response.token,
+                refreshToken: response.refreshToken,
+                expiresIn: response.expiresIn,
+                tokenType: 'Bearer',
+                issuedAt: Date.now(),
+              };
+              tokenManager.setToken(jwtToken);
+              const newExpiresAt = Date.now() + response.expiresIn * 1000;
+
+              dispatch({
+                type: 'SET_TOKEN',
+                payload: {
+                  token: response.token,
+                  refreshToken: response.refreshToken,
+                  expiresAt: newExpiresAt,
+                  expiresIn: response.expiresIn,
+                },
+              });
+              apiClient.setAuthToken(response.token);
+              console.log('[TokenManager] Token refreshed on app resume');
+            } catch (error) {
+              console.warn('[TokenManager] Auto-refresh on app resume failed:', error);
+            }
+          }
+        }
+      }
+    };
+
+    appStateSubscriptionRef.current = AppState.addEventListener('change', handleAppStateChange);
+
+    // Cleanup: unsubscribe from AppState listener on unmount
+    return () => {
+      if (appStateSubscriptionRef.current) {
+        appStateSubscriptionRef.current.remove();
+        console.log('[TokenManager] AppState listener unsubscribed on unmount');
+      }
+    };
+  }, [state.token?.refreshToken]);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     dispatch({ type: 'SET_LOADING' });
     try {
+      const tokenManager = tokenManagerRef.current;
+      if (!tokenManager) {
+        throw new Error('TokenManager not initialized');
+      }
+
+      console.log('[TokenManager] Login initiated');
       const response = await authApi.login(credentials);
 
-      const expiresAt = Date.now() + response.expiresIn * 1000;
-      await AsyncStorage.multiSet([
-        ['authToken', response.token],
-        ['refreshToken', response.refreshToken],
-        ['user', JSON.stringify(response.user)],
-        ['tokenExpiresAt', expiresAt.toString()],
-      ]);
+      // Store tokens securely via TokenManager
+      const jwtToken: JWTToken = {
+        accessToken: response.token,
+        refreshToken: response.refreshToken,
+        expiresIn: response.expiresIn,
+        tokenType: 'Bearer',
+        issuedAt: Date.now(),
+      };
+      tokenManager.setToken(jwtToken);
+      console.log('[TokenManager] Tokens stored securely after login');
 
+      // Store non-sensitive user metadata in AsyncStorage
+      await AsyncStorage.setItem('user', JSON.stringify(response.user));
+
+      const expiresAt = Date.now() + response.expiresIn * 1000;
       dispatch({ type: 'SET_USER', payload: response.user });
       dispatch({
         type: 'SET_TOKEN',
@@ -181,7 +272,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       dispatch({ type: 'SET_AUTHENTICATED' });
       apiClient.setAuthToken(response.token);
+      console.log('[TokenManager] Login successful, authentication state updated');
     } catch (error) {
+      console.error('[TokenManager] Login failed:', error);
       const apiError = formatApiError(error);
       const authError = toAuthError(apiError);
       dispatch({ type: 'SET_ERROR', payload: authError });
@@ -192,16 +285,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = useCallback(async (credentials: RegisterCredentials) => {
     dispatch({ type: 'SET_LOADING' });
     try {
+      const tokenManager = tokenManagerRef.current;
+      if (!tokenManager) {
+        throw new Error('TokenManager not initialized');
+      }
+
+      console.log('[TokenManager] Registration initiated');
       const response = await authApi.register(credentials);
 
-      const expiresAt = Date.now() + response.expiresIn * 1000;
-      await AsyncStorage.multiSet([
-        ['authToken', response.token],
-        ['refreshToken', response.refreshToken],
-        ['user', JSON.stringify(response.user)],
-        ['tokenExpiresAt', expiresAt.toString()],
-      ]);
+      // Store tokens securely via TokenManager
+      const jwtToken: JWTToken = {
+        accessToken: response.token,
+        refreshToken: response.refreshToken,
+        expiresIn: response.expiresIn,
+        tokenType: 'Bearer',
+        issuedAt: Date.now(),
+      };
+      tokenManager.setToken(jwtToken);
+      console.log('[TokenManager] Tokens stored securely after registration');
 
+      // Store non-sensitive user metadata in AsyncStorage
+      await AsyncStorage.setItem('user', JSON.stringify(response.user));
+
+      const expiresAt = Date.now() + response.expiresIn * 1000;
       dispatch({ type: 'SET_USER', payload: response.user });
       dispatch({
         type: 'SET_TOKEN',
@@ -214,7 +320,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       dispatch({ type: 'SET_AUTHENTICATED' });
       apiClient.setAuthToken(response.token);
+      console.log('[TokenManager] Registration successful, authentication state updated');
     } catch (error) {
+      console.error('[TokenManager] Registration failed:', error);
       const apiError = formatApiError(error);
       const authError = toAuthError(apiError);
       dispatch({ type: 'SET_ERROR', payload: authError });
@@ -224,13 +332,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = useCallback(async () => {
     try {
+      console.log('[TokenManager] Logout initiated');
       await authApi.logout();
     } catch (error) {
-      console.warn('Logout call failed:', error);
+      console.warn('[TokenManager] Logout API call failed:', error);
     } finally {
-      await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'user', 'tokenExpiresAt']);
+      const tokenManager = tokenManagerRef.current;
+      if (tokenManager) {
+        // Clear all tokens from secure storage
+        tokenManager.clearTokens();
+        console.log('[TokenManager] All tokens cleared from secure storage');
+      }
+      // Clear non-sensitive user data from AsyncStorage
+      await AsyncStorage.multiRemove(['user', 'apiEndpoint']);
       dispatch({ type: 'LOGOUT' });
       apiClient.clearAuthToken();
+      console.log('[TokenManager] Logout complete, authentication state reset');
     }
   }, []);
 
@@ -240,27 +357,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
+      const tokenManager = tokenManagerRef.current;
+      if (!tokenManager) {
+        throw new Error('TokenManager not initialized');
+      }
+
+      console.log('[TokenManager] Token refresh initiated');
       const response = await authApi.refreshToken({
         refreshToken: state.token.refreshToken,
       });
 
-      const expiresAt = Date.now() + response.expiresIn * 1000;
-      await AsyncStorage.multiSet([
-        ['authToken', response.token],
-        ['tokenExpiresAt', expiresAt.toString()],
-      ]);
+      // Store refreshed tokens securely via TokenManager
+      const jwtToken: JWTToken = {
+        accessToken: response.token,
+        refreshToken: response.refreshToken,
+        expiresIn: response.expiresIn,
+        tokenType: 'Bearer',
+        issuedAt: Date.now(),
+      };
+      tokenManager.setToken(jwtToken);
+      console.log('[TokenManager] Refreshed tokens stored securely');
 
+      const expiresAt = Date.now() + response.expiresIn * 1000;
       dispatch({
         type: 'SET_TOKEN',
         payload: {
           token: response.token,
-          refreshToken: state.token.refreshToken,
+          refreshToken: response.refreshToken,
           expiresAt,
           expiresIn: response.expiresIn,
         },
       });
       apiClient.setAuthToken(response.token);
+      console.log('[TokenManager] Token refresh successful');
     } catch (error) {
+      console.error('[TokenManager] Token refresh failed:', error);
       const apiError = formatApiError(error);
       const authError = toAuthError(apiError);
       dispatch({ type: 'SET_ERROR', payload: authError });

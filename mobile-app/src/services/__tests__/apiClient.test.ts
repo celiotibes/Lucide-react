@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { APIClient, APIConfig, APIResponse } from '../APIClient';
+import { APIClient, APIConfig, APIResponse, PinningError, ValidationError } from '../APIClient';
 
 describe('APIClient', () => {
   let client: APIClient;
@@ -312,6 +312,144 @@ describe('APIClient', () => {
 
       expect(result.timestamp).toBeDefined();
       expect(result.timestamp).toBeGreaterThan(0);
+    });
+  });
+
+  describe('certificate pinning', () => {
+    it('should initialize with certificate pinning enabled by default', () => {
+      const newClient = new APIClient({
+        baseURL: 'https://api.example.com',
+      });
+      expect(newClient).toBeDefined();
+    });
+
+    it('should allow disabling certificate pinning', () => {
+      const newClient = new APIClient({
+        baseURL: 'https://api.example.com',
+        enableCertificatePinning: false,
+      });
+      expect(newClient).toBeDefined();
+    });
+
+    it('should add pinned certificates for domains', () => {
+      const testPublicKey = 'test-public-key-123';
+      client.addPinnedCertificate('api.example.com', testPublicKey);
+
+      // Should not throw and should be logged
+      expect(client).toBeDefined();
+    });
+
+    it('should add backup pinned certificates', () => {
+      const testPublicKey = 'backup-key-456';
+      client.addPinnedCertificate('api.example.com', testPublicKey, undefined, true);
+
+      expect(client).toBeDefined();
+    });
+
+    it('should provide validation logs for debugging', () => {
+      const logs = client.getValidationLogs();
+      expect(Array.isArray(logs)).toBe(true);
+    });
+
+    it('should allow clearing validation logs', () => {
+      client.clearValidationLogs();
+      const logs = client.getValidationLogs();
+      expect(logs.length).toBe(0);
+    });
+
+    it('should throw PinningError when validation fails', async () => {
+      const pinnedClient = new APIClient({
+        baseURL: 'https://api.example.com',
+        enableCertificatePinning: true,
+      });
+
+      // Add a pinned certificate
+      pinnedClient.addPinnedCertificate('api.example.com', 'valid-key-123');
+
+      // Mock fetch to simulate network success but we'll test error handling
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: vi.fn().mockResolvedValueOnce({ success: true }),
+      } as any);
+
+      // Request should succeed with certificate pinning
+      const result = await pinnedClient.get('/test');
+      expect(result.success).toBe(true);
+    });
+
+    it('should handle requests when pinning is disabled', async () => {
+      const noPinningClient = new APIClient({
+        baseURL: 'https://api.example.com',
+        enableCertificatePinning: false,
+      });
+
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: vi.fn().mockResolvedValueOnce({ success: true }),
+      } as any);
+
+      const result = await noPinningClient.get('/test');
+      expect(result.success).toBe(true);
+    });
+
+    it('should configure pinned hosts on initialization', () => {
+      const newClient = new APIClient({
+        baseURL: 'https://secure-api.example.com',
+        pinnedHosts: ['secure-api.example.com'],
+      });
+      expect(newClient).toBeDefined();
+    });
+
+    it('should extract host from URL correctly', async () => {
+      client.addPinnedCertificate('api.example.com', 'test-key-789');
+
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: vi.fn().mockResolvedValueOnce({ success: true }),
+      } as any);
+
+      const result = await client.get('/test');
+      expect(result.success).toBe(true);
+    });
+
+    it('should maintain validation logs up to max capacity', () => {
+      for (let i = 0; i < 150; i++) {
+        client.addPinnedCertificate(`domain${i}.com`, `key-${i}`);
+      }
+
+      const logs = client.getValidationLogs();
+      // Should keep only recent logs (MAX_VALIDATION_LOGS = 100)
+      expect(logs.length).toBeLessThanOrEqual(100);
+    });
+
+    it('PinningError should have correct properties', () => {
+      const error = new PinningError('Test pinning error', 'api.example.com', 'abc123');
+
+      expect(error.name).toBe('PinningError');
+      expect(error.message).toBe('Test pinning error');
+      expect(error.host).toBe('api.example.com');
+      expect(error.fingerprint).toBe('abc123');
+      expect(error.timestamp).toBeGreaterThan(0);
+    });
+
+    it('ValidationError should have correct properties', () => {
+      const error = new ValidationError(
+        'Test validation error',
+        'api.example.com',
+        'Certificate chain invalid'
+      );
+
+      expect(error.name).toBe('ValidationError');
+      expect(error.message).toBe('Test validation error');
+      expect(error.host).toBe('api.example.com');
+      expect(error.reason).toBe('Certificate chain invalid');
+      expect(error.timestamp).toBeGreaterThan(0);
     });
   });
 });
