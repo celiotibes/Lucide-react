@@ -14,6 +14,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { logger } from '../logger';
+import { batteryOptimizationService } from '../performance/batteryOptimizationService';
 
 export enum EventType {
   // User events
@@ -41,6 +42,11 @@ export enum EventType {
   SYNC_START = 'sync_start',
   SYNC_SUCCESS = 'sync_success',
   SYNC_ERROR = 'sync_error',
+
+  // Notification events (Phase 22.15)
+  NOTIFICATION_RECEIVED = 'notification_received',
+  NOTIFICATION_OPENED = 'notification_opened',
+  NOTIFICATION_DISMISSED = 'notification_dismissed',
 
   // Error events
   ERROR_OCCURRED = 'error_occurred',
@@ -92,8 +98,10 @@ const SESSION_ID_KEY = '@crmt:analytics_session';
 const PRIVACY_SETTINGS_KEY = '@crmt:privacy_settings';
 const LAST_SYNC_KEY = '@crmt:analytics_last_sync';
 const MAX_OFFLINE_EVENTS = 500;
+const MAX_OFFLINE_EVENTS_LOW_BATTERY = 250; // Reduced in low battery
 const BATCH_SYNC_SIZE = 50;
-const AUTO_SYNC_INTERVAL = 30000; // 30 seconds
+const BATCH_SYNC_SIZE_LOW_BATTERY = 25; // Reduced in low battery
+const AUTO_SYNC_INTERVAL = 30000; // 30 seconds (will be adapted based on battery)
 
 class AnalyticsService {
   private events: AnalyticsEvent[] = [];
@@ -111,6 +119,9 @@ class AnalyticsService {
     dataRetentionDays: 30,
   };
   private syncTimer: NodeJS.Timeout | null = null;
+  private batteryUnsubscribe: (() => void) | null = null;
+  private currentSyncInterval: number = AUTO_SYNC_INTERVAL;
+  private currentBatchSize: number = BATCH_SYNC_SIZE;
 
   constructor() {
     this.initialize();
@@ -121,6 +132,7 @@ class AnalyticsService {
       await this.initializeSession();
       await this.loadPrivacySettings();
       await this.loadEventsFromStorage();
+      this.setupBatteryMonitoring();
       this.startAutoSync();
       logger.info('AnalyticsService initialized', { sessionId: this.sessionId });
     } catch (error) {
@@ -296,9 +308,15 @@ class AnalyticsService {
   private async addEvent(event: AnalyticsEvent): Promise<void> {
     this.events.push(event);
 
-    // Enforce max offline events
-    if (this.events.length > MAX_OFFLINE_EVENTS) {
-      this.events = this.events.slice(-MAX_OFFLINE_EVENTS);
+    // Enforce max offline events (reduced in low battery)
+    const batteryState = batteryOptimizationService.getBatteryState();
+    const maxOfflineEvents =
+      batteryState.status === 'low' || batteryState.status === 'critical'
+        ? MAX_OFFLINE_EVENTS_LOW_BATTERY
+        : MAX_OFFLINE_EVENTS;
+
+    if (this.events.length > maxOfflineEvents) {
+      this.events = this.events.slice(-maxOfflineEvents);
     }
 
     await this.persistEvents();
@@ -324,6 +342,49 @@ class AnalyticsService {
   }
 
   /**
+   * Setup battery monitoring for adaptive sync
+   */
+  private setupBatteryMonitoring(): void {
+    try {
+      batteryOptimizationService.startMonitoring();
+
+      this.batteryUnsubscribe = batteryOptimizationService.onBatteryStateChange(() => {
+        this.updateSyncIntervals();
+      });
+
+      // Initial sync intervals
+      this.updateSyncIntervals();
+
+      logger.info('Battery monitoring setup for analytics');
+    } catch (error) {
+      logger.warn('Failed to setup battery monitoring for analytics', {}, 'Analytics');
+    }
+  }
+
+  /**
+   * Update sync intervals based on battery state
+   */
+  private updateSyncIntervals(): void {
+    try {
+      const syncIntervals = batteryOptimizationService.getSyncIntervals();
+      const batchSize = batteryOptimizationService.getAnalyticsBatchSize();
+
+      this.currentSyncInterval = syncIntervals.analyticsInterval;
+      this.currentBatchSize = batchSize;
+
+      logger.debug('Analytics sync intervals updated', {
+        interval: this.currentSyncInterval,
+        batchSize: this.currentBatchSize,
+      });
+
+      // Restart sync timer with new interval
+      this.restartAutoSync();
+    } catch (error) {
+      logger.warn('Failed to update sync intervals', {}, 'Analytics');
+    }
+  }
+
+  /**
    * Start automatic sync timer
    */
   private startAutoSync(): void {
@@ -331,7 +392,15 @@ class AnalyticsService {
       if (!this.isSyncing && this.getUnSyncedEvents().length > 0) {
         this.syncEvents();
       }
-    }, AUTO_SYNC_INTERVAL);
+    }, this.currentSyncInterval);
+  }
+
+  /**
+   * Restart auto sync with new interval
+   */
+  private restartAutoSync(): void {
+    this.stopAutoSync();
+    this.startAutoSync();
   }
 
   /**
@@ -341,6 +410,10 @@ class AnalyticsService {
     if (this.syncTimer) {
       clearInterval(this.syncTimer);
       this.syncTimer = null;
+    }
+    if (this.batteryUnsubscribe) {
+      this.batteryUnsubscribe();
+      this.batteryUnsubscribe = null;
     }
   }
 
@@ -355,14 +428,16 @@ class AnalyticsService {
       const unSynced = this.getUnSyncedEvents();
       if (unSynced.length === 0) return;
 
-      // Process in batches
-      for (let i = 0; i < unSynced.length; i += BATCH_SYNC_SIZE) {
-        const batch = unSynced.slice(i, i + BATCH_SYNC_SIZE);
+      // Process in batches (use adaptive batch size based on battery)
+      for (let i = 0; i < unSynced.length; i += this.currentBatchSize) {
+        const batch = unSynced.slice(i, i + this.currentBatchSize);
         await this.sendBatch(batch);
       }
 
       await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-      logger.info(`Analytics: Synced ${unSynced.length} events`);
+      logger.info(`Analytics: Synced ${unSynced.length} events`, {
+        batchSize: this.currentBatchSize,
+      });
     } catch (error) {
       logger.error('Failed to sync analytics events', error, 'Analytics');
     } finally {

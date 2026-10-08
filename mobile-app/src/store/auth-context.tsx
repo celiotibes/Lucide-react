@@ -9,6 +9,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi, apiClient, formatApiError } from '@/api';
 import { TokenManager, JWTToken } from '@/utils/security/tokenManager';
+import { BiometricAuthService } from '@/utils/biometric/biometricAuthService';
 import {
   AuthContextType,
   AuthStatus,
@@ -81,12 +82,21 @@ export interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
   const tokenManagerRef = React.useRef<TokenManager | null>(null);
+  const biometricServiceRef = React.useRef<BiometricAuthService | null>(null);
   const appStateSubscriptionRef = React.useRef<any | null>(null);
 
-  // Initialize TokenManager
+  // Initialize TokenManager and BiometricAuthService
   useEffect(() => {
     tokenManagerRef.current = new TokenManager();
     console.log('[TokenManager] Instance created for auth context');
+
+    // Initialize biometric service
+    biometricServiceRef.current = new BiometricAuthService();
+    biometricServiceRef.current.initialize().then(() => {
+      console.log('[BiometricAuth] Service initialized in auth context');
+    }).catch((error) => {
+      console.warn('[BiometricAuth] Failed to initialize in auth context:', error);
+    });
   }, []);
 
   // Load stored auth state on mount and setup AppState listener for auto-refresh
@@ -408,6 +418,123 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_API_ENDPOINT', payload: endpoint });
   }, []);
 
+  /**
+   * Login using biometric authentication
+   * Phase 22.15: Biometric authentication support
+   */
+  const loginWithBiometric = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING' });
+    try {
+      const biometricService = biometricServiceRef.current;
+      if (!biometricService) {
+        throw new Error('Biometric service not initialized');
+      }
+
+      // Check if biometric is enabled
+      if (!biometricService.isBiometricEnabled()) {
+        throw new Error('Biometric authentication is not enabled');
+      }
+
+      // Authenticate with biometric
+      const authResult = await biometricService.authenticate(
+        'Authenticate to access your account'
+      );
+
+      if (!authResult.success) {
+        const error = authResult.error?.message || 'Biometric authentication failed';
+        const authError = {
+          code: authResult.error?.code || 'biometric_failed',
+          message: error,
+        };
+        dispatch({ type: 'SET_ERROR', payload: authError });
+        throw authError;
+      }
+
+      // After successful biometric verification, we still need user credentials
+      // for the initial login to get tokens. Biometric is used for unlock,
+      // not for initial authentication.
+      console.log('[TokenManager] Biometric authentication successful');
+
+      // Biometric verification unlocks TokenManager
+      // The app should use this to skip password entry if tokens exist
+    } catch (error) {
+      console.error('[TokenManager] Biometric login failed:', error);
+      const apiError = formatApiError(error);
+      const authError = toAuthError(apiError);
+      dispatch({ type: 'SET_ERROR', payload: authError });
+      throw authError;
+    }
+  }, []);
+
+  /**
+   * Enable biometric authentication for current user
+   * Phase 22.15: Biometric authentication support
+   */
+  const enableBiometric = useCallback(async (): Promise<boolean> => {
+    try {
+      const biometricService = biometricServiceRef.current;
+      if (!biometricService || !state.user) {
+        throw new Error('Service or user not available');
+      }
+
+      const success = await biometricService.enableBiometric({
+        userId: state.user.id,
+        reason: 'Enable biometric authentication for secure access',
+      });
+
+      if (success) {
+        console.log('[BiometricAuth] Biometric authentication enabled for user:', state.user.id);
+      }
+
+      return success;
+    } catch (error) {
+      console.error('[BiometricAuth] Failed to enable biometric:', error);
+      return false;
+    }
+  }, [state.user]);
+
+  /**
+   * Disable biometric authentication for current user
+   * Phase 22.15: Biometric authentication support
+   */
+  const disableBiometric = useCallback(async (): Promise<boolean> => {
+    try {
+      const biometricService = biometricServiceRef.current;
+      if (!biometricService || !state.user) {
+        throw new Error('Service or user not available');
+      }
+
+      const success = await biometricService.disableBiometric(state.user.id);
+
+      if (success) {
+        console.log('[BiometricAuth] Biometric authentication disabled for user:', state.user.id);
+      }
+
+      return success;
+    } catch (error) {
+      console.error('[BiometricAuth] Failed to disable biometric:', error);
+      return false;
+    }
+  }, [state.user]);
+
+  /**
+   * Check biometric availability
+   * Phase 22.15: Biometric authentication support
+   */
+  const checkBiometricAvailability = useCallback(async () => {
+    try {
+      const biometricService = biometricServiceRef.current;
+      if (!biometricService) {
+        throw new Error('Biometric service not initialized');
+      }
+
+      return await biometricService.checkAvailability();
+    } catch (error) {
+      console.error('[BiometricAuth] Failed to check availability:', error);
+      return null;
+    }
+  }, []);
+
   const value: AuthContextType = {
     user: state.user,
     token: state.token,
@@ -419,6 +546,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshToken,
     setApiEndpoint,
     apiEndpoint: state.apiEndpoint,
+    loginWithBiometric,
+    enableBiometric,
+    disableBiometric,
+    checkBiometricAvailability,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

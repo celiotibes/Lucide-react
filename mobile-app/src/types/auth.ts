@@ -1,7 +1,10 @@
 /**
  * Authentication Types
  * Types related to user authentication and authorization
+ * Phase 22.15: Biometric authentication support
  */
+
+import type { BiometricAvailability } from '@/utils/biometric/biometricTypes';
 
 export interface AuthUser {
   id: string;
@@ -51,6 +54,11 @@ export interface AuthContextType {
   refreshToken: () => Promise<void>;
   setApiEndpoint: (endpoint: string) => void;
   apiEndpoint: string | null;
+  // Biometric authentication methods (Phase 22.15)
+  loginWithBiometric?: () => Promise<void>;
+  enableBiometric?: () => Promise<boolean>;
+  disableBiometric?: () => Promise<boolean>;
+  checkBiometricAvailability?: () => Promise<BiometricAvailability | null>;
 }
 
 export interface SetupWizardState {

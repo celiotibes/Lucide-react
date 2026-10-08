@@ -34,6 +34,17 @@ export type {
   NetworkStatusCallback,
 } from './NetworkMonitorService';
 
+// Push Notification Service (Phase 22.15)
+export { pushNotificationService } from './pushNotificationService';
+export type {
+  NotificationPayload,
+  NotificationType,
+  NotificationPriority,
+  QueuedNotification,
+  NotificationEvent,
+  PushNotificationState,
+} from './pushNotificationService';
+
 // Hooks
 export { useSyncManager } from '../hooks/useSyncManager';
 export type {

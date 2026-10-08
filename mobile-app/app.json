@@ -50,7 +50,9 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_PHONE_STATE"
+        "android.permission.READ_PHONE_STATE",
+        "android.permission.POST_NOTIFICATIONS",
+        "com.google.android.c2dm.permission.RECEIVE"
       ],
       "intentFilters": [
         {
@@ -81,6 +83,14 @@
         }
       ],
       [
+        "expo-media-library",
+        {
+          "photosPermission": "O app acessa suas fotos e vídeos.",
+          "videoPermission": "O app acessa seus vídeos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
@@ -88,13 +98,19 @@
             "targetSdkVersion": 34,
             "compileSdkVersion": 34,
             "usesCleartextTraffic": false,
-            "enableHermes": true
+            "enableHermes": true,
+            "firebase": {
+              "googleServicesFile": "./google-services.json"
+            }
           },
           "ios": {
-            "enableHermes": true
+            "enableHermes": true,
+            "deploymentTarget": "13.0"
           }
         }
-      ]
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging"
     ],
     "extra": {
       "apiEndpoint": "${API_ENDPOINT}",
