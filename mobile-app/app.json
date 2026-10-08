@@ -87,7 +87,11 @@
             "minSdkVersion": 24,
             "targetSdkVersion": 34,
             "compileSdkVersion": 34,
-            "usesCleartextTraffic": false
+            "usesCleartextTraffic": false,
+            "enableHermes": true
+          },
+          "ios": {
+            "enableHermes": true
           }
         }
       ]
