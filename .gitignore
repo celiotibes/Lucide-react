@@ -37,3 +37,7 @@ dist-ssr
 /laudo-*.pdf
 /rad-*.pdf
 .claude/
+
+# Electron main process files (generated during build)
+/electron.js
+/preload.js
