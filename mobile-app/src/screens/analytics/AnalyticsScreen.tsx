@@ -1,399 +1,310 @@
 /**
  * Analytics Screen - Phase 22.13: Analytics & Monitoring
  *
- * Full-screen analytics view with detailed metrics, crash reports,
- * and analytics configuration
+ * Main screen for displaying analytics and monitoring data
  */
 
 import React, { useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
-  RefreshControl,
-  Alert,
   SafeAreaView,
+  ScrollView,
+  Text,
+  ActivityIndicator,
+  RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
-import { Card, SegmentedButtons, Text, Button, Switch } from 'react-native-paper';
-import { useAnalytics } from '@/hooks/useAnalytics';
-import { analyticsService, crashReportingService, performanceMetrics } from '@/utils/analytics';
-import { logger } from '@/utils/logger';
-import { Colors } from '@/theme/colors';
+import { useAnalytics } from '../../hooks/useAnalytics';
+import AnalyticsDashboard from '../../components/analytics/AnalyticsDashboard';
+import { analyticsService, crashReportingService, performanceMetrics } from '../../utils/analytics';
 
-type TabType = 'overview' | 'performance' | 'crashes' | 'events' | 'settings';
-
-interface AnalyticsData {
-  metrics: any | null;
-  performanceStats: any | null;
-  crashes: any[];
-  crashCount: number;
-  isRefreshing: boolean;
+interface TabOption {
+  id: string;
+  label: string;
 }
 
-export const AnalyticsScreen: React.FC = () => {
-  const { getMetrics, getPerformanceSummary, getCrashCount } = useAnalytics();
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [data, setData] = useState<AnalyticsData>({
-    metrics: null,
-    performanceStats: null,
-    crashes: [],
-    crashCount: 0,
-    isRefreshing: false,
-  });
-  const [privacySettings, setPrivacySettings] = useState({
-    analyticsEnabled: true,
-    crashReportingEnabled: true,
-    personalizationEnabled: false,
-  });
+const AnalyticsScreen: React.FC = () => {
+  const { trackEvent, addBreadcrumb } = useAnalytics();
+  const [activeTab, setActiveTab] = useState<string>('overview');
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const tabs: TabOption[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'performance', label: 'Performance' },
+    { id: 'events', label: 'Events' },
+    { id: 'crashes', label: 'Crashes' },
+  ];
 
   useEffect(() => {
-    loadData();
-    const timer = setInterval(loadData, 5000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const loadData = () => {
-    try {
-      const metrics = getMetrics();
-      const performanceStats = getPerformanceSummary();
-      const crashCount = getCrashCount();
-      const crashes = crashReportingService.getCrashReports().slice(-10);
-
-      setData((prev) => ({
-        ...prev,
-        metrics,
-        performanceStats,
-        crashes,
-        crashCount,
-      }));
-    } catch (error) {
-      logger.error('Failed to load analytics data', error, 'AnalyticsScreen');
-    }
-  };
+    trackEvent('analytics_screen_view', { screen: 'Analytics' }).catch(console.error);
+    addBreadcrumb('Opened Analytics Screen', 'navigation');
+  }, [trackEvent, addBreadcrumb]);
 
   const handleRefresh = async () => {
-    setData((prev) => ({ ...prev, isRefreshing: true }));
     try {
-      await analyticsService.syncEvents();
-      await crashReportingService.syncCrashes();
-      loadData();
-      Alert.alert('Success', 'Analytics synced successfully');
+      setRefreshing(true);
+      await analyticsService.flush();
+      await performanceMetrics.persistMetrics();
+      addBreadcrumb('Refreshed analytics data', 'analytics');
     } catch (error) {
-      logger.error('Failed to sync analytics', error, 'AnalyticsScreen');
-      Alert.alert('Error', 'Failed to sync analytics');
+      console.error('Failed to refresh analytics', error);
     } finally {
-      setData((prev) => ({ ...prev, isRefreshing: false }));
+      setRefreshing(false);
     }
   };
 
-  const handleExportAnalytics = async () => {
+  const handleClearData = async () => {
     try {
-      const exportData = await analyticsService.exportAnalytics();
-      logger.info('Analytics exported', { size: exportData.length });
-      Alert.alert('Success', `Exported ${exportData.length} bytes of analytics data`);
+      setLoading(true);
+      await analyticsService.clearAll();
+      await crashReportingService.clearAll();
+      await performanceMetrics.clearAll();
+      addBreadcrumb('Cleared analytics data', 'analytics');
     } catch (error) {
-      logger.error('Failed to export analytics', error, 'AnalyticsScreen');
-      Alert.alert('Error', 'Failed to export analytics');
+      console.error('Failed to clear analytics data', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleClearAnalytics = () => {
-    Alert.alert(
-      'Clear All Analytics',
-      'This will permanently delete all analytics data. This action cannot be undone.',
-      [
-        { text: 'Cancel' },
-        {
-          text: 'Clear All',
-          onPress: async () => {
-            try {
-              await analyticsService.clearAll();
-              await crashReportingService.clearCrashReports();
-              loadData();
-              Alert.alert('Success', 'All analytics data cleared');
-            } catch (error) {
-              logger.error('Failed to clear analytics', error, 'AnalyticsScreen');
-              Alert.alert('Error', 'Failed to clear analytics');
-            }
-          },
-        },
-      ]
-    );
-  };
+  const renderOverviewTab = () => (
+    <AnalyticsDashboard
+      onRefresh={handleRefresh}
+      showDetails={true}
+    />
+  );
 
-  const handlePrivacySettingChange = (key: string, value: boolean) => {
-    const updatedSettings = { ...privacySettings, [key]: value };
-    setPrivacySettings(updatedSettings);
-    analyticsService.setPrivacySettings(updatedSettings);
-  };
+  const renderPerformanceTab = () => (
+    <ScrollView
+      style={styles.tabContent}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
+    >
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Performance Metrics</Text>
+        <PerformanceMetricsView />
+      </View>
+    </ScrollView>
+  );
 
-  const renderOverviewTab = () => {
-    const { metrics, performanceStats, crashCount } = data;
-    if (!metrics || !performanceStats) {
-      return <Text>Loading analytics...</Text>;
-    }
+  const renderEventsTab = () => (
+    <ScrollView
+      style={styles.tabContent}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
+    >
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Event Tracking</Text>
+        <EventsMetricsView />
+      </View>
+    </ScrollView>
+  );
 
-    const errorRate = metrics.totalEvents > 0 ? (metrics.errorCount / metrics.totalEvents) * 100 : 0;
-    const crashRate = metrics.totalEvents > 0 ? (metrics.crashCount / metrics.totalEvents) * 100 : 0;
+  const renderCrashesTab = () => (
+    <ScrollView
+      style={styles.tabContent}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
+    >
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Crash Reports</Text>
+        <CrashReportsView />
+      </View>
+    </ScrollView>
+  );
 
-    return (
-      <ScrollView style={styles.tabContent}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Event Summary</Text>
-            <View style={styles.metricGrid}>
-              <View style={styles.metricBox}>
-                <Text style={styles.metricLabel}>Total Events</Text>
-                <Text style={styles.metricValue}>{metrics.totalEvents}</Text>
-              </View>
-              <View style={styles.metricBox}>
-                <Text style={styles.metricLabel}>Errors</Text>
-                <Text style={[styles.metricValue, { color: '#d32f2f' }]}>{metrics.errorCount}</Text>
-              </View>
-              <View style={styles.metricBox}>
-                <Text style={styles.metricLabel}>Crashes</Text>
-                <Text style={[styles.metricValue, { color: '#d32f2f' }]}>{metrics.crashCount}</Text>
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Error Rates</Text>
-            <View style={styles.rateRow}>
-              <Text style={styles.rateLabel}>Error Rate</Text>
-              <Text style={styles.rateValue}>{errorRate.toFixed(2)}%</Text>
-            </View>
-            <View style={styles.rateRow}>
-              <Text style={styles.rateLabel}>Crash Rate</Text>
-              <Text style={styles.rateValue}>{crashRate.toFixed(2)}%</Text>
-            </View>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Performance Summary</Text>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>App Startup</Text>
-              <Text style={styles.perfValue}>{performanceStats.startupTime}ms</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Memory Usage</Text>
-              <Text style={styles.perfValue}>{performanceStats.memoryUsage}MB</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Avg API Response</Text>
-              <Text style={styles.perfValue}>{performanceStats.avgApiResponseTime}ms</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Avg Network Latency</Text>
-              <Text style={styles.perfValue}>{performanceStats.avgNetworkLatency}ms</Text>
-            </View>
-          </Card.Content>
-        </Card>
-      </ScrollView>
-    );
-  };
-
-  const renderPerformanceTab = () => {
-    const { performanceStats } = data;
-    if (!performanceStats) {
-      return <Text>Loading performance data...</Text>;
-    }
-
-    return (
-      <ScrollView style={styles.tabContent}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Performance Metrics</Text>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>App Startup Time</Text>
-              <Text style={styles.perfValue}>{performanceStats.startupTime}ms</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Memory Usage</Text>
-              <Text style={styles.perfValue}>{performanceStats.memoryUsage}MB</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Available Memory</Text>
-              <Text style={styles.perfValue}>{performanceStats.memoryAvailable}MB</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Avg API Response Time</Text>
-              <Text style={styles.perfValue}>{performanceStats.avgApiResponseTime}ms</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Avg Network Latency</Text>
-              <Text style={styles.perfValue}>{performanceStats.avgNetworkLatency}ms</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Crashes</Text>
-              <Text style={styles.perfValue}>{performanceStats.crashes}</Text>
-            </View>
-            <View style={styles.perfRow}>
-              <Text style={styles.perfLabel}>Errors</Text>
-              <Text style={styles.perfValue}>{performanceStats.errors}</Text>
-            </View>
-          </Card.Content>
-        </Card>
-      </ScrollView>
-    );
-  };
-
-  const renderCrashesTab = () => {
-    const { crashes, crashCount } = data;
-
-    return (
-      <ScrollView style={styles.tabContent}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Crash Reports</Text>
-            <View style={styles.rateRow}>
-              <Text style={styles.rateLabel}>Total Crashes</Text>
-              <Text style={styles.rateValue}>{crashCount}</Text>
-            </View>
-          </Card.Content>
-        </Card>
-
-        {crashes.length > 0 ? (
-          crashes.map((crash) => (
-            <Card key={crash.id} style={styles.card}>
-              <Card.Content>
-                <Text style={styles.crashTime}>{new Date(crash.timestamp).toLocaleString()}</Text>
-                <Text style={styles.crashMessage}>{crash.message}</Text>
-                <Text style={styles.crashStack}>{crash.stack.substring(0, 200)}...</Text>
-              </Card.Content>
-            </Card>
-          ))
-        ) : (
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text>No crashes reported</Text>
-            </Card.Content>
-          </Card>
-        )}
-      </ScrollView>
-    );
-  };
-
-  const renderEventsTab = () => {
-    const { metrics } = data;
-    if (!metrics) {
-      return <Text>Loading event data...</Text>;
-    }
-
-    return (
-      <ScrollView style={styles.tabContent}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Event Breakdown</Text>
-            {Object.entries(metrics.eventsByType).map(([type, count]: [string, any]) => (
-              count > 0 && (
-                <View key={type} style={styles.eventRow}>
-                  <Text style={styles.eventType}>{type}</Text>
-                  <Text style={styles.eventCount}>{count}</Text>
-                </View>
-              )
-            ))}
-          </Card.Content>
-        </Card>
-      </ScrollView>
-    );
-  };
-
-  const renderSettingsTab = () => {
-    return (
-      <ScrollView
-        style={styles.tabContent}
-        refreshControl={<RefreshControl refreshing={data.isRefreshing} onRefresh={handleRefresh} />}
-      >
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Privacy Settings</Text>
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Analytics Enabled</Text>
-              <Switch
-                value={privacySettings.analyticsEnabled}
-                onValueChange={(value) => handlePrivacySettingChange('analyticsEnabled', value)}
-              />
-            </View>
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Crash Reporting</Text>
-              <Switch
-                value={privacySettings.crashReportingEnabled}
-                onValueChange={(value) => handlePrivacySettingChange('crashReportingEnabled', value)}
-              />
-            </View>
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Personalization</Text>
-              <Switch
-                value={privacySettings.personalizationEnabled}
-                onValueChange={(value) => handlePrivacySettingChange('personalizationEnabled', value)}
-              />
-            </View>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.cardTitle}>Data Management</Text>
-            <Button mode="contained" onPress={handleRefresh} style={styles.button}>
-              Sync Analytics
-            </Button>
-            <Button mode="outlined" onPress={handleExportAnalytics} style={styles.button}>
-              Export Data
-            </Button>
-            <Button mode="outlined" onPress={handleClearAnalytics} style={styles.button}>
-              Clear All Data
-            </Button>
-          </Card.Content>
-        </Card>
-      </ScrollView>
-    );
-  };
-
-  const renderTabContent = () => {
+  const renderContent = () => {
     switch (activeTab) {
       case 'overview':
         return renderOverviewTab();
       case 'performance':
         return renderPerformanceTab();
-      case 'crashes':
-        return renderCrashesTab();
       case 'events':
         return renderEventsTab();
-      case 'settings':
-        return renderSettingsTab();
+      case 'crashes':
+        return renderCrashesTab();
       default:
-        return null;
+        return renderOverviewTab();
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Analytics & Monitoring</Text>
+        <Text style={styles.title}>Analytics</Text>
+        <Text style={styles.subtitle}>Monitor your app performance</Text>
       </View>
 
-      <SegmentedButtons
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as TabType)}
-        buttons={[
-          { value: 'overview', label: 'Overview' },
-          { value: 'performance', label: 'Performance' },
-          { value: 'crashes', label: 'Crashes' },
-          { value: 'events', label: 'Events' },
-          { value: 'settings', label: 'Settings' },
-        ]}
-        style={styles.tabs}
-      />
+      {/* Tab Navigation */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabBar}
+        contentContainerStyle={styles.tabBarContent}
+      >
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[
+              styles.tab,
+              activeTab === tab.id && styles.activeTab,
+            ]}
+            onPress={() => setActiveTab(tab.id)}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === tab.id && styles.activeTabLabel,
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-      {renderTabContent()}
+      {/* Content */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1976d2" />
+        </View>
+      ) : (
+        renderContent()
+      )}
+
+      {/* Action Buttons */}
+      <View style={styles.actionBar}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={handleRefresh}
+          disabled={refreshing}
+        >
+          <Text style={styles.actionButtonText}>
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.dangerButton]}
+          onPress={handleClearData}
+          disabled={loading}
+        >
+          <Text style={styles.actionButtonText}>Clear Data</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
+
+// Performance Metrics View Component
+const PerformanceMetricsView: React.FC = () => {
+  const [metrics, setMetrics] = useState<any>(null);
+
+  useEffect(() => {
+    const loadMetrics = () => {
+      const stats = performanceMetrics.getStats();
+      setMetrics(stats);
+    };
+
+    loadMetrics();
+    const interval = setInterval(loadMetrics, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!metrics) {
+    return <ActivityIndicator size="small" color="#1976d2" />;
+  }
+
+  return (
+    <View style={styles.metricsContainer}>
+      <MetricItem label="App Startup" value={`${metrics.appStartupTime || 0}ms`} />
+      <MetricItem label="Avg Screen Render" value={`${Math.round(metrics.averageScreenRenderTime)}ms`} />
+      <MetricItem label="Avg API Response" value={`${Math.round(metrics.averageApiResponseTime)}ms`} />
+      <MetricItem label="Peak Memory" value={`${Math.round(metrics.peakMemoryUsage / 1024 / 1024)}MB`} />
+      <MetricItem label="Avg CPU Usage" value={`${Math.round(metrics.averageCpuUsage)}%`} />
+      <MetricItem label="Total Metrics" value={metrics.totalMetrics} />
+    </View>
+  );
+};
+
+// Events Metrics View Component
+const EventsMetricsView: React.FC = () => {
+  const [eventStats, setEventStats] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const loadEvents = () => {
+      const stats = analyticsService.getEventStats();
+      setEventStats(stats);
+    };
+
+    loadEvents();
+    const interval = setInterval(loadEvents, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const totalEvents = Object.values(eventStats).reduce((a, b) => a + b, 0);
+
+  return (
+    <View style={styles.metricsContainer}>
+      <MetricItem label="Total Events" value={totalEvents} />
+      <MetricItem label="Queued Events" value={analyticsService.getQueuedEventCount()} />
+      {Object.entries(eventStats)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([eventType, count]) => (
+          <MetricItem key={eventType} label={eventType} value={count} />
+        ))}
+    </View>
+  );
+};
+
+// Crash Reports View Component
+const CrashReportsView: React.FC = () => {
+  const [crashReports, setCrashReports] = useState<any[]>([]);
+  const [breadcrumbs, setBreadcrumbs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadCrashes = async () => {
+      const reports = await crashReportingService.getCrashReports();
+      setCrashReports(reports);
+      const crumbs = crashReportingService.getBreadcrumbs();
+      setBreadcrumbs(crumbs);
+    };
+
+    loadCrashes();
+  }, []);
+
+  return (
+    <View style={styles.metricsContainer}>
+      <MetricItem label="Total Crashes" value={crashReports.length} />
+      <MetricItem label="Breadcrumbs" value={breadcrumbs.length} />
+      {crashReports.length === 0 ? (
+        <Text style={styles.emptyText}>No crash reports</Text>
+      ) : (
+        crashReports.slice(-5).reverse().map((report) => (
+          <View key={report.id} style={styles.crashItem}>
+            <Text style={styles.crashTitle}>{report.message}</Text>
+            <Text style={styles.crashTime}>
+              {new Date(report.timestamp).toLocaleString()}
+            </Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
+};
+
+// Metric Item Component
+const MetricItem: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
+  <View style={styles.metricItem}>
+    <Text style={styles.metricLabel}>{label}</Text>
+    <Text style={styles.metricValue}>{value}</Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -402,126 +313,140 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#212121',
   },
-  tabs: {
-    margin: 12,
+  subtitle: {
+    fontSize: 14,
+    color: '#757575',
+    marginTop: 4,
+  },
+  tabBar: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  tabBarContent: {
+    paddingHorizontal: 8,
+  },
+  tab: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 4,
+  },
+  activeTab: {
+    borderBottomWidth: 3,
+    borderBottomColor: '#1976d2',
+  },
+  tabLabel: {
+    fontSize: 14,
+    color: '#757575',
+    fontWeight: '500',
+  },
+  activeTabLabel: {
+    color: '#1976d2',
+    fontWeight: '600',
   },
   tabContent: {
     flex: 1,
-    padding: 12,
   },
-  card: {
-    marginBottom: 12,
-    elevation: 2,
+  section: {
+    padding: 16,
+    backgroundColor: '#fff',
+    margin: 8,
+    borderRadius: 8,
   },
-  cardTitle: {
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#212121',
     marginBottom: 12,
-    color: '#333',
   },
-  metricGrid: {
+  metricsContainer: {
+    gap: 8,
+  },
+  metricItem: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  metricBox: {
-    alignItems: 'center',
-    flex: 1,
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#1976d2',
   },
   metricLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: 13,
+    color: '#424242',
   },
   metricValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1976d2',
-  },
-  rateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  rateLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  rateValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1976d2',
-  },
-  perfRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  perfLabel: {
-    fontSize: 13,
-    color: '#666',
-  },
-  perfValue: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  crashTime: {
-    fontSize: 12,
-    color: '#999',
-    marginBottom: 4,
-  },
-  crashMessage: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#d32f2f',
-    marginBottom: 4,
+    color: '#1976d2',
   },
-  crashStack: {
-    fontSize: 11,
-    color: '#666',
-    fontFamily: 'monospace',
-  },
-  eventRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  eventType: {
-    fontSize: 13,
-    color: '#666',
-  },
-  eventCount: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  crashItem: {
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingHorizontal: 12,
+    backgroundColor: '#ffebee',
+    borderRadius: 4,
+    marginVertical: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#d32f2f',
   },
-  settingLabel: {
-    fontSize: 14,
-    color: '#333',
+  crashTitle: {
+    fontSize: 13,
+    color: '#d32f2f',
+    fontWeight: '500',
   },
-  button: {
-    marginVertical: 8,
+  crashTime: {
+    fontSize: 11,
+    color: '#c62828',
+    marginTop: 4,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#757575',
+    textAlign: 'center',
+    paddingVertical: 16,
+    fontStyle: 'italic',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 4,
+    backgroundColor: '#1976d2',
+    alignItems: 'center',
+  },
+  dangerButton: {
+    backgroundColor: '#d32f2f',
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
+
+export default AnalyticsScreen;

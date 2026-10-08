@@ -1,745 +1,479 @@
-# Crash Reporting Documentation
+# Crash Reporting - Phase 22.13
+
+Comprehensive crash reporting and error tracking with Sentry integration.
 
 ## Overview
 
-The Crash Reporting System integrates Sentry with React Native to capture, track, and report application crashes and errors with complete context including breadcrumbs, user information, and session details.
+The crash reporting system provides:
+- Automatic crash detection and reporting
+- Error tracking with stack traces
+- Breadcrumb trail for debugging
+- User identification
+- Session replay capability
+- Source map support
+- Development/Production differentiation
 
-## Table of Contents
+## Sentry Integration
 
-1. [Quick Start](#quick-start)
-2. [Architecture](#architecture)
-3. [Configuration](#configuration)
-4. [API Reference](#api-reference)
-5. [Error Context and Breadcrumbs](#error-context-and-breadcrumbs)
-6. [Sentry Integration](#sentry-integration)
-7. [Best Practices](#best-practices)
-8. [Troubleshooting](#troubleshooting)
+### Setup
 
-## Quick Start
+1. **Create Sentry Account**
+   - Go to [sentry.io](https://sentry.io)
+   - Create a new React Native project
+   - Copy your DSN (Data Source Name)
 
-### Basic Setup
+2. **Configure Environment**
+   ```bash
+   # .env or .env.production
+   REACT_APP_SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
+   ```
 
-```typescript
-import { useAnalytics } from '@/hooks/useAnalytics';
+3. **Initialize in App**
+   ```typescript
+   import { crashReportingService } from '@/utils/analytics';
+   
+   async function initializeApp() {
+     await crashReportingService.initialize({
+       enabled: true,
+       sentryDSN: process.env.REACT_APP_SENTRY_DSN,
+       environment: 'production',
+     });
+   }
+   ```
 
-export const MyScreen: React.FC = () => {
-  const { trackError, addBreadcrumb } = useAnalytics();
+## Usage
 
-  const handleError = async () => {
-    try {
-      // Your code here
-      await riskyOperation();
-    } catch (error) {
-      // Add context before reporting
-      addBreadcrumb('operation', 'Risky operation started', 'info');
-      
-      // Report the error
-      trackError('Operation failed', error.stack, {
-        operation: 'riskyOperation',
-        timestamp: new Date().toISOString(),
-      });
-    }
-  };
+### Automatic Error Reporting
 
-  return <Button onPress={handleError} title="Test Error" />;
-};
-```
+Errors are automatically captured and reported:
 
-### Automatic Crash Detection
-
-The system automatically captures:
-- **Unhandled Promise Rejections**: Automatically detected and reported
-- **Uncaught Exceptions**: Automatically detected and reported
-- **Breadcrumbs**: User actions before the crash
-- **Context**: User and session information
-- **Stack Traces**: Full stack trace with line numbers
-
-## Architecture
-
-### Error Handling Flow
-
-```
-┌─────────────────────────────┐
-│  Error Occurs in Application│
-└──────────────┬──────────────┘
-               │
-       ┌───────▼────────┐
-       │  Is Uncaught?  │
-       └───┬────────┬───┘
-           │ YES    │ NO
-           │        │
-     ┌─────▼─┐   ┌──▼──────────┐
-     │Global │   │ Try-Catch   │
-     │Handler│   │ Block       │
-     └─────┬─┘   └──┬──────────┘
-           │        │
-           └────┬───┘
-                │
-         ┌──────▼───────────┐
-         │ Create Crash     │
-         │ Report Object    │
-         ├──────────────────┤
-         │ • Error message  │
-         │ • Stack trace    │
-         │ • Breadcrumbs    │
-         │ • Context        │
-         │ • Timestamp      │
-         └──────┬───────────┘
-                │
-         ┌──────▼────────┐
-         │ Store in      │
-         │ AsyncStorage  │
-         └──────┬────────┘
-                │
-         ┌──────▼────────┐
-         │ Send to       │
-         │ Sentry API    │
-         └──────┬────────┘
-                │
-         ┌──────▼────────┐
-         │ Mark as Synced│
-         │ in Storage    │
-         └───────────────┘
-```
-
-### Breadcrumb System
-
-Breadcrumbs create a trail of events leading to a crash:
-
-```
-Time ──→
-
-  [App Launch]
-       │
-       ├─ [User Login]
-       │
-       ├─ [Navigate to Dashboard]
-       │
-       ├─ [Load Data API Call]
-       │
-       ├─ [API Response Received]
-       │
-       ├─ [Database Query]
-       │    ↓ (error occurs here)
-       ├─ [CRASH: TypeError]
-       │
-       └─ (Breadcrumb trail sent to Sentry with crash)
-```
-
-## Configuration
-
-### Sentry Setup
-
-#### 1. Create Sentry Account
-
-1. Go to [sentry.io](https://sentry.io)
-2. Sign up or log in
-3. Create a new organization
-4. Create a React Native project
-5. Get your DSN
-
-#### 2. Update Configuration
-
-```typescript
-// src/utils/analytics/crashReportingService.ts
-
-const SENTRY_DSN = 'https://your-key@sentry.io/project-id';
-```
-
-#### 3. Configure Backend
-
-```typescript
-// src/utils/analytics/crashReportingService.ts
-
-const CRASH_ENDPOINT = 'https://your-api.com/api/crashes';
-
-// Update submitToSentryAPI() method:
-private async submitToSentryAPI(payload: any): Promise<void> {
-  const response = await fetch(CRASH_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${YOUR_API_KEY}`,
-    },
-    body: JSON.stringify(payload),
-  });
-}
-```
-
-### Global Error Handler Setup
-
-The system automatically sets up global error handlers:
-
-```typescript
-// Handles unhandled promise rejections
-global.onunhandledrejection = (event: any) => {
-  crashReportingService.reportError(event.reason, 'UnhandledPromiseRejection');
-};
-
-// Handles uncaught errors
-global.ErrorUtils.setGlobalHandler((error: Error, isFatal: boolean) => {
-  crashReportingService.reportError(
-    error,
-    isFatal ? 'FatalError' : 'Error'
-  );
-});
-```
-
-## API Reference
-
-### reportError
-
-Report an error with optional category.
-
-```typescript
-crashReportingService.reportError(
-  error: any,
-  category?: string
-): void
-```
-
-**Parameters:**
-- `error`: Error object or any value
-- `category`: Error category (e.g., 'NetworkError', 'ValidationError')
-
-**Example:**
 ```typescript
 try {
   await fetchData();
 } catch (error) {
-  crashReportingService.reportError(error, 'DataFetchError');
+  // Error is automatically reported by global error handler
+  console.error('Failed to fetch data', error);
 }
 ```
 
-### addBreadcrumb
+### Manual Error Reporting
 
-Add a breadcrumb to track user actions.
-
-```typescript
-crashReportingService.addBreadcrumb(
-  category: string,
-  message: string,
-  level?: 'debug' | 'info' | 'warning' | 'error',
-  data?: Record<string, any>
-): void
-```
-
-**Parameters:**
-- `category`: Breadcrumb category (e.g., 'user_action', 'api_call')
-- `message`: Breadcrumb message
-- `level`: Severity level (default: 'info')
-- `data`: Additional data object
-
-**Example:**
-```typescript
-crashReportingService.addBreadcrumb('button_click', 'Login button clicked', 'info', {
-  button: 'login',
-  screen: 'LoginScreen',
-});
-```
-
-### setContext
-
-Set context for subsequent crash reports.
+Report errors manually when needed:
 
 ```typescript
-crashReportingService.setContext(
-  context: Partial<CrashContext>
-): void
-```
+import { crashReportingService } from '@/utils/analytics';
 
-**Parameters:**
-- `context`: Partial context object
-
-**Example:**
-```typescript
-crashReportingService.setContext({
-  userId: 'user123',
-  sessionId: 'session456',
+// Report an Error object
+const error = new Error('Something went wrong');
+const crashId = await crashReportingService.reportError(error, {
+  context: 'user_action',
   screen: 'HomeScreen',
-  action: 'data_fetch',
 });
+
+// Report a string error
+const crashId = await crashReportingService.reportError('Error message');
 ```
 
-### getContext
-
-Get current crash context.
+### Using Hooks
 
 ```typescript
-crashReportingService.getContext(): CrashContext
-```
+import { useCrashReporting } from '@/hooks/useAnalytics';
 
-**Returns:** Current context object
-
-**Example:**
-```typescript
-const context = crashReportingService.getContext();
-console.log('Current context:', context);
-```
-
-### clearContext
-
-Clear all context.
-
-```typescript
-crashReportingService.clearContext(): void
-```
-
-### getCrashReports
-
-Get all stored crash reports.
-
-```typescript
-crashReportingService.getCrashReports(): CrashReport[]
-```
-
-**Returns:** Array of crash report objects
-
-### getCrashCount
-
-Get total number of crashes.
-
-```typescript
-crashReportingService.getCrashCount(): number
-```
-
-**Returns:** Total crash count
-
-### getUnsyncedCrashCount
-
-Get number of crashes not yet synced to backend.
-
-```typescript
-crashReportingService.getUnsyncedCrashCount(): number
-```
-
-**Returns:** Unsynced crash count
-
-### syncCrashes
-
-Manually sync unsynced crashes to backend.
-
-```typescript
-async crashReportingService.syncCrashes(): Promise<void>
-```
-
-**Example:**
-```typescript
-await crashReportingService.syncCrashes();
-```
-
-### getBreadcrumbs
-
-Get all recorded breadcrumbs.
-
-```typescript
-crashReportingService.getBreadcrumbs(): Breadcrumb[]
-```
-
-**Returns:** Array of breadcrumb objects
-
-### clearBreadcrumbs
-
-Clear all breadcrumbs.
-
-```typescript
-async crashReportingService.clearBreadcrumbs(): Promise<void>
-```
-
-### clearCrashReports
-
-Clear all crash reports.
-
-```typescript
-async crashReportingService.clearCrashReports(): Promise<void>
-```
-
-### exportCrashReports
-
-Export crash reports as JSON.
-
-```typescript
-async crashReportingService.exportCrashReports(): Promise<string>
-```
-
-**Returns:** JSON string containing all crash data
-
-## Error Context and Breadcrumbs
-
-### Best Practices for Context
-
-Always set context when entering a user session:
-
-```typescript
-useEffect(() => {
-  // Set context on component mount
-  crashReportingService.setContext({
-    userId: user.id,
-    sessionId: generateSessionId(),
-    screen: 'HomeScreen',
-  });
-
-  return () => {
-    // Clear context on unmount
-    crashReportingService.clearContext();
-  };
-}, [user]);
-```
-
-### Breadcrumb Categories
-
-Standard categories for breadcrumbs:
-
-| Category | Purpose | Example |
-|----------|---------|---------|
-| `user_action` | User interaction | Button click, form submit |
-| `api_call` | API request | Fetch, POST request |
-| `api_response` | API response | Response received, status error |
-| `api_error` | API error | Network error, timeout |
-| `navigation` | Screen navigation | Screen change |
-| `database` | Database operation | Query, insert, update |
-| `validation` | Data validation | Validation error |
-| `exception` | Exception thrown | Error caught |
-
-### Breadcrumb Example
-
-```typescript
-const handleDataFetch = async () => {
-  try {
-    // Mark operation start
-    crashReportingService.addBreadcrumb(
-      'api_call',
-      'Starting data fetch',
-      'info'
-    );
-
-    const response = await fetch('/api/data');
-
-    crashReportingService.addBreadcrumb(
-      'api_response',
-      `Received status ${response.status}`,
-      'info',
-      { status: response.status }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    // Add error breadcrumb
-    crashReportingService.addBreadcrumb(
-      'api_error',
-      error.message,
-      'error',
-      { error: error.message }
-    );
-
-    // Report the error
-    crashReportingService.reportError(error, 'DataFetchError');
-    throw error;
+function MyComponent() {
+  const { reportError, reportException } = useCrashReporting();
+  
+  async function handleError() {
+    const error = new Error('Test error');
+    
+    // Report exception
+    await reportException(error, {
+      component: 'MyComponent',
+      action: 'handleError',
+    });
   }
-};
-```
-
-## Sentry Integration
-
-### Crash Report Payload
-
-The system sends crash reports to Sentry with the following payload:
-
-```json
-{
-  "event_id": "crash-xxx",
-  "message": "Error message",
-  "timestamp": "2026-10-08T12:00:00Z",
-  "level": "error",
-  "exception": {
-    "values": [
-      {
-        "type": "Error",
-        "value": "Error message",
-        "stacktrace": {
-          "frames": [
-            {
-              "function": "functionName",
-              "filename": "file.ts",
-              "lineno": 123,
-              "colno": 45
-            }
-          ]
-        }
-      }
-    ]
-  },
-  "breadcrumbs": [
-    {
-      "timestamp": "2026-10-08T12:00:00Z",
-      "category": "user_action",
-      "message": "Button clicked",
-      "level": "info",
-      "data": { }
-    }
-  ],
-  "contexts": {
-    "app": {
-      "version": "0.1.0",
-      "build": "1"
-    }
-  },
-  "user": {
-    "id": "user123"
-  },
-  "tags": {
-    "session": "session456"
-  }
+  
+  return (
+    <Button onPress={handleError}>
+      Report Error
+    </Button>
+  );
 }
 ```
 
-### Sentry Dashboard
+## Breadcrumbs
 
-After reporting crashes, view them in Sentry:
+Breadcrumbs are trails of events leading up to a crash, helping you understand the context.
 
-1. Go to [sentry.io/organizations/your-org/issues](https://sentry.io)
-2. Select your React Native project
-3. View issues grouped by error type
-4. Click on an issue to see:
+### Add Custom Breadcrumb
+
+```typescript
+import { crashReportingService } from '@/utils/analytics';
+
+crashReportingService.addBreadcrumb({
+  message: 'User clicked save button',
+  category: 'user_action',
+  level: 'info',
+  data: {
+    buttonId: 'save_btn',
+    timestamp: Date.now(),
+  },
+});
+```
+
+### Specialized Breadcrumbs
+
+```typescript
+// Log breadcrumb
+crashReportingService.addLogBreadcrumb('Processing transaction', 'info');
+crashReportingService.addLogBreadcrumb('Transaction failed', 'error');
+
+// Navigation breadcrumb
+crashReportingService.addNavigationBreadcrumb('HomeScreen', 'navigate');
+crashReportingService.addNavigationBreadcrumb('ProfileScreen', 'push');
+
+// Network breadcrumb
+crashReportingService.addNetworkBreadcrumb('GET', '/api/users', 200, 150);
+crashReportingService.addNetworkBreadcrumb('POST', '/api/login', 401, 250);
+```
+
+### Using Hook
+
+```typescript
+import { useCrashReporting } from '@/hooks/useAnalytics';
+
+function MyComponent() {
+  const { addBreadcrumb } = useCrashReporting();
+  
+  useEffect(() => {
+    addBreadcrumb('Component mounted', 'lifecycle');
+    
+    return () => {
+      addBreadcrumb('Component unmounted', 'lifecycle');
+    };
+  }, [addBreadcrumb]);
+  
+  return <View>{/* Component content */}</View>;
+}
+```
+
+## User Identification
+
+Link crash reports to specific users:
+
+```typescript
+import { crashReportingService } from '@/utils/analytics';
+
+async function loginUser(user: User) {
+  // Identify user for crash reports
+  crashReportingService.setUser(
+    user.id,
+    user.email,
+    user.username
+  );
+  
+  // ... login logic
+}
+
+function logout() {
+  crashReportingService.clearUser();
+}
+```
+
+## Session Tracking
+
+### Session ID
+
+Each crash report includes a unique session ID:
+
+```typescript
+const sessionId = crashReportingService.getSessionId();
+console.log('Session:', sessionId);
+```
+
+### Session Replay
+
+Enable session replay to record user interactions (use with caution for privacy):
+
+```typescript
+await crashReportingService.initialize({
+  enableSessionReplay: true,
+  // ...
+});
+```
+
+## Configuration
+
+### Full Configuration Example
+
+```typescript
+await crashReportingService.initialize({
+  // Enable/disable crash reporting
+  enabled: true,
+  
+  // Sentry DSN for error tracking
+  sentryDSN: process.env.REACT_APP_SENTRY_DSN,
+  
+  // Environment (development, staging, production)
+  environment: 'production',
+  
+  // Enable breadcrumb tracking
+  enableBreadcrumbs: true,
+  
+  // Maximum breadcrumbs to keep
+  maxBreadcrumbs: 100,
+  
+  // Enable session replay
+  enableSessionReplay: false,
+  
+  // Debug mode (logs to console)
+  debug: process.env.NODE_ENV === 'development',
+  
+  // Sample rate (0 to 1)
+  // 0 = no reports, 1 = all reports
+  sampleRate: process.env.NODE_ENV === 'production' ? 0.9 : 1.0,
+  
+  // Enable local persistence
+  enableLocalPersistence: true,
+});
+```
+
+## Crash Report Structure
+
+```typescript
+interface CrashReport {
+  id: string;                    // Unique crash ID
+  timestamp: number;             // When crash occurred
+  message: string;               // Error message
+  errorType: string;             // Error type
+  stack?: string;                // Stack trace
+  context?: Record<string, any>; // Additional context
+  breadcrumbs: Breadcrumb[];     // Event trail
+  userId?: string;               // User ID (if set)
+  sessionId?: string;            // Session ID
+  deviceInfo?: DeviceInfo;       // Device information
+  isDevelopment: boolean;        // Development flag
+}
+```
+
+## Viewing Crash Reports
+
+### In Sentry Dashboard
+
+1. Go to [sentry.io](https://sentry.io)
+2. Select your project
+3. View recent crashes and errors
+4. Click on specific crash to see:
    - Full stack trace
-   - Breadcrumb trail
-   - User and session information
-   - Release information
-   - Similar issues
+   - User information
+   - Breadcrumbs trail
+   - Device and environment info
+   - Source maps (for production)
 
-## Best Practices
+### In App Dashboard
 
-### 1. Use Appropriate Error Levels
+Access crash reports in the app's analytics dashboard:
 
 ```typescript
-// Critical error - immediate attention needed
-crashReportingService.reportError(error, 'CriticalError');
+import AnalyticsScreen from '@/screens/analytics/AnalyticsScreen';
 
-// Warning - should be fixed but not urgent
-crashReportingService.addBreadcrumb('warning', 'Unusual condition', 'warning');
-
-// Info - useful context
-crashReportingService.addBreadcrumb('info', 'Operation started', 'info');
+<AnalyticsScreen />
 ```
 
-### 2. Add Context Before Operations
+The Crashes tab shows:
+- Total crash count
+- Recent crash reports
+- Breadcrumb trails
+- Error messages
+
+## Error Context
+
+Add context to errors for better debugging:
 
 ```typescript
-// Set context before risky operations
-crashReportingService.setContext({
-  screen: 'DataScreen',
-  action: 'fetch_data',
-});
-
-// Perform operation
 try {
-  await riskyOperation();
+  await processTransaction(transaction);
 } catch (error) {
-  // Context automatically attached to error report
-  crashReportingService.reportError(error);
+  await crashReportingService.reportError(error, {
+    component: 'TransactionScreen',
+    action: 'processTransaction',
+    transactionId: transaction.id,
+    userId: user.id,
+    timestamp: Date.now(),
+  });
 }
 ```
 
-### 3. Create Meaningful Breadcrumbs
+## Development vs Production
+
+### Development Mode
 
 ```typescript
-// ❌ Too vague
-addBreadcrumb('action', 'Something happened', 'info');
-
-// ✅ Descriptive
-addBreadcrumb('api_call', 'POST /api/users completed', 'info', {
-  endpoint: '/api/users',
-  method: 'POST',
-  status: 200,
-  duration: 150,
+await crashReportingService.initialize({
+  environment: 'development',
+  debug: true,
+  sampleRate: 1.0, // Report all errors
 });
 ```
 
-### 4. Avoid Logging Sensitive Data
+### Production Mode
 
 ```typescript
-// ❌ Never log passwords, tokens, or PII
-addBreadcrumb('auth', `User ${password}`, 'info');
-
-// ✅ Log safe information
-addBreadcrumb('auth', 'User authentication started', 'info', {
-  method: 'email',
+await crashReportingService.initialize({
+  environment: 'production',
+  debug: false,
+  sampleRate: 0.9, // Report 90% of errors
 });
 ```
 
-### 5. Regular Context Updates
+## Privacy Considerations
 
-```typescript
-useEffect(() => {
-  // Update context when screen changes
-  crashReportingService.setContext({
-    screen: route.name,
-  });
-}, [route.name]);
+1. **No Personal Data**
+   - Don't include passwords, tokens, or API keys
+   - Don't include sensitive financial data
+   - Use context parameter carefully
 
-// Update context when user changes
-useEffect(() => {
-  crashReportingService.setContext({
-    userId: user?.id,
-  });
-}, [user?.id]);
-```
+2. **User Consent**
+   - Inform users about crash reporting
+   - Allow opt-out if possible
+   - Respect privacy settings
+
+3. **Data Retention**
+   - Configure Sentry to delete old data
+   - Regularly review stored crashes
+   - Clean up test/development crashes
+
+## Source Maps
+
+Configure source maps for better stack traces in production:
+
+1. **Generate Source Maps**
+   ```bash
+   npm run build -- --sourcemap
+   ```
+
+2. **Upload to Sentry**
+   ```bash
+   sentry-cli releases files upload-sourcemaps .
+   ```
+
+3. **Link Release**
+   ```typescript
+   await crashReportingService.initialize({
+     release: '1.0.0',
+     dist: 'android',
+   });
+   ```
 
 ## Troubleshooting
 
 ### Crashes Not Appearing in Sentry
 
-**Problem**: Crashes reported but not visible in Sentry
+1. **Check DSN Configuration**
+   ```bash
+   echo $REACT_APP_SENTRY_DSN
+   ```
 
-**Solutions**:
-1. Verify Sentry DSN is correct
-2. Check network connectivity
-3. Verify payload format matches Sentry API
-4. Check Sentry project settings for filtering
+2. **Verify Network Connection**
+   - Check internet connectivity
+   - Check proxy/firewall settings
 
-```typescript
-// Enable debug logging
-logger.debug('Crash Report Sent', { payload });
-```
+3. **Enable Debug Mode**
+   ```typescript
+   await crashReportingService.initialize({
+     debug: true,
+     // ...
+   });
+   ```
 
-### Breadcrumbs Not Saved
+### High Memory Usage
 
-**Problem**: Breadcrumbs lost when app crashes
+1. **Reduce Breadcrumb Limit**
+   ```typescript
+   await crashReportingService.initialize({
+     maxBreadcrumbs: 50,
+     // ...
+   });
+   ```
 
-**Cause**: Breadcrumbs only persisted to AsyncStorage on sync
+2. **Lower Sample Rate**
+   ```typescript
+   await crashReportingService.initialize({
+     sampleRate: 0.5, // 50% of errors
+     // ...
+   });
+   ```
 
-**Solution**: Force sync before operations that might crash
+### Missing Stack Traces
 
-```typescript
-await crashReportingService.syncCrashes();
-```
+1. **Enable Source Maps**
+2. **Check Error Handling**
+   - Ensure Error objects are used
+   - Avoid generic error strings
 
-### Memory Leak from Crash Reports
+### Breadcrumbs Not Captured
 
-**Problem**: App memory increasing due to crash reports
+1. **Check Config**
+   ```typescript
+   enableBreadcrumbs: true
+   ```
 
-**Solutions**:
-1. Clear old crash reports: `await crashReportingService.clearCrashReports()`
-2. Limit breadcrumbs: Change `MAX_BREADCRUMBS` in service
-3. Export and clear: Export data for analysis, then clear
+2. **Verify Breadcrumb Level**
+   - Error/warning level breadcrumbs are always captured
+   - Info/debug depend on configuration
 
-### Duplicate Crash Reports
+## Best Practices
 
-**Problem**: Same crash reported multiple times
+1. **Always Initialize on App Launch**
+   ```typescript
+   async function initializeApp() {
+     await crashReportingService.initialize({
+       enabled: true,
+       sentryDSN: process.env.REACT_APP_SENTRY_DSN,
+     });
+   }
+   ```
 
-**Cause**: Multiple error handlers catching same error
+2. **Set User After Login**
+   ```typescript
+   crashReportingService.setUser(userId, email, username);
+   ```
 
-**Solution**: Add deduplication logic
+3. **Add Breadcrumbs for Context**
+   ```typescript
+   crashReportingService.addBreadcrumb({
+     message: 'Important action',
+     category: 'user_action',
+   });
+   ```
 
-```typescript
-const reportedErrors = new Set<string>();
+4. **Report Errors with Context**
+   ```typescript
+   await crashReportingService.reportError(error, {
+     context: 'operation_name',
+     screen: 'ScreenName',
+   });
+   ```
 
-const safeReportError = (error: Error) => {
-  const key = `${error.message}-${error.stack?.split('\n')[1]}`;
-  if (!reportedErrors.has(key)) {
-    reportedErrors.add(key);
-    crashReportingService.reportError(error);
-  }
-};
-```
+5. **Regular Monitoring**
+   - Check Sentry dashboard regularly
+   - Address high-priority errors first
+   - Track error trends over time
 
-### AsyncStorage Quota Exceeded
+## Testing
 
-**Problem**: Cannot save more crash reports
-
-**Solutions**:
-1. Clear old crashes: `await crashReportingService.clearCrashReports()`
-2. Reduce MAX_CRASH_REPORTS limit
-3. Implement selective crash reporting
-
-```typescript
-// Only report critical errors
-if (isCritical(error)) {
-  crashReportingService.reportError(error);
-}
-```
-
-## Performance Impact
-
-- **Crash Detection**: <1ms overhead
-- **Breadcrumb Creation**: <2ms per breadcrumb
-- **Context Setting**: <1ms
-- **Memory Usage**: <5MB for 100 crash reports
-- **Storage**: ~10KB per crash report
-
-## Integration Examples
-
-### With React Navigation
-
-```typescript
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { crashReportingService } from '@/utils/analytics';
-
-export const NavigationContext: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const navigation = useNavigation();
-  const route = useRoute();
-
-  useEffect(() => {
-    crashReportingService.setContext({
-      screen: route.name,
-    });
-
-    crashReportingService.addBreadcrumb(
-      'navigation',
-      `Navigated to ${route.name}`,
-      'info'
-    );
-  }, [route.name]);
-
-  return <>{children}</>;
-};
-```
-
-### With API Calls
+Test crash reporting:
 
 ```typescript
-import axios from 'axios';
-import { crashReportingService } from '@/utils/analytics';
+// Test error reporting
+const error = new Error('Test crash');
+await crashReportingService.reportError(error);
 
-const api = axios.create({ baseURL: API_URL });
-
-api.interceptors.request.use((config) => {
-  crashReportingService.addBreadcrumb(
-    'api_call',
-    `${config.method?.toUpperCase()} ${config.url}`,
-    'debug'
-  );
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => {
-    crashReportingService.addBreadcrumb(
-      'api_response',
-      `Response ${response.status} from ${response.config.url}`,
-      'debug'
-    );
-    return response;
-  },
-  (error) => {
-    crashReportingService.addBreadcrumb(
-      'api_error',
-      `Error from ${error.config?.url}: ${error.message}`,
-      'error',
-      { status: error.response?.status }
-    );
-    crashReportingService.reportError(error, 'APIError');
-    return Promise.reject(error);
-  }
-);
+// View in app dashboard
+// Or check Sentry after network request completes
 ```
 
----
+## See Also
 
-**Last Updated**: October 8, 2026
-**Version**: 1.0.0
+- [Analytics Documentation](./ANALYTICS.md)
+- [Error Handling Guide](./utils/README-ERROR-HANDLING.md)
+- [Sentry Documentation](https://docs.sentry.io/platforms/react-native/)

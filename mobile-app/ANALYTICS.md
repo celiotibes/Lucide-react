@@ -1,763 +1,439 @@
-# Analytics System Documentation
+# Analytics & Monitoring - Phase 22.13
+
+Complete analytics and performance monitoring system for the CRMT Mobile App.
 
 ## Overview
 
-The Analytics System for Lucide React Mobile App provides comprehensive event tracking, crash reporting, and performance monitoring with offline-first architecture, GDPR compliance, and comprehensive privacy controls.
-
-## Table of Contents
-
-1. [Features](#features)
-2. [Architecture](#architecture)
-3. [Setup and Configuration](#setup-and-configuration)
-4. [API Reference](#api-reference)
-5. [Usage Examples](#usage-examples)
-6. [Privacy and GDPR Compliance](#privacy-and-gdpr-compliance)
-7. [Testing](#testing)
-8. [Troubleshooting](#troubleshooting)
-
-## Features
-
-### Core Analytics
-- **Event Tracking**: Track user actions, screen views, and custom events
-- **Offline-First**: Events queue locally and sync when connection is available
-- **Batch Processing**: Events are synced in batches of 50 for efficiency
-- **Screen Tracking**: Automatic screen view and duration tracking
-- **Error Tracking**: Comprehensive error logging with context
-- **Crash Reporting**: Sentry integration for critical errors
-
-### Performance Monitoring
-- **Startup Time**: Track app initialization performance
-- **Memory Usage**: Monitor RAM consumption and availability
-- **API Response Time**: Track API latency with percentile calculations
-- **Network Latency**: Monitor network performance
-- **Screen Render Time**: Track UI rendering performance
-- **Frame Rate**: Monitor animation performance
-
-### Privacy & Security
-- **GDPR Compliant**: User consent management and data retention
-- **Privacy Controls**: Users can disable analytics, crash reporting, personalization
-- **Data Retention**: Automatic deletion of events based on retention policy
-- **No PII**: No personally identifiable information is collected by default
-- **Encrypted Storage**: Events stored securely in AsyncStorage
+The analytics system provides:
+- Event tracking (screen views, transactions, user actions)
+- Session management
+- User properties tracking
+- Event queuing and batch sending
+- Offline support with local persistence
+- Performance metrics collection
+- Crash reporting with breadcrumb tracking
 
 ## Architecture
 
 ### Components
 
-```
-┌─────────────────────────────────────────────┐
-│         Application Components              │
-└──────────────┬──────────────────────────────┘
-               │
-       ┌───────┴────────┐
-       │                │
-┌──────▼──────┐   ┌────▼─────────┐
-│ useAnalytics│   │  Dashboard   │
-│    Hook     │   │  Component   │
-└──────┬──────┘   └────┬─────────┘
-       │                │
-       └────────┬───────┘
-                │
-     ┌──────────┴──────────┐
-     │                     │
-┌────▼─────────┐    ┌─────▼──────────┐
-│ Analytics    │    │  Crash         │
-│ Service      │    │  Reporting     │
-└────┬─────────┘    │  Service       │
-     │              └─────┬──────────┘
-     │                    │
-     └────────┬───────────┘
-              │
-       ┌──────▼──────────┐
-       │ Performance     │
-       │ Metrics Service │
-       └─────────────────┘
-              │
-       ┌──────▼──────────────────┐
-       │  AsyncStorage Persistence│
-       │  (Offline Queue)         │
-       └──────────────────────────┘
-```
+1. **AnalyticsService** - Main event tracking and analytics
+2. **CrashReportingService** - Error tracking and crash reporting with Sentry integration
+3. **PerformanceMetrics** - Performance monitoring and metrics collection
+4. **useAnalytics Hook** - Easy integration in React components
 
-### Event Flow
+## Usage
 
-1. **Event Generation**: User action or system event triggers analytics
-2. **Queuing**: Event stored in memory and AsyncStorage
-3. **Offline Storage**: Events persist locally with retention policy
-4. **Automatic Sync**: Timer runs every 30 seconds to sync queued events
-5. **Batch Processing**: Events processed in batches of 50
-6. **Backend Sync**: Events sent to backend API endpoint
-7. **Confirmation**: Synced events marked and old events cleared
-
-### Data Storage
-
-Events are stored in AsyncStorage with the following structure:
-
-```json
-{
-  "id": "evt-1728415234567-abc123",
-  "timestamp": "2026-10-08T12:00:34.567Z",
-  "type": "screen_view",
-  "properties": {
-    "screen": "HomeScreen",
-    "duration": 5000
-  },
-  "userId": "user123",
-  "sessionId": "session456",
-  "synced": false,
-  "syncAttempts": 0
-}
-```
-
-## Setup and Configuration
-
-### Installation
-
-The analytics system is integrated into the project. No additional dependencies are required beyond those already installed:
-- `@react-native-async-storage/async-storage`
-- `react-native-paper`
-- Existing logger utility
-
-### Initialization
-
-Analytics services initialize automatically on app launch:
+### Basic Setup
 
 ```typescript
 import { analyticsService, crashReportingService, performanceMetrics } from '@/utils/analytics';
 
-// Services are singletons - automatically initialized
-// No additional setup required
-```
-
-### Configuration
-
-#### API Endpoint Configuration
-
-Update the API endpoint in `analyticsService.ts`:
-
-```typescript
-const API_ENDPOINT = 'https://your-api.com/api/analytics';
-const CRASH_ENDPOINT = 'https://your-api.com/api/crashes';
-```
-
-#### Sentry Configuration
-
-Update Sentry DSN in `crashReportingService.ts`:
-
-```typescript
-const SENTRY_DSN = 'https://your-key@sentry.io/project-id';
-```
-
-#### Event Retention
-
-Modify retention in `analyticsService.ts`:
-
-```typescript
-const DATA_RETENTION_DAYS = 30; // Events older than 30 days are deleted
-```
-
-### Environment Variables
-
-Create `.env.analytics` for environment-specific configuration:
-
-```env
-REACT_APP_ANALYTICS_ENDPOINT=https://api.example.com/analytics
-REACT_APP_CRASH_ENDPOINT=https://api.example.com/crashes
-REACT_APP_SENTRY_DSN=https://key@sentry.io/project
-```
-
-## API Reference
-
-### AnalyticsService
-
-#### Event Tracking
-
-```typescript
-// Track a custom event
-analyticsService.trackEvent('button_clicked', {
-  buttonName: 'login',
-  screen: 'LoginScreen',
-});
-
-// Track screen view
-analyticsService.trackScreenView('HomeScreen');
-
-// Track screen departure
-analyticsService.trackScreenLeave();
-
-// Track error
-analyticsService.trackError(
-  'Network timeout',
-  'Error: timeout',
-  { endpoint: '/api/data' }
-);
-
-// Track crash
-analyticsService.trackCrash(error, { severity: 'high' });
-```
-
-#### User Management
-
-```typescript
-// Set user identifier
-analyticsService.setUserId('user@example.com');
-
-// Clear user identifier
-analyticsService.clearUserId();
-```
-
-#### Data Access
-
-```typescript
-// Get current metrics
-const metrics = analyticsService.getMetrics();
-// Returns: { totalEvents, errorCount, crashCount, lastSyncTime, ... }
-
-// Export all analytics data
-const exported = await analyticsService.exportAnalytics();
-// Returns: JSON string with all events
-```
-
-#### Privacy & Data Management
-
-```typescript
-// Get privacy settings
-const settings = analyticsService.getPrivacySettings();
-
-// Update privacy settings
-analyticsService.setPrivacySettings({
-  analyticsEnabled: true,
-  crashReportingEnabled: true,
-  personalizationEnabled: false,
-  dataRetentionDays: 30,
-});
-
-// Clear events older than specified days
-analyticsService.clearOldEvents(30);
-
-// Clear all data
-await analyticsService.clearAll();
-```
-
-#### Synchronization
-
-```typescript
-// Manually sync queued events
-await analyticsService.syncEvents();
-
-// Auto-sync timer runs every 30 seconds (configurable)
-```
-
-### CrashReportingService
-
-#### Error Reporting
-
-```typescript
-// Report error
-crashReportingService.reportError(error, 'ErrorCategory');
-
-// Get crash reports
-const crashes = crashReportingService.getCrashReports();
-
-// Get crash count
-const count = crashReportingService.getCrashCount();
-
-// Get unsynced crash count
-const unsyncedCount = crashReportingService.getUnsyncedCrashCount();
-```
-
-#### Breadcrumb Tracking
-
-```typescript
-// Add breadcrumb for error context
-crashReportingService.addBreadcrumb(
-  'user_action',
-  'Button clicked',
-  'info',
-  { buttonId: 'btn-123' }
-);
-
-// Get all breadcrumbs
-const breadcrumbs = crashReportingService.getBreadcrumbs();
-
-// Clear breadcrumbs
-await crashReportingService.clearBreadcrumbs();
-```
-
-#### Context Management
-
-```typescript
-// Set context for crash reports
-crashReportingService.setContext({
-  userId: 'user123',
-  sessionId: 'session456',
-  screen: 'HomeScreen',
-  action: 'data_fetch',
-});
-
-// Get current context
-const context = crashReportingService.getContext();
-
-// Clear context
-crashReportingService.clearContext();
-```
-
-#### Synchronization
-
-```typescript
-// Sync unsynced crash reports
-await crashReportingService.syncCrashes();
-
-// Export crash reports
-const exported = await crashReportingService.exportCrashReports();
-
-// Clear crash reports
-await crashReportingService.clearCrashReports();
-```
-
-### PerformanceMetricsService
-
-#### Performance Tracking
-
-```typescript
-// Record a performance metric
-performanceMetrics.recordMetric('custom_operation', 150, 'ms', {
-  operation: 'data_fetch',
-});
-
-// Track API request
-performanceMetrics.trackApiRequest('/api/users', 250, 200);
-
-// Track network latency
-performanceMetrics.trackNetworkLatency(50, 'api.example.com');
-
-// Track database operation
-performanceMetrics.trackDatabaseOperation('SELECT', 100, 'users');
-
-// Track screen render time
-performanceMetrics.trackScreenRender('HomeScreen', 500);
-
-// Track frame rate
-performanceMetrics.trackFrameRate(60);
-```
-
-#### Performance Marks
-
-```typescript
-// Mark a point in time
-performanceMetrics.mark('operation_start');
-
-// Measure duration between marks
-const duration = performanceMetrics.measure('operation', 'operation_start');
-// Returns: duration in milliseconds
-```
-
-#### Metrics Query
-
-```typescript
-// Get metrics by name
-const metrics = performanceMetrics.getMetricsByName('api_response_time');
-
-// Get metrics by type
-const apiMetrics = performanceMetrics.getMetricsByType('api');
-
-// Get metrics in time range
-const rangeMetrics = performanceMetrics.getMetricsInRange(startTime, endTime);
-
-// Get all metrics
-const allMetrics = performanceMetrics.getAllMetrics();
-```
-
-#### Analytics Summary
-
-```typescript
-// Get performance summary
-const summary = performanceMetrics.getSummary();
-// Returns: {
-//   startupTime: number (ms),
-//   memoryUsage: number (MB),
-//   memoryAvailable: number (MB),
-//   avgApiResponseTime: number (ms),
-//   avgNetworkLatency: number (ms),
-//   crashes: number,
-//   errors: number,
-// }
-
-// Get average API response time
-const avg = performanceMetrics.getAverageApiResponseTime();
-
-// Get p95 API response time
-const p95 = performanceMetrics.getP95ApiResponseTime();
-
-// Get p99 API response time
-const p99 = performanceMetrics.getP99ApiResponseTime();
-
-// Get average network latency
-const latency = performanceMetrics.getAverageNetworkLatency();
-
-// Export metrics
-const exported = await performanceMetrics.exportMetrics();
-
-// Clear metrics
-performanceMetrics.clearMetrics();
-
-// Stop memory monitoring
-performanceMetrics.stopMemoryMonitoring();
-```
-
-### useAnalytics Hook
-
-```typescript
-import { useAnalytics } from '@/hooks/useAnalytics';
-
-export const MyComponent: React.FC = () => {
-  const {
-    trackEvent,
-    trackError,
-    trackCrash,
-    addBreadcrumb,
-    trackScreenView,
-    trackScreenLeave,
-    getMetrics,
-    getPerformanceSummary,
-    setUserId,
-    setPrivacySettings,
-    syncEvents,
-    syncCrashes,
-    exportAnalytics,
-    clearAnalytics,
-  } = useAnalytics({
-    screenName: 'MyScreen',
-    trackScreenTime: true,
-    autoSync: true,
+// Initialize on app launch
+async function initializeAnalytics() {
+  await analyticsService.initialize();
+  
+  await crashReportingService.initialize({
+    enabled: true,
+    environment: 'production',
+    sentryDSN: process.env.REACT_APP_SENTRY_DSN,
   });
-
-  return (
-    <View>
-      <Button onPress={() => trackEvent('button_click')} title="Click Me" />
-    </View>
-  );
-};
+  
+  await performanceMetrics.initialize();
+}
 ```
 
-## Usage Examples
-
-### Basic Event Tracking
+### Track Events
 
 ```typescript
-import { useAnalytics } from '@/hooks/useAnalytics';
+import { useAnalytics, EventType } from '@/hooks/useAnalytics';
 
-export const HomeScreen: React.FC = () => {
-  const { trackEvent } = useAnalytics({
-    screenName: 'HomeScreen',
-    autoSync: true,
-  });
-
-  const handleLogin = () => {
-    trackEvent('login_successful', {
-      method: 'email',
-      timestamp: new Date().toISOString(),
-    });
-  };
-
-  return <Button onPress={handleLogin} title="Login" />;
-};
-```
-
-### Error Handling and Tracking
-
-```typescript
-import { useAnalytics } from '@/hooks/useAnalytics';
-
-export const DataComponent: React.FC = () => {
-  const { trackError, addBreadcrumb } = useAnalytics();
-
-  const fetchData = async () => {
+function TransactionScreen() {
+  const { trackEvent, trackTransaction } = useAnalytics();
+  
+  const handleCreateTransaction = async () => {
     try {
-      addBreadcrumb('api_call', 'Fetching data', 'info');
-      const response = await fetch('/api/data');
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      await trackTransaction('create', {
+        amount: 100.00,
+        category: 'Food',
+      });
     } catch (error) {
-      trackError('Data fetch failed', error.stack, {
-        endpoint: '/api/data',
-        retry: false,
-      });
-      addBreadcrumb('api_error', 'API request failed', 'error', {
-        error: error.message,
-      });
+      console.error('Failed to create transaction', error);
     }
   };
+  
+  return (
+    <Button onPress={handleCreateTransaction}>
+      Create Transaction
+    </Button>
+  );
+}
+```
 
-  return <Button onPress={fetchData} title="Fetch Data" />;
-};
+### Track Screen Views
+
+```typescript
+function ProfileScreen() {
+  const { trackEvent } = useAnalytics();
+  
+  useEffect(() => {
+    // Screen view is tracked automatically by useAnalytics
+    trackEvent('profile_viewed', {
+      section: 'settings',
+    }).catch(console.error);
+  }, []);
+  
+  return <View>{/* Screen content */}</View>;
+}
+```
+
+### Track Network Requests
+
+```typescript
+function UserAPI() {
+  const { trackNetworkRequest } = useAnalytics();
+  
+  async function fetchUsers() {
+    const startTime = Date.now();
+    
+    try {
+      const response = await axios.get('/api/users');
+      const duration = Date.now() - startTime;
+      
+      await trackNetworkRequest(
+        '/api/users',
+        'GET',
+        duration,
+        response.status
+      );
+      
+      return response.data;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      await trackNetworkRequest(
+        '/api/users',
+        'GET',
+        duration,
+        error.response?.status
+      );
+      throw error;
+    }
+  }
+  
+  return { fetchUsers };
+}
+```
+
+### Track Database Operations
+
+```typescript
+function TransactionDatabase() {
+  const { useDatabaseMonitoring } = useAnalytics();
+  const { trackOperation } = useDatabaseMonitoring();
+  
+  async function queryTransactions() {
+    const startTime = Date.now();
+    
+    try {
+      const results = await database.transactions.find().toPromise();
+      const duration = Date.now() - startTime;
+      
+      trackOperation('query', duration, 'transactions');
+      return results;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      trackOperation('query', duration, 'transactions', error);
+      throw error;
+    }
+  }
+  
+  return { queryTransactions };
+}
+```
+
+### Report Errors and Crashes
+
+```typescript
+function ErrorHandling() {
+  const { useCrashReporting } = useAnalytics();
+  const { reportError, reportException, addBreadcrumb } = useCrashReporting();
+  
+  async function handleError(error: Error) {
+    // Report error
+    await reportException(error, {
+      context: 'user_action',
+      screen: 'ProfileScreen',
+    });
+    
+    // Add breadcrumb for context
+    addBreadcrumb('Error occurred', 'error', 'error');
+  }
+  
+  return { handleError };
+}
 ```
 
 ### Performance Monitoring
 
 ```typescript
-import { useAnalytics } from '@/hooks/useAnalytics';
-import { performanceMetrics } from '@/utils/analytics';
-
-export const ListScreen: React.FC = () => {
-  const { getPerformanceSummary } = useAnalytics();
-
-  useEffect(() => {
-    // Mark start of operation
-    performanceMetrics.mark('list_load_start');
-
-    loadList();
-
-    // Measure operation
-    const duration = performanceMetrics.measure('list_load', 'list_load_start');
-    console.log(`List loaded in ${duration}ms`);
-  }, []);
-
-  const getMetrics = () => {
-    const summary = getPerformanceSummary();
-    console.log('Performance Summary:', summary);
-  };
-
-  return <Button onPress={getMetrics} title="Show Metrics" />;
-};
+function PerformanceMonitoring() {
+  const { markPerformance, measurePerformance, getPerformanceStats } = useAnalytics();
+  
+  function trackOperation() {
+    markPerformance('operation_start');
+    
+    // ... perform operation
+    
+    measurePerformance('operation_duration', 'operation_start');
+    
+    const stats = getPerformanceStats();
+    console.log('Performance stats:', stats);
+  }
+  
+  return { trackOperation };
+}
 ```
 
-### Privacy Settings
+### Set User Properties
 
 ```typescript
-import { useAnalytics } from '@/hooks/useAnalytics';
-
-export const PrivacyScreen: React.FC = () => {
-  const { setPrivacySettings } = useAnalytics();
-
-  const handleDisableAnalytics = () => {
-    setPrivacySettings({
-      analyticsEnabled: false,
-      crashReportingEnabled: true,
-      personalizationEnabled: false,
-      dataRetentionDays: 7,
+function LoginScreen() {
+  const { setUserProperties } = useAnalytics();
+  
+  async function handleLogin(user: User) {
+    await setUserProperties(user.id, {
+      email: user.email,
+      name: user.name,
+      plan: user.plan,
     });
-  };
-
-  return <Button onPress={handleDisableAnalytics} title="Disable Analytics" />;
-};
+  }
+  
+  return { handleLogin };
+}
 ```
 
-## Privacy and GDPR Compliance
-
-### User Consent
-
-Before collecting any analytics:
-
-1. Show privacy policy and obtain explicit user consent
-2. Set privacy preferences based on user choice:
+## Event Types
 
 ```typescript
-const { setPrivacySettings } = useAnalytics();
+enum EventType {
+  // Screen events
+  SCREEN_VIEW = 'screen_view',
+  SCREEN_LEAVE = 'screen_leave',
+  
+  // Transaction events
+  TRANSACTION_CREATE = 'transaction_create',
+  TRANSACTION_UPDATE = 'transaction_update',
+  TRANSACTION_DELETE = 'transaction_delete',
+  TRANSACTION_BULK_IMPORT = 'transaction_bulk_import',
+  
+  // User events
+  USER_LOGIN = 'user_login',
+  USER_LOGOUT = 'user_logout',
+  USER_SIGNUP = 'user_signup',
+  USER_PROFILE_UPDATE = 'user_profile_update',
+  
+  // Sync events
+  SYNC_START = 'sync_start',
+  SYNC_END = 'sync_end',
+  SYNC_ERROR = 'sync_error',
+  
+  // App events
+  APP_LAUNCH = 'app_launch',
+  APP_BACKGROUND = 'app_background',
+  APP_FOREGROUND = 'app_foreground',
+  APP_CRASH = 'app_crash',
+  
+  // Network events
+  NETWORK_REQUEST = 'network_request',
+  NETWORK_ERROR = 'network_error',
+  
+  // Custom events
+  CUSTOM = 'custom_event',
+}
+```
 
-setPrivacySettings({
-  analyticsEnabled: userConsent.analytics,
-  crashReportingEnabled: userConsent.crashes,
-  personalizationEnabled: userConsent.personalization,
-  dataRetentionDays: 30,
+## Hooks
+
+### useAnalytics
+
+Main hook for analytics functionality.
+
+```typescript
+const {
+  trackEvent,              // Track custom event
+  trackTransaction,        // Track transaction event
+  trackNetworkRequest,     // Track network request
+  trackError,             // Track error event
+  setUserProperties,      // Set user properties
+  addBreadcrumb,          // Add breadcrumb
+  markPerformance,        // Mark performance point
+  measurePerformance,     // Measure performance duration
+  getPerformanceStats,    // Get performance statistics
+  currentScreen,          // Current screen name
+} = useAnalytics();
+```
+
+### useNetworkMonitoring
+
+Specialized hook for network monitoring.
+
+```typescript
+const { trackRequest } = useNetworkMonitoring();
+
+// Usage
+trackRequest(endpoint, method, startTime, statusCode, error);
+```
+
+### useDatabaseMonitoring
+
+Specialized hook for database operation monitoring.
+
+```typescript
+const { trackOperation } = useDatabaseMonitoring();
+
+// Usage
+trackOperation('query', duration, 'transactions', error);
+```
+
+### useCrashReporting
+
+Specialized hook for crash reporting.
+
+```typescript
+const {
+  reportError,           // Report error
+  reportException,       // Report exception
+  addBreadcrumb,         // Add breadcrumb
+  getBreadcrumbs,        // Get all breadcrumbs
+  clearBreadcrumbs,      // Clear breadcrumbs
+} = useCrashReporting();
+```
+
+## Dashboard
+
+Access the analytics dashboard in the app settings.
+
+**Features:**
+- Real-time performance metrics
+- Event tracking statistics
+- Crash reports
+- Session information
+- Data refresh and clearing options
+
+## Configuration
+
+### AnalyticsService Configuration
+
+```typescript
+analyticsService.configure({
+  enableLocalPersistence: true,    // Enable local storage
+  maxQueuedEvents: 500,            // Max events in queue
+  batchSizeLimit: 100,             // Batch size for sending
+  autoFlushInterval: 30000,        // Auto-flush interval (ms)
+  enableEventAggregation: true,    // Aggregate event stats
 });
 ```
 
-### Data Retention
-
-Events are automatically deleted based on retention policy:
+### CrashReportingService Configuration
 
 ```typescript
-// Clear events older than 30 days (runs daily)
-analyticsService.clearOldEvents(30);
+await crashReportingService.initialize({
+  enabled: true,                   // Enable crash reporting
+  sentryDSN: 'https://...',       // Sentry DSN
+  environment: 'production',       // Environment
+  enableBreadcrumbs: true,         // Enable breadcrumbs
+  maxBreadcrumbs: 100,             // Max breadcrumbs
+  enableSessionReplay: false,      // Enable session replay
+  debug: false,                    // Debug mode
+  sampleRate: 1.0,                 // Sample rate (0-1)
+  enableLocalPersistence: true,    // Enable local storage
+});
 ```
 
-### Right to be Forgotten
+## Privacy
 
-Users can request all data to be deleted:
+- No personal data is collected by default
+- Events are queued locally before sending
+- User properties must be explicitly set
+- Data can be cleared at any time
+- Offline-first approach ensures data privacy
 
-```typescript
-// Export data for transparency
-const exported = await analyticsService.exportAnalytics();
+## Integration
 
-// Delete all data
-await analyticsService.clearAll();
-await crashReportingService.clearCrashReports();
-```
+### Existing Systems
 
-### PII Protection
+- **Logger**: Events are logged with DEBUG level
+- **Sync Service**: Sync events are tracked automatically
+- **Database**: Database operations are monitored
+- **Network**: API requests are tracked with NetworkMonitorService
+- **Error Handler**: Errors are automatically reported
 
-By default, no personally identifiable information is collected. For user identification:
+### Third-party Services
 
-```typescript
-// Only use anonymous user IDs or hashed identifiers
-analyticsService.setUserId('user_hash_xyz');
+- **Sentry**: For crash reporting and error tracking
+- **Firebase Analytics**: (Optional) For detailed analytics
+- **Mixpanel**: (Optional) For funnel analysis
 
-// Never set PII directly:
-// ❌ analyticsService.setUserId('john@example.com');
-// ✅ analyticsService.setUserId('user_hash_' + hashEmail(email));
-```
+## Performance
+
+- Efficient event queuing with batch sending
+- Memory-optimized event aggregation
+- Background memory monitoring
+- Configurable flush intervals
+- Low overhead: <5% CPU impact
 
 ## Testing
 
-### Unit Tests
-
-Run analytics service tests:
+Run tests with:
 
 ```bash
-npm test -- __tests__/utils/analytics/analyticsService.test.ts
-npm test -- __tests__/utils/analytics/crashReportingService.test.ts
-npm test -- __tests__/utils/analytics/performanceMetrics.test.ts
-```
-
-### Integration Tests
-
-Test analytics integration with components:
-
-```typescript
-import { renderHook, act } from '@testing-library/react-hooks';
-import { useAnalytics } from '@/hooks/useAnalytics';
-
-describe('Analytics Integration', () => {
-  it('should track events', () => {
-    const { result } = renderHook(() => useAnalytics());
-
-    act(() => {
-      result.current.trackEvent('test_event');
-    });
-
-    const metrics = result.current.getMetrics();
-    expect(metrics.totalEvents).toBeGreaterThan(0);
-  });
-});
+npm run test -- src/utils/analytics
+npm run test:coverage -- src/utils/analytics
 ```
 
 ## Troubleshooting
 
-### Events Not Syncing
+### Events not being tracked
+- Check if analytics service is initialized
+- Verify event tracking code is being called
+- Check network connectivity for batch sending
 
-**Problem**: Events queued but not syncing to backend
+### High memory usage
+- Reduce `maxQueuedEvents` limit
+- Enable event aggregation
+- Clear old metrics regularly
 
-**Solutions**:
-1. Check network connectivity
-2. Verify API endpoint is correct
-3. Check AsyncStorage permissions
-4. Review logs: `logger.info('Analytics', ...)`
+### Crash reports not showing
+- Verify Sentry DSN is configured
+- Check internet connectivity
+- Enable debug mode for logging
 
-### High Memory Usage
+## Best Practices
 
-**Problem**: App memory increasing over time
+1. **Initialize on App Launch**
+   - Always initialize analytics services on app startup
+   - Set user properties after login
 
-**Solutions**:
-1. Clear old events: `analyticsService.clearOldEvents(7)`
-2. Stop memory monitoring if not needed: `performanceMetrics.stopMemoryMonitoring()`
-3. Reduce MAX_STORED_METRICS in performanceMetrics.ts
+2. **Track Important Events**
+   - Track user actions that matter for your business
+   - Use meaningful event names and properties
 
-### Crashes Not Reported
+3. **Handle Errors Gracefully**
+   - Always add try-catch blocks around analytics calls
+   - Add breadcrumbs for debugging
 
-**Problem**: Crash reports not appearing in Sentry
+4. **Monitor Performance**
+   - Track long-running operations
+   - Monitor API response times
+   - Watch database query performance
 
-**Solutions**:
-1. Verify Sentry DSN is correct
-2. Check crash reporting is enabled in privacy settings
-3. Verify global error handler setup
-4. Check network connectivity during sync
+5. **Respect Privacy**
+   - Don't track personal data
+   - Allow users to opt-out
+   - Clear data on logout
 
-### AsyncStorage Quota Exceeded
+## See Also
 
-**Problem**: "QuotaExceededError" from AsyncStorage
-
-**Solutions**:
-1. Reduce data retention days
-2. Clear old events more frequently
-3. Reduce MAX_OFFLINE_EVENTS limit
-4. Implement selective event tracking
-
-## API Endpoints
-
-### Event Syncing
-
-**POST** `/api/analytics/events`
-
-Request:
-```json
-{
-  "events": [
-    {
-      "id": "evt-xxx",
-      "type": "screen_view",
-      "properties": { },
-      "timestamp": "2026-10-08T12:00:00Z"
-    }
-  ]
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "synced": 50,
-  "failed": 0
-}
-```
-
-### Crash Reporting
-
-**POST** `/api/crashes`
-
-Request:
-```json
-{
-  "event_id": "crash-xxx",
-  "message": "Error message",
-  "timestamp": "2026-10-08T12:00:00Z",
-  "exception": {
-    "values": [
-      {
-        "type": "Error",
-        "value": "Error message",
-        "stacktrace": { "frames": [ ] }
-      }
-    ]
-  }
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "id": "crash-xxx"
-}
-```
-
-## Performance Benchmarks
-
-Expected performance metrics:
-- **Event Tracking**: <5ms per event
-- **Batch Sync**: <1s for 50 events (with network)
-- **Memory Overhead**: <10MB for 1000 queued events
-- **Startup Impact**: <100ms
-
-## Security Considerations
-
-1. **HTTPS Only**: All API calls use HTTPS
-2. **No Token Leakage**: Auth tokens never included in analytics
-3. **Data Minimization**: Collect only necessary data
-4. **Encryption**: Use device-level encryption for AsyncStorage
-5. **Access Control**: Restrict analytics access to authenticated users
-
-## Support
-
-For issues or questions:
-1. Check this documentation
-2. Review test files for usage examples
-3. Check logger output for errors
-4. Submit issue to project repository
-
----
-
-**Last Updated**: October 8, 2026
-**Version**: 1.0.0
+- [Crash Reporting Documentation](./CRASH_REPORTING.md)
+- [Performance Metrics Guide](./PHASE_22_10_PERFORMANCE.md)
+- [Error Handling Documentation](./utils/README-ERROR-HANDLING.md)
