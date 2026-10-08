@@ -11,25 +11,26 @@ services:
       target: runtime
     container_name: lucide-app
     ports:
-      - "8787:8787"
+      - "3000:3000"
     environment:
       # Core Configuration
-      NODE_ENV: development
-      PORT: 8787
+      NODE_ENV: production
+      PORT: 3000
 
-      # Database
-      DATABASE_URL: file:./data/lucide.sqlite
+      # Database (uses named volume for persistence)
+      DATABASE_URL: file:./data/app.db
 
       # Security
-      API_KEY: ${API_KEY:-change-me-in-development-only}
+      API_KEY: ${API_KEY:-change-me-in-production}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-session-secret}
+      ENCRYPTION_MASTER_SECRET: ${ENCRYPTION_MASTER_SECRET:-${API_KEY}}
 
       # CORS (vazio = só mesma origem; ver docs/TOPOLOGIA-IMPLANTACAO.md)
       CORS_ORIGINS: ${CORS_ORIGINS:-}
 
       # Integrations (Optional)
       ASAAS_API_KEY: ${ASAAS_API_KEY:-}
-      ASAAS_SANDBOX: ${ASAAS_SANDBOX:-true}
+      ASAAS_SANDBOX: ${ASAAS_SANDBOX:-false}
       CERTISIGN_API_KEY: ${CERTISIGN_API_KEY:-}
       SERPROID_API_KEY: ${SERPROID_API_KEY:-}
       PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
@@ -45,7 +46,7 @@ services:
 
       # Sentry (Optional)
       SENTRY_DSN: ${SENTRY_DSN:-}
-      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
 
       # Google Drive Backup (Optional)
       GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
@@ -59,17 +60,19 @@ services:
       CACHE_TTL_MARGENS: ${CACHE_TTL_MARGENS:-7200000}
       CACHE_TTL_RECONCILIACAO: ${CACHE_TTL_RECONCILIACAO:-1800000}
 
+      # Backup Configuration
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-true}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+
     volumes:
-      # Persistent database volume
-      - ./data:/app/data
-      # Development: live reload of source (comment out for production-like builds)
-      - ./server/src:/app/server/src:ro
-      # Logs
-      - ./logs:/app/logs
+      # Persistent named volumes for data protection
+      - lucide-data:/app/data
+      - lucide-logs:/app/logs
 
     # Health check
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8787/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -86,15 +89,48 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '2'
+          memory: 1024M
+        reservations:
           cpus: '1'
           memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
 
     # Container dependency on database initialization (if needed)
     # depends_on:
     #   - database
+
+  # ============================================================================
+  # Backup Service (Scheduled Database Backups)
+  # ============================================================================
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: lucide-backup
+    command: node /app/server/src/services/backup-scheduler.js
+    environment:
+      NODE_ENV: production
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      # Read-only access to application data
+      - lucide-data:/app/data:ro
+      # Backup storage volume
+      - lucide-backups:/app/backups
+      # Logs
+      - lucide-logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - lucide-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   # ============================================================================
   # Optional: Database Service (for persistent SQLite or PostgreSQL)
@@ -144,6 +180,12 @@ services:
 # Volumes
 # ============================================================================
 volumes:
+  lucide-data:
+    driver: local
+  lucide-backups:
+    driver: local
+  lucide-logs:
+    driver: local
   # postgres_data:
 
 # ============================================================================
