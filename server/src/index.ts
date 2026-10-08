@@ -62,6 +62,8 @@ import { criarRotasAssinaturasLGPD } from "../src/routes/assinatura-lgpd-routes.
 // Phase 22.20: Anthropic AI Integration
 import { criarRotasAI } from "../src/routes/ai-routes.js";
 import { initializeAnthropicService } from "../src/ai/anthropic-service.js";
+// Phase 22.20.3: Property Management
+import { criarRotasPropriedades } from "../src/routes/property-routes.js";
 // Phase 9: Cache, Alertas, Health Check
 import { cache } from "../src/utils/cache-memoria.js";
 import { enviarAlertaEmail } from "../src/utils/email-alertas.js";
@@ -427,6 +429,19 @@ if (aiService) {
 } else {
   logger.warn("[Server] AI service not available; /api/ai routes disabled");
 }
+
+/** Phase 22.20.3: Property Management System
+ * CRUD for real estate properties with cost allocation, depreciation tracking, and ROI analysis
+ * GET    /api/properties — list properties (with filters: tipoImovel, cidade, estado)
+ * POST   /api/properties — create property
+ * GET    /api/properties/:id — get property details
+ * PUT    /api/properties/:id — update property
+ * DELETE /api/properties/:id — delete property (soft)
+ * Cost allocation: GET/POST /api/properties/:id/costs, GET /api/properties/:id/cost-summary
+ * Depreciation: POST /api/properties/:id/depreciation/calculate, GET history/accumulated
+ * ROI Analysis: POST /api/properties/:id/roi/calculate, GET roi */
+app.use("/api/properties", criarRotasPropriedades({ db, authService, auditService }));
+logger.info("[Server] Property Management routes mounted at /api/properties");
 
 /** Phase 22.20.2: Advanced PDF Reports — geração de relatórios em PDF e exportação
  * POST /api/reports/balance-sheet — Gera Balanço Patrimonial (PDF)
