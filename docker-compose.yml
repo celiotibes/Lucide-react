@@ -269,8 +269,294 @@ volumes:
       type: none
       o: bind
       device: ./backups
+  prometheus-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/prometheus/data
+  grafana-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/grafana/data
+  grafana-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/grafana/logs
+  alertmanager-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/alertmanager/data
   # postgres_data:
   #   driver: local
+
+  # ============================================================================
+  # Prometheus (Metrics Collection)
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: lucide-prometheus
+    hostname: prometheus
+
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/rules/alert_rules.yml:ro
+      - ./monitoring/prometheus/recording_rules.yml:/etc/prometheus/rules/recording_rules.yml:ro
+      - prometheus-data:/prometheus
+
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '3'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '${PROMETHEUS_CPUS_LIMIT:-2}'
+          memory: ${PROMETHEUS_MEMORY_LIMIT:-1024M}
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    labels:
+      com.lucide.service: prometheus
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # Grafana (Dashboards & Visualization)
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: lucide-grafana
+    hostname: grafana
+
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: http://localhost:3000
+
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/grafana/provisioning.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - grafana-data:/var/lib/grafana
+      - grafana-logs:/var/log/grafana
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    depends_on:
+      - prometheus
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '${GRAFANA_CPUS_LIMIT:-1}'
+          memory: ${GRAFANA_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    labels:
+      com.lucide.service: grafana
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # AlertManager (Alert Routing & Notification)
+  # ============================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: lucide-alertmanager
+    hostname: alertmanager
+
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      ALERTS_EMAIL_TO: ${ALERTS_EMAIL_TO:-}
+      ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
+      PAGERDUTY_SERVICE_KEY: ${PAGERDUTY_SERVICE_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://alertmanager:9093'
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    labels:
+      com.lucide.service: alertmanager
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # Jaeger (Distributed Tracing)
+  # ============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:2.0
+    container_name: lucide-jaeger
+    hostname: jaeger
+
+    ports:
+      - "${JAEGER_QUERY_PORT:-16686}:16686"  # Query UI
+      - "${JAEGER_COLLECTOR_PORT:-14250}:14250"  # gRPC collector
+      - "${JAEGER_AGENT_PORT:-6831}:6831/udp"  # Agent
+      - "14268:14268"  # HTTP collector
+
+    environment:
+      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
+      COLLECTOR_OTLP_ENABLED: 'true'
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    labels:
+      com.lucide.service: jaeger
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # Node Exporter (Infrastructure Metrics)
+  # ============================================================================
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: lucide-node-exporter
+    hostname: node-exporter
+
+    ports:
+      - "9100:9100"
+
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+    labels:
+      com.lucide.service: node-exporter
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # cAdvisor (Container Metrics)
+  # ============================================================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: lucide-cadvisor
+    hostname: cadvisor
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+    labels:
+      com.lucide.service: cadvisor
+      com.lucide.phase: '22.22'
+
+    privileged: true
 
 # ============================================================================
 # Networks
