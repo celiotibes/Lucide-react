@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS acl_recursos (
   ),
   recurso_id TEXT NOT NULL,
   concedido_por TEXT NOT NULL,
-  concedido_em TEXT NOT NULL DEFAULT datetime('now'),
+  concedido_em TEXT NOT NULL DEFAULT (datetime('now')),
   revogado_em TEXT,
 
   -- Foreign keys

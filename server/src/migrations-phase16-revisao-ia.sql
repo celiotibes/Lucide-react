@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS fila_revisao_ia (
   dados_adicionais TEXT,
 
   -- Timestamps
-  data_criacao TEXT NOT NULL DEFAULT datetime('now'),
+  data_criacao TEXT NOT NULL DEFAULT (datetime('now')),
   data_revisao TEXT,
 
   -- Se rejeitado, por que?
@@ -97,8 +97,8 @@ CREATE TABLE IF NOT EXISTS regras_revisao_ia (
   papeis_revisor TEXT,
 
   -- Metadata
-  criada_em TEXT NOT NULL DEFAULT datetime('now'),
-  atualizada_em TEXT NOT NULL DEFAULT datetime('now')
+  criada_em TEXT NOT NULL DEFAULT (datetime('now')),
+  atualizada_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Índice para buscar regras ativas

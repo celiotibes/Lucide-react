@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS audit_reconciliacao_asaas (
   taxa_antes REAL,
   taxa_depois REAL NOT NULL,
   discrepancia INTEGER NOT NULL DEFAULT 0,
-  criado_em TEXT NOT NULL DEFAULT datetime('now')
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Índices para performance de queries de auditoria

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS portal_inquilino_contratos (
   versao INTEGER NOT NULL CHECK(versao >= 1),
   conteudo_hash TEXT NOT NULL,
   publicado_por TEXT,
-  publicado_em TEXT NOT NULL DEFAULT datetime('now'),
+  publicado_em TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   UNIQUE(contrato_ref)
 );

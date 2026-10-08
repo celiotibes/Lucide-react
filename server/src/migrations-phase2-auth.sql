@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   -- podeAcessarPrestador em auth-service.ts).
   prestador_id INTEGER,
   ativo INTEGER NOT NULL DEFAULT 1,
-  data_criacao TEXT NOT NULL DEFAULT datetime('now'),
-  updated_at TEXT NOT NULL DEFAULT datetime('now'),
+  data_criacao TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   ultimo_login TEXT,
   tentativas_falhas INTEGER DEFAULT 0,
   bloqueado_ate TEXT,
@@ -56,7 +56,7 @@ CREATE INDEX idx_usuarios_ativo ON usuarios(ativo);
 CREATE TABLE IF NOT EXISTS sessoes (
   token TEXT PRIMARY KEY,
   usuario_id TEXT NOT NULL,
-  data_criacao TEXT NOT NULL DEFAULT datetime('now'),
+  data_criacao TEXT NOT NULL DEFAULT (datetime('now')),
   data_expiracao TEXT NOT NULL,
   ativo INTEGER NOT NULL DEFAULT 1,
   endereco_ip TEXT,
@@ -76,7 +76,7 @@ CREATE INDEX idx_sessoes_ativo ON sessoes(ativo);
 
 CREATE TABLE IF NOT EXISTS auditoria (
   id TEXT PRIMARY KEY,
-  timestamp TEXT NOT NULL DEFAULT datetime('now'),
+  timestamp TEXT NOT NULL DEFAULT (datetime('now')),
   usuario_id TEXT,
   usuario_nome TEXT NOT NULL,
   usuario_email TEXT NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS pagamentos_apontamentos (
     status IN ('pendente', 'aprovado', 'rejeitado')
   ),
   usuario_submissao_id TEXT NOT NULL,
-  data_submissao TEXT NOT NULL DEFAULT datetime('now'),
+  data_submissao TEXT NOT NULL DEFAULT (datetime('now')),
   usuario_aprovacao_id TEXT,
   data_aprovacao TEXT,
   motivo_rejeicao TEXT,
@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS parametros_contrato (
   reajuste_percentual REAL NOT NULL DEFAULT 0,
   data_vigencia TEXT NOT NULL,
   ativo INTEGER NOT NULL DEFAULT 1,
-  criado_em TEXT NOT NULL DEFAULT datetime('now'),
+  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
 
   CHECK(diaria_base > 0),
   CHECK(valor_km > 0),
@@ -252,7 +252,7 @@ CREATE TABLE IF NOT EXISTS prestadores (
   telefone TEXT,
   endereco TEXT,
   ativo INTEGER NOT NULL DEFAULT 1,
-  data_criacao TEXT NOT NULL DEFAULT datetime('now'),
+  data_criacao TEXT NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
@@ -302,7 +302,7 @@ CREATE TABLE IF NOT EXISTS permissoes_papel (
   )),
   habilitado INTEGER NOT NULL DEFAULT 0,
   limite_valor REAL,
-  atualizado_em TEXT NOT NULL DEFAULT datetime('now'),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now')),
   -- Quem fez a ÚLTIMA alteração nesta linha — NULL para as linhas seedadas
   -- automaticamente no boot (ninguém "alterou", nasceram assim); nunca uma
   -- string inventada, mesmo motivo do usuario_id em auditoria.
