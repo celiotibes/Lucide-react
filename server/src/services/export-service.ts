@@ -17,7 +17,7 @@
 import Database from 'better-sqlite3';
 import XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { Builder } from 'xml2js';
+import { XMLBuilder } from 'fast-xml-parser';
 import { createHash } from 'crypto';
 import { logger } from './logger-service.js';
 
@@ -270,20 +270,22 @@ export class ExportService {
   private exportToXML(data: TabularData, options: ExportOptions): Buffer {
     // Montar estrutura XML
     const xmlObj = {
-      metadados: data.metadados || {},
-      dados: {
-        registro: data.linhas.map((linha) => ({
-          $: linha,
-        })),
+      '?xml': { '@_version': '1.0', '@_encoding': 'UTF-8' },
+      relatorio: {
+        metadados: data.metadados || {},
+        dados: {
+          registro: data.linhas.map((linha) => linha),
+        },
       },
     };
 
-    // Converter para string XML
-    const builder = new Builder({
-      rootName: 'relatorio',
-      xmldec: { version: '1.0', encoding: 'UTF-8' },
+    // Converter para string XML usando fast-xml-parser
+    const builder = new XMLBuilder({
+      ignoreAttributes: false,
+      processEntities: false,
+      attributeNamePrefix: '@_',
     });
-    const xmlString = builder.buildObject(xmlObj);
+    const xmlString = builder.build(xmlObj);
 
     return Buffer.from(xmlString, 'utf-8');
   }
