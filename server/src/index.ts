@@ -428,6 +428,17 @@ if (aiService) {
   logger.warn("[Server] AI service not available; /api/ai routes disabled");
 }
 
+/** Phase 22.20.2: Advanced PDF Reports — geração de relatórios em PDF e exportação
+ * POST /api/reports/balance-sheet — Gera Balanço Patrimonial (PDF)
+ * POST /api/reports/income-statement — Gera DRE (PDF)
+ * POST /api/reports/cash-flow — Gera Fluxo de Caixa (PDF)
+ * POST /api/reports/real-estate — Gera Relatório de Propriedades (PDF)
+ * POST /api/reports/export — Exporta em CSV, XLSX, XML
+ * GET /api/reports/stats — Estatísticas de exportação */
+const criarRotasReportsPDF = (await import('./routes/report-pdf-routes.js')).default;
+app.use("/api/reports", criarRotasReportsPDF({ db, authService }));
+logger.info("[Server] PDF Reports routes mounted at /api/reports");
+
 /** Sugestão inteligente de categorias para transações (fase 2.3) — baseada em
  * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria
  * retorna { categoria, confianca (0-100), motivo }. */
