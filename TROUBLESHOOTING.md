@@ -1,535 +1,299 @@
-# Guia de Troubleshooting — Lucide Contabilidade
+# Lucide React - Troubleshooting & FAQ
 
-Soluções para problemas comuns com deploy, PM2 e produção.
+## Table of Contents
 
----
+1. [Common Issues](#common-issues)
+2. [Installation Problems](#installation-problems)
+3. [Synchronization Issues](#synchronization-issues)
+4. [OCR & Text Processing](#ocr--text-processing)
+5. [Performance Problems](#performance-problems)
+6. [Security Concerns](#security-concerns)
+7. [Data Recovery](#data-recovery)
+8. [FAQ](#faq)
 
-## 1. PM2 — Problemas de Inicialização
+## Common Issues
 
-### Problema: "PM2 não encontrado"
+### App Crashes on Launch
 
-```bash
-# Solução: Instalar PM2 globalmente
-npm install -g pm2
+**Symptoms**: Application crashes immediately upon opening
 
-# Verificar instalação
-pm2 --version
-```
+**Solutions**:
 
-### Problema: "Processo não inicia com PM2"
+1. **Clear App Cache**:
+   - iOS: Settings > General > iPhone Storage > Lucide > Offload App > Reinstall
+   - Android: Settings > Apps > Lucide > Storage > Clear Cache
 
-```bash
-# Verificar logs de erro
-pm2 logs
+2. **Check Storage Space**:
+   - Ensure device has at least 500 MB free space
+   - Delete unnecessary files if needed
 
-# Verificar status detalhado
-pm2 status
+3. **Update Application**:
+   - Check App Store / Play Store for updates
+   - Install latest version
 
-# Ver detalhes de um processo específico
-pm2 describe contabilidade-server
+4. **Restart Device**:
+   - Power off device completely
+   - Wait 30 seconds
+   - Power on and launch app
 
-# Reiniciar manualmente
-pm2 restart contabilidade-server
-```
+5. **Reinstall Application**:
+   - Uninstall completely (all data removed)
+   - Restart device
+   - Reinstall fresh copy
 
-**Causas comuns**:
-- `.env` não existe ou não contém `API_KEY`
-- Dependências não instaladas (`npm install` no server)
-- Porta 3000+ já está em uso
-- Arquivo TypeScript com erro de sintaxe
-
-### Problema: "tsx não encontrado"
-
-```bash
-# tsx é necessário para rodar TypeScript
-cd server
-npm install --save-dev tsx
-
-# Ou instale globalmente
-npm install -g tsx
-
-# Verifique que ecosystem.config.js usa interpreter: "tsx"
-cat ecosystem.config.js | grep interpreter
-```
-
-### Problema: "Processo morre minutos depois de iniciar"
-
-```bash
-# Verificar se está atingindo limite de memória
-pm2 describe contabilidade-server
-
-# Logs detalhados
-pm2 logs contabilidade-server --lines 100
-
-# Aumentar limite de memória em ecosystem.config.js
-# max_memory_restart: "1G"  # aumentar de 500M para 1GB
-```
+**If problem persists**: Contact support with crash logs
 
 ---
 
-## 2. Deploy Script — Problemas
+### App Freezes or Lags
 
-### Problema: "deploy-local.sh: permission denied"
+**Symptoms**: Application becomes unresponsive or very slow
 
-```bash
-# Dar permissão de execução
-chmod +x deploy-local.sh
-chmod +x deploy-local-backup.sh
+**Possible Causes**: 
+- Too many documents in local database
+- Large image files causing memory issues
+- Background processes consuming resources
 
-# Executar
-./deploy-local.sh
-```
+**Solutions**:
 
-### Problema: "npm run build falha"
+1. **Close Background Apps**:
+   - Close other applications using memory
+   - Restart device
 
-```bash
-# Verificar erros específicos
-npm run build
+2. **Reduce Active Documents**:
+   - Archive old documents
+   - Delete duplicate documents
+   - Clear cache files
 
-# Se falhar com "Cannot find module", limpar e reinstalar
-rm -rf node_modules package-lock.json
-npm install --legacy-peer-deps
-npm run build
+3. **Check Device Storage**:
+   - Delete old photos/videos
+   - Clear temporary files
+   - Keep at least 2 GB free
 
-# Se ainda falhar, verificar erros TypeScript
-npm run build:typecheck
-```
+4. **Update Device Software**:
+   - Check for iOS/Android updates
+   - Install latest system version
 
-### Problema: ".env não encontrado"
-
-```bash
-# Copiar do exemplo
-cp .env.example .env
-
-# Editar e adicionar valores
-nano .env
-
-# Mínimo necessário:
-# API_KEY=seu_valor_aleatorio_aqui
-# Gerar valor aleatório:
-# macOS/Linux: openssl rand -hex 32
-```
-
-### Problema: "Git pull falha"
-
-```bash
-# Verificar estado do repositório
-git status
-
-# Se houver mudanças locais não commitadas
-git stash  # guardar mudanças temporárias
-
-# Tentar pull novamente
-git pull origin main
-
-# Se houver conflitos
-git merge --abort
-# Depois resolver conflitos manualmente
-```
+5. **Lower Image Quality**:
+   - Go to Settings > Capture Settings
+   - Reduce resolution to HD instead of 4K
+   - Re-sync documents
 
 ---
 
-## 3. Port Conflicts — Porta já em uso
+### Authentication Failures
 
-### Problema: "Error: listen EADDRINUSE :::3000"
+**Symptoms**: Cannot sign in or repeated logout
 
-```bash
-# Encontrar processo usando porta 3000
-lsof -i :3000  # macOS/Linux
-netstat -ano | findstr :3000  # Windows
+**Possible Causes**:
+- Incorrect credentials
+- Expired account
+- Network connectivity issues
+- Cached credentials issue
 
-# Matar processo (macOS/Linux)
-kill -9 <PID>
+**Solutions**:
 
-# Ou, fazer PM2 rodar em porta diferente
-# Editar ecosystem.config.js e adicionar ao app config:
-# "args": "--port 3001"
-```
+1. **Verify Credentials**:
+   - Double-check email address
+   - Ensure caps lock is off
+   - Verify password is correct
 
----
+2. **Reset Password**:
+   - Tap "Forgot Password" on login screen
+   - Follow email recovery steps
+   - Create new password (12+ characters)
 
-## 4. Database — Problemas
+3. **Clear Cached Credentials**:
+   - iOS: Settings > Lucide > Clear Credentials
+   - Android: App Settings > Clear Cache > Restart
 
-### Problema: "Database file is not readable" ou "database is locked"
+4. **Check Account Status**:
+   - Log in on web portal
+   - Verify account is active
+   - Check for security alerts
 
-```bash
-# Verificar se database existe
-ls -la server/src/*.db
-
-# Se estiver corrompido, usar backup
-ls -la backups/
-
-# Restaurar database do backup
-cp backups/<mais_recente>/database/*.db server/src/
-
-# Reiniciar servidor
-pm2 restart contabilidade-server
-```
-
-### Problema: "Database migration falha"
-
-```bash
-# Rodar migration manualmente para ver erro detalhado
-cd server
-npm run migrate  # se script existir
-
-# Se não existir, verificar em que versão está
-# Mais comumente não há script de migration automático
-# Nesse caso, validar que database.db está corretamente inicializado
-```
+5. **Check Network Connection**:
+   - Ensure WiFi is connected
+   - Try cellular data
+   - Disable VPN temporarily
 
 ---
 
-## 5. Backend Server — Issues
+## Installation Problems
 
-### Problema: "Server inicia mas não responde a requisições"
+### Installation Fails from App Store
 
-```bash
-# Verificar se servidor está realmente escutando
-curl http://localhost:3000
+**Problem**: Download hangs or shows error
 
-# Verificar logs
-pm2 logs contabilidade-server
+**Solutions**:
 
-# Verificar se CORS está configurado (se receber erro CORS)
-# Editar server/src/index.ts:
-# const corsOptions = {
-#   origin: ['http://localhost:5173', 'https://seu-dominio.com'],
-#   credentials: true
-# };
-# app.use(cors(corsOptions));
+1. **Check Storage**:
+   - iPhone: Settings > General > iPhone Storage (need 500+ MB free)
+   - Android: Settings > Storage (need 500+ MB free)
 
-# Reiniciar
-pm2 restart contabilidade-server
-```
+2. **Reset App Store**:
+   - iOS: Close App Store > Wait 10 seconds > Reopen
+   - Android: Go to Play Store > Settings > Clear Cache > Retry
 
-### Problema: "Erro de CORS entre frontend e backend"
+3. **Update Device OS**:
+   - Check for system updates
+   - Install latest OS version
+   - Retry installation
 
-```bash
-# Exemplo: Frontend em localhost:5173, Backend em localhost:3000
-# Erro: "Access to XMLHttpRequest has been blocked by CORS policy"
-
-# Solução no backend (server/src/index.ts):
-import cors from 'cors';
-
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? 'https://seu-dominio.com'
-    : 'http://localhost:5173',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
-
-app.use(cors(corsOptions));
-
-# Reiniciar
-pm2 restart contabilidade-server
-```
+4. **Use WiFi**:
+   - Switch to WiFi from cellular
+   - Use stable, strong connection
+   - Retry download
 
 ---
 
-## 6. Environment Variables — Problemas
+### Cannot Access Camera
 
-### Problema: "API_KEY não definido" ou "Variável de ambiente não funciona"
+**Problem**: Camera permission denied or camera not working
 
-```bash
-# Verificar que .env está sendo lido
-cat .env | grep API_KEY
+**Solutions**:
 
-# Verificar se arquivo é UTF-8 sem BOM
-file .env
+1. **Grant Permission**:
+   - iOS: Settings > Lucide > Camera > Allow
+   - Android: Settings > Apps > Lucide > Permissions > Camera
 
-# Testar leitura de variável localmente
-npm run dev  # deve funcionar e mostrar logs
+2. **Restart Camera App**:
+   - Close Lucide completely
+   - Open device Camera app to test
+   - Close Camera app
+   - Reopen Lucide
 
-# Se PM2, reiniciar para recarregar .env
-pm2 restart contabilidade-server
-```
+3. **Check Camera Hardware**:
+   - Look for physical obstructions
+   - Clean camera lens
+   - Check if other apps can access camera
 
-### Problema: "Produção usa valor errado de variável"
-
-```bash
-# Verificar qual .env PM2 está usando
-ps aux | grep "contabilidade-server"
-
-# Se em produção, nenhuma variável de desenvolvimento deve estar lá
-# Verificar arquivo .env produção
-ls -la ~/.pm2/logs/  # ver logs onde variáveis aparecem
-
-# Atualizar .env
-nano .env
-# Restrar aplicação
-pm2 restart contabilidade-server
-```
+4. **Reset App Permissions**:
+   - iOS: Settings > Lucide > Reset Permissions
+   - Android: Uninstall & Reinstall app
 
 ---
 
-## 7. Monitoramento — Problemas
+## Synchronization Issues
 
-### Problema: "pm2 web não acessível"
+### Documents Not Syncing
 
-```bash
-# Iniciar dashboard
-pm2 web
+**Symptoms**: Changes not appearing on other devices
 
-# Acessar em: http://localhost:9615
+**Possible Causes**:
+- No internet connection
+- Server maintenance
+- Sync conflicts
+- Corrupted local data
 
-# Se porta já em uso
-pm2 web -p 9616  # usar porta diferente
+**Solutions**:
 
-# Se não consegue acessar externamente (ex: de outro Mac)
-# Usar ngrok para expor
-ngrok http 9615
-```
+1. **Check Internet Connection**:
+   - Open web browser
+   - Visit https://www.google.com
+   - If fails, check WiFi/cellular settings
 
-### Problema: "Logs muito grandes"
+2. **Manual Sync**:
+   - Open **Sync** tab
+   - Tap "Sync Now" button
+   - Wait for completion message
 
-```bash
-# PM2 logs podem ficar enormes com o tempo
-# Limpar logs antigos
-pm2 flush
+3. **Check Sync Status**:
+   - Open **Sync** tab
+   - Review last sync timestamp
+   - Check for error messages
 
-# Ou limpar manual
-rm ~/.pm2/logs/*
+4. **Disable WiFi-Only Setting**:
+   - Settings > Sync Settings
+   - Disable "WiFi Only" option
+   - Allows cellular sync
 
-# Configurar rotação de logs em ecosystem.config.js:
-# "log_file": "~/.pm2/logs/app.log",
-# "out_file": "~/.pm2/logs/out.log",
-# "error_file": "~/.pm2/logs/error.log",
-# Depois usar ferramentas como logrotate
-```
-
----
-
-## 8. Backup — Problemas
-
-### Problema: "Backup script não funciona"
-
-```bash
-# Verificar permissões
-chmod +x deploy-local-backup.sh
-
-# Rodar manualmente para ver erro
-bash deploy-local-backup.sh
-
-# Verificar se diretórios existem
-ls -la backups/
-
-# Se disk está cheio, limpar backups antigos
-rm -rf backups/20230101_*  # remover backups de meses atrás
-```
-
-### Problema: "Restaurar do backup"
-
-```bash
-# Encontrar backup mais recente
-ls -la backups/ | tail -5
-
-# Copiar arquivo específico (ex: .env)
-cp backups/<TIMESTAMP>/.env .env
-
-# Ou restaurar database
-cp backups/<TIMESTAMP>/database/*.db server/src/
-
-# Reiniciar servidor
-pm2 restart contabilidade-server
-```
+5. **Force Sync**:
+   - Settings > Advanced > Force Full Sync
+   - Wait for completion
 
 ---
 
-## 9. Vercel — Problemas
+## OCR & Text Processing
 
-### Problema: "Build falha no Vercel mas funciona localmente"
+### Poor OCR Results
 
-```bash
-# Razão comum: package-lock.json fora de sync
+**Symptoms**: Extracted text is inaccurate or incomplete
 
-# Solução:
-git status  # verificar se package-lock.json tem mudanças
+**Solutions**:
 
-# Atualizar lock file localmente
-rm -rf node_modules
-npm install
+1. **Retake Document Photo**:
+   - Ensure adequate lighting
+   - Avoid shadows and glare
+   - Keep document flat and straight
+   - Increase resolution in settings
 
-# Commitar
-git add package-lock.json
-git commit -m "Update package-lock.json"
-git push
+2. **Check Document Type**:
+   - Verify document is supported type
+   - Contact support for unsupported types
 
-# Vercel vai tentar build novamente
-```
+3. **Correct Results Manually**:
+   - Open document
+   - Tap "Edit" on extracted text
+   - Manually correct errors
 
-### Problema: "Variáveis de ambiente não funcionam em Vercel"
-
-```bash
-# Variáveis tipo VITE_* precisam estar no build
-# Se mudar variável no painel Vercel:
-# 1. Ir para Settings → Environment Variables
-# 2. Adicionar/atualizar valor
-# 3. Forçar rebuild: ir para Deployments → selecionar latest → Redeploy
-
-# Não basta apenas alterar variável e reiniciar — precisa rebuild
-```
-
-### Problema: "Vercel falha com 'Cannot find module'"
-
-```bash
-# Limpar cache de build Vercel
-# Settings → Git → Clear Cache
-
-# Depois fazer push forçado
-git commit --allow-empty -m "Trigger rebuild"
-git push
-```
+4. **Increase Image Quality**:
+   - Settings > Capture Settings
+   - Select highest resolution (4K)
+   - Retake photo
+   - Resubmit for processing
 
 ---
 
-## 10. Performance — Otimizações
+## Performance Problems
 
-### Problema: "Servidor lento"
+### High Battery Drain
 
-Checklist:
-- [ ] Check logs: `pm2 logs contabilidade-server | grep -i "slow\|error"`
-- [ ] CPU/Memory: `pm2 describe contabilidade-server`
-- [ ] Database queries: adicionar índices se necessário
-- [ ] Cache: implementar cache em endpoints frequentes
-- [ ] Compressão: ativar gzip em Express
+**Symptoms**: Battery drains quickly when using app
 
-```javascript
-// Em server/src/index.ts
-import compression from 'compression';
-app.use(compression());  // comprime respostas gzip
-```
+**Solutions**:
 
-### Problema: "Frontend lento (JavaScript bundle grande)"
+1. **Disable Unnecessary Features**:
+   - Settings > Features
+   - Disable location tracking
+   - Disable background sync
 
-```bash
-# Analisar bundle size
-npm run build
+2. **Reduce Screen Brightness**:
+   - Settings > Display > Auto-brightness
+   - Reduce screen timeout
+   - Use dark theme
 
-# Usar ferramentas de análise
-npm install -g @vite/plugin-visualizer
-# Adicionar a vite.config.ts:
-// import { visualizer } from 'rollup-plugin-visualizer';
-// export default { plugins: [visualizer()] }
-```
+3. **Update Application**:
+   - Check for app updates
+   - Latest versions include optimizations
 
 ---
 
-## 11. Segurança — Checklist
+## FAQ
 
-- [ ] `.env` **nunca** commitado (está no `.gitignore`?)
-- [ ] `API_KEY` é valor aleatório forte (`openssl rand -hex 32`)
-- [ ] CORS habilitado apenas para domínios esperados
-- [ ] Rate limiting configurado (proteção contra DDoS)
-- [ ] HTTPS/SSL certificado válido (Vercel fornece)
-- [ ] Dependências atualizadas: `npm audit fix`
+**Q: Is my data encrypted?**
+A: Yes, all data is encrypted using AES-256 encryption both in transit (TLS 1.3) and at rest.
 
-```bash
-# Verificar vulnerabilidades
-npm audit
+**Q: Can I export my documents?**
+A: Yes, export documents as PDF or images through the document menu.
 
-# Atualizar dependências seguras
-npm audit fix
+**Q: Can I use the app offline?**
+A: Yes, the app is designed to work offline. Changes sync when connection is restored.
 
-# Forçar update se necessário
-npm update
-```
+**Q: What's the maximum documents I can have?**
+A: No hard limit, but local performance optimal with 50,000+ documents.
 
 ---
 
-## 12. Logs e Debugging
+## Support Channels
 
-### Visualizar Logs
-
-```bash
-# Ver últimas 100 linhas
-pm2 logs contabilidade-server --lines 100
-
-# Ver tempo real
-pm2 logs contabilidade-server --follow
-
-# Ver apenas erros
-pm2 logs contabilidade-server --err
-
-# Ver logs salvos
-tail -f ~/.pm2/logs/contabilidade-server-out.log
-tail -f ~/.pm2/logs/contabilidade-server-err.log
-```
-
-### Aumentar Verbosidade
-
-```bash
-# Adicionar a ecosystem.config.js:
-env_production: {
-  NODE_ENV: "production",
-  DEBUG: "app:*"  // ativa logs DEBUG
-},
-
-# Depois reiniciar
-pm2 restart contabilidade-server
-pm2 logs  # ver mais detalhes
-```
+- **Email**: support@lucide.app
+- **Phone**: +1-800-LUCIDE-1
+- **Live Chat**: https://lucide.app/chat
+- **Community Forum**: https://forum.lucide.app
 
 ---
 
-## Checklist de Resolução Rápida
-
-Se algo não funciona:
-
-1. **Verificar logs**:
-   ```bash
-   pm2 logs contabilidade-server --lines 50
-   ```
-
-2. **Verificar processo status**:
-   ```bash
-   pm2 status
-   ```
-
-3. **Reiniciar tudo**:
-   ```bash
-   pm2 delete ecosystem.config.js
-   pm2 start ecosystem.config.js
-   ```
-
-4. **Verificar variáveis de ambiente**:
-   ```bash
-   cat .env | grep -E "API_KEY|NODE_ENV"
-   ```
-
-5. **Verificar conectividade**:
-   ```bash
-   curl http://localhost:3000
-   ```
-
-6. **Checar disco/memória**:
-   ```bash
-   df -h  # disco
-   top    # memória
-   ```
-
----
-
-## Escalação
-
-Se nenhuma solução acima funcionar:
-
-1. Fazer backup do projeto
-2. Limpar tudo e começar do zero:
-   ```bash
-   rm -rf node_modules server/node_modules dist backups
-   npm install
-   cd server && npm install && cd ..
-   ```
-3. Rodar localmente sem PM2 para ver erro real:
-   ```bash
-   cd server
-   npm run start  # sem PM2
-   ```
-4. Anotar o erro exacto e abrir issue no repositório
-
----
-
-**Última atualização**: 2026-10-02
+*Last Updated: October 2024*
+*Version: 2.0*
+*Troubleshooting & FAQ Guide for Lucide React*
