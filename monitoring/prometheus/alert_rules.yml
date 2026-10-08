@@ -1,0 +1,417 @@
+# ============================================================================
+# Prometheus Alert Rules
+# Phase 22.22: Advanced Monitoring & Observability
+# ============================================================================
+
+groups:
+  # ============================================================================
+  # Infrastructure Alerts
+  # ============================================================================
+  - name: infrastructure-alerts
+    interval: 30s
+    rules:
+      # CPU Alerts
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: 'High CPU usage on {{ $labels.instance }}'
+          description: 'CPU usage is {{ $value | humanize }}% on {{ $labels.instance }}'
+          dashboard: 'http://grafana:3000/d/system-overview'
+
+      - alert: CriticalCPUUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: 'CRITICAL: CPU usage on {{ $labels.instance }}'
+          description: 'CPU usage is {{ $value | humanize }}% on {{ $labels.instance }}'
+
+      # Memory Alerts
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: 'High memory usage on {{ $labels.instance }}'
+          description: 'Memory usage is {{ $value | humanize }}% on {{ $labels.instance }}'
+
+      - alert: CriticalMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: 'CRITICAL: Memory usage on {{ $labels.instance }}'
+          description: 'Memory usage is {{ $value | humanize }}% on {{ $labels.instance }}'
+
+      # Disk Alerts
+      - alert: HighDiskUsage
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs"}) < 0.2
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: 'High disk usage on {{ $labels.instance }} - {{ $labels.mountpoint }}'
+          description: 'Disk usage is {{ $value | humanizePercentage }} available on {{ $labels.instance }}'
+
+      - alert: CriticalDiskUsage
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs"}) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: 'CRITICAL: Disk usage on {{ $labels.instance }} - {{ $labels.mountpoint }}'
+          description: 'Disk space is {{ $value | humanizePercentage }} available on {{ $labels.instance }}'
+
+      # Disk I/O Alerts
+      - alert: HighDiskIOWait
+        expr: rate(node_cpu_seconds_total{mode="iowait"}[5m]) * 100 > 20
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: 'High disk I/O wait on {{ $labels.instance }}'
+          description: 'Disk I/O wait is {{ $value | humanize }}% on {{ $labels.instance }}'
+
+      # Network Alerts
+      - alert: HighNetworkTraffic
+        expr: |
+          (rate(node_network_receive_bytes_total{device!="lo"}[5m]) + rate(node_network_transmit_bytes_total{device!="lo"}[5m])) > 100000000
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: 'High network traffic on {{ $labels.instance }}'
+          description: 'Network traffic is {{ $value | humanize }}B/s on {{ $labels.instance }}'
+
+      # Load Average Alerts
+      - alert: HighLoadAverage
+        expr: node_load5 > on(instance) count(node_cpu_seconds_total{mode="system"}) by (instance) * 2
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: 'High load average on {{ $labels.instance }}'
+          description: '5-minute load average is {{ $value | humanize }} on {{ $labels.instance }}'
+
+  # ============================================================================
+  # Application Alerts
+  # ============================================================================
+  - name: application-alerts
+    interval: 30s
+    rules:
+      # Application Down
+      - alert: ApplicationDown
+        expr: up{job="lucide-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: 'Application is down'
+          description: 'Lucide CRMT application at {{ $labels.instance }} is not responding'
+          runbook: 'https://docs.example.com/runbooks/app-down'
+
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: 'High error rate detected'
+          description: 'Error rate is {{ $value | humanizePercentage }} (> 5%)'
+          dashboard: 'http://grafana:3000/d/app-metrics'
+
+      - alert: CriticalErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.10
+        for: 2m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: 'CRITICAL: Error rate above 10%'
+          description: 'Error rate is {{ $value | humanizePercentage }}'
+
+      # High Latency
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: 'High response latency detected'
+          description: 'p95 latency is {{ $value | humanizeDuration }} (> 1s)'
+
+      - alert: CriticalLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: 'CRITICAL: Response latency above 5s'
+          description: 'p95 latency is {{ $value | humanizeDuration }}'
+
+      # Request Rate Surge
+      - alert: RequestRateSurge
+        expr: |
+          rate(http_requests_total[5m]) > (avg_over_time(rate(http_requests_total[5m])[1h:5m]) * 2)
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: 'Unexpected request rate surge'
+          description: 'Request rate is {{ $value | humanize }}req/s (double baseline)'
+
+  # ============================================================================
+  # Transaction Processing Alerts
+  # ============================================================================
+  - name: transaction-alerts
+    interval: 30s
+    rules:
+      # Transaction Processing Latency
+      - alert: HighTransactionLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(transaction_processing_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: 'High transaction processing latency'
+          description: 'p95 transaction latency is {{ $value | humanizeDuration }}'
+
+      # Transaction Failure Rate
+      - alert: HighTransactionFailureRate
+        expr: |
+          (
+            sum(rate(transaction_processing_failures_total[5m])) /
+            sum(rate(transaction_processing_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: 'High transaction failure rate'
+          description: 'Transaction failure rate is {{ $value | humanizePercentage }}'
+
+      # Transaction Queue Buildup
+      - alert: TransactionQueueBuildup
+        expr: transaction_processing_queue_size > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: 'Transaction processing queue buildup'
+          description: 'Queue size is {{ $value | humanize }} transactions'
+
+  # ============================================================================
+  # Report Generation Alerts
+  # ============================================================================
+  - name: report-alerts
+    interval: 30s
+    rules:
+      # Report Generation Timeout
+      - alert: ReportGenerationTimeout
+        expr: |
+          histogram_quantile(0.95, sum(rate(report_generation_duration_seconds_bucket[5m])) by (le)) > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: 'Report generation taking too long'
+          description: 'p95 report generation time is {{ $value | humanizeDuration }}'
+
+      # Report Generation Failure
+      - alert: ReportGenerationFailure
+        expr: |
+          (
+            sum(rate(report_generation_failures_total[5m])) /
+            sum(rate(report_generation_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: 'Report generation failures detected'
+          description: 'Failure rate is {{ $value | humanizePercentage }}'
+
+  # ============================================================================
+  # Database Alerts
+  # ============================================================================
+  - name: database-alerts
+    interval: 30s
+    rules:
+      # Database Connection Pool
+      - alert: HighDatabaseConnections
+        expr: db_pool_connections_active / db_pool_connections_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: 'High database connection pool usage'
+          description: 'Connection pool is {{ $value | humanizePercentage }} full'
+
+      # Database Query Latency
+      - alert: HighDatabaseQueryLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: 'High database query latency'
+          description: 'p95 query latency is {{ $value | humanizeDuration }}'
+
+      # Database Replication Lag
+      - alert: DatabaseReplicationLag
+        expr: db_replication_lag_seconds > 10
+        for: 5m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: 'Database replication lag detected'
+          description: 'Replication lag is {{ $value | humanizeDuration }}'
+
+  # ============================================================================
+  # Cache Alerts
+  # ============================================================================
+  - name: cache-alerts
+    interval: 30s
+    rules:
+      # Cache Hit Ratio
+      - alert: LowCacheHitRatio
+        expr: |
+          (
+            sum(cache_hits_total) / (sum(cache_hits_total) + sum(cache_misses_total))
+          ) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: 'Low cache hit ratio'
+          description: 'Cache hit ratio is {{ $value | humanizePercentage }} (< 50%)'
+
+      # Cache Eviction Rate
+      - alert: HighCacheEvictionRate
+        expr: rate(cache_evictions_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: 'High cache eviction rate'
+          description: 'Cache eviction rate is {{ $value | humanize }}/s'
+
+  # ============================================================================
+  # Service Health Alerts
+  # ============================================================================
+  - name: service-health-alerts
+    interval: 30s
+    rules:
+      # Backup Failure
+      - alert: BackupFailure
+        expr: time() - backup_last_completion_timestamp > 86400
+        for: 1h
+        labels:
+          severity: critical
+          category: operations
+        annotations:
+          summary: 'Backup failure detected'
+          description: 'Last successful backup was {{ $value | humanizeDuration }} ago'
+
+      # Low Disk Space for Backups
+      - alert: LowBackupDiskSpace
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/backups"} /
+            node_filesystem_size_bytes{mountpoint="/backups"}
+          ) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: operations
+        annotations:
+          summary: 'Low disk space for backups'
+          description: 'Backup disk has {{ $value | humanizePercentage }} free'
+
+      # Service Dependency Issue
+      - alert: ServiceDependencyDown
+        expr: up{job=~"postgres-exporter|redis-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: 'Service dependency down: {{ $labels.job }}'
+          description: '{{ $labels.job }} is not responding'
+
+  # ============================================================================
+  # Custom Business Alerts
+  # ============================================================================
+  - name: business-alerts
+    interval: 30s
+    rules:
+      # Anomaly Detection - Unusual Activity
+      - alert: UnusualTransactionVolume
+        expr: |
+          abs(
+            (rate(transaction_processing_total[5m]) - avg_over_time(rate(transaction_processing_total[5m])[1h:5m])) /
+            avg_over_time(rate(transaction_processing_total[5m])[1h:5m])
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: anomaly
+        annotations:
+          summary: 'Unusual transaction volume detected'
+          description: 'Transaction volume deviation: {{ $value | humanizePercentage }}'
+
+      # API Quota Threshold
+      - alert: APIQuotaNearLimit
+        expr: api_quota_used / api_quota_limit > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: 'API quota near limit'
+          description: 'API quota usage is {{ $value | humanizePercentage }}'

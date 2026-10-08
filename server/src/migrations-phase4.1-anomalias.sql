@@ -18,7 +18,7 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS alertas_anomalias_registrados (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   transacao_id TEXT NOT NULL,
   usuario_id TEXT,                           -- FK para usuarios.id (NULL até resolvido)
   severidade TEXT NOT NULL DEFAULT 'media'
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS alertas_anomalias_registrados (
   revisado_em DATETIME,
   motivo_revisao TEXT,                       -- ex: "falso positivo", "confirmado fraude"
 
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_em DATETIME,
 
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_alertas_anomalias_revisado
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS cache_metricas_anomalias (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   usuario_id TEXT,                           -- FK para usuarios.id (NULL = global)
   tipo_metrica TEXT NOT NULL
     CHECK(tipo_metrica IN ('desvio_padrao', 'iqr', 'percentil')),
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS cache_metricas_anomalias (
 
   -- Metadata
   total_transacoes INTEGER,                  -- Quantas transações foram usadas no cálculo
-  atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );

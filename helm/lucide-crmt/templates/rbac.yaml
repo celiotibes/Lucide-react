@@ -1,0 +1,35 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "lucide-crmt.fullname" . }}
+  namespace: {{ include "lucide-crmt.namespace" . }}
+  labels:
+    {{- include "lucide-crmt.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "lucide-crmt.fullname" . }}
+  namespace: {{ include "lucide-crmt.namespace" . }}
+  labels:
+    {{- include "lucide-crmt.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "lucide-crmt.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "lucide-crmt.serviceAccountName" . }}
+    namespace: {{ include "lucide-crmt.namespace" . }}
+{{- end }}

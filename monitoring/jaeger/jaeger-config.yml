@@ -1,0 +1,55 @@
+# ============================================================================
+# Jaeger Configuration
+# Phase 22.22: Advanced Monitoring & Observability
+# ============================================================================
+
+cassandra:
+  servers:
+    - cassandra:9042
+
+collector:
+  # Port for Jaeger agents to report spans
+  zipkin:
+    host_port: ':9411'
+
+  # Port for receiving OpenTelemetry protobuf spans
+  otlp:
+    enabled: true
+    receiver:
+      protocols:
+        grpc:
+          endpoint: '0.0.0.0:4317'
+        http:
+          endpoint: '0.0.0.0:4318'
+
+querier:
+  base_url: 'http://localhost:16686'
+
+memory:
+  max_traces: 100000
+
+storage:
+  type: cassandra
+  cassandra:
+    cluster:
+      name: jaeger-cassandra
+      servers:
+        - cassandra:9042
+    keyspace: jaeger_v1_dc1
+    local: true
+
+# Sampling configuration
+sampling:
+  type: probabilistic
+  param: 0.1  # 10% sampling rate by default
+  sampling_strategies_file: /etc/jaeger/sampling-strategies.json
+
+# Metrics configuration
+metrics:
+  backend: prometheus
+  prometheus:
+    endpoint: 'http://prometheus:9090'
+
+# Service dependency storage
+service_dependencies:
+  storage: cassandra

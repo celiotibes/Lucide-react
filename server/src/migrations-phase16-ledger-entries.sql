@@ -32,13 +32,13 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
       'juros'
     )
   ),
-  valor DECIMAL(12, 2) NOT NULL CHECK(valor > 0),
+  valor REAL NOT NULL CHECK(valor > 0),
   descricao TEXT,
   referencia_externa TEXT, -- ID externo para rastreamento (ex: cobranca_id)
   usuario_id TEXT, -- Quem lançou a entrada
 
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Índices para performance de queries DRE e fluxo de caixa

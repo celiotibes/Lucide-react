@@ -1,0 +1,958 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Lucide React CRMT - Phase 22.20.4 API",
+    "description": "API Completeness & OpenAPI Specification - Transactions, Budgets, and Categories Management",
+    "version": "22.20.4",
+    "contact": {
+      "name": "API Support",
+      "email": "support@lucide-react.app"
+    },
+    "license": {
+      "name": "Apache 2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.example.com",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Transaction ID"
+          },
+          "usuario_id": {
+            "type": "integer"
+          },
+          "categoria_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "tipo_fluxo": {
+            "type": "string",
+            "enum": ["receita", "despesa"]
+          },
+          "valor": {
+            "type": "number",
+            "format": "double"
+          },
+          "data_transacao": {
+            "type": "string",
+            "format": "date"
+          },
+          "referencia_externa": {
+            "type": "string",
+            "nullable": true
+          },
+          "fonte": {
+            "type": "string",
+            "enum": ["manual", "asaas", "meuplugy", "arquivo"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["rascunho", "pendente", "confirmada", "cancelada"]
+          },
+          "criado_em": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateTransactionRequest": {
+        "type": "object",
+        "required": ["descricao", "tipo_fluxo", "valor", "data_transacao"],
+        "properties": {
+          "categoria_id": {
+            "type": "integer"
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "tipo_fluxo": {
+            "type": "string",
+            "enum": ["receita", "despesa"]
+          },
+          "valor": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.01
+          },
+          "data_transacao": {
+            "type": "string",
+            "format": "date"
+          },
+          "referencia_externa": {
+            "type": "string"
+          },
+          "fonte": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "default": "confirmada"
+          }
+        }
+      },
+      "Budget": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "usuario_id": {
+            "type": "integer"
+          },
+          "categoria_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "nome": {
+            "type": "string"
+          },
+          "descricao": {
+            "type": "string",
+            "nullable": true
+          },
+          "data_inicio": {
+            "type": "string",
+            "format": "date"
+          },
+          "data_fim": {
+            "type": "string",
+            "format": "date"
+          },
+          "valor_limite": {
+            "type": "number",
+            "format": "double"
+          },
+          "valor_utilizado": {
+            "type": "number",
+            "format": "double"
+          },
+          "percentual_alerta": {
+            "type": "integer",
+            "default": 80
+          },
+          "ativo": {
+            "type": "boolean"
+          },
+          "criado_em": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BudgetVariance": {
+        "type": "object",
+        "properties": {
+          "orcamento_id": {
+            "type": "integer"
+          },
+          "valor_limite": {
+            "type": "number",
+            "format": "double"
+          },
+          "valor_utilizado": {
+            "type": "number",
+            "format": "double"
+          },
+          "valor_disponivel": {
+            "type": "number",
+            "format": "double"
+          },
+          "percentual_utilizado": {
+            "type": "number",
+            "format": "double"
+          },
+          "acima_do_limite": {
+            "type": "boolean"
+          },
+          "status_alerta": {
+            "type": "string",
+            "enum": ["normal", "alerta", "critico"]
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "usuario_id": {
+            "type": "integer"
+          },
+          "nome": {
+            "type": "string"
+          },
+          "descricao": {
+            "type": "string",
+            "nullable": true
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "tipo_fluxo": {
+            "type": "string",
+            "enum": ["receita", "despesa", "ambos"]
+          },
+          "cor_hex": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^#[0-9A-F]{6}$"
+          },
+          "icone_nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "ordem": {
+            "type": "integer"
+          },
+          "criado_em": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "erro": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/transactions": {
+      "post": {
+        "summary": "Create a new transaction",
+        "tags": ["Transactions"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransactionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transaction created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "get": {
+        "summary": "List transactions with filters",
+        "tags": ["Transactions"],
+        "parameters": [
+          {
+            "name": "data_inicio",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "data_fim",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "categoria_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "tipo_fluxo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["receita", "despesa"]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limite": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/transactions/{id}": {
+      "get": {
+        "summary": "Get transaction details",
+        "tags": ["Transactions"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transaction not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update transaction",
+        "tags": ["Transactions"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "descricao": {
+                    "type": "string"
+                  },
+                  "valor": {
+                    "type": "number"
+                  },
+                  "data_transacao": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "categoria_id": {
+                    "type": "integer"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transaction not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete transaction (soft-delete)",
+        "tags": ["Transactions"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Transaction deleted"
+          },
+          "404": {
+            "description": "Transaction not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/transactions/{id}/history": {
+      "get": {
+        "summary": "Get transaction history/audit trail",
+        "tags": ["Transactions"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction history"
+          },
+          "404": {
+            "description": "Transaction not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/budgets": {
+      "post": {
+        "summary": "Create a new budget",
+        "tags": ["Budgets"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Budget"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Budget created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Budget"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "get": {
+        "summary": "List budgets by period",
+        "tags": ["Budgets"],
+        "parameters": [
+          {
+            "name": "data_inicio",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "data_fim",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Budget list"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/budgets/{id}": {
+      "get": {
+        "summary": "Get budget details",
+        "tags": ["Budgets"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Budget details"
+          },
+          "404": {
+            "description": "Budget not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update budget",
+        "tags": ["Budgets"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Budget updated"
+          },
+          "404": {
+            "description": "Budget not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete budget (soft-delete)",
+        "tags": ["Budgets"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Budget deleted"
+          },
+          "404": {
+            "description": "Budget not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/budgets/{id}/variance": {
+      "get": {
+        "summary": "Get budget variance (real vs budgeted)",
+        "tags": ["Budgets"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Budget variance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetVariance"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Budget not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/budgets/{id}/tracking": {
+      "get": {
+        "summary": "Get budget tracking (progress bar)",
+        "tags": ["Budgets"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Budget tracking"
+          },
+          "404": {
+            "description": "Budget not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/categories": {
+      "post": {
+        "summary": "Create a new category",
+        "tags": ["Categories"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Category"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Category created"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "get": {
+        "summary": "List categories",
+        "tags": ["Categories"],
+        "parameters": [
+          {
+            "name": "tree",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "default": "false"
+            },
+            "description": "Return as tree structure"
+          },
+          {
+            "name": "roots_only",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category list"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/categories/{id}": {
+      "get": {
+        "summary": "Get category details",
+        "tags": ["Categories"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category details"
+          },
+          "404": {
+            "description": "Category not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update category",
+        "tags": ["Categories"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category updated"
+          },
+          "404": {
+            "description": "Category not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete category (soft-delete)",
+        "tags": ["Categories"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Category deleted"
+          },
+          "409": {
+            "description": "Category has dependent transactions or subcategories"
+          },
+          "404": {
+            "description": "Category not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/categories/{id}/transactions": {
+      "get": {
+        "summary": "Get transactions for a category",
+        "tags": ["Categories"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "include_sub",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "default": "true"
+            },
+            "description": "Include subcategories"
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transactions list"
+          },
+          "404": {
+            "description": "Category not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    }
+  }
+}

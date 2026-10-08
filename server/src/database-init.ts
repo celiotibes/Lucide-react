@@ -106,6 +106,10 @@ export function initializeDatabase(): Database.Database {
       "migrations-phase19-reconciliation.sql",
       "migrations-phase19-ledger-agentes-fk-sqlite.sql",
       "migrations-phase20-agentes-deduplicacao-sqlite.sql",
+      "migrations-phase21-setup-wizard-config.sql",
+      "migrations-phase22-ai-analytics.sql",
+      "migrations-phase22-reports.sql",
+      "migrations-phase22-properties.sql",
     ]);
 
     // Adicionar colunas opcionais de forma idempotente (Phase 19 e 20)

@@ -1,0 +1,29 @@
+apiVersion: v2
+name: lucide-crmt
+description: Helm chart for Lucide React Accounting System (CRMT) - Complete Kubernetes deployment
+type: application
+
+version: 1.0.0
+appVersion: "22.21"
+
+keywords:
+  - accounting
+  - kubernetes
+  - crmt
+  - lucide
+  - deployment
+
+home: https://github.com/celiotibes/Lucide-react
+sources:
+  - https://github.com/celiotibes/Lucide-react
+
+maintainers:
+  - name: Celio Tibes
+    email: celiotibes@gmail.com
+    url: https://github.com/celiotibes
+
+icon: https://raw.githubusercontent.com/celiotibes/Lucide-react/main/public/logo.png
+
+annotations:
+  category: Accounting
+  license: Apache-2.0

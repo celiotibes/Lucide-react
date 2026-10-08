@@ -13,7 +13,7 @@
 -- Nota: Removido FOREIGN KEY para cobrancas_asaas (tabela existe apenas no cliente)
 -- A integridade referencial é validada em aplicação
 CREATE TABLE IF NOT EXISTS audit_reconciliacao_asaas (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   cobranca_id TEXT NOT NULL,
   status_antes TEXT,
   status_depois TEXT NOT NULL,

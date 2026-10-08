@@ -1,0 +1,70 @@
+# ============================================================================
+# Lucide CRMT - Development Environment Values
+# ============================================================================
+
+replicaCount: 1
+
+image:
+  tag: "22.21-dev"
+  pullPolicy: Always
+
+autoscaling:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: accounting.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+env:
+  NODE_ENV: "development"
+  LOG_LEVEL: "debug"
+  DATABASE_TYPE: "sqlite"
+  CORS_CREDENTIALS: "true"
+
+secrets:
+  create: true
+  API_KEY: "dev-key-do-not-use-in-production"
+  SESSION_SECRET: "dev-session-secret"
+  JWT_SECRET: "dev-jwt-secret"
+
+persistence:
+  enabled: true
+  storageClass: "standard"
+  size: 1Gi
+
+networkPolicy:
+  enabled: false
+
+database:
+  enabled: false
+
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+
+livenessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 30
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 10

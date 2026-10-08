@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS agentes_economicos (
   ativo INTEGER NOT NULL DEFAULT 1,  -- SQLite usa 0/1 para BOOLEAN
 
   -- Campos de auditoria
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   criado_por TEXT NOT NULL,  -- UUID como texto (FK para usuarios.id)
-  atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_por TEXT NOT NULL,  -- UUID como texto (FK para usuarios.id)
 
   -- Metadados
@@ -122,9 +122,9 @@ CREATE TABLE IF NOT EXISTS agentes_papeis (
   ativo INTEGER NOT NULL DEFAULT 1,  -- SQLite usa 0/1
 
   -- Auditoria
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   criado_por TEXT NOT NULL,
-  atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_por TEXT NOT NULL,
 
   FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS agentes_validacoes (
   detalhes TEXT,  -- JSON serializado para compatibilidade SQLite
 
   -- Auditoria
-  executado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  executado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   executado_por TEXT NOT NULL,
 
   FOREIGN KEY (agente_id) REFERENCES agentes_economicos(id) ON DELETE CASCADE,
@@ -233,7 +233,7 @@ CREATE TABLE IF NOT EXISTS agentes_duplicatas_suspeitas (
   decisao TEXT,
 
   -- Auditoria
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   criado_por TEXT NOT NULL,
 
   FOREIGN KEY (agente_id_1) REFERENCES agentes_economicos(id) ON DELETE CASCADE,
@@ -300,7 +300,7 @@ CREATE TABLE IF NOT EXISTS agentes_vinculacoes (
   ativo INTEGER NOT NULL DEFAULT 1,  -- SQLite usa 0/1
 
   -- Auditoria
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   criado_por TEXT NOT NULL,
 
   FOREIGN KEY (agente_id) REFERENCES agentes_economicos(id) ON DELETE CASCADE,

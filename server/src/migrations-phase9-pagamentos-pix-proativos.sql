@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS pagamentos_pix_solicitados (
   qr_code                     TEXT,                           -- QR code para visualização (sandbox) / link
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Índices para queries frequentes
   UNIQUE(beneficiario_id, valor, criado_em)  -- Evita duplicação por retry no mesmo dia
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS pagamentos_pix_historico (
   webhook_timestamp           DATETIME,                       -- Timestamp do evento no Asaas
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (pagamento_id) REFERENCES pagamentos_pix_solicitados(id)
 );

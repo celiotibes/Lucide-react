@@ -1,5 +1,10 @@
 # CRMT Histórico Contábil & Financeiro
 
+[![Test Suite](https://github.com/celiotibes/Lucide-react/actions/workflows/test.yml/badge.svg)](https://github.com/celiotibes/Lucide-react/actions/workflows/test.yml)
+[![Build](https://github.com/celiotibes/Lucide-react/actions/workflows/build.yml/badge.svg)](https://github.com/celiotibes/Lucide-react/actions/workflows/build.yml)
+[![Security](https://github.com/celiotibes/Lucide-react/actions/workflows/security.yml/badge.svg)](https://github.com/celiotibes/Lucide-react/actions/workflows/security.yml)
+[![Deploy](https://github.com/celiotibes/Lucide-react/actions/workflows/deploy.yml/badge.svg)](https://github.com/celiotibes/Lucide-react/actions/workflows/deploy.yml)
+
 Reconstituição contábil — locação de imóveis (pessoa física). Aplicativo web
 (React + TypeScript + Vite) para organizar, reconciliar e reconstituir a
 contabilidade de uma atividade de fato de locação de imóveis misturada em
@@ -14,6 +19,22 @@ quebra de sigilo bancário. A única exceção é **opcional**: conectar um banc
 via Open Finance (Pluggy) exige um pequeno backend próprio (`server/`), porque
 o Client Secret da Pluggy nunca pode ficar no navegador — ver a seção
 "Conectar banco via Open Finance" abaixo.
+
+## CI/CD Pipeline
+
+Este projeto utiliza **GitHub Actions** para automação completa de testes, build e deployment.
+
+**Status dos Workflows:**
+- 🧪 **Test Suite**: Testes em Node 18.x e 20.x com coverage >70%
+- 📦 **Build**: Web, Electron (Linux/Windows/macOS) e Docker
+- 🔒 **Security**: npm audit, Semgrep, TruffleHog, TypeScript strict
+- 🚀 **Deploy**: Staging automático, Production com revisão
+- ⏰ **Scheduled**: Updates semanais, scans de segurança, benchmarks
+
+**Documentação:**
+- [GITHUB_ACTIONS.md](./docs/GITHUB_ACTIONS.md) - Visão geral dos workflows
+- [CICD_TROUBLESHOOTING.md](./docs/CICD_TROUBLESHOOTING.md) - Diagnóstico e troubleshooting
+- [WORKFLOW_CONFIGURATION.md](./docs/WORKFLOW_CONFIGURATION.md) - Customização
 
 ## Rodando localmente
 

@@ -1,0 +1,91 @@
+{
+  "cli": {
+    "version": ">= 5.0.0",
+    "promptToConfigurePushNotifications": false
+  },
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "API_ENDPOINT": "https://api.staging.crmt.app",
+        "FIREBASE_API_KEY": "${FIREBASE_API_KEY_STAGING}",
+        "FIREBASE_AUTH_DOMAIN": "${FIREBASE_AUTH_DOMAIN_STAGING}",
+        "FIREBASE_PROJECT_ID": "${FIREBASE_PROJECT_ID_STAGING}",
+        "FIREBASE_STORAGE_BUCKET": "${FIREBASE_STORAGE_BUCKET_STAGING}",
+        "FIREBASE_MESSAGING_SENDER_ID": "${FIREBASE_MESSAGING_SENDER_ID_STAGING}",
+        "FIREBASE_APP_ID": "${FIREBASE_APP_ID_STAGING}"
+      }
+    },
+    "preview2": {
+      "ios": {}
+    },
+    "staging": {
+      "extends": "preview",
+      "android": {
+        "buildType": "apk",
+        "autoIncrement": true
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "API_ENDPOINT": "https://api.staging.crmt.app",
+        "FIREBASE_API_KEY": "${FIREBASE_API_KEY_STAGING}",
+        "FIREBASE_AUTH_DOMAIN": "${FIREBASE_AUTH_DOMAIN_STAGING}",
+        "FIREBASE_PROJECT_ID": "${FIREBASE_PROJECT_ID_STAGING}",
+        "FIREBASE_STORAGE_BUCKET": "${FIREBASE_STORAGE_BUCKET_STAGING}",
+        "FIREBASE_MESSAGING_SENDER_ID": "${FIREBASE_MESSAGING_SENDER_ID_STAGING}",
+        "FIREBASE_APP_ID": "${FIREBASE_APP_ID_STAGING}",
+        "API_CERT_PIN": "${API_CERT_PIN_STAGING}",
+        "BACKUP_API_CERT_PIN": "${BACKUP_API_CERT_PIN_STAGING}"
+      }
+    },
+    "production": {
+      "extends": "staging",
+      "android": {
+        "buildType": "aab",
+        "autoIncrement": true,
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "ios": {
+        "simulator": false,
+        "enterpriseProvisioning": "universal"
+      },
+      "env": {
+        "API_ENDPOINT": "https://api.crmt.app",
+        "FIREBASE_API_KEY": "${FIREBASE_API_KEY_PROD}",
+        "FIREBASE_AUTH_DOMAIN": "${FIREBASE_AUTH_DOMAIN_PROD}",
+        "FIREBASE_PROJECT_ID": "${FIREBASE_PROJECT_ID_PROD}",
+        "FIREBASE_STORAGE_BUCKET": "${FIREBASE_STORAGE_BUCKET_PROD}",
+        "FIREBASE_MESSAGING_SENDER_ID": "${FIREBASE_MESSAGING_SENDER_ID_PROD}",
+        "FIREBASE_APP_ID": "${FIREBASE_APP_ID_PROD}",
+        "API_CERT_PIN": "${API_CERT_PIN_PROD}",
+        "BACKUP_API_CERT_PIN": "${BACKUP_API_CERT_PIN_PROD}"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft",
+        "applicationId": "com.crmt.mobile"
+      },
+      "ios": {
+        "ascAppId": "com.crmt.mobile",
+        "appleId": "${APPLE_ID}",
+        "appleIdPassword": "${APPLE_ID_PASSWORD}",
+        "teamId": "${APPLE_TEAM_ID}",
+        "bundleIdentifier": "com.crmt.mobile"
+      }
+    }
+  },
+  "analytics": {
+    "analyticsToken": "${EAS_ANALYTICS_TOKEN}"
+  }
+}

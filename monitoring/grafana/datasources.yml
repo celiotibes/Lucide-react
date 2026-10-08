@@ -1,0 +1,118 @@
+# ============================================================================
+# Grafana Data Sources Configuration
+# Phase 22.22: Advanced Monitoring & Observability
+# ============================================================================
+
+apiVersion: 1
+
+datasources:
+  # ============================================================================
+  # Prometheus Data Source
+  # ============================================================================
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 30s
+      cacheTimeout: 60
+      alertmanagerUid: 'alertmanager'
+
+  # ============================================================================
+  # Loki Data Source (Logs)
+  # ============================================================================
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"trace_id":"([^"]+)"'
+          url: 'http://jaeger:16686/trace/$${__value.raw}'
+          datasourceUid: jaeger
+
+  # ============================================================================
+  # Jaeger Data Source (Distributed Tracing)
+  # ============================================================================
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    isDefault: false
+    editable: true
+    uid: jaeger
+
+  # ============================================================================
+  # Elasticsearch Data Source (Log Storage)
+  # ============================================================================
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    isDefault: false
+    editable: true
+    jsonData:
+      logMessageField: message
+      logLevelField: level
+      timeField: '@timestamp'
+
+  # ============================================================================
+  # PostgreSQL Data Source (Database Metrics)
+  # ============================================================================
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: lucide_crmt
+    user: lucide_user
+    secureJsonData:
+      password: '${DB_PASSWORD}'
+    jsonData:
+      maxOpenConns: 10
+      connMaxLifetime: 0
+      tlsMode: disable
+    isDefault: false
+    editable: true
+
+  # ============================================================================
+  # CloudWatch Data Source (if using AWS)
+  # ============================================================================
+  # - name: CloudWatch
+  #   type: cloudwatch
+  #   access: proxy
+  #   jsonData:
+  #     defaultRegion: us-east-1
+  #     authProvider: default
+  #   isDefault: false
+  #   editable: true
+
+  # ============================================================================
+  # Azure Monitor Data Source (if using Azure)
+  # ============================================================================
+  # - name: Azure Monitor
+  #   type: azure-monitor
+  #   access: proxy
+  #   jsonData:
+  #     tenantId: ${AZURE_TENANT_ID}
+  #     subscriptionId: ${AZURE_SUBSCRIPTION_ID}
+  #   secureJsonData:
+  #     clientSecret: ${AZURE_CLIENT_SECRET}
+  #   isDefault: false
+  #   editable: true
+
+  # ============================================================================
+  # Google Cloud Monitoring (if using GCP)
+  # ============================================================================
+  # - name: Google Cloud Monitoring
+  #   type: stackdriver
+  #   access: proxy
+  #   jsonData:
+  #     authenticationType: gce
+  #   isDefault: false
+  #   editable: true

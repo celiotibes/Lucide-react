@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS reconciliation_matches (
 
   -- Auditoria
   created_by TEXT,  -- UUID do usuário que criou o match
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT (datetime('now')),
   reviewed_by TEXT,  -- UUID do usuário que revisou
   reviewed_at DATETIME,
   approved_by TEXT,  -- UUID do usuário que aprovou
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS reconciliation_matches (
   rejection_reason TEXT,  -- Motivo da rejeição (se houver)
 
   -- Timestamps
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Foreign keys
   FOREIGN KEY (ledger_entry_id) REFERENCES ledger_entries(id) ON DELETE CASCADE,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS reconciliation_audit_log (
   old_status TEXT,
   new_status TEXT,
   changed_by TEXT NOT NULL,  -- UUID do usuário
-  changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  changed_at DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Comentários
   notes TEXT,
@@ -151,13 +151,13 @@ CREATE TABLE IF NOT EXISTS reconciliation_status (
   status TEXT NOT NULL DEFAULT 'PENDING' CHECK(
     status IN ('PENDING', 'IN_PROGRESS', 'COMPLETE', 'PARTIAL', 'FAILED')
   ),
-  completion_percentage DECIMAL(5, 2) DEFAULT 0.00,
+  completion_percentage REAL DEFAULT 0.00,
 
   -- Performance metrics
   processing_time_ms INTEGER DEFAULT 0,
 
   -- Auditoria
-  started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  started_at DATETIME NOT NULL DEFAULT (datetime('now')),
   completed_at DATETIME,
   started_by TEXT,
 
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS reconciliation_cache (
   cache_data TEXT NOT NULL,
 
   -- TTL
-  cached_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  cached_at DATETIME NOT NULL DEFAULT (datetime('now')),
   expires_at DATETIME NOT NULL,
 
   FOREIGN KEY (agente_id) REFERENCES agentes_economicos(id) ON DELETE CASCADE
@@ -242,6 +242,6 @@ AFTER UPDATE ON reconciliation_matches
 FOR EACH ROW
 BEGIN
   UPDATE reconciliation_matches
-  SET updated_at = CURRENT_TIMESTAMP
+  SET updated_at = (datetime('now'))
   WHERE id = NEW.id;
 END;

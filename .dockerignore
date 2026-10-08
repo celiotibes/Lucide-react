@@ -1,91 +1,109 @@
-# Version Control
+# ============================================================================
+# Docker Build Context Optimization for Lucide React CRMT Phase 22.19
+# ============================================================================
+
+# Version Control (LARGE, not needed in image)
 .git
 .gitignore
 .gitattributes
+.gitmodules
 
-# Node
-node_modules
-npm-debug.log
-npm-error.log
-yarn-error.log
-.npm
-.eslintcache
+# Node artifacts (restored via npm ci)
+node_modules/
+npm-debug.log*
+npm-error.log*
+yarn-error.log*
+.npm/
+.eslintcache/
 
-# Development
-.env
-.env.local
-.env.*.local
-.vscode
-.idea
+# Development only
+.vscode/
+.idea/
+.editorconfig
 *.swp
 *.swo
 *~
 .DS_Store
-.cache
-.vite
+.cache/
+.vite/
 
-# Testing
-.nyc_output
-coverage
-.vitest
+# Testing infrastructure (NOT runtime)
+.nyc_output/
+coverage/
+.vitest/
 __tests__
+**/__tests__/**
 *.test.ts
 *.spec.ts
-.playwright
+.playwright/
+vitest.config.ts
+jest.config.js
 
-# Build outputs
-dist
-build
-out
+# Pre-built artifacts
+build/
+out/
+*.tsbuildinfo
 
-# CI/CD
-.github
+# CI/CD infrastructure
+.github/
 .gitlab-ci.yml
 .travis.yml
+.circleci/
+.env.local
+.env.*.local
 
 # Documentation
-docs
-*.md
-CHANGELOG.md
+docs/
 README.md
+CHANGELOG.md
+*.md
+LICENSE
+CONTRIBUTING.md
 
-# Runtime/Logs
-logs
+# Runtime artifacts (use volumes)
+logs/
 *.log
 pm2.log
 pm2.conf.js
+pids/
+*.pid
 
-# Database
+# Data (use volumes, not in image)
 *.sqlite
+*.sqlite3
 *.db
-data/
-
-# Backup
-backups/
 *.backup
 *.bak
+data/
+backups/
+tmp/
 
 # OS
 Thumbs.db
 .DS_Store
+.AppleDouble
+Icon?
 
-# Docker related
-Dockerfile*
-docker-compose*.yml
+# Docker
+Dockerfile.dev
+Dockerfile.prod
+docker-compose.*.yml
 .dockerignore
 
-# PM2 specific
+# Build tools
+Makefile
+gulpfile.js
+webpack.config.js
+babel.config.js
+
+# PM2
 ecosystem.config.js
 PM2-*.md
-PM2-*
+.pm2/
 
 # Kubernetes
 k8s/
+helm/
 *.yaml
 *.yml
-
-# Other
-.editorconfig
-tsconfig.json
-vite.config.ts
-vitest.config.ts
+kustomization.yaml

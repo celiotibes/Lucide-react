@@ -1,0 +1,52 @@
+name: Build Windows Installer (NSIS)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application (Vite + Electron)
+        run: npm run build
+
+      - name: Build Windows installer (NSIS)
+        run: npm run build:windows
+
+      - name: Upload installer to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/CRMT - Gestão Imobiliária Setup *.exe
+            dist/win-unpacked/CRMT - Gestão Imobiliária.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            dist/CRMT - Gestão Imobiliária Setup *.exe
+            dist/win-unpacked/CRMT - Gestão Imobiliária.exe
+          retention-days: 30

@@ -1,0 +1,99 @@
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "distribution": "internal",
+      "channel": "development",
+      "env": {
+        "API_ENDPOINT": "http://localhost:8000",
+        "FIREBASE_API_KEY": "dev-key",
+        "ENVIRONMENT": "development"
+      },
+      "android": {
+        "gradleCommand": ":app:assembleDebug",
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true,
+        "buildType": "simulator"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "API_ENDPOINT": "${API_ENDPOINT_PREVIEW}",
+        "FIREBASE_API_KEY": "${FIREBASE_API_KEY_PREVIEW}",
+        "ENVIRONMENT": "preview"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "ios": {
+        "buildType": "archive"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "env": {
+        "API_ENDPOINT": "${API_ENDPOINT_PRODUCTION}",
+        "FIREBASE_API_KEY": "${FIREBASE_API_KEY_PRODUCTION}",
+        "ENVIRONMENT": "production"
+      },
+      "android": {
+        "buildType": "aab",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "ios": {
+        "buildType": "archive",
+        "enterpriseProvisioning": "adhoc"
+      }
+    }
+  },
+  "submit": {
+    "preview": {
+      "android": {
+        "serviceAccount": "${GOOGLE_PLAY_SERVICE_ACCOUNT}",
+        "track": "internal",
+        "changes": [
+          {
+            "language": "pt-BR",
+            "text": "Build de preview para testes"
+          }
+        ]
+      },
+      "ios": {
+        "appleId": "${APPLE_ID}",
+        "appleIdPassword": "${APPLE_ID_PASSWORD}",
+        "ascAppId": "${ASC_APP_ID}"
+      }
+    },
+    "production": {
+      "android": {
+        "serviceAccount": "${GOOGLE_PLAY_SERVICE_ACCOUNT}",
+        "track": "beta",
+        "changes": [
+          {
+            "language": "pt-BR",
+            "text": "${RELEASE_NOTES_PT_BR}"
+          },
+          {
+            "language": "en-US",
+            "text": "${RELEASE_NOTES_EN_US}"
+          }
+        ]
+      },
+      "ios": {
+        "appleId": "${APPLE_ID}",
+        "appleIdPassword": "${APPLE_ID_PASSWORD}",
+        "ascAppId": "${ASC_APP_ID}",
+        "testFlightBeta": true,
+        "releaseTrack": "beta"
+      }
+    }
+  }
+}

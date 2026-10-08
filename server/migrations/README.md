@@ -1,11 +1,14 @@
-# Migrations PostgreSQL - ERP Lucide React
+# Database Migrations - Lucide React CRMT
+Phase 22.19: Production-ready Deployment & Infrastructure
 
-Sistema de migrações para o banco de dados PostgreSQL do ERP.
+Sistema de migrações para o banco de dados (SQLite / PostgreSQL).
 
 ## Estrutura
 
-Cada migração é um arquivo SQL nomeado sequencialmente:
-- `001_create_apontamento_prestador_schema.sql` - Schema para Apontamento do Prestador (Sprint 2)
+Cada migração é um arquivo SQL nomeado sequencialmente por fase:
+- `migrations-phase2-auth.sql` - Phase 2: Authentication & authorization
+- `migrations-phase3-integracoes.sql` - Phase 3: Integration tables
+- `migrations-phase4*.sql` - Phase 4+: Domain-specific features
 
 ## Como usar
 

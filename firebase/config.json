@@ -1,0 +1,310 @@
+{
+  "projectConfig": {
+    "name": "Lucide React Firebase",
+    "projectId": "lucide-react-app",
+    "description": "Secure Firebase configuration for Lucide React application"
+  },
+  "firestore": {
+    "enabled": true,
+    "backupEnabled": true,
+    "backupSchedule": "daily at 02:00 UTC",
+    "retentionDays": 30,
+    "indexes": [
+      {
+        "collection": "users",
+        "fields": [
+          { "name": "createdAt", "direction": "DESCENDING" },
+          { "name": "role", "direction": "ASCENDING" }
+        ]
+      },
+      {
+        "collection": "projects",
+        "fields": [
+          { "name": "ownerId", "direction": "ASCENDING" },
+          { "name": "createdAt", "direction": "DESCENDING" }
+        ]
+      },
+      {
+        "collection": "activityLogs",
+        "fields": [
+          { "name": "userId", "direction": "ASCENDING" },
+          { "name": "timestamp", "direction": "DESCENDING" }
+        ]
+      },
+      {
+        "collection": "projects/tasks",
+        "fields": [
+          { "name": "status", "direction": "ASCENDING" },
+          { "name": "dueDate", "direction": "ASCENDING" }
+        ]
+      }
+    ],
+    "ttlPolicy": {
+      "enabled": true,
+      "collections": [
+        {
+          "name": "sessions",
+          "ttlField": "expiresAt"
+        },
+        {
+          "name": "activityLogs",
+          "ttlField": "deletedAt",
+          "retentionDays": 90
+        }
+      ]
+    }
+  },
+  "realtimeDatabase": {
+    "enabled": true,
+    "backupEnabled": true,
+    "backupSchedule": "daily at 03:00 UTC",
+    "retentionDays": 30,
+    "indexes": [
+      {
+        "path": "notifications/{uid}",
+        "indexRules": [
+          "timestamp",
+          "read",
+          "type"
+        ]
+      },
+      {
+        "path": "activityLogs/{uid}",
+        "indexRules": [
+          "timestamp",
+          "type"
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "enabled": true,
+    "bucketName": "lucide-react-app.appspot.com",
+    "maxFileSize": 104857600,
+    "maxProjectSize": 1073741824,
+    "retentionPolicy": {
+      "tempFiles": 86400,
+      "backupFiles": 2592000,
+      "sharedFiles": 604800
+    },
+    "allowedMimeTypes": {
+      "images": ["image/jpeg", "image/png", "image/webp", "image/gif"],
+      "documents": ["application/pdf", "text/plain", "text/csv"],
+      "videos": ["video/mp4", "video/webm", "video/quicktime"],
+      "audio": ["audio/mpeg", "audio/wav", "audio/ogg"]
+    }
+  },
+  "authentication": {
+    "enabled": true,
+    "providers": {
+      "email": {
+        "enabled": true,
+        "passwordRequired": true,
+        "emailVerificationRequired": true,
+        "passwordReset": {
+          "enabled": true,
+          "expirationMinutes": 60
+        }
+      },
+      "google": {
+        "enabled": true
+      },
+      "github": {
+        "enabled": true
+      },
+      "microsoft": {
+        "enabled": true
+      }
+    },
+    "passwordPolicy": {
+      "minLength": 8,
+      "requireUppercase": true,
+      "requireLowercase": true,
+      "requireNumbers": true,
+      "requireSpecialCharacters": true
+    },
+    "sessionManagement": {
+      "maxConcurrentSessions": 5,
+      "sessionTimeout": 3600,
+      "rememberMeTimeout": 2592000,
+      "invalidateOtherSessions": true
+    },
+    "twoFactor": {
+      "enabled": true,
+      "methods": ["totp", "email"]
+    },
+    "accountLockout": {
+      "enabled": true,
+      "maxAttempts": 5,
+      "lockoutDurationMinutes": 15
+    }
+  },
+  "security": {
+    "apiKeyRestrictions": true,
+    "cors": {
+      "enabled": true,
+      "allowedOrigins": [
+        "https://lucide-react-app.web.app",
+        "https://lucide-react-app.firebaseapp.com",
+        "http://localhost:3000",
+        "http://localhost:5000"
+      ]
+    },
+    "encryption": {
+      "atRest": true,
+      "inTransit": true,
+      "sensitiveFieldsEncryption": true,
+      "encryptionAlgorithm": "AES-256-GCM",
+      "keyRotation": {
+        "enabled": true,
+        "rotationIntervalDays": 90
+      }
+    },
+    "audit": {
+      "enabled": true,
+      "logAllOperations": true,
+      "retentionDays": 365,
+      "alerting": {
+        "suspiciousActivity": true,
+        "dataAccessAnomalies": true,
+        "policyViolations": true
+      }
+    },
+    "dataProtection": {
+      "pii": {
+        "masking": true,
+        "encryptionRequired": true
+      },
+      "anonymization": true,
+      "deletionOnUserRequest": true
+    }
+  },
+  "rateLimiting": {
+    "enabled": true,
+    "limits": {
+      "readOperations": {
+        "requestsPerMinute": 1000,
+        "requestsPerDay": 100000
+      },
+      "writeOperations": {
+        "requestsPerMinute": 100,
+        "requestsPerDay": 10000
+      },
+      "fileUpload": {
+        "filesPerMinute": 10,
+        "filesPerDay": 100,
+        "maxFileSize": 104857600
+      },
+      "apiCall": {
+        "requestsPerMinute": 60,
+        "requestsPerDay": 5000
+      }
+    },
+    "errorBehavior": "drop_requests"
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics": [
+      "read_operations",
+      "write_operations",
+      "delete_operations",
+      "file_uploads",
+      "authentication_events",
+      "security_events",
+      "performance_metrics"
+    ],
+    "alerting": {
+      "enabled": true,
+      "channels": ["email", "slack", "webhook"],
+      "thresholds": {
+        "errorRate": 0.05,
+        "latency95th": 5000,
+        "storageUsage": 0.8
+      }
+    },
+    "logging": {
+      "level": "info",
+      "destinations": ["stackdriver", "bigquery"],
+      "retention": 90
+    }
+  },
+  "cloudFunctions": {
+    "enabled": true,
+    "region": "us-central1",
+    "memoryMB": 512,
+    "timeoutSeconds": 60,
+    "functions": [
+      {
+        "name": "validateUserCreate",
+        "trigger": "onUserCreate",
+        "runtime": "nodejs20"
+      },
+      {
+        "name": "validateUserDelete",
+        "trigger": "onUserDelete",
+        "runtime": "nodejs20"
+      },
+      {
+        "name": "encryptSensitiveData",
+        "trigger": "onDocumentWrite",
+        "runtime": "nodejs20"
+      },
+      {
+        "name": "validateProjectMemberAccess",
+        "trigger": "onCall",
+        "runtime": "nodejs20"
+      },
+      {
+        "name": "checkRateLimit",
+        "trigger": "onCall",
+        "runtime": "nodejs20"
+      },
+      {
+        "name": "backupUserData",
+        "trigger": "pubsub",
+        "schedule": "every day 02:00",
+        "runtime": "nodejs20"
+      }
+    ]
+  },
+  "environments": {
+    "development": {
+      "firebaseConfig": {
+        "apiKey": "${DEV_API_KEY}",
+        "authDomain": "lucide-react-dev.firebaseapp.com",
+        "projectId": "lucide-react-dev",
+        "storageBucket": "lucide-react-dev.appspot.com",
+        "messagingSenderId": "${DEV_MESSAGING_ID}",
+        "appId": "${DEV_APP_ID}"
+      },
+      "rulesVersion": "2",
+      "debugMode": true
+    },
+    "staging": {
+      "firebaseConfig": {
+        "apiKey": "${STAGING_API_KEY}",
+        "authDomain": "lucide-react-staging.firebaseapp.com",
+        "projectId": "lucide-react-staging",
+        "storageBucket": "lucide-react-staging.appspot.com",
+        "messagingSenderId": "${STAGING_MESSAGING_ID}",
+        "appId": "${STAGING_APP_ID}"
+      },
+      "rulesVersion": "2",
+      "debugMode": false
+    },
+    "production": {
+      "firebaseConfig": {
+        "apiKey": "${PROD_API_KEY}",
+        "authDomain": "lucide-react-app.firebaseapp.com",
+        "projectId": "lucide-react-app",
+        "storageBucket": "lucide-react-app.appspot.com",
+        "messagingSenderId": "${PROD_MESSAGING_ID}",
+        "appId": "${PROD_APP_ID}"
+      },
+      "rulesVersion": "2",
+      "debugMode": false,
+      "enforceSSL": true,
+      "requireEmailVerification": true
+    }
+  }
+}

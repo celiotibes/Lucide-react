@@ -24,19 +24,19 @@ CREATE TABLE IF NOT EXISTS margens_propriedades_periodo (
   imovel_id                 INTEGER NOT NULL,
 
   -- Valores em unidades monetárias (centavos/menor unidade)
-  receita                   DECIMAL(15, 2) NOT NULL DEFAULT 0,
-  despesa                   DECIMAL(15, 2) NOT NULL DEFAULT 0,
+  receita                   REAL NOT NULL DEFAULT 0,
+  despesa                   REAL NOT NULL DEFAULT 0,
 
   -- Margem percentual (0-100)
-  margem                    DECIMAL(5, 2) NOT NULL DEFAULT 0,
+  margem                    REAL NOT NULL DEFAULT 0,
 
   -- Status baseado na margem
   status                    TEXT NOT NULL CHECK(status IN ('OK', 'ATENÇÃO', 'CRÍTICO')),
 
   -- Metadata
   calculado_em              DATETIME NOT NULL,
-  criado_em                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                 DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em             DATETIME NOT NULL DEFAULT (datetime('now')),
 
   UNIQUE(imovel_id, ano, mes),
   FOREIGN KEY (imovel_id) REFERENCES imoveis(id) ON DELETE CASCADE

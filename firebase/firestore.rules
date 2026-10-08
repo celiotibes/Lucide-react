@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions for validation and access control
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isDocumentOwner() {
+      return isOwner(resource.data.uid) || isAdmin();
+    }
+
+    function validateEmail(email) {
+      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    function validateUrl(url) {
+      return url == '' || url.matches('^https?://.*');
+    }
+
+    function validatePassword(password) {
+      // Minimum 8 characters, at least one uppercase, one lowercase, one number, one special char
+      return password.size() >= 8 &&
+             password.matches('.*[A-Z].*') &&
+             password.matches('.*[a-z].*') &&
+             password.matches('.*[0-9].*') &&
+             password.matches('.*[!@#$%^&*()_+\\-=\\[\\]{};:\'",.<>?/\\\\].*');
+    }
+
+    function rateLimitCheck(maxRequests, windowSeconds) {
+      return request.time < resource.data.lastRequest.toMillis() + (windowSeconds * 1000) ?
+             resource.data.requestCount < maxRequests :
+             true;
+    }
+
+    // Users collection - Authentication and profile management
+    match /users/{uid} {
+      // User can only read/write their own document, admin can read all
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) &&
+                       validateEmail(request.resource.data.email) &&
+                       request.resource.data.emailVerified == false &&
+                       request.resource.data.role == 'user' &&
+                       request.resource.data.createdAt == request.time &&
+                       !('password' in request.resource.data);
+      allow update: if isOwner(uid) &&
+                       (request.resource.data.email == resource.data.email ||
+                        validateEmail(request.resource.data.email)) &&
+                       request.resource.data.uid == uid &&
+                       request.resource.data.role == resource.data.role &&
+                       request.resource.data.createdAt == resource.data.createdAt &&
+                       !('password' in request.resource.data);
+      allow delete: if false; // Users cannot delete their own account via Firestore
+
+      // User preferences subcollection
+      match /preferences/{docId} {
+        allow read, write: if isOwner(uid);
+      }
+
+      // User security settings subcollection
+      match /security/{docId} {
+        allow read, write: if isOwner(uid) &&
+                              !('password' in request.resource.data) &&
+                              !('twoFactorSecret' in request.resource.data);
+      }
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() &&
+                     (isOwner(resource.data.ownerId) ||
+                      resource.data.ownerId in request.auth.token.projects);
+      allow create: if isAuthenticated() &&
+                       request.resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.createdAt == request.time &&
+                       request.resource.data.status in ['active', 'archived'] &&
+                       request.resource.data.name.size() > 0 &&
+                       request.resource.data.name.size() <= 255;
+      allow update: if isAuthenticated() &&
+                       resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.ownerId == resource.data.ownerId &&
+                       request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+
+      // Project members subcollection
+      match /members/{memberId} {
+        allow read: if isAuthenticated() &&
+                       (request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId ||
+                        request.auth.uid == memberId);
+        allow write: if isAuthenticated() &&
+                        request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
+      }
+
+      // Tasks subcollection
+      match /tasks/{taskId} {
+        allow read: if isAuthenticated() &&
+                       (request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId ||
+                        request.auth.uid in resource.data.assignees);
+        allow create: if isAuthenticated() &&
+                         request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId &&
+                         request.resource.data.createdAt == request.time &&
+                         request.resource.data.status in ['todo', 'in_progress', 'completed'];
+        allow update: if isAuthenticated() &&
+                         request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
+        allow delete: if isAuthenticated() &&
+                         request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
+      }
+
+      // Files subcollection
+      match /files/{fileId} {
+        allow read: if isAuthenticated() &&
+                       (request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId ||
+                        request.auth.uid in resource.data.sharedWith);
+        allow create: if isAuthenticated() &&
+                         request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId &&
+                         validateUrl(resource.data.url) &&
+                         resource.data.size <= 52428800 && // 50MB
+                         resource.data.createdAt == request.time;
+        allow delete: if isAuthenticated() &&
+                         request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
+      }
+    }
+
+    // Settings collection - Global application settings
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Activity logs - Audit trail
+    match /activityLogs/{logId} {
+      allow read: if isAdmin() ||
+                     (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.timestamp == request.time;
+      allow update, delete: if false; // Logs are immutable
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.createdAt == request.time;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Encrypted data storage - Sensitive information
+    match /encrypted/{docId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       'encryptedData' in request.resource.data &&
+                       'iv' in request.resource.data &&
+                       'salt' in request.resource.data &&
+                       request.resource.data.createdAt == request.time;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

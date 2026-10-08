@@ -32,12 +32,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
   -- não existe mais checagem "papel X exige prestador_id"; ver
   -- podeAcessarPrestador em auth-service.ts).
   prestador_id INTEGER,
-  ativo BOOLEAN NOT NULL DEFAULT true,
-  data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  ultimo_login TIMESTAMP,
+  ativo INTEGER NOT NULL DEFAULT 1,
+  data_criacao TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ultimo_login TEXT,
   tentativas_falhas INTEGER DEFAULT 0,
-  bloqueado_ate TIMESTAMP,
+  bloqueado_ate TEXT,
 
   -- Constraints
   CONSTRAINT email_format CHECK(email LIKE '%@%.%')
@@ -56,9 +56,9 @@ CREATE INDEX idx_usuarios_ativo ON usuarios(ativo);
 CREATE TABLE IF NOT EXISTS sessoes (
   token TEXT PRIMARY KEY,
   usuario_id TEXT NOT NULL,
-  data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  data_expiracao TIMESTAMP NOT NULL,
-  ativo BOOLEAN NOT NULL DEFAULT true,
+  data_criacao TEXT NOT NULL DEFAULT (datetime('now')),
+  data_expiracao TEXT NOT NULL,
+  ativo INTEGER NOT NULL DEFAULT 1,
   endereco_ip TEXT,
   user_agent TEXT,
 
@@ -76,7 +76,7 @@ CREATE INDEX idx_sessoes_ativo ON sessoes(ativo);
 
 CREATE TABLE IF NOT EXISTS auditoria (
   id TEXT PRIMARY KEY,
-  timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  timestamp TEXT NOT NULL DEFAULT (datetime('now')),
   usuario_id TEXT,
   usuario_nome TEXT NOT NULL,
   usuario_email TEXT NOT NULL,
@@ -109,8 +109,8 @@ CREATE TABLE IF NOT EXISTS auditoria (
   recurso_id TEXT NOT NULL,
   prestador_id INTEGER,
   descricao TEXT NOT NULL,
-  valores_antigos JSON,
-  valores_novos JSON,
+  valores_antigos TEXT,
+  valores_novos TEXT,
   endereco_ip TEXT,
   user_agent TEXT,
   resultado TEXT NOT NULL CHECK(resultado IN ('sucesso', 'falha', 'negado')),
@@ -136,14 +136,14 @@ CREATE TABLE IF NOT EXISTS pagamentos_apontamentos (
   id TEXT PRIMARY KEY,
   prestador_id INTEGER NOT NULL,
   mes_referencia TEXT NOT NULL,
-  total_pagar DECIMAL(12, 2) NOT NULL,
+  total_pagar REAL NOT NULL,
   status TEXT NOT NULL DEFAULT 'pendente' CHECK(
     status IN ('pendente', 'aprovado', 'rejeitado')
   ),
   usuario_submissao_id TEXT NOT NULL,
-  data_submissao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  data_submissao TEXT NOT NULL DEFAULT (datetime('now')),
   usuario_aprovacao_id TEXT,
-  data_aprovacao TIMESTAMP,
+  data_aprovacao TEXT,
   motivo_rejeicao TEXT,
 
   -- Constraints
@@ -193,16 +193,16 @@ CREATE TABLE IF NOT EXISTS apontamentos_diarios (
   id TEXT PRIMARY KEY,
   pagamento_id TEXT NOT NULL,
   prestador_id INTEGER NOT NULL,
-  data DATE NOT NULL,
+  data TEXT NOT NULL,
   tipo_dia TEXT NOT NULL CHECK(
     tipo_dia IN ('dia_util', 'sabado', 'domingo', 'feriado')
   ),
-  horas_trabalhadas DECIMAL(5, 2) NOT NULL CHECK(
+  horas_trabalhadas REAL NOT NULL CHECK(
     horas_trabalhadas >= 0 AND horas_trabalhadas <= 24
   ),
-  km_percorridos DECIMAL(8, 2) NOT NULL CHECK(km_percorridos >= 0),
+  km_percorridos REAL NOT NULL CHECK(km_percorridos >= 0),
   descricao TEXT,
-  ativo BOOLEAN NOT NULL DEFAULT true,
+  ativo INTEGER NOT NULL DEFAULT 1,
 
   FOREIGN KEY(pagamento_id) REFERENCES pagamentos_apontamentos(id)
     ON DELETE CASCADE,
@@ -223,12 +223,12 @@ CREATE UNIQUE INDEX idx_apontamentos_diarios_unico
 CREATE TABLE IF NOT EXISTS parametros_contrato (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   mes_referencia TEXT NOT NULL UNIQUE,
-  diaria_base DECIMAL(10, 2) NOT NULL,
-  valor_km DECIMAL(8, 2) NOT NULL,
-  reajuste_percentual DECIMAL(5, 2) NOT NULL DEFAULT 0,
-  data_vigencia DATE NOT NULL,
-  ativo BOOLEAN NOT NULL DEFAULT true,
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  diaria_base REAL NOT NULL,
+  valor_km REAL NOT NULL,
+  reajuste_percentual REAL NOT NULL DEFAULT 0,
+  data_vigencia TEXT NOT NULL,
+  ativo INTEGER NOT NULL DEFAULT 1,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
 
   CHECK(diaria_base > 0),
   CHECK(valor_km > 0),
@@ -251,8 +251,8 @@ CREATE TABLE IF NOT EXISTS prestadores (
   email TEXT NOT NULL UNIQUE,
   telefone TEXT,
   endereco TEXT,
-  ativo BOOLEAN NOT NULL DEFAULT true,
-  data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ativo INTEGER NOT NULL DEFAULT 1,
+  data_criacao TEXT NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
@@ -300,9 +300,9 @@ CREATE TABLE IF NOT EXISTS permissoes_papel (
     'editar_lgpd_chaves',
     'importar_documentos'
   )),
-  habilitado BOOLEAN NOT NULL DEFAULT false,
-  limite_valor DECIMAL(12, 2),
-  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  habilitado INTEGER NOT NULL DEFAULT 0,
+  limite_valor REAL,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now')),
   -- Quem fez a ÚLTIMA alteração nesta linha — NULL para as linhas seedadas
   -- automaticamente no boot (ninguém "alterou", nasceram assim); nunca uma
   -- string inventada, mesmo motivo do usuario_id em auditoria.
@@ -345,10 +345,10 @@ SELECT
   s.data_criacao,
   s.data_expiracao,
   s.endereco_ip,
-  CURRENT_TIMESTAMP < s.data_expiracao as valida
+  datetime('now') < s.data_expiracao as valida
 FROM sessoes s
 JOIN usuarios u ON s.usuario_id = u.id
-WHERE s.ativo = true AND CURRENT_TIMESTAMP < s.data_expiracao;
+WHERE s.ativo = 1 AND datetime('now') < s.data_expiracao;
 
 -- Payment status summary
 CREATE VIEW IF NOT EXISTS v_pagamentos_resumo AS

@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS importacao_lotes (
   -- Status e auditoria
   status                      TEXT NOT NULL DEFAULT 'ENVIADO', -- LoteStatus enum
   erro_mensagem               TEXT,                            -- Mensagem de erro, se houver
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Foreign key
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS importacao_linhas (
 
   -- Dados estruturados (extraídos/parseados)
   data_transacao              DATE,                           -- Data da transação
-  valor                       DECIMAL(12, 2),                 -- Valor da transação
+  valor                       REAL,                           -- Valor da transação
   descricao                   TEXT,                           -- Descrição/histórico
   tipo_operacao               TEXT,                           -- débito, crédito, etc
   categoria                   TEXT,                           -- Categoria opcional
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS importacao_linhas (
   rejeitado_em                DATETIME,
   motivo_rejeicao             TEXT,
 
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_em               DATETIME,
 
   -- Foreign keys
@@ -168,14 +168,14 @@ CREATE INDEX IF NOT EXISTS idx_importacao_linhas_descricao
 
 -- Tabela 3: IMPORTACAO_VALIDACOES - Histórico de validações
 CREATE TABLE IF NOT EXISTS importacao_validacoes (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   linha_id TEXT NOT NULL,
   tipo_validacao TEXT NOT NULL
     CHECK(tipo_validacao IN ('data_futura', 'valor_invalido', 'campo_obrigatorio', 'formato')),
   passou INTEGER NOT NULL CHECK(passou IN (0, 1)),
   mensagem_erro TEXT,
 
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY(linha_id) REFERENCES importacao_linhas(id) ON DELETE CASCADE
 );
@@ -185,7 +185,7 @@ CREATE INDEX IF NOT EXISTS idx_importacao_validacoes_linha
 
 -- Tabela 4: IMPORTACAO_DEDUPLICACOES - Registro de detecções de duplicatas
 CREATE TABLE IF NOT EXISTS importacao_deduplicacoes (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   linha_nova_id TEXT NOT NULL,
   linha_existente_id TEXT NOT NULL,
 
@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS importacao_deduplicacoes (
   acao TEXT DEFAULT 'pendente'
     CHECK(acao IN ('pendente', 'confirmada', 'rejeitada', 'ignorada')),
 
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_em DATETIME,
 
   FOREIGN KEY(linha_nova_id) REFERENCES importacao_linhas(id) ON DELETE CASCADE,

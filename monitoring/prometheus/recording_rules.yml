@@ -1,0 +1,289 @@
+# ============================================================================
+# Prometheus Recording Rules
+# Phase 22.22: Advanced Monitoring & Observability
+# ============================================================================
+# Recording rules improve query performance by pre-computing commonly used queries
+
+groups:
+  # ============================================================================
+  # Infrastructure Recording Rules
+  # ============================================================================
+  - name: infrastructure-recording-rules
+    interval: 30s
+    rules:
+      # CPU Usage per Instance
+      - record: instance:node_cpu_usage:rate5m
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+      # Memory Usage per Instance
+      - record: instance:node_memory_usage:ratio
+        expr: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+
+      # Memory Usage Percentage
+      - record: instance:node_memory_usage:percentage
+        expr: instance:node_memory_usage:ratio * 100
+
+      # Disk Usage per Filesystem
+      - record: instance:node_filesystem_usage:ratio
+        expr: 1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)
+
+      # Disk Usage Percentage
+      - record: instance:node_filesystem_usage:percentage
+        expr: instance:node_filesystem_usage:ratio * 100
+
+      # Network I/O per Instance
+      - record: instance:node_network_io:rate5m
+        expr: rate(node_network_receive_bytes_total[5m]) + rate(node_network_transmit_bytes_total[5m])
+
+      # Load Average per Instance
+      - record: instance:node_load:avg1
+        expr: node_load1
+
+      - record: instance:node_load:avg5
+        expr: node_load5
+
+      - record: instance:node_load:avg15
+        expr: node_load15
+
+      # Context Switches per Instance
+      - record: instance:node_context_switches:rate5m
+        expr: rate(node_context_switches_total[5m])
+
+      # System Load Ratio
+      - record: instance:node_load_ratio:5m
+        expr: node_load5 / on(instance) count(node_cpu_seconds_total{mode="system"}) by (instance)
+
+  # ============================================================================
+  # Application Recording Rules
+  # ============================================================================
+  - name: application-recording-rules
+    interval: 30s
+    rules:
+      # HTTP Request Rate
+      - record: job:http_requests:rate5m
+        expr: sum by (job, handler, method) (rate(http_requests_total[5m]))
+
+      # HTTP Error Rate
+      - record: job:http_errors:rate5m
+        expr: sum by (job, handler, status) (rate(http_requests_total{status=~"5.."}[5m]))
+
+      # HTTP Error Percentage
+      - record: job:http_error_rate:percentage
+        expr: |
+          (
+            sum by (job) (rate(http_requests_total{status=~"5.."}[5m])) /
+            sum by (job) (rate(http_requests_total[5m]))
+          ) * 100
+
+      # HTTP Request Duration Percentiles
+      - record: job:http_request_duration_seconds:p50
+        expr: histogram_quantile(0.50, sum by (le, job) (rate(http_request_duration_seconds_bucket[5m])))
+
+      - record: job:http_request_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum by (le, job) (rate(http_request_duration_seconds_bucket[5m])))
+
+      - record: job:http_request_duration_seconds:p99
+        expr: histogram_quantile(0.99, sum by (le, job) (rate(http_request_duration_seconds_bucket[5m])))
+
+      # HTTP Request Duration Average
+      - record: job:http_request_duration_seconds:avg
+        expr: sum by (job) (rate(http_request_duration_seconds_sum[5m])) / sum by (job) (rate(http_request_duration_seconds_count[5m]))
+
+      # HTTP Request Throughput
+      - record: job:http_requests_total:rate1m
+        expr: sum by (job) (rate(http_requests_total[1m]))
+
+      - record: job:http_requests_total:rate5m
+        expr: sum by (job) (rate(http_requests_total[5m]))
+
+  # ============================================================================
+  # Transaction Recording Rules
+  # ============================================================================
+  - name: transaction-recording-rules
+    interval: 30s
+    rules:
+      # Transaction Processing Rate
+      - record: job:transaction_processing:rate5m
+        expr: sum by (job, type) (rate(transaction_processing_total[5m]))
+
+      # Transaction Processing Latency Percentiles
+      - record: job:transaction_latency:p50
+        expr: histogram_quantile(0.50, sum by (le, job, type) (rate(transaction_processing_duration_seconds_bucket[5m])))
+
+      - record: job:transaction_latency:p95
+        expr: histogram_quantile(0.95, sum by (le, job, type) (rate(transaction_processing_duration_seconds_bucket[5m])))
+
+      - record: job:transaction_latency:p99
+        expr: histogram_quantile(0.99, sum by (le, job, type) (rate(transaction_processing_duration_seconds_bucket[5m])))
+
+      # Transaction Failure Rate
+      - record: job:transaction_failure_rate:percentage
+        expr: |
+          (
+            sum by (job, type) (rate(transaction_processing_failures_total[5m])) /
+            sum by (job, type) (rate(transaction_processing_total[5m]))
+          ) * 100
+
+      # Transaction Processing Queue Size
+      - record: job:transaction_queue:size
+        expr: transaction_processing_queue_size
+
+      # Transaction Success Rate
+      - record: job:transaction_success_rate:percentage
+        expr: 100 - job:transaction_failure_rate:percentage
+
+  # ============================================================================
+  # Report Generation Recording Rules
+  # ============================================================================
+  - name: report-recording-rules
+    interval: 30s
+    rules:
+      # Report Generation Rate
+      - record: job:report_generation:rate5m
+        expr: sum by (job, type) (rate(report_generation_total[5m]))
+
+      # Report Generation Duration Percentiles
+      - record: job:report_latency:p50
+        expr: histogram_quantile(0.50, sum by (le, job, type) (rate(report_generation_duration_seconds_bucket[5m])))
+
+      - record: job:report_latency:p95
+        expr: histogram_quantile(0.95, sum by (le, job, type) (rate(report_generation_duration_seconds_bucket[5m])))
+
+      - record: job:report_latency:p99
+        expr: histogram_quantile(0.99, sum by (le, job, type) (rate(report_generation_duration_seconds_bucket[5m])))
+
+      # Report Generation Failure Rate
+      - record: job:report_failure_rate:percentage
+        expr: |
+          (
+            sum by (job, type) (rate(report_generation_failures_total[5m])) /
+            sum by (job, type) (rate(report_generation_total[5m]))
+          ) * 100
+
+      # Report Generation Queue
+      - record: job:report_queue:size
+        expr: report_generation_queue_size
+
+  # ============================================================================
+  # Database Recording Rules
+  # ============================================================================
+  - name: database-recording-rules
+    interval: 30s
+    rules:
+      # Database Query Rate
+      - record: job:db_queries:rate5m
+        expr: sum by (job) (rate(db_query_total[5m]))
+
+      # Database Query Duration Percentiles
+      - record: job:db_query_latency:p50
+        expr: histogram_quantile(0.50, sum by (le, job) (rate(db_query_duration_seconds_bucket[5m])))
+
+      - record: job:db_query_latency:p95
+        expr: histogram_quantile(0.95, sum by (le, job) (rate(db_query_duration_seconds_bucket[5m])))
+
+      - record: job:db_query_latency:p99
+        expr: histogram_quantile(0.99, sum by (le, job) (rate(db_query_duration_seconds_bucket[5m])))
+
+      # Database Connection Pool Usage
+      - record: job:db_connection_pool:usage_ratio
+        expr: db_pool_connections_active / db_pool_connections_max
+
+      # Database Connection Pool Usage Percentage
+      - record: job:db_connection_pool:usage_percentage
+        expr: job:db_connection_pool:usage_ratio * 100
+
+      # Database Slow Query Count
+      - record: job:db_slow_queries:count5m
+        expr: sum by (job) (increase(db_slow_queries_total[5m]))
+
+      # Database Replication Status
+      - record: job:db_replication:is_operational
+        expr: (db_replication_lag_seconds < 30) * 1
+
+  # ============================================================================
+  # Cache Recording Rules
+  # ============================================================================
+  - name: cache-recording-rules
+    interval: 30s
+    rules:
+      # Cache Hit Ratio
+      - record: job:cache_hit_ratio
+        expr: sum by (job) (cache_hits_total) / (sum by (job) (cache_hits_total) + sum by (job) (cache_misses_total))
+
+      # Cache Hit Rate
+      - record: job:cache_hits:rate5m
+        expr: sum by (job) (rate(cache_hits_total[5m]))
+
+      # Cache Miss Rate
+      - record: job:cache_misses:rate5m
+        expr: sum by (job) (rate(cache_misses_total[5m]))
+
+      # Cache Eviction Rate
+      - record: job:cache_evictions:rate5m
+        expr: sum by (job) (rate(cache_evictions_total[5m]))
+
+      # Cache Memory Usage
+      - record: job:cache_memory:usage_bytes
+        expr: sum by (job) (cache_memory_usage_bytes)
+
+      # Cache Size
+      - record: job:cache:size
+        expr: cache_size_items
+
+  # ============================================================================
+  # API/Integration Recording Rules
+  # ============================================================================
+  - name: api-recording-rules
+    interval: 30s
+    rules:
+      # External API Call Rate
+      - record: job:api_calls:rate5m
+        expr: sum by (job, api_name) (rate(external_api_calls_total[5m]))
+
+      # External API Error Rate
+      - record: job:api_errors:rate5m
+        expr: sum by (job, api_name) (rate(external_api_errors_total[5m]))
+
+      # External API Error Percentage
+      - record: job:api_error_rate:percentage
+        expr: |
+          (
+            sum by (job, api_name) (rate(external_api_errors_total[5m])) /
+            sum by (job, api_name) (rate(external_api_calls_total[5m]))
+          ) * 100
+
+      # External API Latency
+      - record: job:api_latency:p95
+        expr: histogram_quantile(0.95, sum by (le, job, api_name) (rate(external_api_duration_seconds_bucket[5m])))
+
+  # ============================================================================
+  # System-wide Recording Rules
+  # ============================================================================
+  - name: system-recording-rules
+    interval: 30s
+    rules:
+      # Overall System Health Score
+      - record: cluster:health_score
+        expr: |
+          (
+            (100 - instance:node_cpu_usage:rate5m) * 0.3 +
+            (100 - instance:node_memory_usage:percentage) * 0.3 +
+            (100 - instance:node_filesystem_usage:percentage) * 0.2 +
+            (100 * on() (1 - job:http_error_rate:percentage / 100)) * 0.2
+          ) / 100
+
+      # Service Uptime
+      - record: job:uptime:minutes
+        expr: time() - process_start_time_seconds / 60
+
+      # Active Connections Count
+      - record: job:connections:active
+        expr: sum by (job) (process_open_fds)
+
+      # Request Saturation
+      - record: job:saturation:requests
+        expr: |
+          (
+            sum by (job) (rate(http_requests_total[5m])) /
+            sum by (job) (http_max_requests_per_second)
+          ) * 100

@@ -35,6 +35,7 @@ import { criarRotasAcl } from "../src/routes/acl-routes.js";
 import { criarRotasPortal } from "../src/routes/portal-routes.js";
 import { criarRotasPrestadorApontamentos, ROTA_POST_APONTAMENTOS } from "../src/routes/prestador-apontamentos-routes.js";
 import { criarRotasLgpd } from "../src/routes/lgpd-routes.js";
+import { criarRotasCompliance } from "../src/routes/compliance-routes.js";
 import { criarRotasCarimbo } from "../src/routes/carimbo-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
@@ -53,11 +54,17 @@ import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-r
 import { criarRotasAgentesEconomicos } from "../src/routes/agentes-economicos-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 import { criarRotasBackup } from "../src/routes/backup-routes.js";
+import { criarRotasSetupWizard } from "../src/routes/setup-wizard-routes.js";
 // Phase 13: Backup Scheduler — agendamento periódico de backups
 import BackupService from "../src/services/backup-service.js";
 import BackupScheduler from "../src/services/backup-scheduler.js";
 // Phase 10: Assinatura Digital + LGPD
 import { criarRotasAssinaturasLGPD } from "../src/routes/assinatura-lgpd-routes.js";
+// Phase 22.20: Anthropic AI Integration
+import { criarRotasAI } from "../src/routes/ai-routes.js";
+import { initializeAnthropicService } from "../src/ai/anthropic-service.js";
+// Phase 22.20.3: Property Management
+import { criarRotasPropriedades } from "../src/routes/property-routes.js";
 // Phase 9: Cache, Alertas, Health Check
 import { cache } from "../src/utils/cache-memoria.js";
 import { enviarAlertaEmail } from "../src/utils/email-alertas.js";
@@ -98,6 +105,8 @@ const envSchema = z.object({
   SLACK_WEBHOOK_URL: z.string().url().optional(),
   // SEC-012: Sentry Error Tracking
   SENTRY_DSN: z.string().optional(),
+  // Phase 22.20: Anthropic AI Integration
+  ANTHROPIC_API_KEY: z.string().optional(),
   // Fase 13: Backup Scheduler — variáveis opcionais (backup automático)
   BACKUP_LOCAL_DIR: z.string().optional(),
   BACKUP_ENCRYPTION_KEY: z.string().optional(),
@@ -107,6 +116,8 @@ const envSchema = z.object({
   BACKUP_FISCAL_RETENTION_DAYS: z.string().optional(),
   NAS_PATH: z.string().optional(),
   NAS_COPY_ENABLED: z.string().optional(),
+  // Fase 21: Setup Wizard — criptografia de credenciais sensíveis
+  ENCRYPTION_MASTER_SECRET: z.string().optional(),
 });
 
 // Parse e validação de variáveis de ambiente no boot
@@ -152,6 +163,29 @@ if (cookieCrossSiteAtivo() && ORIGENS_CORS.length === 0) {
 // Phase 2: Initialize database and services on startup
 logger.info("[Server] Initializing database...");
 const db = initializeDatabase();
+
+// Fase 21: Initialize credential encryption service
+import { initializeEncryptionService } from "./services/credential-encryption.js";
+const masterSecret = envVars.ENCRYPTION_MASTER_SECRET || envVars.API_KEY || "default-master-secret";
+try {
+  initializeEncryptionService(masterSecret);
+  logger.info("[Server] Credential encryption service initialized");
+} catch (error) {
+  logger.error("[Server] Failed to initialize credential encryption service:", error);
+  throw error;
+}
+
+// Phase 22.20: Initialize Anthropic AI Service
+let aiService: any = null;
+if (envVars.ANTHROPIC_API_KEY) {
+  try {
+    aiService = initializeAnthropicService(envVars.ANTHROPIC_API_KEY);
+    logger.info("[Server] Anthropic AI service initialized");
+  } catch (error) {
+    logger.warn("[Server] Failed to initialize Anthropic AI service:", error instanceof Error ? error.message : error);
+    // Non-fatal: AI features will be disabled but server continues
+  }
+}
 
 // Create singleton service instances
 const authService = new AuthServiceDB(db);
@@ -299,6 +333,16 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 }));
  * nenhuma configuração de CORS adicional é feita para elas. */
 app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService }));
 
+/** Setup Wizard — Fase 21: Configuração inicial da aplicação
+ * POST   /api/setup-wizard/initialize — inicia assistente para nova plataforma
+ * POST   /api/setup-wizard/:configId/step/:stepId — submete etapa com validação
+ * GET    /api/setup-wizard/step/:stepId — obtém configuração da etapa
+ * POST   /api/setup-wizard/:configId/complete — completa o assistente
+ * GET    /api/setup-wizard/:configId/config — revisa configuração completa
+ * GET    /api/setup-wizard/:configId/audit — histórico de auditoria
+ * GET    /api/setup-wizard/status/:platform — verifica status de setup */
+app.use("/api/setup-wizard", criarRotasSetupWizard({ db }));
+
 /** Inbox de eventos externos (webhook da Asaas, captura do bot do Telegram) — ver
  * eventos-externos-routes.ts/eventos-externos-db.ts. O cliente consome por polling
  * porque o servidor não tem acesso ao banco local do navegador. */
@@ -321,6 +365,14 @@ app.use("/api/prestador/apontamentos", criarRotasPrestadorApontamentos({ authSer
 /** Direitos do titular (LGPD): acesso aos próprios dados, trilha de acessos e anonimização da conta.
  * Operam sempre e só sobre o usuário autenticado; permitidas a papéis externos. */
 app.use("/api/lgpd", criarRotasLgpd({ authService, auditService, db }));
+
+/** Phase 22.18: Compliance & Regulatory Reporting
+ * Multi-jurisdiction compliance for CRMT accounting system:
+ * - SPED/ECF (Brazilian tax filing)
+ * - LGPD (Brazilian data protection) and GDPR (European compliance)
+ * - Audit trail with tamper detection and legal hold
+ * - Tax compliance and reporting */
+app.use("/api/compliance", criarRotasCompliance({ db }));
 
 /** Carimbo de tempo RFC 3161 do selo de encerramento (o navegador não alcança a TSA por CORS). */
 app.use("/api/carimbo-tempo", criarRotasCarimbo({ authService }));
@@ -373,6 +425,43 @@ app.use("/api/relatorios", criarRotasRelatorios({ authService, db }));
  * POST /api/relatorios/executivo/gerar?mes=10&ano=2026 — trigger manual
  * POST /api/relatorios/executivo/enviar-email?mes=10&ano=2026&email=user@example.com — enviar por email */
 app.use("/api/relatorios/executivo", criarRotasRelatorioExecutivo({ authService, db }));
+
+/** Phase 22.20: Anthropic AI Integration — análise contábil com Claude
+ * POST /api/ai/analyze-transaction — categoriza transação
+ * POST /api/ai/categorize-receipt — analisa recibo com visão
+ * POST /api/ai/detect-anomaly — detecta anomalias estatísticas
+ * POST /api/ai/analyze-cash-flow — análise de fluxo de caixa
+ * POST /api/ai/chat — chat interativo sobre finanças */
+if (aiService) {
+  app.use("/api/ai", criarRotasAI({ db, authService, aiService }));
+  logger.info("[Server] AI routes mounted at /api/ai");
+} else {
+  logger.warn("[Server] AI service not available; /api/ai routes disabled");
+}
+
+/** Phase 22.20.3: Property Management System
+ * CRUD for real estate properties with cost allocation, depreciation tracking, and ROI analysis
+ * GET    /api/properties — list properties (with filters: tipoImovel, cidade, estado)
+ * POST   /api/properties — create property
+ * GET    /api/properties/:id — get property details
+ * PUT    /api/properties/:id — update property
+ * DELETE /api/properties/:id — delete property (soft)
+ * Cost allocation: GET/POST /api/properties/:id/costs, GET /api/properties/:id/cost-summary
+ * Depreciation: POST /api/properties/:id/depreciation/calculate, GET history/accumulated
+ * ROI Analysis: POST /api/properties/:id/roi/calculate, GET roi */
+app.use("/api/properties", criarRotasPropriedades({ db, authService, auditService }));
+logger.info("[Server] Property Management routes mounted at /api/properties");
+
+/** Phase 22.20.2: Advanced PDF Reports — geração de relatórios em PDF e exportação
+ * POST /api/reports/balance-sheet — Gera Balanço Patrimonial (PDF)
+ * POST /api/reports/income-statement — Gera DRE (PDF)
+ * POST /api/reports/cash-flow — Gera Fluxo de Caixa (PDF)
+ * POST /api/reports/real-estate — Gera Relatório de Propriedades (PDF)
+ * POST /api/reports/export — Exporta em CSV, XLSX, XML
+ * GET /api/reports/stats — Estatísticas de exportação */
+const criarRotasReportsPDF = (await import('./routes/report-pdf-routes.js')).default;
+app.use("/api/reports", criarRotasReportsPDF({ db, authService }));
+logger.info("[Server] PDF Reports routes mounted at /api/reports");
 
 /** Sugestão inteligente de categorias para transações (fase 2.3) — baseada em
  * histórico e padrões de keywords. POST /api/transacoes/:id/sugerir-categoria

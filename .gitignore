@@ -36,3 +36,8 @@ dist-ssr
 # nunca é intencional, nunca deve ser versionado.
 /laudo-*.pdf
 /rad-*.pdf
+.claude/
+
+# Electron main process files (generated during build)
+/electron.cjs
+/preload.cjs

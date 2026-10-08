@@ -19,22 +19,22 @@
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS agentes_duplicatas_audit_trail (
-  id UUID PRIMARY KEY,
+  id TEXT PRIMARY KEY,
 
   -- Tipo de operação
   tipo_operacao TEXT NOT NULL CHECK (tipo_operacao IN ('MERGE', 'UNMERGE', 'REVIEW')),
 
   -- Referências aos agentes
-  agente_primario_id UUID NOT NULL,
-  agente_secundario_id UUID NOT NULL,
+  agente_primario_id TEXT NOT NULL,
+  agente_secundario_id TEXT NOT NULL,
 
   -- Estados antes e depois (JSON para flexibilidade)
   estado_anterior TEXT NOT NULL,
   estado_posterior TEXT NOT NULL,
 
   -- Auditoria
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_por UUID NOT NULL,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
+  criado_por TEXT NOT NULL,
   descricao TEXT,
 
   -- Metadata
@@ -204,23 +204,23 @@ ORDER BY d.score DESC;
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS ledger_entries_duplicatas (
-  id UUID PRIMARY KEY,
+  id TEXT PRIMARY KEY,
 
   -- Referências às transações
-  ledger_entrada_1_id UUID NOT NULL,
-  ledger_entrada_2_id UUID NOT NULL,
+  ledger_entrada_1_id TEXT NOT NULL,
+  ledger_entrada_2_id TEXT NOT NULL,
 
   -- Score de duplicata
-  score DECIMAL(5, 2) NOT NULL CHECK (score >= 0 AND score <= 100),
+  score REAL NOT NULL CHECK (score >= 0 AND score <= 100),
 
   -- Status
   status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'confirmada', 'refutada', 'mesclada')),
 
   -- Auditoria
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_por UUID NOT NULL,
-  analisado_em TIMESTAMP,
-  analisado_por UUID,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
+  criado_por TEXT NOT NULL,
+  analisado_em DATETIME,
+  analisado_por TEXT,
   decisao TEXT,
 
   FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,

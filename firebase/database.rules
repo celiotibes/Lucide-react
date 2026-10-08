@@ -1,0 +1,237 @@
+{
+  "rules": {
+    // Authentication check helpers
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        ".write": "$uid === auth.uid",
+        ".validate": "newData.hasChildren(['email', 'profile', 'createdAt']) && newData.child('createdAt').val() <= now",
+        "profile": {
+          ".validate": "newData.hasChildren(['displayName', 'photoURL']) && newData.child('displayName').isString() && newData.child('photoURL').isString()",
+          "displayName": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 255"
+          },
+          "photoURL": {
+            ".validate": "newData.isString() && (newData.val() == '' || newData.val().contains('https://'))"
+          }
+        },
+        "email": {
+          ".validate": "newData.isString() && newData.val().contains('@') && newData.val().contains('.')"
+        },
+        "emailVerified": {
+          ".validate": "newData.isBoolean()"
+        },
+        "role": {
+          ".validate": "newData.val() === 'user' || newData.val() === 'admin' || newData.val() === 'moderator'",
+          ".write": "root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "lastLogin": {
+          ".write": "$uid === auth.uid",
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "security": {
+          ".read": "$uid === auth.uid",
+          ".write": "$uid === auth.uid",
+          ".validate": "newData.hasChildren(['twoFactorEnabled', 'lastPasswordChange'])",
+          "twoFactorEnabled": {
+            ".validate": "newData.isBoolean()"
+          },
+          "lastPasswordChange": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        },
+        "preferences": {
+          ".read": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+          ".write": "$uid === auth.uid",
+          ".validate": "newData.isObject()",
+          "theme": {
+            ".validate": "newData.val() === 'light' || newData.val() === 'dark'"
+          },
+          "language": {
+            ".validate": "newData.val() === 'pt' || newData.val() === 'en' || newData.val() === 'es'"
+          },
+          "notifications": {
+            ".validate": "newData.isObject()",
+            "email": {
+              ".validate": "newData.isBoolean()"
+            },
+            "push": {
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        }
+      }
+    },
+
+    // Projects collection with granular access control
+    "projects": {
+      "$projectId": {
+        ".read": "auth !== null && (root.child('projects').child($projectId).child('ownerId').val() === auth.uid || root.child('projects').child($projectId).child('members').child(auth.uid).exists())",
+        ".write": "auth !== null && root.child('projects').child($projectId).child('ownerId').val() === auth.uid",
+        ".validate": "newData.hasChildren(['ownerId', 'name', 'createdAt', 'status']) && newData.child('createdAt').val() <= now && (newData.child('status').val() === 'active' || newData.child('status').val() === 'archived')",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 255"
+        },
+        "description": {
+          ".validate": "newData.isString() && newData.val().length <= 5000"
+        },
+        "ownerId": {
+          ".validate": "newData.isString() && newData.val().length > 0"
+        },
+        "status": {
+          ".validate": "newData.val() === 'active' || newData.val() === 'archived'"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "members": {
+          ".read": "auth !== null && (root.child('projects').child($projectId).child('ownerId').val() === auth.uid || root.child('projects').child($projectId).child('members').child(auth.uid).exists())",
+          ".write": "auth !== null && root.child('projects').child($projectId).child('ownerId').val() === auth.uid",
+          "$memberId": {
+            ".validate": "newData.hasChildren(['role', 'joinedAt']) && (newData.child('role').val() === 'owner' || newData.child('role').val() === 'editor' || newData.child('role').val() === 'viewer')"
+          }
+        },
+        "tasks": {
+          ".read": "auth !== null && (root.child('projects').child($projectId).child('ownerId').val() === auth.uid || root.child('projects').child($projectId).child('members').child(auth.uid).exists())",
+          "$taskId": {
+            ".write": "auth !== null && (root.child('projects').child($projectId).child('ownerId').val() === auth.uid || root.child('projects').child($projectId).child('members').child(auth.uid).child('role').val() === 'editor')",
+            ".validate": "newData.hasChildren(['title', 'status', 'createdAt']) && (newData.child('status').val() === 'todo' || newData.child('status').val() === 'in_progress' || newData.child('status').val() === 'completed')",
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 500"
+            },
+            "description": {
+              ".validate": "newData.isString() && newData.val().length <= 5000"
+            },
+            "status": {
+              ".validate": "newData.val() === 'todo' || newData.val() === 'in_progress' || newData.val() === 'completed'"
+            },
+            "priority": {
+              ".validate": "newData.val() === 'low' || newData.val() === 'medium' || newData.val() === 'high'"
+            },
+            "assignees": {
+              ".validate": "newData.isObject()"
+            },
+            "dueDate": {
+              ".validate": "newData.isNull() || (newData.isNumber() && newData.val() > now)"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber() && newData.val() <= now"
+            }
+          }
+        }
+      }
+    },
+
+    // Real-time notifications with indexed lookups
+    "notifications": {
+      ".read": "auth !== null",
+      "$userId": {
+        ".read": "$userId === auth.uid",
+        ".indexOn": ["timestamp", "read", "type"],
+        "$notificationId": {
+          ".write": "$userId === auth.uid",
+          ".validate": "newData.hasChildren(['type', 'timestamp']) && newData.child('timestamp').val() <= now",
+          "type": {
+            ".validate": "newData.val() === 'message' || newData.val() === 'mention' || newData.val() === 'update' || newData.val() === 'alert'"
+          },
+          "read": {
+            ".validate": "newData.isBoolean()"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        }
+      }
+    },
+
+    // Session management with time expiration
+    "sessions": {
+      "$userId": {
+        ".read": "$userId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        ".write": "$userId === auth.uid",
+        "$sessionId": {
+          ".validate": "newData.hasChildren(['deviceName', 'createdAt', 'expiresAt']) && newData.child('expiresAt').val() > now",
+          "deviceName": {
+            ".validate": "newData.isString() && newData.val().length > 0"
+          },
+          "ipAddress": {
+            ".validate": "newData.isString()"
+          },
+          "userAgent": {
+            ".validate": "newData.isString()"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "expiresAt": {
+            ".validate": "newData.isNumber() && newData.val() > now && newData.val() <= now + 2592000000" // 30 days
+          },
+          "lastActivity": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        }
+      }
+    },
+
+    // Activity logs - Immutable audit trail
+    "activityLogs": {
+      ".indexOn": ["userId", "timestamp", "type"],
+      "$userId": {
+        ".read": "$userId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        "$logId": {
+          ".write": "newData.child('userId').val() === auth.uid",
+          ".validate": "newData.hasChildren(['type', 'timestamp', 'userId']) && newData.child('timestamp').val() <= now",
+          "type": {
+            ".validate": "newData.val() === 'login' || newData.val() === 'logout' || newData.val() === 'create' || newData.val() === 'update' || newData.val() === 'delete'"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "details": {
+            ".validate": "newData.isObject()"
+          }
+        }
+      }
+    },
+
+    // Presence tracking for real-time features
+    "presence": {
+      "$userId": {
+        ".read": "auth !== null",
+        ".write": "$userId === auth.uid",
+        ".validate": "newData.hasChildren(['status', 'lastSeen'])",
+        "status": {
+          ".validate": "newData.val() === 'online' || newData.val() === 'away' || newData.val() === 'offline'"
+        },
+        "lastSeen": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        ".onDisconnect": {
+          "status": {
+            ".set": "offline"
+          },
+          "lastSeen": {
+            ".set": "now"
+          }
+        }
+      }
+    },
+
+    // Rate limiting buckets
+    "rateLimits": {
+      "$userId": {
+        ".read": "$userId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        ".write": "$userId === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        "api": {
+          ".validate": "newData.hasChildren(['count', 'resetAt'])"
+        },
+        "upload": {
+          ".validate": "newData.hasChildren(['count', 'resetAt'])"
+        }
+      }
+    }
+  }
+}

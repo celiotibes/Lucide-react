@@ -1,0 +1,45 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/accounting-legal-reconstruction-i8gep8
+    paths:
+      - '.github/workflows/build-macos-dmg.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: |
+          rm -f package-lock.json
+          npm install --legacy-peer-deps
+
+      - name: Build web app and Electron entry files
+        run: npm run build
+
+      - name: Build macOS DMG (unsigned)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac dmg --arm64 --publish=never
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: crmt-macos-dmg
+          path: dist/*.dmg
+          retention-days: 14

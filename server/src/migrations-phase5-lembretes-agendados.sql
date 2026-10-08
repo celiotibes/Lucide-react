@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS lembretes_agendados (
   status                  TEXT NOT NULL DEFAULT 'pendente' CHECK(status IN ('pendente', 'enviado', 'falha', 'cancelado')),
   erro_mensagem           TEXT,
   enviado_em              DATETIME,
-  criado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em           DATETIME NOT NULL DEFAULT (datetime('now')),
   UNIQUE (origem_tipo, origem_id, tipo_lembrete, canal)
 );
 

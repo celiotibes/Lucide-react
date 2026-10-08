@@ -1,5 +1,10 @@
 version: '3.8'
 
+# ============================================================================
+# Lucide React CRMT - Docker Compose Configuration
+# Phase 22.19: Production-ready Deployment & Infrastructure
+# ============================================================================
+
 services:
   # ============================================================================
   # Application Backend (Express.js + TypeScript)
@@ -9,33 +14,47 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
-    container_name: lucide-app
-    ports:
-      - "8787:8787"
-    environment:
-      # Core Configuration
-      NODE_ENV: development
-      PORT: 8787
+      # Inline build args for optimization
+      args:
+        NODE_ENV: production
+    container_name: lucide-crmt-app
+    hostname: lucide-app
 
-      # Database
-      DATABASE_URL: file:./data/lucide.sqlite
+    # Service ports
+    ports:
+      - "${APP_PORT:-8787}:8787"
+      - "${DEBUG_PORT:-9229}:9229"  # Node debugger (production disabled)
+
+    # Environment configuration
+    environment:
+      # Core
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-8787}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      # Database (SQLite by default, can override)
+      DATABASE_URL: ${DATABASE_URL:-file:./data/app.db}
+      DATABASE_TYPE: ${DATABASE_TYPE:-sqlite}
 
       # Security
-      API_KEY: ${API_KEY:-change-me-in-development-only}
+      API_KEY: ${API_KEY:-change-me-in-production}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-session-secret}
+      ENCRYPTION_MASTER_SECRET: ${ENCRYPTION_MASTER_SECRET:-${API_KEY}}
+      JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret}
 
-      # CORS (vazio = só mesma origem; ver docs/TOPOLOGIA-IMPLANTACAO.md)
+      # CORS configuration
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      CORS_CREDENTIALS: ${CORS_CREDENTIALS:-true}
 
-      # Integrations (Optional)
+      # Integrations
       ASAAS_API_KEY: ${ASAAS_API_KEY:-}
-      ASAAS_SANDBOX: ${ASAAS_SANDBOX:-true}
+      ASAAS_SANDBOX: ${ASAAS_SANDBOX:-false}
       CERTISIGN_API_KEY: ${CERTISIGN_API_KEY:-}
       SERPROID_API_KEY: ${SERPROID_API_KEY:-}
       PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
       PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
 
-      # Notifications (Optional)
+      # Notifications
       ALERTS_EMAIL_PROVIDER: ${ALERTS_EMAIL_PROVIDER:-none}
       ALERTS_EMAIL_API_KEY: ${ALERTS_EMAIL_API_KEY:-}
       ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
@@ -43,46 +62,419 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
 
-      # Sentry (Optional)
+      # Monitoring & Error Tracking
       SENTRY_DSN: ${SENTRY_DSN:-}
-      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACE_SAMPLE_RATE: ${SENTRY_TRACE_SAMPLE_RATE:-0.1}
 
-      # Google Drive Backup (Optional)
+      # Backup & Disaster Recovery
       GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-true}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
 
-      # Anthropic Claude API (Optional)
+      # AI Features
       VITE_ANTHROPIC_API_KEY: ${VITE_ANTHROPIC_API_KEY:-}
 
-      # Cache Configuration (Optional)
+      # Cache TTLs (milliseconds)
       CACHE_TTL_DRE: ${CACHE_TTL_DRE:-3600000}
       CACHE_TTL_FLUXO: ${CACHE_TTL_FLUXO:-7200000}
       CACHE_TTL_MARGENS: ${CACHE_TTL_MARGENS:-7200000}
       CACHE_TTL_RECONCILIACAO: ${CACHE_TTL_RECONCILIACAO:-1800000}
 
+      # Feature Flags
+      FEATURE_MIGRATIONS_AUTO: ${FEATURE_MIGRATIONS_AUTO:-true}
+      FEATURE_HEALTH_CHECK: ${FEATURE_HEALTH_CHECK:-true}
+      FEATURE_METRICS: ${FEATURE_METRICS:-true}
+
+    # Volume mounts for persistence and migrations
     volumes:
-      # Persistent database volume
-      - ./data:/app/data
-      # Development: live reload of source (comment out for production-like builds)
-      - ./server/src:/app/server/src:ro
-      # Logs
-      - ./logs:/app/logs
+      # Data persistence
+      - lucide-data:/app/data
+      - lucide-logs:/app/logs
+      # Migrations
+      - ./server/migrations:/app/server/migrations:ro
+      # Backups
+      - lucide-backups:/app/backups
+      # Config (optional)
+      - ./config:/app/config:ro
 
-    # Health check
+    # Health check with improved logic
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8787/api/health"]
+      test: ['CMD', 'curl', '-f', '-s', 'http://localhost:8787/api/health']
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
-    # Restart policy
+    # Startup & restart policies
     restart: unless-stopped
+    stop_grace_period: 30s
 
-    # Network
+    # Network configuration
     networks:
       - lucide-network
 
-    # Resource limits (adjust as needed)
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '10'
+        labels: 'service=lucide-crmt'
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '${APP_CPUS_LIMIT:-2}'
+          memory: ${APP_MEMORY_LIMIT:-1024M}
+        reservations:
+          cpus: '${APP_CPUS_RESERVATION:-1}'
+          memory: ${APP_MEMORY_RESERVATION:-512M}
+
+    # Labels for monitoring/orchestration
+    labels:
+      com.lucide.service: crmt-app
+      com.lucide.phase: '22.19'
+      com.lucide.component: backend
+
+  # ============================================================================
+  # Migration Runner (one-shot for schema setup)
+  # ============================================================================
+  migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: lucide-crmt:migrations
+    container_name: lucide-migrations-runner
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "Running database migrations..."
+        sqlite3 /app/data/app.db < /app/server/migrations-phase2-auth.sql
+        sqlite3 /app/data/app.db < /app/server/migrations-phase3-integracoes.sql
+        echo "Migrations completed successfully!"
+    volumes:
+      - lucide-data:/app/data
+      - ./server/src:/app/server/migrations:ro
+    networks:
+      - lucide-network
+    labels:
+      com.lucide.service: migrations
+      com.lucide.phase: '22.19'
+    profiles:
+      - 'init'  # Run only with: docker-compose --profile init up
+
+  # ============================================================================
+  # Backup Service (Scheduled Database Backups)
+  # ============================================================================
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: lucide-backup
+    command: node /app/server/dist/services/backup-scheduler.js
+
+    environment:
+      NODE_ENV: production
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    volumes:
+      # Read-only access to application data
+      - lucide-data:/app/data:ro
+      # Backup storage
+      - lucide-backups:/app/backups
+      # Logs
+      - lucide-logs:/app/logs
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+        labels: 'service=lucide-backup'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '${BACKUP_CPUS_LIMIT:-0.5}'
+          memory: ${BACKUP_MEMORY_LIMIT:-256M}
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    labels:
+      com.lucide.service: backup
+      com.lucide.phase: '22.19'
+
+  # ============================================================================
+  # PostgreSQL (Optional - uncomment to use instead of SQLite)
+  # ============================================================================
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: lucide-db
+  #   hostname: lucide-db
+  #   environment:
+  #     POSTGRES_DB: ${DB_NAME:-lucide_crmt}
+  #     POSTGRES_USER: ${DB_USER:-lucide_user}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me-db-password}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./server/migrations:/docker-entrypoint-initdb.d:ro
+  #   ports:
+  #     - "${DB_PORT:-5432}:5432"
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-lucide_user}']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - lucide-network
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '1'
+  #         memory: 512M
+
+# ============================================================================
+# Volumes (Data Persistence)
+# ============================================================================
+volumes:
+  lucide-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+  lucide-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
+  lucide-backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./backups
+  prometheus-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/prometheus/data
+  grafana-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/grafana/data
+  grafana-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/grafana/logs
+  alertmanager-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./monitoring/alertmanager/data
+  # postgres_data:
+  #   driver: local
+
+  # ============================================================================
+  # Prometheus (Metrics Collection)
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: lucide-prometheus
+    hostname: prometheus
+
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/rules/alert_rules.yml:ro
+      - ./monitoring/prometheus/recording_rules.yml:/etc/prometheus/rules/recording_rules.yml:ro
+      - prometheus-data:/prometheus
+
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '3'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '${PROMETHEUS_CPUS_LIMIT:-2}'
+          memory: ${PROMETHEUS_MEMORY_LIMIT:-1024M}
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    labels:
+      com.lucide.service: prometheus
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # Grafana (Dashboards & Visualization)
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: lucide-grafana
+    hostname: grafana
+
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: http://localhost:3000
+
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/grafana/provisioning.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - grafana-data:/var/lib/grafana
+      - grafana-logs:/var/log/grafana
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    depends_on:
+      - prometheus
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '${GRAFANA_CPUS_LIMIT:-1}'
+          memory: ${GRAFANA_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    labels:
+      com.lucide.service: grafana
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # AlertManager (Alert Routing & Notification)
+  # ============================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: lucide-alertmanager
+    hostname: alertmanager
+
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      ALERTS_EMAIL_TO: ${ALERTS_EMAIL_TO:-}
+      ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
+      PAGERDUTY_SERVICE_KEY: ${PAGERDUTY_SERVICE_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://alertmanager:9093'
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    labels:
+      com.lucide.service: alertmanager
+      com.lucide.phase: '22.22'
+
+  # ============================================================================
+  # Jaeger (Distributed Tracing)
+  # ============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:2.0
+    container_name: lucide-jaeger
+    hostname: jaeger
+
+    ports:
+      - "${JAEGER_QUERY_PORT:-16686}:16686"  # Query UI
+      - "${JAEGER_COLLECTOR_PORT:-14250}:14250"  # gRPC collector
+      - "${JAEGER_AGENT_PORT:-6831}:6831/udp"  # Agent
+      - "14268:14268"  # HTTP collector
+
+    environment:
+      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
+      COLLECTOR_OTLP_ENABLED: 'true'
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+
     deploy:
       resources:
         limits:
@@ -92,59 +484,79 @@ services:
           cpus: '0.5'
           memory: 256M
 
-    # Container dependency on database initialization (if needed)
-    # depends_on:
-    #   - database
+    labels:
+      com.lucide.service: jaeger
+      com.lucide.phase: '22.22'
 
   # ============================================================================
-  # Optional: Database Service (for persistent SQLite or PostgreSQL)
+  # Node Exporter (Infrastructure Metrics)
   # ============================================================================
-  # Uncomment below if you want to use a separate database service
-  # database:
-  #   image: postgres:16-alpine
-  #   container_name: lucide-db
-  #   environment:
-  #     POSTGRES_DB: lucide_accounting
-  #     POSTGRES_USER: lucide_user
-  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   ports:
-  #     - "5432:5432"
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U lucide_user"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   networks:
-  #     - lucide-network
-  #   restart: unless-stopped
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: lucide-node-exporter
+    hostname: node-exporter
+
+    ports:
+      - "9100:9100"
+
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+    labels:
+      com.lucide.service: node-exporter
+      com.lucide.phase: '22.22'
 
   # ============================================================================
-  # Development: Frontend Service (Optional, for live development)
+  # cAdvisor (Container Metrics)
   # ============================================================================
-  # Uncomment below if developing frontend alongside backend
-  # frontend:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.frontend
-  #   container_name: lucide-frontend
-  #   ports:
-  #     - "5173:5173"
-  #   environment:
-  #     VITE_API_URL: http://app:8787
-  #   volumes:
-  #     - ./src:/app/src
-  #     - ./public:/app/public
-  #   networks:
-  #     - lucide-network
-  #   restart: unless-stopped
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: lucide-cadvisor
+    hostname: cadvisor
 
-# ============================================================================
-# Volumes
-# ============================================================================
-volumes:
-  # postgres_data:
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+    restart: unless-stopped
+    networks:
+      - lucide-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+    labels:
+      com.lucide.service: cadvisor
+      com.lucide.phase: '22.22'
+
+    privileged: true
 
 # ============================================================================
 # Networks
@@ -152,3 +564,6 @@ volumes:
 networks:
   lucide-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

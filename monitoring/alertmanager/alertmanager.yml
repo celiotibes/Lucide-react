@@ -1,0 +1,313 @@
+# ============================================================================
+# AlertManager Configuration
+# Phase 22.22: Advanced Monitoring & Observability
+# ============================================================================
+
+global:
+  # Default notification settings
+  resolve_timeout: 5m
+  # Slack global settings (optional)
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+# Define routing rules
+route:
+  # Default receiver
+  receiver: 'default'
+
+  # Group alerts by these labels
+  group_by: ['alertname', 'cluster', 'service']
+
+  # Time to wait before sending first notification for a group of alerts
+  group_wait: 10s
+
+  # Time to wait before sending a notification about new alerts added to an already existing group
+  group_interval: 10s
+
+  # Time to wait before sending a notification if it has been sent already for an alert group
+  repeat_interval: 12h
+
+  # Sub-routes for specific alerts
+  routes:
+    # Critical infrastructure alerts - immediate notification
+    - match:
+        severity: critical
+        category: infrastructure
+      receiver: 'critical-infra'
+      group_wait: 0s
+      repeat_interval: 1h
+      routes:
+        # Page on critical CPU
+        - match:
+            alertname: CriticalCPUUsage
+          receiver: 'pagerduty-critical'
+          continue: true
+
+        # Page on critical memory
+        - match:
+            alertname: CriticalMemoryUsage
+          receiver: 'pagerduty-critical'
+          continue: true
+
+        # Page on critical disk
+        - match:
+            alertname: CriticalDiskUsage
+          receiver: 'pagerduty-critical'
+          continue: true
+
+    # Critical application alerts - immediate notification
+    - match:
+        severity: critical
+        category: application
+      receiver: 'critical-app'
+      group_wait: 0s
+      repeat_interval: 1h
+      routes:
+        # Critical application down - fire PagerDuty
+        - match:
+            alertname: ApplicationDown
+          receiver: 'pagerduty-critical'
+          continue: true
+
+        # Critical error rate
+        - match:
+            alertname: CriticalErrorRate
+          receiver: 'pagerduty-critical'
+          continue: true
+
+    # Critical business alerts
+    - match:
+        severity: critical
+        category: business
+      receiver: 'critical-business'
+      group_wait: 0s
+      repeat_interval: 2h
+      routes:
+        # Transaction failures
+        - match:
+            alertname: HighTransactionFailureRate
+          receiver: 'slack-business'
+          continue: true
+          receiver_group: 'financial'
+
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warnings'
+      group_wait: 30s
+      repeat_interval: 6h
+
+    # Database alerts
+    - match:
+        category: database
+      receiver: 'database-team'
+      group_wait: 10s
+      repeat_interval: 4h
+
+    # Performance/Cache alerts
+    - match:
+        category: performance
+      receiver: 'performance-team'
+      group_wait: 30s
+      repeat_interval: 8h
+
+    # Anomaly detection alerts
+    - match:
+        category: anomaly
+      receiver: 'anomaly-team'
+      group_wait: 2m
+      repeat_interval: 24h
+
+    # Operations/Backup alerts
+    - match:
+        category: operations
+      receiver: 'ops-team'
+      group_wait: 5m
+      repeat_interval: 12h
+
+# Define notification receivers
+receivers:
+  # Default receiver
+  - name: 'default'
+    slack_configs:
+      - channel: '#alerts'
+        title: 'Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+    email_configs:
+      - to: '${ALERTS_EMAIL_TO:-alerts@example.com}'
+        from: '${ALERTS_EMAIL_FROM:-noreply@example.com}'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          Alert: {{ .GroupLabels.alertname }}
+          Status: {{ .Status }}
+
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+
+  # Critical infrastructure team (immediate escalation)
+  - name: 'critical-infra'
+    slack_configs:
+      - channel: '#critical-alerts'
+        title: 'CRITICAL INFRASTRUCTURE: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+        color: 'danger'
+        actions:
+          - type: button
+            text: 'View Dashboard'
+            url: '{{ (index .Alerts 0).Annotations.dashboard }}'
+    email_configs:
+      - to: '${INFRA_TEAM_EMAIL:-infra-team@example.com}'
+        from: '${ALERTS_EMAIL_FROM:-noreply@example.com}'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+
+  # Critical application team
+  - name: 'critical-app'
+    slack_configs:
+      - channel: '#app-critical'
+        title: 'CRITICAL APPLICATION: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+        color: 'danger'
+    email_configs:
+      - to: '${APP_TEAM_EMAIL:-app-team@example.com}'
+        from: '${ALERTS_EMAIL_FROM:-noreply@example.com}'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+
+  # Critical business alerts
+  - name: 'critical-business'
+    slack_configs:
+      - channel: '#business-critical'
+        title: 'CRITICAL BUSINESS: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+        color: 'danger'
+
+  # PagerDuty for critical incidents
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        description: '{{ .GroupLabels.alertname }}: {{ .Alerts.Firing | len }} firing'
+        client: 'Prometheus'
+        client_url: 'http://prometheus:9090'
+        details:
+          alert: '{{ .GroupLabels.alertname }}'
+          severity: '{{ .GroupLabels.severity }}'
+          category: '{{ .GroupLabels.category }}'
+          message: '{{ (index .Alerts 0).Annotations.description }}'
+
+  # General warnings
+  - name: 'warnings'
+    slack_configs:
+      - channel: '#warnings'
+        title: 'Warning: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: false
+        color: 'warning'
+
+  # Database team
+  - name: 'database-team'
+    slack_configs:
+      - channel: '#database-alerts'
+        title: 'Database Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    email_configs:
+      - to: '${DATABASE_TEAM_EMAIL:-dba-team@example.com}'
+        from: '${ALERTS_EMAIL_FROM:-noreply@example.com}'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+
+  # Performance team
+  - name: 'performance-team'
+    slack_configs:
+      - channel: '#performance'
+        title: 'Performance Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  # Anomaly detection team
+  - name: 'anomaly-team'
+    slack_configs:
+      - channel: '#anomaly-detection'
+        title: 'Anomaly Detected: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}{{ end }}'
+    webhook_configs:
+      - url: '${ANOMALY_WEBHOOK_URL}'
+        send_resolved: false
+
+  # Operations team
+  - name: 'ops-team'
+    slack_configs:
+      - channel: '#ops-alerts'
+        title: 'Operations Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    email_configs:
+      - to: '${OPS_TEAM_EMAIL:-ops-team@example.com}'
+        from: '${ALERTS_EMAIL_FROM:-noreply@example.com}'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+
+  # Slack business channel
+  - name: 'slack-business'
+    slack_configs:
+      - channel: '#business-metrics'
+        title: 'Business Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        color: 'danger'
+
+# Inhibition rules - suppress certain alerts
+inhibit_rules:
+  # Don't alert on low disk if critical already fired
+  - source_match:
+      severity: 'critical'
+      alertname: 'CriticalDiskUsage'
+    target_match:
+      severity: 'warning'
+      alertname: 'HighDiskUsage'
+    equal: ['instance', 'mountpoint']
+
+  # Don't alert on high CPU if critical already fired
+  - source_match:
+      severity: 'critical'
+      alertname: 'CriticalCPUUsage'
+    target_match:
+      severity: 'warning'
+      alertname: 'HighCPUUsage'
+    equal: ['instance']
+
+  # Don't alert on error rate if application is down
+  - source_match:
+      alertname: 'ApplicationDown'
+    target_match:
+      alertname: 'HighErrorRate'
+    equal: ['instance']
+
+  # Don't alert on query latency if database is down
+  - source_match:
+      alertname: 'ServiceDependencyDown'
+    target_match:
+      alertname: 'HighDatabaseQueryLatency'
+    equal: ['instance']
+
+  # Don't alert on warnings if critical alert exists
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

@@ -43,8 +43,8 @@ CREATE TABLE IF NOT EXISTS fluxo_periodos (
   saidas_dia                  REAL NOT NULL DEFAULT 0.0,
 
   -- Auditoria
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Unicidade: um registro por (data, categoria)
   UNIQUE(data, categoria)
@@ -89,8 +89,8 @@ CREATE TABLE IF NOT EXISTS categorias_transacoes_asaas (
   uso_count                   INTEGER NOT NULL DEFAULT 1,     -- Quantas vezes esta regra foi usada
 
   -- Auditoria
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Índices para queries frequentes
@@ -140,9 +140,9 @@ CREATE TABLE IF NOT EXISTS pagamentos_pix_recebidos (
   webhook_recebido_em         DATETIME,                       -- Timestamp do webhook de confirmação
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
   confirmado_em               DATETIME,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Unicidade: evita duplicação por retry do mesmo contrato no mesmo dia
   -- (um débito por contrato por data de criação)
@@ -190,8 +190,8 @@ CREATE TABLE IF NOT EXISTS audit_reconciliacao_pix (
   observacoes                 TEXT,                           -- Notas sobre discrepâncias ou razão do casamento
 
   -- Auditoria
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Índices para queries frequentes

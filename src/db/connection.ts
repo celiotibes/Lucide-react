@@ -1,4 +1,5 @@
 import initSqlJs, { type Database } from "sql.js";
+import sqlWasmInline from "sql.js/dist/sql-wasm.wasm?inline";
 import { get, set } from "idb-keyval";
 import schemaSql from "../../contabilidade-reconstituicao/schema.sql?raw";
 // Import tardio (dentro das funções, não no topo do módulo) porque planoDeContas.ts importa
@@ -13,7 +14,7 @@ const IDB_KEY = "contabilidade-db-v1";
 let dbInstance: Database | null = null;
 
 async function criarBancoVazio(): Promise<Database> {
-  const SQL = await initSqlJs({ locateFile: () => "/sql-wasm.wasm" });
+  const SQL = await initSqlJs({ locateFile: () => sqlWasmInline });
   const db = new SQL.Database();
   db.run(schemaSql);
   garantirPlanoDeContasPadrao(db);
@@ -53,7 +54,7 @@ export async function abrirBanco(): Promise<Database> {
 
   const bytesSalvos = await get<Uint8Array>(IDB_KEY);
   if (bytesSalvos) {
-    const SQL = await initSqlJs({ locateFile: () => "/sql-wasm.wasm" });
+    const SQL = await initSqlJs({ locateFile: () => sqlWasmInline });
     dbInstance = new SQL.Database(bytesSalvos);
     migrarBancoExistente(dbInstance);
   } else {
@@ -97,7 +98,7 @@ const TABELAS_ASSINATURA = ["imoveis", "transacoes", "contratos_locacao"];
  * auditoria adversarial). Por isso valida a ASSINATURA do arquivo ANTES de substituir
  * dbInstance — se não bater, o banco atual em uso nem chega a ser tocado. */
 export async function importarArquivo(bytes: Uint8Array): Promise<Database> {
-  const SQL = await initSqlJs({ locateFile: () => "/sql-wasm.wasm" });
+  const SQL = await initSqlJs({ locateFile: () => sqlWasmInline });
 
   let candidato: Database;
   try {

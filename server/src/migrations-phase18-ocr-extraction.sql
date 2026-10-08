@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS document_extractions (
   cpf_extraido                TEXT,                            -- Extracted CPF (buyer)
   numero_nf_extraido          TEXT,                            -- Extracted invoice number
   data_nf_extraida            DATE,                            -- Extracted invoice date
-  valor_extraido              DECIMAL(12, 2),                  -- Extracted total amount
+  valor_extraido              REAL,                            -- Extracted total amount
 
   -- Review workflow
   revisado_por                TEXT,                           -- FK to usuarios.id (reviewer)
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS document_extractions (
   motivo_rejeicao             TEXT,                           -- Reason for rejection
 
   -- Audit trail
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Foreign keys
   FOREIGN KEY (lote_id) REFERENCES importacao_lotes(id) ON DELETE CASCADE,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS extraction_fields (
   corrected_em                DATETIME,
   correction_notes            TEXT,
 
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Foreign keys
   FOREIGN KEY (extraction_id) REFERENCES document_extractions(id) ON DELETE CASCADE,
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS extraction_reviews (
   -- Review action
   action                      TEXT NOT NULL,                  -- APPROVED, REJECTED, CORRECTIONS_MADE
   notes                       TEXT,                           -- Review notes
-  timestamp                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  timestamp                   DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Foreign keys
   FOREIGN KEY (extraction_id) REFERENCES document_extractions(id) ON DELETE CASCADE,
