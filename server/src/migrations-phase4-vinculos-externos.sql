@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS vinculos_externos_telegram_pendentes (
   id            TEXT PRIMARY KEY,
   codigo_vinculo TEXT NOT NULL,
   chat_id       TEXT NOT NULL,
-  recebido_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  recebido_em   DATETIME NOT NULL DEFAULT (datetime('now')),
   consumido     INTEGER NOT NULL DEFAULT 0 CHECK(consumido IN (0, 1)),
   consumido_em  DATETIME
 );

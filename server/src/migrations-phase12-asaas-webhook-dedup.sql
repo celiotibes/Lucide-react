@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS asaas_webhook_eventos (
   tipo TEXT NOT NULL,                       -- Tipo do evento (PAYMENT_RECEIVED, PAYMENT_CONFIRMED, etc.)
   payment_id TEXT NOT NULL,                 -- ID da cobrança no Asaas
   payload_hash TEXT,                        -- SHA256 do payload para auditoria
-  recebido_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  recebido_em TEXT NOT NULL DEFAULT (datetime('now')),
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Índice para busca rápida por ID do evento (chave de deduplicação)

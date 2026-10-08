@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS eventos_externos_pendentes (
   tipo          TEXT NOT NULL CHECK(tipo IN ('captura_telegram', 'webhook_asaas', 'webhook_pluggy')),
   usuario_id    TEXT REFERENCES usuarios(id),  -- NULL até resolvido (ex: captura_telegram antes do vínculo de chat_id ser identificado)
   payload_json  TEXT NOT NULL,                  -- corpo bruto do evento, serializado; o cliente decide como interpretar por `tipo`
-  recebido_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  recebido_em   DATETIME NOT NULL DEFAULT (datetime('now')),
   consumido     INTEGER NOT NULL DEFAULT 0 CHECK(consumido IN (0, 1)),
   consumido_em  DATETIME
 );
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS telegram_vinculos (
   chat_id         TEXT UNIQUE,          -- NULL até o bot confirmar o vínculo
   vinculado_em    DATETIME,
   expira_em       DATETIME NOT NULL,    -- código não usado expira (evita vínculo por código velho/vazado)
-  criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  criado_em       DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_telegram_vinculos_usuario ON telegram_vinculos(usuario_id);

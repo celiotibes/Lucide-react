@@ -57,8 +57,8 @@ CREATE TABLE IF NOT EXISTS propriedades (
 
   -- Status tracking
   ativo INTEGER NOT NULL DEFAULT 1,
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Audit trail
   criado_por TEXT NOT NULL,
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS propriedades_custos (
   observacoes TEXT,
 
   -- Audit
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   criado_por TEXT NOT NULL,
 
   FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS propriedades_depreciacao (
   depreciacao_acumulada REAL NOT NULL,
 
   -- Audit
-  calculado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  calculado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   calculado_por TEXT,
 
   FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS propriedades_roi (
   indice_lucratividade REAL,
 
   -- Audit
-  calculado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  calculado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   calculado_por TEXT,
 
   FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,

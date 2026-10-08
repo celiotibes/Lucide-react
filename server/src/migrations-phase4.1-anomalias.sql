@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS alertas_anomalias_registrados (
   revisado_em DATETIME,
   motivo_revisao TEXT,                       -- ex: "falso positivo", "confirmado fraude"
 
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_em DATETIME,
 
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS cache_metricas_anomalias (
 
   -- Metadata
   total_transacoes INTEGER,                  -- Quantas transações foram usadas no cálculo
-  atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );

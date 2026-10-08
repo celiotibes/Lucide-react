@@ -28,9 +28,9 @@ CREATE TABLE IF NOT EXISTS categorias (
   icone_nome TEXT,  -- nome do ícone (ex: lucide-react)
   ordem INTEGER DEFAULT 0,  -- para ordenação customizada
   is_deleted INTEGER DEFAULT 0,  -- soft-delete
-  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME DEFAULT (datetime('now')),
   usuario_criacao INTEGER,
-  alterado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  alterado_em DATETIME DEFAULT (datetime('now')),
   usuario_alteracao INTEGER,
 
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS transacoes_completas (
   status TEXT DEFAULT 'confirmada' CHECK (status IN ('rascunho', 'pendente', 'confirmada', 'cancelada')),
   is_deleted INTEGER DEFAULT 0,  -- soft-delete
 
-  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME DEFAULT (datetime('now')),
   usuario_criacao INTEGER,
-  alterado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  alterado_em DATETIME DEFAULT (datetime('now')),
   usuario_alteracao INTEGER,
 
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS transacoes_historico (
 
   -- Quem e quando
   usuario_id INTEGER,
-  data_alteracao DATETIME DEFAULT CURRENT_TIMESTAMP,
+  data_alteracao DATETIME DEFAULT (datetime('now')),
   motivo_alteracao TEXT,  -- ex: "correção de valor", "duplicata removida"
 
   FOREIGN KEY (transacao_id) REFERENCES transacoes_completas(id) ON DELETE CASCADE,
@@ -140,9 +140,9 @@ CREATE TABLE IF NOT EXISTS orcamentos (
   ativo INTEGER DEFAULT 1,
   is_deleted INTEGER DEFAULT 0,
 
-  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME DEFAULT (datetime('now')),
   usuario_criacao INTEGER,
-  alterado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  alterado_em DATETIME DEFAULT (datetime('now')),
   usuario_alteracao INTEGER,
 
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS orcamentos_historico (
   valor_novo TEXT,
 
   usuario_id INTEGER,
-  data_alteracao DATETIME DEFAULT CURRENT_TIMESTAMP,
+  data_alteracao DATETIME DEFAULT (datetime('now')),
   motivo TEXT,
 
   FOREIGN KEY (orcamento_id) REFERENCES orcamentos(id) ON DELETE CASCADE,

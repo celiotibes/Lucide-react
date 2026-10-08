@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS setup_wizard_config (
   id TEXT PRIMARY KEY,
 
   -- Setup status
-  setup_completed BOOLEAN NOT NULL DEFAULT 0,
-  completed_at TIMESTAMP,
-  last_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  setup_completed INTEGER NOT NULL DEFAULT 0,
+  completed_at DATETIME,
+  last_updated_at DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- AI Provider Configuration
   ai_provider TEXT NOT NULL DEFAULT 'anthropic',
@@ -46,10 +46,10 @@ CREATE TABLE IF NOT EXISTS setup_wizard_config (
   db_name TEXT DEFAULT 'lucide_react',
   db_user TEXT,
   db_password TEXT,
-  db_ssl_enabled BOOLEAN DEFAULT 1,
+  db_ssl_enabled INTEGER DEFAULT 1,
 
   -- Backup Configuration
-  backup_enabled BOOLEAN NOT NULL DEFAULT 1,
+  backup_enabled INTEGER NOT NULL DEFAULT 1,
   backup_frequency TEXT DEFAULT 'daily',
   -- Options: 'hourly', 'daily', 'weekly', 'monthly'
 
@@ -74,11 +74,11 @@ CREATE TABLE IF NOT EXISTS setup_wizard_config (
 
   -- macOS specific
   macos_app_version TEXT,
-  macos_auto_update_enabled BOOLEAN DEFAULT 1,
+  macos_auto_update_enabled INTEGER DEFAULT 1,
 
   -- Windows specific
   windows_app_version TEXT,
-  windows_auto_update_enabled BOOLEAN DEFAULT 1,
+  windows_auto_update_enabled INTEGER DEFAULT 1,
   windows_scheduled_backup_time TEXT DEFAULT '02:00',
 
   -- Docker specific
@@ -93,9 +93,9 @@ CREATE TABLE IF NOT EXISTS setup_wizard_config (
   -- Options: 'debug', 'info', 'warn', 'error'
 
   -- GDPR & Consent
-  gdpr_consent_given BOOLEAN DEFAULT 0,
-  gdpr_consent_timestamp TIMESTAMP,
-  analytics_enabled BOOLEAN DEFAULT 0,
+  gdpr_consent_given INTEGER DEFAULT 0,
+  gdpr_consent_timestamp DATETIME,
+  analytics_enabled INTEGER DEFAULT 0,
 
   -- Configuration metadata (JSON)
   metadata TEXT,
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS setup_wizard_audit (
   user_ip TEXT,
   user_agent TEXT,
 
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (config_id) REFERENCES setup_wizard_config(id) ON DELETE CASCADE
 );
@@ -171,13 +171,13 @@ CREATE TABLE IF NOT EXISTS credential_backup_log (
 
   error_message TEXT,
 
-  started_at TIMESTAMP,
-  completed_at TIMESTAMP,
+  started_at DATETIME,
+  completed_at DATETIME,
 
-  retention_until TIMESTAMP,
+  retention_until DATETIME,
   -- Date after which this backup can be deleted
 
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (config_id) REFERENCES setup_wizard_config(id) ON DELETE CASCADE
 );
@@ -205,15 +205,15 @@ CREATE TABLE IF NOT EXISTS ai_provider_validation_cache (
   model TEXT NOT NULL,
   api_key_hash TEXT NOT NULL,
 
-  is_valid BOOLEAN NOT NULL DEFAULT 0,
+  is_valid INTEGER NOT NULL DEFAULT 0,
   validation_error TEXT,
 
   response_time_ms INTEGER,
   model_capabilities TEXT,
   -- JSON storing supported features of the model
 
-  validated_at TIMESTAMP NOT NULL,
-  expires_at TIMESTAMP,
+  validated_at DATETIME NOT NULL,
+  expires_at DATETIME,
 
   UNIQUE(provider, model, api_key_hash)
 );

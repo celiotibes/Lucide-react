@@ -31,10 +31,10 @@ ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS agente_papel TEXT;
 ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS referencia_agente_externo TEXT;
 
 -- Adiciona coluna para tracking de backfill
-ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS backfill_em TIMESTAMP;
+ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS backfill_em DATETIME;
 
 -- Adiciona coluna para audit trail de mudanças de agente
-ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS agente_atualizado_em TIMESTAMP;
+ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS agente_atualizado_em DATETIME;
 ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS agente_atualizado_por UUID;
 
 
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS ledger_entries_agente_auditoria (
   agente_papel_novo TEXT,
   motivo_mudanca TEXT NOT NULL, -- 'backfill', 'manual', 'integracao', 'correcao'
   usuario_id UUID,  -- Quem fez a mudança (NULL se sistema)
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (ledger_entry_id) REFERENCES ledger_entries(id) ON DELETE CASCADE
 );

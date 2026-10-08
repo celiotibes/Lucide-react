@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS certificados_digitais (
   ativo                       INTEGER NOT NULL DEFAULT 1,
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
@@ -74,8 +74,8 @@ CREATE TABLE IF NOT EXISTS assinaturas_digitais (
   pdf_assinado_url            TEXT,                           -- URL/path para download
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
   FOREIGN KEY (certificado_id) REFERENCES certificados_digitais(id)
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS audit_log_lgpd (
   consentimento_id            TEXT,                           -- FK para registro de consentimento (se aplica)
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS pessoas_anonimizadas (
   usuario_id_solicitante      TEXT,                           -- Quem solicitou a anonimização
 
   -- Execução
-  anonimizado_em              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  anonimizado_em              DATETIME NOT NULL DEFAULT (datetime('now')),
   versao_anonimizacao         TEXT NOT NULL DEFAULT '1.0',
 
   -- Compliance
@@ -197,7 +197,7 @@ CREATE TABLE IF NOT EXISTS consentimentos_lgpd (
 
   -- Status
   consentido                  INTEGER NOT NULL,
-  data_consentimento          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  data_consentimento          DATETIME NOT NULL DEFAULT (datetime('now')),
   validade_ate                DATETIME,                       -- NULL = indefinido
 
   -- Contexto
@@ -205,8 +205,8 @@ CREATE TABLE IF NOT EXISTS consentimentos_lgpd (
   user_agent                  TEXT,
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_consentimentos_pessoa
@@ -233,7 +233,7 @@ CREATE TABLE IF NOT EXISTS solicitacoes_direitos_lgpd (
 
   -- Status
   status                      TEXT NOT NULL DEFAULT 'PENDENTE', -- PENDENTE, EM_PROCESSAMENTO, CONCLUIDA, REJEITADA
-  data_solicitacao            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  data_solicitacao            DATETIME NOT NULL DEFAULT (datetime('now')),
   data_conclusao              DATETIME,
 
   -- Resposta
@@ -241,8 +241,8 @@ CREATE TABLE IF NOT EXISTS solicitacoes_direitos_lgpd (
   motivo_rejeicao             TEXT,
 
   -- Auditoria
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_solicitacoes_pessoa

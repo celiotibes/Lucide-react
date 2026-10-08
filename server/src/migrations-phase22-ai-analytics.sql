@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS ia_analises (
   tempo_execucao_ms INTEGER,
 
   -- Timestamps
-  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME DEFAULT (datetime('now')),
+  atualizado_em DATETIME DEFAULT (datetime('now')),
 
   -- Constraints
   FOREIGN KEY (transacao_id) REFERENCES transacoes(id) ON DELETE CASCADE

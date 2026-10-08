@@ -21,33 +21,33 @@ CREATE TABLE IF NOT EXISTS dre_periodos (
   mes                       INTEGER NOT NULL CHECK(mes >= 1 AND mes <= 12),
 
   -- Receitas
-  receita_aluguel           DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  receita_honorario         DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  receita_extraordinaria    DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  receita_total             DECIMAL(15, 2) DEFAULT 0 NOT NULL,
+  receita_aluguel           REAL DEFAULT 0 NOT NULL,
+  receita_honorario         REAL DEFAULT 0 NOT NULL,
+  receita_extraordinaria    REAL DEFAULT 0 NOT NULL,
+  receita_total             REAL DEFAULT 0 NOT NULL,
 
   -- Despesas Variáveis (proporcionais à receita)
-  despesa_comissoes         DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  despesa_impostos_receita  DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  despesa_variavel_total    DECIMAL(15, 2) DEFAULT 0 NOT NULL,
+  despesa_comissoes         REAL DEFAULT 0 NOT NULL,
+  despesa_impostos_receita  REAL DEFAULT 0 NOT NULL,
+  despesa_variavel_total    REAL DEFAULT 0 NOT NULL,
 
   -- Lucro Bruto
-  lucro_bruto               DECIMAL(15, 2) DEFAULT 0 NOT NULL,
+  lucro_bruto               REAL DEFAULT 0 NOT NULL,
 
   -- Despesas Fixas (independentes de receita)
-  despesa_folha_pagamento   DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  despesa_condominio        DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  despesa_manutencao        DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  despesa_juros             DECIMAL(15, 2) DEFAULT 0 NOT NULL,
-  despesa_fixa_total        DECIMAL(15, 2) DEFAULT 0 NOT NULL,
+  despesa_folha_pagamento   REAL DEFAULT 0 NOT NULL,
+  despesa_condominio        REAL DEFAULT 0 NOT NULL,
+  despesa_manutencao        REAL DEFAULT 0 NOT NULL,
+  despesa_juros             REAL DEFAULT 0 NOT NULL,
+  despesa_fixa_total        REAL DEFAULT 0 NOT NULL,
 
   -- Resultado Final
-  lucro_liquido             DECIMAL(15, 2) DEFAULT 0 NOT NULL,
+  lucro_liquido             REAL DEFAULT 0 NOT NULL,
 
   -- Metadata
-  calculado_em              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_em                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  calculado_em              DATETIME NOT NULL DEFAULT (datetime('now')),
+  criado_em                 DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em             DATETIME NOT NULL DEFAULT (datetime('now')),
 
   UNIQUE (ano, mes)
 );

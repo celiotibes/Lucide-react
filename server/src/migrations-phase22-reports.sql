@@ -27,9 +27,9 @@ CREATE TABLE IF NOT EXISTS relatorios (
   versao_relatorio TEXT DEFAULT '1.0.0',
 
   -- Criação e versionamento
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  expirado_em TIMESTAMP DEFAULT datetime('now', '+90 days'),
+  criado_em DATETIME DEFAULT (datetime('now')),
+  atualizado_em DATETIME DEFAULT (datetime('now')),
+  expirado_em DATETIME DEFAULT datetime('now', '+90 days'),
 
   -- Auditoria
   usuario_id INTEGER,
@@ -66,13 +66,13 @@ CREATE TABLE IF NOT EXISTS relatorios_templates (
 
   -- Rodapé (assinatura digital)
   rodape_texto TEXT,
-  incluir_data_geracao BOOLEAN DEFAULT 1,
-  incluir_assinatura BOOLEAN DEFAULT 0,
+  incluir_data_geracao INTEGER DEFAULT 1,
+  incluir_assinatura INTEGER DEFAULT 0,
 
   -- Metadata
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  ativo BOOLEAN DEFAULT 1,
+  criado_em DATETIME DEFAULT (datetime('now')),
+  atualizado_em DATETIME DEFAULT (datetime('now')),
+  ativo INTEGER DEFAULT 1,
 
   usuario_id INTEGER NOT NULL,
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
@@ -92,8 +92,8 @@ CREATE TABLE IF NOT EXISTS relatorios_exports (
   hash_arquivo TEXT,
 
   -- Metadata
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  expirado_em TIMESTAMP DEFAULT datetime('now', '+30 days'),
+  criado_em DATETIME DEFAULT (datetime('now')),
+  expirado_em DATETIME DEFAULT datetime('now', '+30 days'),
 
   -- Auditoria
   usuario_id INTEGER,
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS relatorios_auditar (
   ip_cliente TEXT,
   user_agent TEXT,
 
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME DEFAULT (datetime('now')),
 
   FOREIGN KEY(relatorio_id) REFERENCES relatorios(id) ON DELETE CASCADE,
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
@@ -160,7 +160,7 @@ END;
 CREATE TRIGGER IF NOT EXISTS update_relatorios_timestamp
 BEFORE UPDATE ON relatorios
 BEGIN
-  UPDATE relatorios SET atualizado_em = CURRENT_TIMESTAMP
+  UPDATE relatorios SET atualizado_em = (datetime('now'))
   WHERE id = NEW.id;
 END;
 
@@ -168,7 +168,7 @@ END;
 CREATE TRIGGER IF NOT EXISTS update_relatorios_templates_timestamp
 BEFORE UPDATE ON relatorios_templates
 BEGIN
-  UPDATE relatorios_templates SET atualizado_em = CURRENT_TIMESTAMP
+  UPDATE relatorios_templates SET atualizado_em = (datetime('now'))
   WHERE id = NEW.id;
 END;
 

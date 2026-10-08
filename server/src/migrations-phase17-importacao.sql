@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS importacao_lotes (
   -- Status e auditoria
   status                      TEXT NOT NULL DEFAULT 'ENVIADO', -- LoteStatus enum
   erro_mensagem               TEXT,                            -- Mensagem de erro, se houver
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
+  atualizado_em               DATETIME NOT NULL DEFAULT (datetime('now')),
 
   -- Foreign key
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS importacao_linhas (
   rejeitado_em                DATETIME,
   motivo_rejeicao             TEXT,
 
-  criado_em                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                   DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_em               DATETIME,
 
   -- Foreign keys
@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS importacao_validacoes (
   passou INTEGER NOT NULL CHECK(passou IN (0, 1)),
   mensagem_erro TEXT,
 
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
 
   FOREIGN KEY(linha_id) REFERENCES importacao_linhas(id) ON DELETE CASCADE
 );
@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS importacao_deduplicacoes (
   acao TEXT DEFAULT 'pendente'
     CHECK(acao IN ('pendente', 'confirmada', 'rejeitada', 'ignorada')),
 
-  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   atualizado_em DATETIME,
 
   FOREIGN KEY(linha_nova_id) REFERENCES importacao_linhas(id) ON DELETE CASCADE,

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS reembolsos_asaas (
   origem_tipo               TEXT NOT NULL CHECK (origem_tipo IN ('aluguel_competencia', 'honorario_advocaticio')),
   origem_id                 INTEGER NOT NULL,
   mensagem_erro             TEXT,
-  criado_em                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em                 DATETIME NOT NULL DEFAULT (datetime('now')),
   UNIQUE (origem_tipo, origem_id)  -- Idempotência: impede reemissão acidental
 );
 
