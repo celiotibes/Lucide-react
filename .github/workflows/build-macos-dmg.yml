@@ -2,6 +2,11 @@ name: Build macOS DMG
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - claude/accounting-legal-reconstruction-i8gep8
+    paths:
+      - '.github/workflows/build-macos-dmg.yml'
 
 permissions:
   contents: read
