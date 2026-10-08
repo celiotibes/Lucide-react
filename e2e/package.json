@@ -1,0 +1,40 @@
+{
+  "name": "@crmt/e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-End Security Testing Suite for CRMT Mobile App",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "jest",
+    "test:android": "detox test --configuration android.emu.release --cleanup",
+    "test:ios": "detox test --configuration ios.sim.release --cleanup",
+    "test:all": "npm run test:android && npm run test:ios",
+    "test:auth": "jest auth.e2e.ts",
+    "test:security": "jest security.e2e.ts",
+    "test:privacy": "jest privacy.e2e.ts",
+    "test:watch": "jest --watch",
+    "test:debug": "detox test --configuration android.emu.debug --record-logs all",
+    "test:local": "jest --testPathPattern='e2e' --verbose",
+    "test:parallel": "jest --maxWorkers=4",
+    "build-app:android": "detox build-app --configuration android.emu.release",
+    "build-app:ios": "detox build-app --configuration ios.sim.release",
+    "build-framework:cache": "detox build-framework-cache",
+    "clean": "detox clean-framework-cache && detox clean-app-cache",
+    "start-server": "node scripts/start-test-server.js",
+    "report": "node scripts/generate-e2e-report.js",
+    "coverage": "jest --coverage",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "keywords": [
+    "e2e",
+    "testing",
+    "detox",
+    "security",
+    "mobile",
+    "react-native",
+    "gdpr",
+    "privacy",
+    "authentication"
+  ],
+  "author": "CRMT Team",
+  "license": "MIT"
+}

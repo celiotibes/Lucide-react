@@ -1,0 +1,156 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isValidFileType(mimeType, allowedTypes) {
+      return mimeType in allowedTypes;
+    }
+
+    function isValidSize(maxSize) {
+      return request.resource.size <= maxSize;
+    }
+
+    function isValidFileName(name) {
+      return name.matches('^[a-zA-Z0-9._\\-/]+$') && !name.contains('..');
+    }
+
+    function isExpired(expiresAt) {
+      return request.time > expiresAt;
+    }
+
+    // User avatars - Limited to images
+    match /users/{uid}/avatar/{filename} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() &&
+                      isOwner(uid) &&
+                      isValidFileType(request.resource.contentType,
+                        ['image/jpeg', 'image/png', 'image/webp', 'image/gif']) &&
+                      isValidSize(5 * 1024 * 1024) && // 5MB
+                      isValidFileName(filename);
+      allow delete: if isAuthenticated() && isOwner(uid);
+    }
+
+    // User documents storage
+    match /users/{uid}/documents/{allPaths=**} {
+      allow read: if isAuthenticated() &&
+                     (isOwner(uid) ||
+                      resource.metadata.custom.sharedWith.contains(request.auth.uid));
+      allow write: if isAuthenticated() &&
+                      isOwner(uid) &&
+                      isValidSize(50 * 1024 * 1024) && // 50MB
+                      isValidFileName(resource.name) &&
+                      isValidFileType(request.resource.contentType,
+                        ['application/pdf', 'application/msword',
+                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         'text/plain', 'text/csv']);
+      allow delete: if isAuthenticated() && isOwner(uid);
+    }
+
+    // Project files storage
+    match /projects/{projectId}/{allPaths=**} {
+      allow read: if isAuthenticated() &&
+                     (resource.metadata.custom.ownerId == request.auth.uid ||
+                      resource.metadata.custom.sharedWith.contains(request.auth.uid));
+      allow write: if isAuthenticated() &&
+                      resource.metadata.custom.ownerId == request.auth.uid &&
+                      isValidSize(100 * 1024 * 1024) && // 100MB per file
+                      isValidFileName(resource.name) &&
+                      // Verify total project size (simplified check)
+                      request.resource.size + (
+                        firestore.doc(`projects/${projectId}`).data.totalStorageUsed
+                      ) <= 1 * 1024 * 1024 * 1024; // 1GB per project
+      allow delete: if isAuthenticated() &&
+                      resource.metadata.custom.ownerId == request.auth.uid;
+    }
+
+    // Temporary uploads - Auto-cleanup after 24 hours
+    match /temp/{uid}/{uploadId}/{filename} {
+      allow read: if isAuthenticated() &&
+                     (isOwner(uid) ||
+                      resource.timeCreated < now - duration.value(24, 'h'));
+      allow write: if isAuthenticated() &&
+                      isOwner(uid) &&
+                      isValidSize(25 * 1024 * 1024) && // 25MB
+                      isValidFileName(filename);
+      allow delete: if isAuthenticated() &&
+                      (isOwner(uid) ||
+                       resource.timeCreated < now - duration.value(24, 'h'));
+    }
+
+    // Backup and archive storage
+    match /backups/{uid}/{timestamp}/{filename} {
+      allow read: if isAuthenticated() &&
+                     isOwner(uid);
+      allow write: if isAuthenticated() &&
+                      isOwner(uid) &&
+                      isValidSize(500 * 1024 * 1024) && // 500MB
+                      isValidFileName(filename) &&
+                      // Check file is a valid backup format
+                      filename.matches('^backup_[0-9]+\\.(zip|tar\\.gz|json)$');
+      allow delete: if isAuthenticated() &&
+                      isOwner(uid) &&
+                      resource.timeCreated < now - duration.value(30, 'd'); // Keep 30 days
+    }
+
+    // Public assets - Read-only
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Only admin via backend can write
+    }
+
+    // Shared files with expiration support
+    match /shared/{shareId}/files/{filename} {
+      allow read: if request.auth != null &&
+                     (request.auth.uid == resource.metadata.custom.createdBy ||
+                      (resource.metadata.custom.expiresAt != null &&
+                       request.time < resource.metadata.custom.expiresAt));
+      allow write: if isAuthenticated() &&
+                      request.auth.uid == resource.metadata.custom.createdBy &&
+                      isValidSize(100 * 1024 * 1024);
+      allow delete: if isAuthenticated() &&
+                      request.auth.uid == resource.metadata.custom.createdBy;
+    }
+
+    // Media storage - Images and videos
+    match /media/{uid}/{type}/{filename} {
+      allow read: if isAuthenticated() &&
+                     (isOwner(uid) ||
+                      resource.metadata.custom.isPublic == true);
+      allow write: if isAuthenticated() &&
+                      isOwner(uid) &&
+                      (
+                        // Images: JPEG, PNG, WebP, GIF - Max 20MB
+                        (type == 'images' &&
+                         isValidFileType(request.resource.contentType,
+                           ['image/jpeg', 'image/png', 'image/webp', 'image/gif']) &&
+                         isValidSize(20 * 1024 * 1024)) ||
+                        // Videos: MP4, WebM - Max 500MB
+                        (type == 'videos' &&
+                         isValidFileType(request.resource.contentType,
+                           ['video/mp4', 'video/webm', 'video/quicktime']) &&
+                         isValidSize(500 * 1024 * 1024)) ||
+                        // Audio: MP3, WAV, OGG - Max 50MB
+                        (type == 'audio' &&
+                         isValidFileType(request.resource.contentType,
+                           ['audio/mpeg', 'audio/wav', 'audio/ogg']) &&
+                         isValidSize(50 * 1024 * 1024))
+                      ) &&
+                      isValidFileName(filename);
+      allow delete: if isAuthenticated() && isOwner(uid);
+    }
+
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write, delete: if false;
+    }
+  }
+}
