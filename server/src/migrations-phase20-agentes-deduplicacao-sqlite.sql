@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS agentes_duplicatas_audit_trail (
   estado_posterior TEXT NOT NULL,
 
   -- Auditoria
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   criado_por TEXT NOT NULL,
   descricao TEXT,
 
@@ -217,9 +217,9 @@ CREATE TABLE IF NOT EXISTS ledger_entries_duplicatas (
   status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'confirmada', 'refutada', 'mesclada')),
 
   -- Auditoria
-  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  criado_em DATETIME NOT NULL DEFAULT (datetime('now')),
   criado_por TEXT NOT NULL,
-  analisado_em TIMESTAMP,
+  analisado_em DATETIME,
   analisado_por TEXT,
   decisao TEXT,
 
