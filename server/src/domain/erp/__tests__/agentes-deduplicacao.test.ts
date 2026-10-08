@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
+import { randomUUID } from "crypto";
 import {
   AgentesDeduplicacaoService,
   TransacoesDeduplicacaoService,
@@ -31,6 +32,7 @@ const USUARIO_TESTE_ID = "550e8400-e29b-41d4-a716-446655440000";
 // Helpers para criar dados de teste
 function criarAgenteTeste(sobrescrita: Partial<unknown> = {}): unknown {
   return {
+    id: randomUUID(),
     tipo_entidade: "pessoa_juridica",
     cpf_cnpj: "11222333000181",
     nome: "EMPRESA TESTE LTDA",
@@ -56,17 +58,17 @@ function criarAgenteTeste(sobrescrita: Partial<unknown> = {}): unknown {
 function inserirAgente(dados: unknown): string {
   const stmt = db.prepare(
     `INSERT INTO agentes_economicos (
-      tipo_entidade, cpf_cnpj, nome, nome_fantasia, papel,
+      id, tipo_entidade, cpf_cnpj, nome, nome_fantasia, papel,
       regime_tributario, email, telefone, celular,
       endereco_logradouro, endereco_numero, endereco_cidade, endereco_estado,
       endereco_cep, ativo, validado, criado_em, criado_por,
       atualizado_em, atualizado_por
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-              CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?)
-    RETURNING id`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?)`
   );
 
-  const resultado = stmt.get(
+  stmt.run(
+    dados.id,
     dados.tipo_entidade,
     dados.cpf_cnpj,
     dados.nome,
@@ -85,9 +87,9 @@ function inserirAgente(dados: unknown): string {
     dados.validado ? 1 : 0,
     dados.criado_por,
     dados.atualizado_por
-  ) as { id: string };
+  );
 
-  return resultado.id;
+  return dados.id as string;
 }
 
 // =====================================================================
@@ -102,7 +104,7 @@ describe("AgentesDeduplicacaoService", () => {
     // Executar schema básico
     db.exec(`
       CREATE TABLE usuarios (
-        id UUID PRIMARY KEY,
+        id TEXT PRIMARY KEY,
         nome VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL
       );
@@ -111,9 +113,9 @@ describe("AgentesDeduplicacaoService", () => {
         ('550e8400-e29b-41d4-a716-446655440000', 'Usuário Teste', 'teste@example.com');
 
       CREATE TABLE agentes_economicos (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id TEXT PRIMARY KEY,
         tipo_entidade TEXT NOT NULL,
-        cpf_cnpj VARCHAR(20) NOT NULL UNIQUE,
+        cpf_cnpj VARCHAR(20) NOT NULL,
         nome VARCHAR(255) NOT NULL,
         nome_fantasia VARCHAR(255),
         papel TEXT NOT NULL,
@@ -131,47 +133,47 @@ describe("AgentesDeduplicacaoService", () => {
         endereco_pais VARCHAR(50),
         ativo BOOLEAN DEFAULT true,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        criado_por UUID NOT NULL,
+        criado_por TEXT NOT NULL,
         atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        atualizado_por UUID NOT NULL,
+        atualizado_por TEXT NOT NULL,
         validado BOOLEAN DEFAULT false,
         validado_em TIMESTAMP,
-        validado_por UUID,
+        validado_por TEXT,
         FOREIGN KEY (criado_por) REFERENCES usuarios(id),
         FOREIGN KEY (atualizado_por) REFERENCES usuarios(id)
       );
 
       CREATE TABLE agentes_duplicatas_suspeitas (
-        id UUID PRIMARY KEY,
-        agente_id_1 UUID NOT NULL,
-        agente_id_2 UUID NOT NULL,
-        score DECIMAL(5, 2) NOT NULL,
+        id TEXT PRIMARY KEY,
+        agente_id_1 TEXT NOT NULL,
+        agente_id_2 TEXT NOT NULL,
+        score REAL NOT NULL,
         motivo TEXT NOT NULL,
-        score_cpf DECIMAL(5, 2),
-        score_nome DECIMAL(5, 2),
-        score_email DECIMAL(5, 2),
-        score_telefone DECIMAL(5, 2),
-        score_endereco DECIMAL(5, 2),
+        score_cpf REAL,
+        score_nome REAL,
+        score_email REAL,
+        score_telefone REAL,
+        score_endereco REAL,
         status TEXT DEFAULT 'pendente',
         analisado_em TIMESTAMP,
-        analisado_por UUID,
+        analisado_por TEXT,
         decisao TEXT,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        criado_por UUID NOT NULL,
+        criado_por TEXT NOT NULL,
         FOREIGN KEY (agente_id_1) REFERENCES agentes_economicos(id),
         FOREIGN KEY (agente_id_2) REFERENCES agentes_economicos(id),
         FOREIGN KEY (analisado_por) REFERENCES usuarios(id)
       );
 
       CREATE TABLE agentes_duplicatas_audit_trail (
-        id UUID PRIMARY KEY,
+        id TEXT PRIMARY KEY,
         tipo_operacao TEXT NOT NULL,
-        agente_primario_id UUID NOT NULL,
-        agente_secundario_id UUID NOT NULL,
+        agente_primario_id TEXT NOT NULL,
+        agente_secundario_id TEXT NOT NULL,
         estado_anterior TEXT,
         estado_posterior TEXT,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        criado_por UUID NOT NULL,
+        criado_por TEXT NOT NULL,
         descricao TEXT,
         FOREIGN KEY (agente_primario_id) REFERENCES agentes_economicos(id),
         FOREIGN KEY (agente_secundario_id) REFERENCES agentes_economicos(id),
@@ -179,10 +181,10 @@ describe("AgentesDeduplicacaoService", () => {
       );
 
       CREATE TABLE ledger_entries (
-        id UUID PRIMARY KEY,
-        usuario_id UUID NOT NULL,
-        agente_id UUID,
-        valor DECIMAL(10, 2),
+        id TEXT PRIMARY KEY,
+        usuario_id TEXT NOT NULL,
+        agente_id TEXT,
+        valor REAL,
         data TEXT,
         descricao TEXT,
         atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -191,26 +193,26 @@ describe("AgentesDeduplicacaoService", () => {
       );
 
       CREATE TABLE ledger_entries_duplicatas (
-        id UUID PRIMARY KEY,
-        ledger_entrada_1_id UUID,
-        ledger_entrada_2_id UUID,
-        score DECIMAL(5, 2),
+        id TEXT PRIMARY KEY,
+        ledger_entrada_1_id TEXT,
+        ledger_entrada_2_id TEXT,
+        score REAL,
         status TEXT DEFAULT 'pendente',
         criado_em TIMESTAMP,
-        criado_por UUID
+        criado_por TEXT
       );
 
       CREATE TABLE agentes_vinculacoes (
-        id UUID PRIMARY KEY,
-        agente_id UUID,
+        id TEXT PRIMARY KEY,
+        agente_id TEXT,
         tipo_vinculacao TEXT,
-        entidade_id UUID,
+        entidade_id TEXT,
         FOREIGN KEY (agente_id) REFERENCES agentes_economicos(id)
       );
 
       CREATE TABLE agentes_validacoes (
-        id UUID PRIMARY KEY,
-        agente_id UUID,
+        id TEXT PRIMARY KEY,
+        agente_id TEXT,
         tipo_validacao TEXT,
         resultado TEXT,
         FOREIGN KEY (agente_id) REFERENCES agentes_economicos(id)
@@ -259,7 +261,7 @@ describe("AgentesDeduplicacaoService", () => {
       // Registrar merge
       const stmtMerge = db.prepare(
         `INSERT INTO agentes_duplicatas_suspeitas
-         (id, agente_id_1, agente_id_2, score, motivo, status, criado_by, criado_em)
+         (id, agente_id_1, agente_id_2, score, motivo, status, criado_por, criado_em)
          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
       );
       stmtMerge.run(
