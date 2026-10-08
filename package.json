@@ -4,6 +4,7 @@
   "author": "CRMT Team <team@crmt.app>",
   "private": true,
   "version": "1.0.0",
+  "main": "electron.js",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -20,6 +21,9 @@
       "server/**/*",
       "package.json"
     ],
+    "extraMetadata": {
+      "main": "electron.js"
+    },
     "win": {
       "target": [
         "nsis",
@@ -38,14 +42,15 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:typecheck": "tsc -b && vite build",
-    "build:electron": "electron-builder -m --publish=never",
-    "build:electron:publish": "electron-builder -m --publish=always",
-    "build:windows": "electron-builder -w --publish=never",
-    "build:windows:publish": "electron-builder -w --publish=always",
-    "build:all": "electron-builder -mw --publish=never",
-    "build:all:publish": "electron-builder -mw --publish=always",
+    "build": "vite build && node create-electron-files.cjs",
+    "build:typecheck": "tsc -b && vite build && node create-electron-files.cjs",
+    "copy:electron-main": "node create-electron-files.cjs",
+    "build:electron": "npm run build && electron-builder -m --publish=never",
+    "build:electron:publish": "npm run build && electron-builder -m --publish=always",
+    "build:windows": "npm run build && electron-builder -w --publish=never",
+    "build:windows:publish": "npm run build && electron-builder -w --publish=always",
+    "build:all": "npm run build && electron-builder -mw --publish=never",
+    "build:all:publish": "npm run build && electron-builder -mw --publish=always",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
