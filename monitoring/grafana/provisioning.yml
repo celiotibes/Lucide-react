@@ -1,0 +1,18 @@
+# ============================================================================
+# Grafana Dashboard Provisioning Configuration
+# Phase 22.22: Advanced Monitoring & Observability
+# ============================================================================
+
+apiVersion: 1
+
+providers:
+  # Dashboard provisioning from files
+  - name: 'Lucide CRMT Dashboards'
+    orgId: 1
+    folder: 'Lucide CRMT'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 60
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
