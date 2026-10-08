@@ -1,0 +1,43 @@
+{
+  "default_strategy": {
+    "type": "probabilistic",
+    "param": 0.1
+  },
+  "service_strategies": [
+    {
+      "service": "lucide-app",
+      "type": "probabilistic",
+      "param": 0.5
+    },
+    {
+      "service": "lucide-db",
+      "type": "probabilistic",
+      "param": 0.3
+    },
+    {
+      "service": "lucide-api",
+      "type": "probabilistic",
+      "param": 0.4
+    },
+    {
+      "service": "lucide-cache",
+      "type": "probabilistic",
+      "param": 0.2
+    },
+    {
+      "service": "transactions",
+      "type": "probabilistic",
+      "param": 0.8
+    },
+    {
+      "service": "reports",
+      "type": "probabilistic",
+      "param": 0.6
+    },
+    {
+      "service": "integrations",
+      "type": "probabilistic",
+      "param": 0.3
+    }
+  ]
+}
