@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "CRMT - Gestão Imobiliária",
+    "slug": "crmt-gestao-imobiliaria",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/crmt-icon-512.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/crmt-icon-512.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.crmt.mobile",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/crmt-icon-512.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.crmt.mobile",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/crmt-icon-512.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "crmt-gestao-imobiliaria"
+      }
+    }
+  }
+}
