@@ -1,17 +1,22 @@
+/**
+ * Detox Configuration for E2E Testing
+ * Configures test runners, simulators, and build settings for iOS and Android
+ */
+
 module.exports = {
+  testRunner: 'jest',
   apps: {
     ios: {
       type: 'ios.app',
-      binaryPath: 'artifacts/build/Release-iphonesimulator/LucideReact.app',
-      build: 'xcodebuild -workspace ios/LucideReact.xcworkspace -scheme LucideReact -configuration Release -derivedDataPath artifacts/build -quiet',
+      binaryPath: 'artifacts/ios/build/Build/Products/Release-iphonesimulator/crmt.app',
+      build: 'xcodebuild -workspace ios/crmt.xcworkspace -scheme crmt -configuration Release -derivedDataPath artifacts/ios/build -quiet -UseModernBuildSystem=YES',
     },
     android: {
-      type: 'android.emu',
-      binaryPath: 'artifacts/build/app-release.apk',
-      build: 'cd android && ./gradlew assembleRelease -DtestBuildType=release -quiet && cd ..',
+      type: 'android.apk',
+      binaryPath: 'artifacts/android/app-release.apk',
+      build: 'cd android && ./gradlew assembleRelease -DtestBuildType=release && cd ..',
     },
   },
-  testRunner: 'jest',
   configurations: {
     'ios.sim.debug': {
       device: {
@@ -21,6 +26,7 @@ module.exports = {
         },
       },
       app: 'ios',
+      testRunner: 'jest',
     },
     'ios.sim.release': {
       device: {
@@ -30,6 +36,7 @@ module.exports = {
         },
       },
       app: 'ios',
+      testRunner: 'jest',
     },
     'android.emu.debug': {
       device: {
@@ -39,6 +46,7 @@ module.exports = {
         },
       },
       app: 'android',
+      testRunner: 'jest',
     },
     'android.emu.release': {
       device: {
@@ -48,20 +56,7 @@ module.exports = {
         },
       },
       app: 'android',
-    },
-  },
-  testRunner: 'jest',
-  runnerConfig: 'artifacts/config.json',
-  apps: {
-    ios: {
-      type: 'ios.app',
-      binaryPath: 'artifacts/ios/LucideReact.app',
-      build: 'xcodebuild -workspace ios/LucideReact.xcworkspace -scheme LucideReact -configuration Release -derivedDataPath artifacts -quiet -UseModernBuildSystem=YES',
-    },
-    android: {
-      type: 'android.emu',
-      binaryPath: 'artifacts/android/app-release.apk',
-      build: 'cd android && ./gradlew assembleRelease -DtestBuildType=release && cd ..',
+      testRunner: 'jest',
     },
   },
 };
