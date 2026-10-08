@@ -18,7 +18,7 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS alertas_anomalias_registrados (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   transacao_id TEXT NOT NULL,
   usuario_id TEXT,                           -- FK para usuarios.id (NULL até resolvido)
   severidade TEXT NOT NULL DEFAULT 'media'
@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_alertas_anomalias_revisado
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS cache_metricas_anomalias (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   usuario_id TEXT,                           -- FK para usuarios.id (NULL = global)
   tipo_metrica TEXT NOT NULL
     CHECK(tipo_metrica IN ('desvio_padrao', 'iqr', 'percentil')),

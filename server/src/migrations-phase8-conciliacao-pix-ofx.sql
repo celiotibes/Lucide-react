@@ -24,13 +24,13 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS conciliacao_ofx_cache (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   valor REAL NOT NULL,
   data TEXT NOT NULL,                    -- ISO 8601 format
   descricao TEXT NOT NULL,
   conta_origem TEXT,                     -- ID da conta no Pluggy
   processado INTEGER NOT NULL DEFAULT 0, -- 0 = pendente, 1 = processado
-  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+  criado_em TEXT NOT NULL DEFAULT datetime('now'),
   atualizado_em TEXT
 );
 
@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_conciliacao_ofx_cache_processado
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS conciliacoes_pix_ofx (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   asaas_charge_id TEXT NOT NULL,         -- FK para cobrancas_asaas.id
   pluggy_ofx_id TEXT,                    -- FK para conciliacao_ofx_cache.id (NULL se pendente)
   valor_asaas REAL NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS conciliacoes_pix_ofx (
     CHECK(status IN ('reconciliado', 'pendente', 'discrepancia', 'expirado')),
   discrepancia_flag INTEGER NOT NULL DEFAULT 0,
   lancamento_razao_id TEXT,              -- FK para razao.id (NULL até criar lançamento)
-  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+  criado_em TEXT NOT NULL DEFAULT datetime('now'),
   atualizado_em TEXT,
 
   -- Uma charge só aparece uma vez (UX: impedir re-processamento)
@@ -89,7 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_conciliacao_pix_ofx_discrepancia
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS audit_conciliacao_discrepancias (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   conciliacao_id TEXT NOT NULL,
   tipo_discrepancia TEXT NOT NULL
     CHECK(tipo_discrepancia IN (
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS audit_conciliacao_discrepancias (
       'outro'
     )),
   descricao TEXT,
-  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+  criado_em TEXT NOT NULL DEFAULT datetime('now'),
 
   FOREIGN KEY (conciliacao_id) REFERENCES conciliacoes_pix_ofx(id) ON DELETE CASCADE
 );
@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_conciliacao_discrepancias_criado
 -- Por segurança, o schema vai tentar criar a tabela razao aqui se não existir:
 
 CREATE TABLE IF NOT EXISTS razao (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   conta_credito TEXT,
   conta_debito TEXT,
   valor REAL NOT NULL,
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS razao (
   status TEXT DEFAULT 'rascunho',
   referencia_id TEXT,                    -- Pode apontar para diversos tipos de doc
   conciliacao_pix_ofx_id TEXT,           -- FK para conciliacoes_pix_ofx.id
-  criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+  criado_em TEXT NOT NULL DEFAULT datetime('now'),
   atualizado_em TEXT,
 
   FOREIGN KEY (conciliacao_pix_ofx_id) REFERENCES conciliacoes_pix_ofx(id) ON DELETE SET NULL

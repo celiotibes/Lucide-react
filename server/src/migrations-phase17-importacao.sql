@@ -168,7 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_importacao_linhas_descricao
 
 -- Tabela 3: IMPORTACAO_VALIDACOES - Histórico de validações
 CREATE TABLE IF NOT EXISTS importacao_validacoes (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   linha_id TEXT NOT NULL,
   tipo_validacao TEXT NOT NULL
     CHECK(tipo_validacao IN ('data_futura', 'valor_invalido', 'campo_obrigatorio', 'formato')),
@@ -185,7 +185,7 @@ CREATE INDEX IF NOT EXISTS idx_importacao_validacoes_linha
 
 -- Tabela 4: IMPORTACAO_DEDUPLICACOES - Registro de detecções de duplicatas
 CREATE TABLE IF NOT EXISTS importacao_deduplicacoes (
-  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  id TEXT PRIMARY KEY DEFAULT lower(hex(randomblob(16))),
   linha_nova_id TEXT NOT NULL,
   linha_existente_id TEXT NOT NULL,
 

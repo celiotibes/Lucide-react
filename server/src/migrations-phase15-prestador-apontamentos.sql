@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS prestador_apontamentos_recebidos (
   valor_centavos INTEGER CHECK(valor_centavos IS NULL OR valor_centavos >= 0),
   conteudo_hash TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'recebido' CHECK(status IN ('recebido', 'conferido', 'rejeitado')),
-  recebido_em TEXT NOT NULL DEFAULT (datetime('now')),
+  recebido_em TEXT NOT NULL DEFAULT datetime('now'),
   conferido_por TEXT,
   conferido_em TEXT,
   motivo_rejeicao TEXT,
