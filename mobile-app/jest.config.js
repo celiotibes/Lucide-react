@@ -34,11 +34,12 @@ module.exports = {
     '**/__tests__/**/*.test.(ts|tsx|js)',
     '**/__tests__/**/*.spec.(ts|tsx|js)',
     '**/?(*.)(spec|test).(ts|tsx|js)',
+    '!**/__tests__/**/*.integration.test.(ts|tsx|js)',
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
     '/dist/',
-    '/__tests__/e2e/',
+    '/e2e/',
   ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

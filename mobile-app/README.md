@@ -264,17 +264,60 @@ if (!valid) {
 
 ## Testing
 
-### Run Tests
+Comprehensive testing strategy with unit, integration, and E2E tests.
+
+### Unit Tests
 
 ```bash
+# Run all unit tests
 npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Run in watch mode
+npm run test:watch
+
+# Run specific test file
+npm test -- TransactionForm.test.tsx
 ```
 
-### Test with Coverage
+### Integration Tests
 
 ```bash
-npm run test:coverage
+# Run integration tests
+npm run test:integration
 ```
+
+### E2E Tests
+
+```bash
+# Build app for E2E testing
+npm run test:e2e:build
+
+# Run E2E tests (Android)
+npm run test:e2e
+
+# Run E2E tests (iOS - macOS only)
+npm run test:e2e:ios
+
+# Run locally with debug output
+npm run test:e2e:local
+```
+
+### Coverage Reports
+
+```bash
+# Generate consolidated coverage report
+npm run test:report
+
+# View report
+open coverage/index.html
+```
+
+For detailed testing documentation, see:
+- **[E2E Setup Guide](./E2E_SETUP_GUIDE.md)** - Complete guide for E2E testing
+- **[Testing Strategy](./TESTING_STRATEGY.md)** - Testing approach and best practices
 
 ## Linting
 

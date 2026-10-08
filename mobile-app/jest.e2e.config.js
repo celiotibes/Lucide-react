@@ -6,21 +6,9 @@
 module.exports = {
   preset: 'react-native',
   testEnvironment: 'node',
-  testRunner: 'jest-circus/runner',
   testTimeout: 120000,
   reporters: [
     'default',
-    [
-      'jest-junit',
-      {
-        outputDirectory: './artifacts/e2e/reports',
-        outputName: 'e2e-results.xml',
-        classNameTemplate: '{classname} - {title}',
-        titleTemplate: '{classname} - {title}',
-        ancestorSeparator: ' › ',
-        usePathAsClassName: 'true',
-      },
-    ],
   ],
   setupFilesAfterEnv: [
     '<rootDir>/e2e/config.e2e.js',

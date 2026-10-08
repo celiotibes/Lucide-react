@@ -1,0 +1,34 @@
+{
+  "all": true,
+  "include": [
+    "src/**/*.{ts,tsx}"
+  ],
+  "exclude": [
+    "src/**/*.d.ts",
+    "src/**/__tests__/**",
+    "src/**/*.test.{ts,tsx}",
+    "src/**/*.spec.{ts,tsx}",
+    "src/App.tsx",
+    "src/index.tsx"
+  ],
+  "reporter": [
+    "text",
+    "text-summary",
+    "html",
+    "lcov",
+    "json",
+    "json-summary"
+  ],
+  "report-dir": "./coverage",
+  "temp-dir": "./.nyc_output",
+  "lines": 80,
+  "statements": 80,
+  "functions": 80,
+  "branches": 80,
+  "per-file": true,
+  "skip-full": false,
+  "produce-source-map": true,
+  "instrument": true,
+  "cache": true,
+  "check-coverage": false
+}

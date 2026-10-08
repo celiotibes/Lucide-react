@@ -1,0 +1,198 @@
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'claude/**'
+    paths:
+      - 'mobile-app/**'
+      - '.github/workflows/e2e-tests.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'mobile-app/**'
+  schedule:
+    # Run nightly E2E tests at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  e2e-android:
+    name: E2E Tests - Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'mobile-app/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+        with:
+          api-level: 30
+          arch: x86_64
+
+      - name: Create Android emulator
+        run: |
+          echo "no" | $ANDROID_SDK_ROOT/tools/bin/avdmanager create avd \
+            -n Pixel_4_API_30 \
+            -k "system-images;android;30;x86_64" \
+            -f --force
+
+      - name: Start Android emulator
+        run: |
+          $ANDROID_SDK_ROOT/emulator/emulator -avd Pixel_4_API_30 \
+            -no-window -no-boot-anim -gpu swiftshader_indirect &
+          adb wait-for-device
+          adb shell input keyevent 82
+
+      - name: Build Android app for Detox
+        working-directory: mobile-app
+        run: |
+          npm run test:e2e:build
+        env:
+          DETOX_CONFIGURATION: android.emu.release
+          GRADLE_OPTS: -Xmx2048m
+
+      - name: Run E2E tests - Android
+        working-directory: mobile-app
+        run: |
+          npm run test:e2e
+        timeout-minutes: 30
+        continue-on-error: true
+        env:
+          API_ENDPOINT: ${{ secrets.API_ENDPOINT || 'http://localhost:3000' }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL || 'test@example.com' }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD || 'testPassword123' }}
+          MOCK_MODE: 'true'
+
+      - name: Upload E2E artifacts (Android)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-android
+          path: mobile-app/artifacts/e2e
+          retention-days: 7
+
+      - name: Upload coverage reports (Android)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-coverage-android
+          path: mobile-app/artifacts/e2e/coverage
+          retention-days: 30
+
+  e2e-ios:
+    name: E2E Tests - iOS
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'mobile-app/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 'latest'
+
+      - name: Build iOS app for Detox
+        working-directory: mobile-app
+        run: |
+          npm run test:e2e:build:ios
+        env:
+          DETOX_CONFIGURATION: ios.sim.release
+
+      - name: Run E2E tests - iOS
+        working-directory: mobile-app
+        run: |
+          npm run test:e2e:ios
+        timeout-minutes: 30
+        continue-on-error: true
+        env:
+          API_ENDPOINT: ${{ secrets.API_ENDPOINT || 'http://localhost:3000' }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL || 'test@example.com' }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD || 'testPassword123' }}
+          MOCK_MODE: 'true'
+
+      - name: Upload E2E artifacts (iOS)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-ios
+          path: mobile-app/artifacts/e2e
+          retention-days: 7
+
+      - name: Upload coverage reports (iOS)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-coverage-ios
+          path: mobile-app/artifacts/e2e/coverage
+          retention-days: 30
+
+  test-summary:
+    name: E2E Test Summary
+    runs-on: ubuntu-latest
+    needs: [e2e-android, e2e-ios]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Generate test report
+        run: |
+          echo "# E2E Test Results" > test-report.md
+          echo "" >> test-report.md
+          echo "## Summary" >> test-report.md
+          echo "- Android Tests: ${{ needs.e2e-android.result }}" >> test-report.md
+          echo "- iOS Tests: ${{ needs.e2e-ios.result }}" >> test-report.md
+          echo "" >> test-report.md
+          echo "## Artifacts" >> test-report.md
+          echo "- [Android Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> test-report.md
+          echo "- [iOS Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> test-report.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('test-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
