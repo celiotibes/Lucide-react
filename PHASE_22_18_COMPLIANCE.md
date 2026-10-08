@@ -380,35 +380,68 @@ schedule.scheduleJob('0 0 * * *', async () => {
 
 ---
 
-## API Endpoints (to be implemented)
+## API Endpoints (Implemented)
 
+All endpoints are available at `/api/compliance` base path:
+
+### Tax Reporting
 ```
 POST   /api/compliance/sped-report
        Generate SPED/ECF report for period
+       Body: { startDate: ISO 8601, endDate: ISO 8601 }
+       Response: Plain text SPED format file (attachment)
+```
 
+### Data Portability & Right to Erasure
+```
 GET    /api/compliance/export-data/:userId
-       LGPD/GDPR right to portability
+       LGPD/GDPR right to portability (Article 18 LGPD, Article 20 GDPR)
+       Response: JSON with user, transactions, properties, consents
 
 POST   /api/compliance/deletion-request
-       Request right to be forgotten
+       Request right to be forgotten (Article 9 LGPD)
+       Body: { userId: string, reason: string }
+       Response: { requestId, status: 'PENDING', gracePeriod: '30 days' }
+```
 
+### Audit & Integrity
+```
 GET    /api/compliance/audit-trail
-       Retrieve audit trail with filters
+       Retrieve audit trail with optional filters (userId, action, dates)
+       Query: ?userId=...&action=...&startDate=...&endDate=...
+       Response: Filtered audit log entries with hash chain
 
 POST   /api/compliance/legal-hold
-       Place legal hold on resource
+       Place legal hold on resource (litigation support)
+       Body: { resourceId, reason, expiresAt? }
+       Response: { holdId, expiresAt }
+```
 
+### Tax Management
+```
 GET    /api/compliance/tax-obligations
-       View tax payment schedule
+       View monthly tax payment schedule
+       Query: ?year=2026
+       Response: Tax schedule with due dates and amounts
+```
 
+### Compliance Overview
+```
 GET    /api/compliance/compliance-status
-       Real-time compliance overview
-
-POST   /api/compliance/incident-report
-       Log data breach incident
+       Real-time compliance status across all areas
+       Response: Summary of audit trail, legal holds, consents, tax obligations
 
 GET    /api/compliance/certifications
-       View compliance certifications
+       View compliance certifications with expiration tracking
+       Response: Active, expiring soon, and expired certifications
+```
+
+### Incident Management
+```
+POST   /api/compliance/incident-report
+       Log data breach or security incident (LGPD Article 34)
+       Body: { type, description, affectedUsers, affectedData, riskLevel }
+       Response: { incidentId, status: 'OPEN', notificationRequired }
 ```
 
 ---
@@ -444,6 +477,23 @@ npm run compliance:check
 
 ---
 
+## Implementation Status
+
+✅ **Phase 22.18 is COMPLETE**
+
+- ✅ Compliance managers (SPED, LGPD, GDPR, Audit Trail, Tax)
+- ✅ Database schema with 11 tables + 2 views
+- ✅ Test suite with 15+ test cases
+- ✅ **NEW**: API Routes with 9 endpoints at `/api/compliance`
+- ✅ Full documentation with examples
+
+**Files Implemented:**
+- `server/src/compliance/regulatory-reporting.ts` (526 lines)
+- `server/src/routes/compliance-routes.ts` (400+ lines) — NEW
+- `server/migrations/migrations-phase22-compliance.sql` (432 lines)
+- `server/src/compliance/regulatory-reporting.test.ts` (509 lines)
+- `PHASE_22_18_COMPLIANCE.md` (500+ lines)
+
 ## Next Steps
 
 ### Phase 22.19 Dependencies
@@ -455,11 +505,13 @@ npm run compliance:check
 - Compliance metrics in Prometheus
 - Audit trail dashboards in Grafana
 - Alerting for deadline failures
+- API endpoints monitoring
 
 ### Phase 22.23 Integration
 - Disaster recovery for audit logs
 - Compliance data backup strategy
 - Incident report archival
+- Cross-region compliance replication
 
 ---
 

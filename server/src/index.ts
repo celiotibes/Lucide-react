@@ -35,6 +35,7 @@ import { criarRotasAcl } from "../src/routes/acl-routes.js";
 import { criarRotasPortal } from "../src/routes/portal-routes.js";
 import { criarRotasPrestadorApontamentos, ROTA_POST_APONTAMENTOS } from "../src/routes/prestador-apontamentos-routes.js";
 import { criarRotasLgpd } from "../src/routes/lgpd-routes.js";
+import { criarRotasCompliance } from "../src/routes/compliance-routes.js";
 import { criarRotasCarimbo } from "../src/routes/carimbo-routes.js";
 import { criarRotasPluggyMeu } from "../src/routes/pluggy-meu-routes.js";
 import { criarRotasTelegram } from "../src/routes/telegram-routes.js";
@@ -364,6 +365,14 @@ app.use("/api/prestador/apontamentos", criarRotasPrestadorApontamentos({ authSer
 /** Direitos do titular (LGPD): acesso aos próprios dados, trilha de acessos e anonimização da conta.
  * Operam sempre e só sobre o usuário autenticado; permitidas a papéis externos. */
 app.use("/api/lgpd", criarRotasLgpd({ authService, auditService, db }));
+
+/** Phase 22.18: Compliance & Regulatory Reporting
+ * Multi-jurisdiction compliance for CRMT accounting system:
+ * - SPED/ECF (Brazilian tax filing)
+ * - LGPD (Brazilian data protection) and GDPR (European compliance)
+ * - Audit trail with tamper detection and legal hold
+ * - Tax compliance and reporting */
+app.use("/api/compliance", criarRotasCompliance({ db }));
 
 /** Carimbo de tempo RFC 3161 do selo de encerramento (o navegador não alcança a TSA por CORS). */
 app.use("/api/carimbo-tempo", criarRotasCarimbo({ authService }));
