@@ -67,6 +67,7 @@ function securityHeadersMiddleware(): Connect.NextHandleFunction {
 // - Target: main.js < 500KB gzip, vendor chunks lazy-loaded
 
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     VitePWA({
