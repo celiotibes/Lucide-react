@@ -4,7 +4,7 @@
   "author": "CRMT Team <team@crmt.app>",
   "private": true,
   "version": "1.0.0",
-  "main": "electron.js",
+  "main": "electron.cjs",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -17,14 +17,14 @@
       "output": "dist"
     },
     "files": [
-      "electron.js",
-      "preload.js",
+      "electron.cjs",
+      "preload.cjs",
       "dist/**/*",
       "server/**/*",
       "package.json"
     ],
     "extraMetadata": {
-      "main": "electron.js"
+      "main": "electron.cjs"
     },
     "win": {
       "target": [

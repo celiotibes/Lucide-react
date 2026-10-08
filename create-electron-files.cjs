@@ -17,7 +17,7 @@ const createWindow = () => {
     minWidth: 800,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
     },
@@ -87,8 +87,8 @@ contextBridge.exposeInMainWorld('electron', {
   appVersion: process.env.npm_package_version,
 });`;
 
-const electronPath = path.join(rootDir, 'electron.js');
-const preloadPath = path.join(rootDir, 'preload.js');
+const electronPath = path.join(rootDir, 'electron.cjs');
+const preloadPath = path.join(rootDir, 'preload.cjs');
 
 fs.writeFileSync(electronPath, electronCode);
 fs.writeFileSync(preloadPath, preloadCode);

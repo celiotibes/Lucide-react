@@ -39,5 +39,5 @@ dist-ssr
 .claude/
 
 # Electron main process files (generated during build)
-/electron.js
-/preload.js
+/electron.cjs
+/preload.cjs
