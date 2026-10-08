@@ -1,0 +1,108 @@
+# ============================================================================
+# Lucide CRMT - Staging Environment Values
+# ============================================================================
+# Intermediate environment between development and production
+# Uses production-like settings but with relaxed resource constraints
+
+replicaCount: 2
+
+image:
+  tag: "22.21"
+  pullPolicy: IfNotPresent
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 85
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  hosts:
+    - host: accounting-staging.your-domain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: lucide-tls-staging
+      hosts:
+        - accounting-staging.your-domain.com
+
+resources:
+  requests:
+    cpu: 300m
+    memory: 256Mi
+  limits:
+    cpu: 600m
+    memory: 512Mi
+
+env:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  DATABASE_TYPE: "postgresql"
+  CORS_CREDENTIALS: "true"
+  SENTRY_ENVIRONMENT: "staging"
+  SENTRY_RELEASE: "22.21"
+
+secrets:
+  create: false
+  existingSecret: lucide-secret-staging
+
+persistence:
+  enabled: true
+  storageClass: "standard"
+  size: 20Gi
+
+networkPolicy:
+  enabled: true
+
+database:
+  enabled: true
+  type: "postgresql"
+  postgresql:
+    enabled: true
+    auth:
+      username: "lucide_user"
+      password: "staging-db-password"
+      database: "lucide_crmt"
+    primary:
+      persistence:
+        enabled: true
+        size: 50Gi
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"  # Daily at 3 AM UTC
+  retention: 14
+  size: "10Gi"
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false  # Disable Prometheus monitoring in staging
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+affinity:
+  podAntiAffinity: "preferred"
+
+terminationGracePeriodSeconds: 45
+
+livenessProbe:
+  initialDelaySeconds: 20
+  periodSeconds: 15
+
+readinessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 8
