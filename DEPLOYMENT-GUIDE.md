@@ -163,6 +163,90 @@ volumes:
 - **Location**: lucide-backups volume
 - **Retention**: 30 days (adjustable)
 
+## Cloud Database Configuration (Phase 21)
+
+CRMT supports both **SQLite** (development/small deployments) and **PostgreSQL** (production/cloud).
+
+### When to Use PostgreSQL
+
+- **Production deployments** with 100+ transactions/day
+- **High availability** requirements (multi-region, failover)
+- **Team collaboration** (multiple concurrent users)
+- **Scaling requirements** (automatic storage scaling)
+- **Compliance** (encryption, audit logs, backups)
+
+### Quick Start: PostgreSQL on Cloud
+
+#### 1. Choose Your Provider
+
+| Provider | Recommended For | Setup Time | Cost |
+|----------|----------------|-----------|------|
+| **AWS RDS Aurora** | Highest availability, auto-scaling | 10 min | $15-100/month |
+| **Azure Database** | Enterprise Azure deployments | 8 min | $20-150/month |
+| **Google Cloud SQL** | GCP infrastructure | 8 min | $10-80/month |
+| **Managed PostgreSQL** (Any cloud) | Standard PostgreSQL | 10 min | Varies |
+
+#### 2. Create Database
+
+**AWS RDS Aurora (Recommended)**:
+```bash
+# AWS Console → RDS → Create Database → Aurora PostgreSQL
+# Configuration:
+# - Engine: PostgreSQL 15+
+# - Instance: db.t3.small (dev) or db.r5.large (prod)
+# - Multi-AZ: Yes (production)
+# - Backup: 30 days retention
+```
+
+**Azure Database**:
+```bash
+# Azure Portal → Create Resource → Azure Database for PostgreSQL
+# Configuration:
+# - Compute: Standard_B2s (dev) or Standard_D2s_v3 (prod)
+# - Storage: 32 GB minimum
+# - High Availability: Enable for production
+```
+
+**Google Cloud SQL**:
+```bash
+# Google Cloud Console → SQL → Create Instance → PostgreSQL 15+
+# Configuration:
+# - Machine Type: db-f1-micro (dev) or db-n1-standard-2 (prod)
+# - HA: Enable for production
+# - Private IP: Enable for security
+```
+
+#### 3. Configure Connection
+
+**Update .env**:
+```bash
+# SQLite → PostgreSQL migration
+DATABASE_URL=postgresql://user:password@host:5432/database_name
+
+# Connection pooling (recommended)
+DATABASE_POOL_SIZE=20
+DATABASE_POOL_IDLE_TIMEOUT=30000
+
+# SSL (required for cloud)
+DATABASE_SSL=require
+DATABASE_SSL_REJECT_UNAUTHORIZED=true
+```
+
+#### 4. Run Migrations
+
+```bash
+# Test connection
+npm run db:check
+
+# Apply schema
+npm run migrate:up
+
+# Verify data
+npm run db:verify
+```
+
+For complete setup instructions, see **[CLOUD-DATABASE.md](./CLOUD-DATABASE.md)**.
+
 ## Setup Wizard API Reference
 
 ### Endpoints
@@ -385,6 +469,206 @@ docker-compose logs backup
 - Check backup retention settings in Setup Wizard
 - Manually delete old backups if needed
 - Reconfigure lower retention period
+
+## Production Deployment Checklist
+
+### Pre-Deployment
+
+Database:
+- [ ] Cloud PostgreSQL database created (AWS RDS Aurora, Azure, or Google Cloud SQL)
+- [ ] Multi-AZ enabled for high availability
+- [ ] Automated backups configured (30+ day retention)
+- [ ] Read replicas created for load distribution (optional)
+- [ ] Connection pooling configured (PgBouncer or node-postgres)
+- [ ] SSL/TLS certificates verified
+- [ ] Database credentials stored in secrets manager (AWS Secrets Manager, Azure Key Vault, etc.)
+- [ ] Application user created with least-privilege grants
+
+Credentials & Secrets:
+- [ ] All API keys encrypted with ENCRYPTION_MASTER_SECRET
+- [ ] AWS/Azure/GCP credentials in secrets manager (not in .env)
+- [ ] Database password changed from default
+- [ ] Backup encryption keys securely stored
+- [ ] API_KEY and SESSION_SECRET regenerated for production
+
+Backups:
+- [ ] Local backup directory configured with adequate disk space
+- [ ] Cloud backup location verified (AWS S3, Azure Blob, Google Cloud Storage)
+- [ ] Backup retention policy set (30+ days recommended)
+- [ ] Backup restoration tested successfully
+- [ ] Backup monitoring alerts configured
+
+Monitoring:
+- [ ] CloudWatch/Azure Monitor/Google Cloud Monitoring configured
+- [ ] Database connection pool monitoring enabled
+- [ ] Slow query logging enabled
+- [ ] Error tracking (Sentry) configured
+- [ ] Performance baselines established
+
+Security:
+- [ ] Firewall rules restrict database access to app servers only
+- [ ] SSL/TLS enabled on all connections
+- [ ] Private endpoint used for cloud databases (VPC peering/Private Link)
+- [ ] Database audit logging enabled
+- [ ] CORS configuration verified
+- [ ] Security headers configured (HSTS, CSP, etc.)
+
+### Deployment Steps
+
+1. **Test Database Connection**
+   ```bash
+   # Verify PostgreSQL connection from app server
+   psql $DATABASE_URL -c "SELECT VERSION();"
+   
+   # Check connection pool
+   curl http://localhost:3000/api/health
+   ```
+
+2. **Run Migrations**
+   ```bash
+   # Apply schema and seed data
+   npm run migrate:up
+   npm run seed:production
+   ```
+
+3. **Verify Data Integrity**
+   ```bash
+   # Count tables and rows
+   npm run db:verify
+   
+   # Check query performance
+   npm run db:analyze
+   ```
+
+4. **Test Backups**
+   ```bash
+   # Create manual backup
+   npm run backup:create
+   
+   # Verify backup
+   npm run backup:verify
+   
+   # Test restoration
+   npm run backup:test-restore
+   ```
+
+5. **Monitor Initial Traffic**
+   ```bash
+   # Watch database metrics during first 1-2 hours
+   # Check:
+   # - Connection count
+   # - Query latency (p50, p95, p99)
+   # - Error rates
+   # - CPU/memory utilization
+   ```
+
+6. **Gradual Rollout** (Recommended)
+   ```bash
+   # Route 10% traffic to new PostgreSQL instance
+   # Monitor for 1 hour
+   # Route 50% traffic
+   # Monitor for 2 hours
+   # Route 100% traffic
+   ```
+
+### Post-Deployment Monitoring
+
+**First 24 hours**:
+- Database connection health
+- Query performance (latency, throughput)
+- Backup status
+- Error rates and types
+- Storage growth rate
+
+**Ongoing**:
+- Weekly: Review slow queries and add indexes
+- Monthly: Analyze storage growth and adjust retention
+- Quarterly: Load test and capacity planning
+- Annually: Disaster recovery drill
+
+### Performance Targets
+
+| Metric | Target | Action if Exceeded |
+|--------|--------|------------------|
+| P99 Query Latency | < 100ms | Add indexes, check slow queries |
+| Connection Pool | < 90% utilized | Increase pool size or use PgBouncer |
+| Cache Hit Ratio | > 99% | Increase memory or optimize queries |
+| Disk Usage | < 80% | Implement retention policy |
+| Backup Duration | < 1 hour | Use pg_dump in parallel mode |
+
+### Database Migration from SQLite to PostgreSQL
+
+If migrating existing data:
+
+1. **Backup SQLite**
+   ```bash
+   cp data/app.db data/app.db.backup.$(date +%Y%m%d)
+   ```
+
+2. **Export and Import**
+   ```bash
+   # Option A: Use pgloader (automated)
+   npx pgloader sqlite:///data/app.db postgresql://user:pass@host/crmt_prod
+   
+   # Option B: Manual export/import
+   sqlite3 data/app.db .schema > schema.sql
+   psql $DATABASE_URL < schema.sql
+   sqlite3 -header -csv data/app.db "SELECT * FROM users;" > users.csv
+   psql $DATABASE_URL -c "COPY users FROM STDIN CSV HEADER;" < users.csv
+   ```
+
+3. **Verify Migration**
+   ```bash
+   # Compare row counts
+   sqlite3 data/app.db "SELECT COUNT(*) FROM users;"
+   psql $DATABASE_URL -c "SELECT COUNT(*) FROM users;"
+   ```
+
+4. **Switch Connection**
+   ```bash
+   # Update .env
+   sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql://....|' .env
+   
+   # Restart app
+   npm run dev
+   ```
+
+5. **Monitor Migration**
+   - Check for data anomalies
+   - Monitor query performance
+   - Verify all features work as expected
+   - Keep SQLite backup for 30+ days
+
+### Rollback Procedure
+
+If critical issues after PostgreSQL migration:
+
+1. **Stop Application**
+   ```bash
+   docker-compose down  # or equivalent
+   ```
+
+2. **Restore SQLite Backup**
+   ```bash
+   cp data/app.db.backup data/app.db
+   ```
+
+3. **Revert Connection String**
+   ```bash
+   # .env
+   DATABASE_URL=file:./data/app.db
+   ```
+
+4. **Restart Application**
+   ```bash
+   docker-compose up -d  # or equivalent
+   ```
+
+5. **Post-Mortem**
+   - Analyze logs for root cause
+   - Fix issues in isolated environment
+   - Re-test migrations with larger dataset
+   - Document lessons learned
 
 ## Next Steps
 
