@@ -37,6 +37,10 @@ export type DocumentsStackParamList = {
   DocumentCreate: undefined;
   DocumentEdit: { documentId: string };
   OCRProcess: { documentId?: string };
+  CaptureDocument: undefined;
+  ReprocessDocument: { documentId: string };
+  ConflictResolution: { conflictId: string };
+  SyncDetails: undefined;
 };
 
 export type DocumentsStackScreenProps<T extends keyof DocumentsStackParamList> =
@@ -105,6 +109,10 @@ export const DocumentsRoutes = {
   Create: 'DocumentCreate',
   Edit: 'DocumentEdit',
   OCRProcess: 'OCRProcess',
+  Capture: 'CaptureDocument',
+  Reprocess: 'ReprocessDocument',
+  Conflict: 'ConflictResolution',
+  SyncDetails: 'SyncDetails',
 } as const;
 
 export const TransactionsRoutes = {

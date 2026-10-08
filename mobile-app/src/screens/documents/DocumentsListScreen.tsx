@@ -310,7 +310,7 @@ export const DocumentsListScreen: React.FC = () => {
       <FAB
         icon="plus"
         style={styles.fab}
-        onPress={() => navigation.navigate('CaptureDocument')}
+        onPress={() => navigation.navigate('CaptureDocument' as any)}
         label="Capture"
       />
     </View>

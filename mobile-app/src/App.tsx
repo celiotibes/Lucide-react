@@ -20,9 +20,16 @@ import { logger } from '@/utils/logger';
 // Screens
 import { SetupWizardScreen, LoginScreen } from '@/screens/auth';
 import { DashboardHomeScreen } from '@/screens/dashboard/DashboardHomeScreen';
-import { DocumentsListScreen } from '@/screens/documents/DocumentsListScreen';
 import { TransactionsListScreen } from '@/screens/transactions/TransactionsListScreen';
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
+
+// Components
+import { NetworkStatusIndicator } from '@/components/NetworkStatusIndicator';
+import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
+
+// Navigation
+import { DocumentsStackNavigator } from '@/navigation/DocumentsStackNavigator';
+import { linking } from '@/navigation/navigationUtils';
 
 // Types
 import type {
@@ -58,62 +65,69 @@ const AuthNavigator = () => {
  */
 const MainNavigator = () => {
   return (
-    <MainStack.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: true,
-        tabBarIcon: ({ color, size }) => {
-          const icons: Record<string, string> = {
-            Dashboard: 'dashboard',
-            Documents: 'insert-drive-file',
-            Transactions: 'payment',
-            Settings: 'settings',
-          };
+    <>
+      <NetworkStatusIndicator />
+      <MainStack.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: true,
+          tabBarIcon: ({ color, size }) => {
+            const icons: Record<string, string> = {
+              Dashboard: 'dashboard',
+              Documents: 'insert-drive-file',
+              Transactions: 'payment',
+              Settings: 'settings',
+            };
 
-          return (
-            <MaterialIcons
-              name={icons[route.name] || 'home'}
-              size={size}
-              color={color}
-            />
-          );
-        },
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#999',
-      })}
-    >
-      <MainStack.Screen
-        name="Dashboard"
-        component={DashboardHomeScreen}
-        options={{
-          title: 'Dashboard',
-          tabBarLabel: 'Dashboard',
-        }}
-      />
-      <MainStack.Screen
-        name="Documents"
-        component={DocumentsListScreen}
-        options={{
-          title: 'Documents',
-          tabBarLabel: 'Documents',
-        }}
-      />
-      <MainStack.Screen
-        name="Transactions"
-        component={TransactionsListScreen}
-        options={{
-          title: 'Transactions',
-          tabBarLabel: 'Transactions',
-        }}
-      />
-      <MainStack.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          title: 'Settings',
-          tabBarLabel: 'Settings',
-        }}
-      />
-    </MainStack.Navigator>
+            return (
+              <MaterialIcons
+                name={icons[route.name] || 'home'}
+                size={size}
+                color={color}
+              />
+            );
+          },
+          tabBarActiveTintColor: '#007AFF',
+          tabBarInactiveTintColor: '#999',
+        })}
+      >
+        <MainStack.Screen
+          name="Dashboard"
+          component={DashboardHomeScreen}
+          options={{
+            title: 'Dashboard',
+            tabBarLabel: 'Dashboard',
+            headerRight: () => <SyncStatusIndicator />,
+          }}
+        />
+        <MainStack.Screen
+          name="Documents"
+          component={DocumentsStackNavigator}
+          options={{
+            title: 'Documents',
+            tabBarLabel: 'Documents',
+            headerShown: false,
+          }}
+        />
+        <MainStack.Screen
+          name="Transactions"
+          component={TransactionsListScreen}
+          options={{
+            title: 'Transactions',
+            tabBarLabel: 'Transactions',
+            headerRight: () => <SyncStatusIndicator />,
+          }}
+        />
+        <MainStack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+            title: 'Settings',
+            tabBarLabel: 'Settings',
+            headerShown: true,
+          }}
+        />
+      </MainStack.Navigator>
+    </>
   );
 };
 
@@ -219,12 +233,14 @@ const RootNavigator = () => {
  * Main App Component
  */
 const App: React.FC = () => {
+  const navigationRef = React.useRef(null);
+
   return (
     <PaperProvider>
       <DatabaseProvider>
         <AuthProvider>
           <SyncInitializer>
-            <NavigationContainer>
+            <NavigationContainer ref={navigationRef} linking={linking}>
               <RootNavigator />
             </NavigationContainer>
           </SyncInitializer>
