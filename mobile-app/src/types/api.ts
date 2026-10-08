@@ -27,6 +27,35 @@ export interface PaginatedResponse<T> {
   };
 }
 
+// Sync and Conflict Resolution
+export interface SyncConflict {
+  entityType: 'document' | 'transaction' | 'property';
+  entityId: string;
+  local: any;
+  remote: any;
+  resolvedAt?: string;
+  resolution?: 'local' | 'remote' | 'merged';
+}
+
+export interface SyncStatus {
+  isSyncing: boolean;
+  lastSyncTime?: number;
+  pendingChanges: number;
+  conflicts: number;
+  syncProgress: number;
+}
+
+export interface HealthCheckResponse {
+  status: 'ok' | 'degraded' | 'error';
+  version: string;
+  timestamp: string;
+  services: {
+    database: 'ok' | 'error';
+    auth: 'ok' | 'error';
+    storage: 'ok' | 'error';
+  };
+}
+
 // Authentication APIs
 export interface LoginRequest {
   email: string;
