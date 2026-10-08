@@ -53,6 +53,7 @@ import { criarRotasAsaasPixProativo } from "../src/routes/asaas-pagamentos-pix-r
 import { criarRotasAgentesEconomicos } from "../src/routes/agentes-economicos-routes.js";
 import { iniciarScannerAnomaliasDiario } from "./lembretes-dispatcher.js";
 import { criarRotasBackup } from "../src/routes/backup-routes.js";
+import { criarRotasSetupWizard } from "../src/routes/setup-wizard-routes.js";
 // Phase 13: Backup Scheduler — agendamento periódico de backups
 import BackupService from "../src/services/backup-service.js";
 import BackupScheduler from "../src/services/backup-scheduler.js";
@@ -107,6 +108,8 @@ const envSchema = z.object({
   BACKUP_FISCAL_RETENTION_DAYS: z.string().optional(),
   NAS_PATH: z.string().optional(),
   NAS_COPY_ENABLED: z.string().optional(),
+  // Fase 21: Setup Wizard — criptografia de credenciais sensíveis
+  ENCRYPTION_MASTER_SECRET: z.string().optional(),
 });
 
 // Parse e validação de variáveis de ambiente no boot
@@ -152,6 +155,17 @@ if (cookieCrossSiteAtivo() && ORIGENS_CORS.length === 0) {
 // Phase 2: Initialize database and services on startup
 logger.info("[Server] Initializing database...");
 const db = initializeDatabase();
+
+// Fase 21: Initialize credential encryption service
+import { initializeEncryptionService } from "./services/credential-encryption.js";
+const masterSecret = envVars.ENCRYPTION_MASTER_SECRET || envVars.API_KEY || "default-master-secret";
+try {
+  initializeEncryptionService(masterSecret);
+  logger.info("[Server] Credential encryption service initialized");
+} catch (error) {
+  logger.error("[Server] Failed to initialize credential encryption service:", error);
+  throw error;
+}
 
 // Create singleton service instances
 const authService = new AuthServiceDB(db);
@@ -298,6 +312,16 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 }));
  * bootstrap) e herdam a mesma política de CORS já configurada acima —
  * nenhuma configuração de CORS adicional é feita para elas. */
 app.use("/api/auth", criarRotasAuth({ authService, auditService, permissoesService }));
+
+/** Setup Wizard — Fase 21: Configuração inicial da aplicação
+ * POST   /api/setup-wizard/initialize — inicia assistente para nova plataforma
+ * POST   /api/setup-wizard/:configId/step/:stepId — submete etapa com validação
+ * GET    /api/setup-wizard/step/:stepId — obtém configuração da etapa
+ * POST   /api/setup-wizard/:configId/complete — completa o assistente
+ * GET    /api/setup-wizard/:configId/config — revisa configuração completa
+ * GET    /api/setup-wizard/:configId/audit — histórico de auditoria
+ * GET    /api/setup-wizard/status/:platform — verifica status de setup */
+app.use("/api/setup-wizard", criarRotasSetupWizard({ db }));
 
 /** Inbox de eventos externos (webhook da Asaas, captura do bot do Telegram) — ver
  * eventos-externos-routes.ts/eventos-externos-db.ts. O cliente consome por polling
