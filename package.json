@@ -6,10 +6,46 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
+  "build": {
+    "appId": "com.lucidereact.crmt",
+    "productName": "CRMT - Gestão Imobiliária",
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "files": [
+      "dist/**/*",
+      "server/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/crmt-icon-512.png",
+      "certificateFile": "${WINDOWS_CERTIFICATE_FILE}",
+      "certificatePassword": "${WINDOWS_CERTIFICATE_PASSWORD}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "assets/crmt-icon-512.png",
+      "uninstallerIcon": "assets/crmt-icon-512.png"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:typecheck": "tsc -b && vite build",
+    "build:electron": "electron-builder -m --publish=never",
+    "build:electron:publish": "electron-builder -m --publish=always",
+    "build:windows": "electron-builder -w --publish=never",
+    "build:windows:publish": "electron-builder -w --publish=always",
+    "build:all": "electron-builder -mw --publish=never",
+    "build:all:publish": "electron-builder -mw --publish=always",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -66,6 +102,8 @@
     "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^5.1.2",
     "better-sqlite3": "^9.6.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.9.1",
     "eslint": "^9.39.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.0",
