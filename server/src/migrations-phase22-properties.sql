@@ -22,7 +22,7 @@
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS propriedades (
-  id UUID PRIMARY KEY,
+  id TEXT PRIMARY KEY,
 
   -- Property identification
   nome TEXT NOT NULL,
@@ -44,25 +44,25 @@ CREATE TABLE IF NOT EXISTS propriedades (
   descricao TEXT,
 
   -- Financial data
-  valor_aquisicao DECIMAL(15, 2) NOT NULL,
+  valor_aquisicao REAL NOT NULL,
   data_aquisicao DATE NOT NULL,
   data_venda DATE,
-  valor_venda DECIMAL(15, 2),
+  valor_venda REAL,
 
   -- Depreciation configuration
   metodo_depreciacao TEXT NOT NULL DEFAULT 'linear' CHECK (metodo_depreciacao IN ('linear', 'exponencial')),
-  taxa_depreciacao DECIMAL(5, 2) NOT NULL DEFAULT 0.05,
+  taxa_depreciacao REAL NOT NULL DEFAULT 0.05,
   vida_util_anos INTEGER DEFAULT 27,
-  valor_residual DECIMAL(15, 2),
+  valor_residual REAL,
 
   -- Status tracking
-  ativo TINYINT NOT NULL DEFAULT 1,
+  ativo INTEGER NOT NULL DEFAULT 1,
   criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   -- Audit trail
-  criado_por UUID NOT NULL,
-  atualizado_por UUID,
+  criado_por TEXT NOT NULL,
+  atualizado_por TEXT,
 
   FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
   FOREIGN KEY (atualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
@@ -80,23 +80,23 @@ CREATE INDEX IF NOT EXISTS idx_propriedades_cidade ON propriedades(cidade, estad
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS propriedades_custos (
-  id UUID PRIMARY KEY,
-  propriedade_id UUID NOT NULL,
+  id TEXT PRIMARY KEY,
+  propriedade_id TEXT NOT NULL,
 
   -- Cost details
   descricao TEXT NOT NULL,
   tipo_custo TEXT NOT NULL CHECK (tipo_custo IN ('reforma', 'manutencao', 'imposto', 'seguro', 'administrativo', 'outro')),
   categoria_contabil TEXT,
-  valor DECIMAL(15, 2) NOT NULL,
+  valor REAL NOT NULL,
   data_custo DATE NOT NULL,
 
   -- Allocation
-  percentual_alocacao DECIMAL(5, 2) NOT NULL DEFAULT 100.00,
+  percentual_alocacao REAL NOT NULL DEFAULT 100.00,
   observacoes TEXT,
 
   -- Audit
   criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  criado_por UUID NOT NULL,
+  criado_por TEXT NOT NULL,
 
   FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
   FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE RESTRICT
@@ -113,8 +113,8 @@ CREATE INDEX IF NOT EXISTS idx_propriedades_custos_periodo ON propriedades_custo
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS propriedades_depreciacao (
-  id UUID PRIMARY KEY,
-  propriedade_id UUID NOT NULL,
+  id TEXT PRIMARY KEY,
+  propriedade_id TEXT NOT NULL,
 
   -- Calculation period
   ano INTEGER NOT NULL,
@@ -122,18 +122,18 @@ CREATE TABLE IF NOT EXISTS propriedades_depreciacao (
   data_calculo DATE NOT NULL,
 
   -- Depreciation values
-  valor_inicial DECIMAL(15, 2) NOT NULL,
-  valor_depreciacao DECIMAL(15, 2) NOT NULL,
-  valor_residual DECIMAL(15, 2) NOT NULL,
+  valor_inicial REAL NOT NULL,
+  valor_depreciacao REAL NOT NULL,
+  valor_residual REAL NOT NULL,
   metodo_aplicado TEXT NOT NULL CHECK (metodo_aplicado IN ('linear', 'exponencial')),
-  taxa_aplicada DECIMAL(5, 2) NOT NULL,
+  taxa_aplicada REAL NOT NULL,
 
   -- Accumulated
-  depreciacao_acumulada DECIMAL(15, 2) NOT NULL,
+  depreciacao_acumulada REAL NOT NULL,
 
   -- Audit
   calculado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  calculado_por UUID,
+  calculado_por TEXT,
 
   FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
   FOREIGN KEY (calculado_por) REFERENCES usuarios(id) ON DELETE SET NULL
@@ -150,8 +150,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_propriedades_depreciacao_unico ON propried
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS propriedades_roi (
-  id UUID PRIMARY KEY,
-  propriedade_id UUID NOT NULL,
+  id TEXT PRIMARY KEY,
+  propriedade_id TEXT NOT NULL,
 
   -- Period analysis
   data_inicio DATE NOT NULL,
@@ -159,26 +159,26 @@ CREATE TABLE IF NOT EXISTS propriedades_roi (
   dias_periodo INTEGER NOT NULL,
 
   -- Investment & Returns
-  valor_investimento_total DECIMAL(15, 2) NOT NULL,
-  custos_totais DECIMAL(15, 2) NOT NULL,
-  receitas_totais DECIMAL(15, 2) NOT NULL,
-  lucro_liquido DECIMAL(15, 2) NOT NULL,
+  valor_investimento_total REAL NOT NULL,
+  custos_totais REAL NOT NULL,
+  receitas_totais REAL NOT NULL,
+  lucro_liquido REAL NOT NULL,
 
   -- ROI metrics
-  roi_percentual DECIMAL(8, 2) NOT NULL,
-  roi_anualizado DECIMAL(8, 2) NOT NULL,
-  valor_propriedade_atual DECIMAL(15, 2) NOT NULL,
-  ganho_valorizacao DECIMAL(15, 2),
-  ganho_valorizacao_percentual DECIMAL(8, 2),
+  roi_percentual REAL NOT NULL,
+  roi_anualizado REAL NOT NULL,
+  valor_propriedade_atual REAL NOT NULL,
+  ganho_valorizacao REAL,
+  ganho_valorizacao_percentual REAL,
 
   -- Performance
   payback_meses INTEGER,
-  taxa_retorno_anual DECIMAL(8, 2),
-  indice_lucratividade DECIMAL(8, 4),
+  taxa_retorno_anual REAL,
+  indice_lucratividade REAL,
 
   -- Audit
   calculado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  calculado_por UUID,
+  calculado_por TEXT,
 
   FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
   FOREIGN KEY (calculado_por) REFERENCES usuarios(id) ON DELETE SET NULL
