@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS importacao_linhas (
 
   -- Dados estruturados (extraídos/parseados)
   data_transacao              DATE,                           -- Data da transação
-  valor                       DECIMAL(12, 2),                 -- Valor da transação
+  valor                       REAL,                           -- Valor da transação
   descricao                   TEXT,                           -- Descrição/histórico
   tipo_operacao               TEXT,                           -- débito, crédito, etc
   categoria                   TEXT,                           -- Categoria opcional

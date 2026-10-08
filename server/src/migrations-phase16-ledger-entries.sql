@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
       'juros'
     )
   ),
-  valor DECIMAL(12, 2) NOT NULL CHECK(valor > 0),
+  valor REAL NOT NULL CHECK(valor > 0),
   descricao TEXT,
   referencia_externa TEXT, -- ID externo para rastreamento (ex: cobranca_id)
   usuario_id TEXT, -- Quem lançou a entrada
