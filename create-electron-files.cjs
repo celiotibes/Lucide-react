@@ -1,11 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const distDir = path.join(__dirname, 'dist');
-
-if (!fs.existsSync(distDir)) {
-  fs.mkdirSync(distDir, { recursive: true });
-}
+const rootDir = __dirname;
 
 const electronCode = `const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
@@ -91,12 +87,12 @@ contextBridge.exposeInMainWorld('electron', {
   appVersion: process.env.npm_package_version,
 });`;
 
-const electronPath = path.join(distDir, 'electron.js');
-const preloadPath = path.join(distDir, 'preload.js');
+const electronPath = path.join(rootDir, 'electron.js');
+const preloadPath = path.join(rootDir, 'preload.js');
 
 fs.writeFileSync(electronPath, electronCode);
 fs.writeFileSync(preloadPath, preloadCode);
 
-console.log('✓ Electron main files created');
+console.log('✓ Electron main files created at root');
 console.log(`  - ${electronPath}`);
 console.log(`  - ${preloadPath}`);

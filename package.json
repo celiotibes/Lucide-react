@@ -17,6 +17,8 @@
       "output": "dist"
     },
     "files": [
+      "electron.js",
+      "preload.js",
       "dist/**/*",
       "server/**/*",
       "package.json"
